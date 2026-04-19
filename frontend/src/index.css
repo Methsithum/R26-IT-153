@@ -1,1 +1,24 @@
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=DM+Sans:wght@400;500;700&display=swap');
+@import 'tailwindcss';
+
+@theme {
+	--font-cinzel: 'Cinzel', serif;
+	--font-dm: 'DM Sans', sans-serif;
+
+	--color-rpg-navy: #0b1220;
+	--color-rpg-charcoal: #111827;
+	--color-rpg-gold: #f59e0b;
+	--color-rpg-amber: #fbbf24;
+}
+
+:root {
+	color-scheme: dark;
+}
+
+body {
+	font-family: var(--font-dm);
+}
+
+.font-cinzel {
+	font-family: var(--font-cinzel);
+}
