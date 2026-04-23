@@ -1,18 +1,19 @@
-# test_webcam.py - 100% Working
+# test_webcam.py - Real-time student engagement detection
 
 import cv2
 import joblib
 import json
 import os
+import numpy as np
 
 print("=" * 60)
-print("STEP 3: Testing with Webcam")
+print("STEP 3: Testing with Webcam (Real-Time Detection)")
 print("=" * 60)
 
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODELS_DIR = os.path.join(BACKEND_DIR, 'trained-models')
 
-# Load model
+# Load trained model
 model_path = os.path.join(MODELS_DIR, 'focus_rescue_model.pkl')
 label_path = os.path.join(MODELS_DIR, 'label_names.json')
 
@@ -30,7 +31,7 @@ print("📸 Starting webcam... Press 'q' to quit")
 cap = cv2.VideoCapture(0)
 
 if not cap.isOpened():
-    print("❌ Webcam not found! Please check your camera.")
+    print("❌ Webcam not found!")
     exit()
 
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
@@ -48,6 +49,7 @@ while True:
         face_resized = cv2.resize(face, (50, 50))
         features = face_resized.flatten().reshape(1, -1)
         
+        # Make prediction (no scaling needed - model was trained without scaler)
         prediction = model.predict(features)[0]
         state = label_names.get(str(prediction), "UNKNOWN")
         
@@ -63,8 +65,14 @@ while True:
         
         cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
         cv2.putText(frame, state, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+        
+        # Show confidence on screen
+        probs = model.predict_proba(features)[0]
+        max_prob = max(probs) * 100
+        cv2.putText(frame, f"Confidence: {max_prob:.1f}%", (x, y+h+20), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
     
-    cv2.imshow('Focus Rescue - Real-Time Detection', frame)
+    cv2.imshow('Focus Rescue - Real-Time Detection (Improved)', frame)
     
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
