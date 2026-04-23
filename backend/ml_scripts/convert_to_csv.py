@@ -117,45 +117,69 @@ def convert_emotion_dataset():
 def convert_engagement_dataset():
     print("\n📂 Processing ENGAGEMENT Dataset...")
     
-    excel_path = os.path.join(DATASETS_DIR, 'engagement_dataset', 'online_learning_engagement_cleaned.xls')
+    engagement_dir = os.path.join(DATASETS_DIR, 'engagement_dataset')
     
-    if os.path.exists(excel_path):
-        df = pd.read_excel(excel_path)
-        print(f"   ✅ Loaded {len(df)} records from Excel")
-        print(f"   📊 Columns: {df.columns.tolist()}")
-        
-        # Create engagement score and map to labels
-        if 'engagement_metrics' in df.columns:
-            df['engagement_score'] = df['engagement_metrics']
-        else:
-            # Calculate engagement score from available columns
-            score_cols = ['login_frequency', 'study_hours', 'quiz_scores']
-            available = [c for c in score_cols if c in df.columns]
-            if available:
-                df['engagement_score'] = df[available].mean(axis=1)
-            else:
-                df['engagement_score'] = 0.5
-        
-        # Map to labels
-        labels = []
-        for score in df['engagement_score']:
-            if score > 70:
-                labels.append(0)    # Focused
-            elif score > 40:
-                labels.append(2)    # Anxiety
-            else:
-                labels.append(3)    # Boredom
-        
-        df['label'] = labels
-        
-        # Save as CSV
-        csv_path = os.path.join(DATASETS_DIR, 'engagement_dataset.csv')
-        df.to_csv(csv_path, index=False)
-        print(f"   💾 Saved engagement_dataset.csv")
-        return df
-    else:
-        print(f"   ⚠️ Excel file not found at: {excel_path}")
+    # Try multiple file name candidates
+    candidates = [
+        ('online_learning_engagement_dataset.csv', 'csv'),
+        ('online_learning_engagement_cleaned.xls', 'xls'),
+        ('online_learning_engagement_dataset_clear.xls', 'xls'),
+    ]
+    
+    df = None
+    file_found = None
+    
+    for filename, filetype in candidates:
+        filepath = os.path.join(engagement_dir, filename)
+        if os.path.exists(filepath):
+            try:
+                if filetype == 'csv':
+                    df = pd.read_csv(filepath)
+                else:
+                    df = pd.read_excel(filepath, engine='xlrd')
+                file_found = filename
+                print(f"   ✅ Loaded {len(df)} records from {filename}")
+                print(f"   📊 Columns: {df.columns.tolist()}")
+                break
+            except Exception as exc:
+                print(f"   ⚠️ Error reading {filename}: {exc}")
+                continue
+    
+    if df is None:
+        print(f"   ⚠️ No engagement file found in: {engagement_dir}")
         return None
+    
+    # Create engagement score and map to labels
+    if 'engagement_score' in df.columns:
+        engagement_score = df['engagement_score']
+    elif 'engagement_metrics' in df.columns:
+        engagement_score = df['engagement_metrics']
+    else:
+        # Calculate engagement score from available columns
+        score_cols = ['login_frequency_weekly', 'study_hours_weekly', 'avg_quiz_score']
+        available = [c for c in score_cols if c in df.columns]
+        if available:
+            engagement_score = df[available].mean(axis=1)
+        else:
+            engagement_score = 50.0
+    
+    # Map to labels
+    labels = []
+    for score in engagement_score:
+        if score > 70:
+            labels.append(0)    # Focused
+        elif score > 40:
+            labels.append(2)    # Anxiety
+        else:
+            labels.append(3)    # Boredom
+    
+    df['label'] = labels
+    
+    # Save as CSV
+    csv_path = os.path.join(DATASETS_DIR, 'engagement_dataset.csv')
+    df.to_csv(csv_path, index=False)
+    print(f"   💾 Saved engagement_dataset.csv")
+    return df
 
 # ============================================
 # 5. COMBINE AND SAVE
