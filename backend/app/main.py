@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from app.routes.health import router as health_router
-from app.routes.user import router as user_router
-from app.routes.daily import router as daily_router
-from app.routes.reflection import router as reflection_router
+from app.routes.user.user import router as user_router
+from app.routes.journal.daily import router as daily_router
+from app.routes.journal.reflection import router as reflection_router
 
 app = FastAPI(title="Smart Uni Guide API")
 
