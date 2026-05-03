@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException
-from app.schemas.reflection import WeeklyReflectionRequest, SemesterReflectionRequest
-from app.models.reflection import ReflectionModel
-from app.models.daily_session import DailySessionModel
-from app.models.user import UserModel
-from app.services.llm_service import generate_weekly_summary
+from app.schemas.journal.reflection import WeeklyReflectionRequest, SemesterReflectionRequest
+from app.models.journal.reflection import ReflectionModel
+from app.models.journal.daily_session import DailySessionModel
+from app.models.user.user import UserModel
+from app.services.journal.llm_service import generate_weekly_summary
 
 router = APIRouter(prefix="/reflection", tags=["reflection"])
 
