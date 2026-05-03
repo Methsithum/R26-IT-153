@@ -1,11 +1,11 @@
 from fastapi import APIRouter, HTTPException
-from app.schemas.daily import StartDailyRequest, AnswerRequest, NextQuestionResponse
-from app.models.daily_session import DailySessionModel
-from app.models.task import TaskModel
-from app.models.user import UserModel
-from app.services.llm_service import generate_initial_question, process_answer_and_get_next, generate_daily_journal
-from app.services.gamification import update_streak_and_xp
-from app.services.journal_service import build_session_context
+from app.schemas.journal.daily import StartDailyRequest, AnswerRequest, NextQuestionResponse
+from app.models.journal.daily_session import DailySessionModel
+from app.models.journal.task import TaskModel
+from app.models.user.user import UserModel
+from app.services.journal.llm_service import generate_initial_question, process_answer_and_get_next, generate_daily_journal
+from app.services.journal.gamification import update_streak_and_xp
+from app.services.journal.journal_service import build_session_context
 from app.config.settings import settings
 from datetime import datetime
 
