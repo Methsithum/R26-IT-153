@@ -1,4 +1,4 @@
-from app.models.user import UserModel
+from app.models.user.user import UserModel
 from datetime import datetime
 
 BADGES = {
