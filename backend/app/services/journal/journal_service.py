@@ -1,5 +1,5 @@
-from app.models.task import TaskModel
-from app.models.user import UserModel
+from app.models.journal.task import TaskModel
+from app.models.user.user import UserModel
 
 async def build_session_context(session_doc):
     user = await UserModel.find_by_id(session_doc["user_id"])
