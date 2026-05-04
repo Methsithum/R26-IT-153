@@ -2,6 +2,7 @@ import json
 from openai import AsyncOpenAI
 from typing import List, Dict, Any, Tuple
 from app.config.settings import settings
+from app.services.journal.journal_constants import TASK_PROGRESS_STAGES
 
 client = AsyncOpenAI(api_key=settings.openai_api_key)
 MODEL = settings.openai_model
@@ -66,6 +67,7 @@ Your job:
 2. Otherwise, generate the next RELEVANT question. It must NOT repeat previous questions.
 3. Provide 2-5 predefined options.
 4. If the student’s answer implies a task progress update (e.g., assignment stage changed), output "task_updates" list. Each update: {{"task_id": (existing id or null for new), "title": "...", "progress_stage": "...", "deadline": ...}}
+5. Only use progress stages from: {sorted(TASK_PROGRESS_STAGES)}.
 5. Always respond with JSON.
 
 Output format:
@@ -90,7 +92,8 @@ async def generate_daily_journal(
     study_duration_minutes: int,
     subject_focus: str,
     qa_history: List[Dict],
-    task_updates_summary: List[Dict]
+    task_updates_summary: List[Dict],
+    session_context: Dict[str, Any] | None = None,
 ) -> str:
     prompt = f"""
 Generate a natural, concise daily journal entry (2-3 sentences) for student {user_name}.
@@ -98,6 +101,7 @@ Activities: {', '.join(selected_activities)}.
 Study duration: {study_duration_minutes} minutes. Focus: {subject_focus}.
 Q&A log: {json.dumps(qa_history, indent=2)}.
 Task updates: {json.dumps(task_updates_summary)}.
+Additional session context: {json.dumps(session_context or {}, default=str, indent=2)}.
 Write in first person, positive tone.
 """
     resp = await client.chat.completions.create(
@@ -109,5 +113,18 @@ Write in first person, positive tone.
 
 async def generate_weekly_summary(user_name: str, week_data: str) -> str:
     prompt = f"Create a weekly academic reflection summary (2-3 paragraphs) for {user_name} based on this data: {week_data}"
+    resp = await client.chat.completions.create(model=MODEL, messages=[{"role": "user", "content": prompt}])
+    return resp.choices[0].message.content.strip()
+
+
+async def generate_semester_summary(user_name: str, semester_data: str) -> str:
+    prompt = f"""
+Create a semester academic reflection summary for {user_name}.
+Use the following data to describe overall productivity, workload, consistency, challenges, and growth.
+Keep it natural, specific, and suitable for a student reflection document.
+
+Data:
+{semester_data}
+"""
     resp = await client.chat.completions.create(model=MODEL, messages=[{"role": "user", "content": prompt}])
     return resp.choices[0].message.content.strip()

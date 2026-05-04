@@ -6,11 +6,57 @@ from app.models.user.user import UserModel
 from app.services.journal.llm_service import generate_initial_question, process_answer_and_get_next, generate_daily_journal
 from app.services.journal.gamification import update_streak_and_xp
 from app.services.journal.journal_service import build_session_context
+from app.services.journal.journal_constants import filter_allowed_activities, is_valid_task_stage
+import logging
 from app.config.settings import settings
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Dict, List, Tuple
 
 router = APIRouter(prefix="/daily", tags=["daily"])
 MAX_QS = settings.max_questions_per_session
+logger = logging.getLogger(__name__)
+
+
+def _build_fallback_initial_question(
+    selected_activities: List[str],
+    tasks_data: List[Dict]
+) -> Tuple[str, List[str]]:
+    # Prefer a deadline-focused question when there are near due tasks.
+    now_utc = datetime.utcnow().replace(tzinfo=timezone.utc)
+    for task in tasks_data:
+        deadline = task.get("deadline")
+        if not deadline:
+            continue
+        try:
+            deadline_dt = deadline if isinstance(deadline, datetime) else datetime.fromisoformat(str(deadline).replace("Z", "+00:00"))
+            if deadline_dt.tzinfo is None:
+                deadline_dt = deadline_dt.replace(tzinfo=timezone.utc)
+            days_left = (deadline_dt - now_utc).days
+            if days_left <= 3:
+                title = task.get("title", "your upcoming task")
+                return (
+                    f"How is your progress on '{title}' before the deadline?",
+                    ["Not started", "In progress", "Almost done", "Completed"]
+                )
+        except Exception:
+            continue
+
+    if "academic_study" in selected_activities:
+        return (
+            "How effective was your study session today?",
+            ["Very focused", "Mostly focused", "Some distractions", "Need a better plan"]
+        )
+
+    if "assignments" in selected_activities:
+        return (
+            "What is your current assignment progress status?",
+            ["Planning", "Drafting", "Revising", "Submitted"]
+        )
+
+    return (
+        "What was your biggest academic win today?",
+        ["Finished a tough topic", "Completed tasks on time", "Improved understanding", "Stayed consistent"]
+    )
 
 @router.post("/start", response_model=NextQuestionResponse)
 async def start_daily_session(req: StartDailyRequest):
@@ -18,17 +64,30 @@ async def start_daily_session(req: StartDailyRequest):
     if not user:
         raise HTTPException(404, "User not found")
 
+    selected_activities = filter_allowed_activities(req.selected_activities)
+    if not selected_activities:
+        raise HTTPException(400, "No valid activities were provided")
+
     tasks = await TaskModel.find_by_user(req.user_id)
     tasks_data = [{"title": t["title"], "progress": t.get("progress_stage"), "deadline": t.get("deadline")} for t in tasks]
 
-    question, options = await generate_initial_question(
-        user["name"], req.selected_activities, tasks_data, user["current_streak"]
-    )
+    try:
+        question, options = await generate_initial_question(
+            user["name"], selected_activities, tasks_data, user["current_streak"]
+        )
+    except Exception:
+        logger.exception("Failed to generate initial question from LLM; using fallback")
+        question, options = _build_fallback_initial_question(selected_activities, tasks_data)
+
+    # normalize incoming date to naive UTC for MongoDB
+    date = req.date
+    if date and getattr(date, "tzinfo", None) is not None:
+        date = date.astimezone(timezone.utc).replace(tzinfo=None)
 
     session_doc = {
         "user_id": req.user_id,
-        "date": req.date,
-        "selected_activities": req.selected_activities,
+        "date": date,
+        "selected_activities": selected_activities,
         "study_duration_minutes": req.study_duration_minutes,
         "subject_focus": req.subject_focus,
         "pending_question": question,
@@ -37,7 +96,11 @@ async def start_daily_session(req: StartDailyRequest):
         "completed": False,
         "journal_entry": None
     }
-    session = await DailySessionModel.create(session_doc)
+    try:
+        session = await DailySessionModel.create(session_doc)
+    except Exception:
+        logger.exception("Failed to create daily session")
+        raise HTTPException(500, "Failed to create session")
 
     return NextQuestionResponse(
         session_id=str(session["_id"]),
@@ -86,6 +149,8 @@ async def answer_question(req: AnswerRequest):
 
     # Apply task updates
     for update in decision.get("task_updates", []):
+        if not is_valid_task_stage(update.get("progress_stage")):
+            continue
         if "task_id" in update and update["task_id"]:
             await TaskModel.update(update["task_id"], {"progress_stage": update.get("progress_stage")})
         else:
@@ -103,7 +168,7 @@ async def answer_question(req: AnswerRequest):
         context = await build_session_context(session)
         journal = await generate_daily_journal(
             user["name"], session["selected_activities"], session.get("study_duration_minutes") or 0,
-            session.get("subject_focus") or "", qa_list, decision.get("task_updates", [])
+            session.get("subject_focus") or "", qa_list, decision.get("task_updates", []), context
         )
         update_data["completed"] = True
         update_data["journal_entry"] = journal
@@ -127,3 +192,17 @@ async def answer_question(req: AnswerRequest):
             options=decision.get("options", []),
             completed=False
         )
+
+
+@router.get("/{session_id}")
+async def get_daily_session(session_id: str):
+    session = await DailySessionModel.find_by_id(session_id)
+    if not session:
+        raise HTTPException(404, "Session not found")
+    return session
+
+
+@router.get("/user/{user_id}")
+async def get_user_daily_sessions(user_id: str):
+    sessions = await DailySessionModel.find_user_sessions(user_id)
+    return {"user_id": user_id, "sessions": sessions}
