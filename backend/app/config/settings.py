@@ -4,7 +4,7 @@ class Settings(BaseSettings):
     mongodb_url: str
     database_name: str
     openai_api_key: str
-    openai_model: str = "gpt-4o-mini"
+    openai_model: str = "gpt-5.4-mini"
     max_questions_per_session: int = 12
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
