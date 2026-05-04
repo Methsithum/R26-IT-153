@@ -1,0 +1,27 @@
+
+============================================================
+MODEL SUMMARY
+============================================================
+
+Model: XGBoost
+Training Date: 2026-05-05 00:44:19
+
+Performance Metrics:
+- Accuracy: 0.9930
+- Weighted F1: 0.9930
+- Macro F1: 0.9912
+
+Per-Class Performance:
+- Low (0):    Precision=1.0000, 
+              Recall=0.9936
+- Medium (1): Precision=0.9889, 
+              Recall=0.9981
+- High (2):   Precision=0.9932, 
+              Recall=0.9733
+
+Class Weights Used:
+- Low: 1.064
+- Medium: 0.621
+- High: 2.226
+
+============================================================

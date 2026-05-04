@@ -1,0 +1,20 @@
+{
+    "train_shape": [
+        4000,
+        31
+    ],
+    "test_shape": [
+        1000,
+        31
+    ],
+    "train_distribution": [
+        1253,
+        2148,
+        599
+    ],
+    "test_distribution": [
+        313,
+        537,
+        150
+    ]
+}

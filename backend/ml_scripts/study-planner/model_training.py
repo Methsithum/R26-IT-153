@@ -29,6 +29,7 @@ import seaborn as sns
 from pathlib import Path
 import json
 import warnings
+import os
 warnings.filterwarnings('ignore')
 
 # Import preprocessor
@@ -100,8 +101,7 @@ class PriorityModelTrainer:
         self.models['Logistic Regression'] = LogisticRegression(
             max_iter=1000,
             class_weight=self.class_weights,
-            random_state=42,
-            multi_class='ovr'
+            random_state=42
         )
         print("✓ Logistic Regression initialized")
         
@@ -630,6 +630,7 @@ def main():
     print("\n🎉 Training complete! Model ready for deployment.")
     
     return trainer, best_model
+
 
 
 if __name__ == "__main__":
