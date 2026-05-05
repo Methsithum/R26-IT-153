@@ -8,6 +8,9 @@ class StartDailyRequest(BaseModel):
     selected_activities: List[str]
     study_duration_minutes: Optional[int] = None
     subject_focus: Optional[str] = None
+    engagement: Optional[str] = None
+    extra_activity_type: Optional[str] = None
+    extra_activity_minutes: Optional[int] = None
 
 class AnswerRequest(BaseModel):
     session_id: str

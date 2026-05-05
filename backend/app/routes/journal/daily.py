@@ -7,14 +7,22 @@ from app.services.journal.llm_service import generate_initial_question, process_
 from app.services.journal.gamification import update_streak_and_xp
 from app.services.journal.journal_service import build_session_context
 from app.services.journal.journal_constants import filter_allowed_activities, is_valid_task_stage
+from app.services.journal.alerts import generate_proactive_alerts, format_alerts_for_journal
+from app.services.journal.learning_patterns import aggregate_learning_patterns
 import logging
 from app.config.settings import settings
 from datetime import datetime, timezone
 from typing import Dict, List, Tuple
 
 router = APIRouter(prefix="/daily", tags=["daily"])
-MAX_QS = settings.max_questions_per_session
 logger = logging.getLogger(__name__)
+
+
+def _calculate_max_questions(num_activities: int) -> int:
+    """Calculate dynamic max questions based on number of activities.
+    Formula: 8 + (num_activities * 2)
+    """
+    return 8 + (num_activities * 2)
 
 
 def _build_fallback_initial_question(
@@ -84,11 +92,18 @@ async def start_daily_session(req: StartDailyRequest):
     if date and getattr(date, "tzinfo", None) is not None:
         date = date.astimezone(timezone.utc).replace(tzinfo=None)
 
+    # Calculate max questions dynamically based on number of activities
+    max_questions = _calculate_max_questions(len(selected_activities))
+    
     session_doc = {
         "user_id": req.user_id,
         "date": date,
         "selected_activities": selected_activities,
+        "max_questions": max_questions,
         "study_duration_minutes": req.study_duration_minutes,
+        "engagement": req.engagement,
+        "extra_activity_type": req.extra_activity_type,
+        "extra_activity_minutes": req.extra_activity_minutes,
         "subject_focus": req.subject_focus,
         "pending_question": question,
         "pending_options": options,
@@ -137,14 +152,18 @@ async def answer_question(req: AnswerRequest):
 
     qa_list = [{"question": q["question"], "answer": q["answer"]} for q in qa_history]
     user = await UserModel.find_by_id(session["user_id"])
-
+    # build session context (includes derived flags) and pass to LLM decision function
+    session_context = await build_session_context(session)
+    # Use dynamic max_questions stored in session
+    max_questions = session.get("max_questions", 12)
     decision = await process_answer_and_get_next(
         user_name=user["name"],
         session_qa_history=qa_list,
         selected_activities=session["selected_activities"],
         current_tasks=tasks_data,
         total_questions_asked=len(qa_history),
-        max_questions=MAX_QS
+        max_questions=max_questions,
+        session_context=session_context
     )
 
     # Apply task updates
@@ -163,16 +182,35 @@ async def answer_question(req: AnswerRequest):
             }
             await TaskModel.create(new_task)
 
-    if decision.get("end_session") or len(qa_history) >= MAX_QS:
-        # Generate journal
+    # Use dynamic max_questions for session completion check
+    max_questions = session.get("max_questions", 12)
+    if decision.get("end_session") or len(qa_history) >= max_questions:
+        # Generate journal with alerts
         context = await build_session_context(session)
         journal = await generate_daily_journal(
             user["name"], session["selected_activities"], session.get("study_duration_minutes") or 0,
             session.get("subject_focus") or "", qa_list, decision.get("task_updates", []), context
         )
+        
+        # Generate proactive alerts based on at-risk tasks and derived flags
+        alerts = generate_proactive_alerts(
+            context.get("at_risk_tasks", []),
+            context.get("derived", {})
+        )
+        
+        # Add alerts to journal if any exist
+        if alerts:
+            journal += format_alerts_for_journal(alerts)
+        
         update_data["completed"] = True
         update_data["journal_entry"] = journal
         await DailySessionModel.update(req.session_id, update_data)
+
+        # Update learning patterns
+        try:
+            await aggregate_learning_patterns(session["user_id"])
+        except Exception as e:
+            logger.warning(f"Failed to update learning patterns: {e}")
 
         # Gamification
         await update_streak_and_xp(session["user_id"], session["date"])
