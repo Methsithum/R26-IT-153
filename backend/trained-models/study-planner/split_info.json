@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {
     "train_shape": [
         4000,
@@ -17,4 +18,25 @@
         537,
         150
     ]
+=======
+{
+    "train_shape": [
+        4000,
+        31
+    ],
+    "test_shape": [
+        1000,
+        31
+    ],
+    "train_distribution": [
+        1253,
+        2148,
+        599
+    ],
+    "test_distribution": [
+        313,
+        537,
+        150
+    ]
+>>>>>>> 21bb54c70a11174bd80c5b49ffd5bae054eeecd7
 }
