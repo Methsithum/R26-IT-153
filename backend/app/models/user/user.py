@@ -39,3 +39,11 @@ class UserModel:
     @staticmethod
     async def update(user_id: str, update_data: dict):
         user_collection.update_one({"_id": ObjectId(user_id)}, {"$set": update_data})
+
+    @staticmethod
+    async def list_users():
+        docs = list(user_collection.find({}))
+        for doc in docs:
+            doc["id"] = str(doc["_id"])
+            doc.pop("_id", None)
+        return docs

@@ -213,7 +213,13 @@ async def answer_question(req: AnswerRequest):
             logger.warning(f"Failed to update learning patterns: {e}")
 
         # Gamification
-        await update_streak_and_xp(session["user_id"], session["date"])
+        await update_streak_and_xp(
+            session["user_id"],
+            session["date"],
+            questions_count=len(qa_history),
+            engagement=session.get("engagement"),
+            has_at_risk=bool(context.get("at_risk_tasks"))
+        )
 
         return NextQuestionResponse(
             session_id=req.session_id,
