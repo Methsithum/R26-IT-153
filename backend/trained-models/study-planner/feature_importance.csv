@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 feature,importance
 Total_Score_Percentile,0.19889487
 Attendance (%),0.15409817
@@ -31,37 +30,3 @@ Dept_Engineering,0.0011558736
 Midterm_Score_Percentile,0.0007661235
 Sleep_Hours_per_Night,0.0006793526
 Dept_CS,0.00034135536
-=======
-feature,importance
-Total_Score_Percentile,0.19889487
-Attendance (%),0.15409817
-Total_Score,0.11108456
-Risk_Score,0.10255623
-Stress_Performance_Ratio,0.08505767
-Stress_Level (1-10),0.083591945
-Attendance_Efficiency,0.063377626
-Workload_Stress_Index,0.03657305
-Study_Hours_per_Week,0.020514444
-Projects_Score,0.018486965
-Performance_Inconsistency,0.017086668
-Final_Score,0.016843675
-Study_Efficiency,0.013719345
-Midterm_Score,0.013644586
-Workload_Balance,0.013167311
-Adjusted_Study_Effort,0.006827853
-Engagement_Score,0.00666546
-Age,0.0062756087
-Participation_Score,0.005273143
-Improvement_Score,0.0050175097
-Low_Performance_Count,0.004647715
-Assignments_Avg,0.004538341
-Final_Score_Percentile,0.0029438878
-Quizzes_Avg,0.0019882787
-Dept_Mathematics,0.0016793407
-Consistency_Score,0.0013198049
-Extracurricular_Encoded,0.0011831685
-Dept_Engineering,0.0011558736
-Midterm_Score_Percentile,0.0007661235
-Sleep_Hours_per_Night,0.0006793526
-Dept_CS,0.00034135536
->>>>>>> 21bb54c70a11174bd80c5b49ffd5bae054eeecd7
