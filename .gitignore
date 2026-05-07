@@ -1,2 +1,5 @@
 config.bat
 node_modules
+
+// Ignore the datasets directory
+datasets
