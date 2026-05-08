@@ -24,29 +24,37 @@ Total samples: **7000**
 - Minority class: Anxiety (500)
 - Imbalance ratio (max/min): **7.05 : 1**
 
-අර්ථය: Dataset එක balanced නොවුණත් class weighting හරහා training phase එකේ imbalance effect එක control කරලා තියෙනවා.
+අර්ථය: Dataset එක imbalanced වුණත්, SMOTE + class weighting හරහා training phase එකේ imbalance effect එක effectively control කරලා තියෙනවා.
 
 ## Balancing Method Used
-Oversampling/SMOTE use කරලා නෑ.
+දැන් **SMOTE (Synthetic Minority Over-sampling Technique) + Class Weights** දෙකම use කරලා තියෙනවා.
 
-Use කරලා තියෙන්නේ **class weights**:
+### SMOTE:
+- Training data එක split කරලාට පස්සේ SMOTE apply කරනවා
+- Minority classes (Anxiety, Fatigue, Boredom) සඳහා synthetic samples generate කරනවා
+- Training data balanced බවට පත් කරනවා
+- Test data එක original distribution එකේ තියෙනවා (fair evaluation)
 
+### Class Weights:
 - weight(class 0) = 0.4964539007
 - weight(class 1) = 1.75
 - weight(class 2) = 3.5
 - weight(class 3) = 0.8860759494
 
-These were applied as **sample weights** during XGBoost training.
+These are applied as **sample weights** during XGBoost training on SMOTE-balanced data.
 
 ## Why This Is Correct
-- Minority classes (especially Anxiety) get larger effective penalty for misclassification.
-- Majority class (Focused) gets lower weight.
-- No synthetic samples are created (data integrity preserved).
+- **SMOTE**: Synthetic samples generate කරනවා minority classes වඩාත් improve කරගන්නට
+- **Class Weights**: Additional regularization - minority class misclassification එකට larger penalty එක ගනවා
+- **Dual approach**: SMOTE balanced training + class weights = better generalization
+- **Test data unchanged**: Test set original distribution එකේ තියෙනවා - realistic performance assessment
 
 ## Notes for Future Updates
-If you add more Anxiety/Fatigue/Boredom data, rerun:
+Rerun කරන්න:
 1. conversion scripts
 2. `merge_all_datasets.py`
 3. `train_xgboost.py`
 
-Class weights will be recalculated automatically each run.
+SMOTE සහ class weights දෙකම automatically recalculate වෙයි එක්‍ර run එකේ:
+- SMOTE k_neighbors=5 සහ random_state=42 use කරනවා consistency එකට
+- Class weights sklearn's balanced heuristic use කරනවා
