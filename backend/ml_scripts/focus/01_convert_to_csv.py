@@ -9,9 +9,10 @@ print("="*60)
 print("STEP 1: Converting Datasets to CSV")
 print("="*60)
 
-# Paths - ඔයාගේ folder structure එකට හරියටම
-BASE_DATASET_PATH = "datasets/focus"
-OUTPUT_PATH = "trained-models/focus/processed/dataset_3class.csv"
+# Paths - compute absolute paths relative to this script
+BASE_DIR = os.path.dirname(__file__)
+BASE_DATASET_PATH = os.path.normpath(os.path.join(BASE_DIR, '..', '..', 'datasets', 'focus'))
+OUTPUT_PATH = os.path.normpath(os.path.join(BASE_DIR, '..', '..', 'trained-models', 'focus', 'processed', 'dataset_3class.csv'))
 
 # ============================================
 # 1. FATIGUE DATASET (UTA-RLDD)
@@ -22,9 +23,10 @@ def convert_fatigue():
     
     # Try different possible paths
     possible_paths = [
-        f"{BASE_DATASET_PATH}/dataset_1_fatigue/output/train",
-        f"{BASE_DATASET_PATH}/dataset_1_fatigue/train",
-        f"{BASE_DATASET_PATH}/fatigue_detection/train"
+        os.path.join(BASE_DATASET_PATH, 'dataset_fatigue', 'train'),
+        os.path.join(BASE_DATASET_PATH, 'dataset_fatigue'),
+        os.path.join(BASE_DATASET_PATH, 'dataset_1_fatigue', 'train'),
+        os.path.join(BASE_DATASET_PATH, 'fatigue_detection', 'train')
     ]
     
     path = None
@@ -65,9 +67,10 @@ def convert_eye():
     X, y = [], []
     
     possible_paths = [
-        f"{BASE_DATASET_PATH}/dataset_3_eye/data/train",
-        f"{BASE_DATASET_PATH}/dataset_3_eye/train",
-        f"{BASE_DATASET_PATH}/mrl_eye/train"
+        os.path.join(BASE_DATASET_PATH, 'dataset_eye', 'train'),
+        os.path.join(BASE_DATASET_PATH, 'dataset_eye'),
+        os.path.join(BASE_DATASET_PATH, 'dataset_3_eye', 'train'),
+        os.path.join(BASE_DATASET_PATH, 'mrl_eye', 'train')
     ]
     
     path = None
@@ -111,9 +114,10 @@ def convert_emotion():
     }
     
     possible_paths = [
-        f"{BASE_DATASET_PATH}/dataset_2_emotion/processed_data",
-        f"{BASE_DATASET_PATH}/emotion_dataset/processed_data",
-        f"{BASE_DATASET_PATH}/facial_emotion/processed_data"
+        os.path.join(BASE_DATASET_PATH, 'dataset_facial'),
+        os.path.join(BASE_DATASET_PATH, 'dataset_2_emotion', 'processed_data'),
+        os.path.join(BASE_DATASET_PATH, 'emotion_dataset', 'processed_data'),
+        os.path.join(BASE_DATASET_PATH, 'facial_emotion', 'processed_data')
     ]
     
     base_path = None
