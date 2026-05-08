@@ -5,6 +5,7 @@ import joblib
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, balanced_accuracy_score
 from sklearn.utils.class_weight import compute_class_weight
+from imblearn.over_sampling import SMOTE
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
@@ -52,16 +53,33 @@ def train_model():
         X, y, test_size=0.2, random_state=42, stratify=y
     )
     
-    print(f"\nTraining samples: {len(X_train)}")
-    print(f"Test samples: {len(X_test)}")
+    print(f"\nBefore SMOTE:")
+    print(f"  Training samples: {len(X_train)}")
+    print(f"  Test samples: {len(X_test)}")
+    print(f"  Training class distribution:")
+    unique, counts = np.unique(y_train, return_counts=True)
+    for state, count in zip(unique, counts):
+        print(f"    state {state}: {count}")
     
-    # Calculate class weights for imbalance
+    # Apply SMOTE for data balancing
+    print("\n--- Applying SMOTE ---")
+    smote = SMOTE(random_state=42, k_neighbors=5)
+    X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
+    
+    print(f"\nAfter SMOTE:")
+    print(f"  Training samples: {len(X_train_resampled)}")
+    print(f"  Training class distribution:")
+    unique, counts = np.unique(y_train_resampled, return_counts=True)
+    for state, count in zip(unique, counts):
+        print(f"    state {state}: {count}")
+    
+    # Calculate class weights for imbalance (on original data for consistency)
     weight_dict = get_class_weights(y_train)
     
-    print(f"\nClass weights: {weight_dict}")
+    print(f"\nClass weights (based on original distribution): {weight_dict}")
     
     # Assign sample weights
-    sample_weights = np.array([weight_dict[label] for label in y_train])
+    sample_weights = np.array([weight_dict[label] for label in y_train_resampled])
     
     # Train XGBoost
     model = xgb.XGBClassifier(
@@ -75,7 +93,7 @@ def train_model():
     )
     
     print("\n--- Training Model ---")
-    model.fit(X_train, y_train, sample_weight=sample_weights)
+    model.fit(X_train_resampled, y_train_resampled, sample_weight=sample_weights)
     
     # Evaluate
     y_pred = model.predict(X_test)
