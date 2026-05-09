@@ -1,10 +1,10 @@
-# test_inference.py  — quick proof your models work
 import joblib
 import pandas as pd
 import numpy as np
 
 # ── Load saved objects ──
 BASE = "D:/R26-IT-153/backend/trained-models/career-prediction-engine/saved_objects/"
+print("Loading saved models and objects..." + BASE)
 
 
 scaler       = joblib.load(BASE + "scaler.pkl")
@@ -14,11 +14,11 @@ career_model = joblib.load(BASE + "model_B_career_xgboost.pkl")
 
 risk_label   = {0: "Low", 1: "Medium", 2: "High"}
 
-# ── Sample student (change these values to test) ──
+# Sample student data for testing
 student = {
     "gpa_cumulative"            : 2.4,   # low GPA
     "gpa_trend"                 : -0.4,  # declining
-    "module_avg_score"          : 58,
+    "module_avg_score"          : 90,
     "module_score_variance"     : 22,
     "project_performance"       : 55,
     "assignment_completion_rate": 0.45,  # low
@@ -43,6 +43,7 @@ student = {
     "career_clarity_score"      : 20,
 }
 
+
 # ── Predict ──
 df_student  = pd.DataFrame([student])[feature_cols]
 scaled      = scaler.transform(df_student)
@@ -62,15 +63,3 @@ print(f"    Medium → {risk_proba[1]*100:.1f}%")
 print(f"    High   → {risk_proba[2]*100:.1f}%")
 print(f"  Career Readiness Score: {career_pred:.1f} / 100")
 print("=" * 45)
-
-
-# =============================================
-#   STUDENT PREDICTION RESULTS
-# =============================================
-#   Academic Risk Level   : High
-#   Risk Probabilities    :
-#     Low    → 0.0%
-#     Medium → 0.1%
-#     High   → 99.9%
-#   Career Readiness Score: 46.4 / 100
-# =============================================
