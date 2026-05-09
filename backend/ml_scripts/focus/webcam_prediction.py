@@ -14,7 +14,12 @@ BACKEND_DIR = SCRIPT_DIR.parent.parent.resolve()
 MODEL_PATH = BACKEND_DIR / "trained-models" / "focus" / "xgboost_state_classifier.pkl"
 SCALER_PATH = BACKEND_DIR / "trained-models" / "focus" / "scaler.pkl"
 
-state_names = ['Focused', 'Fatigue', 'Anxiety', 'Boredom']
+STATE_NAMES = {
+    0: 'Focused',
+    1: 'Fatigue',
+    2: 'Anxiety',
+    3: 'Boredom',
+}
 state_colors = {
     'Focused': (0, 255, 0),      # Green
     'Fatigue': (0, 165, 255),    # Orange
@@ -37,6 +42,10 @@ def load_model():
     if SCALER_PATH.exists():
         scaler = joblib.load(SCALER_PATH)
         print(f"✅ Scaler loaded from {SCALER_PATH}")
+        if hasattr(scaler, 'feature_names_in_'):
+            print(f"   Expected features: {list(scaler.feature_names_in_)}")
+        if hasattr(scaler, 'mean_') and hasattr(scaler, 'feature_names_in_'):
+            print("   Using training means as fallback values for missing webcam features")
     
     return model, scaler
 
@@ -45,14 +54,15 @@ def predict_state(model, scaler, features):
     if model is None or scaler is None:
         return None, None
     
-    # Feature columns in same order as training
-    feature_cols = [col for col in scaler.feature_names_in_] if hasattr(scaler, 'feature_names_in_') else [
-        'left_ear', 'right_ear', 'avg_ear', 'left_brow_dist',
-        'right_brow_dist', 'avg_brow_dist', 'mouth_ratio'
-    ]
+    # Match the exact training feature order and use neutral defaults for
+    # features that are not available from the live webcam extractor.
+    feature_cols = list(scaler.feature_names_in_) if hasattr(scaler, 'feature_names_in_') else list(features.keys())
+    feature_defaults = {}
+    if hasattr(scaler, 'mean_') and len(getattr(scaler, 'mean_', [])) == len(feature_cols):
+        feature_defaults = dict(zip(feature_cols, scaler.mean_))
     
     # Create feature DataFrame (with column names to avoid sklearn warning)
-    X_df = pd.DataFrame([{col: features.get(col, 0.25) for col in feature_cols}])
+    X_df = pd.DataFrame([{col: features.get(col, feature_defaults.get(col, 0.0)) for col in feature_cols}])
     
     # Scale features
     X_scaled = scaler.transform(X_df)
@@ -61,7 +71,7 @@ def predict_state(model, scaler, features):
     prediction = model.predict(X_scaled)[0]
     probabilities = model.predict_proba(X_scaled)[0]
     
-    return state_names[prediction], max(probabilities)
+    return STATE_NAMES.get(int(prediction), f"Unknown({prediction})"), float(np.max(probabilities))
 
 def run_webcam_prediction():
     print("="*50)
