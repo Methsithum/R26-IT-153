@@ -1,0 +1,27 @@
+{
+  "best_algorithm": "SVM",
+  "test_accuracy": 94.25,
+  "classes": [
+    "Focused",
+    "Fatigue",
+    "Anxiety",
+    "Boredom"
+  ],
+  "needs_scaling": true,
+  "img_size": 224,
+  "balance_size": 10000,
+  "all_results": {
+    "Random Forest": {
+      "val": 96.78,
+      "test": 92.62
+    },
+    "XGBoost": {
+      "val": 97.81,
+      "test": 94.25
+    },
+    "SVM": {
+      "val": 95.66,
+      "test": 94.25
+    }
+  }
+}
