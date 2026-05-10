@@ -6,6 +6,7 @@ from app.routes.journal.reflection import router as reflection_router
 from app.routes.journal.learning_insights import router as learning_insights_router
 from app.routes.journal.leaderboard import router as leaderboard_router
 from app.routes.journal.gamification_summary import router as gamification_summary_router
+from backend.app.routes.journal.behavior import router as behavior_router
 
 app = FastAPI(title="Smart Uni Guide API")
 
@@ -16,6 +17,7 @@ app.include_router(reflection_router)
 app.include_router(learning_insights_router)
 app.include_router(leaderboard_router)
 app.include_router(gamification_summary_router)
+app.include_router(behavior_router)
 
 @app.get("/")
 def root():
