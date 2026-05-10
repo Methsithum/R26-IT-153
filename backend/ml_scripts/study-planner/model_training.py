@@ -1,708 +1,683 @@
-# backend/ml_scripts/study-planner/model_training.py
+# backend/ml_scripts/study-planner/model_training_complete.py
 """
 Model Training for Academic Priority Prediction
-With Class Weights - Fresh Training
+COMPLETE FIXED VERSION - All variables properly defined
 """
 
 import matplotlib
 matplotlib.use('Agg')
 
-import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
+import pandas as pd
 import joblib
 import json
 import shutil
 import warnings
 warnings.filterwarnings('ignore')
 
+import matplotlib.pyplot as plt
+import seaborn as sns
+from pathlib import Path
+import sys
+
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.metrics import (
-    accuracy_score, precision_score, recall_score, f1_score,
-    confusion_matrix, classification_report, roc_auc_score,
-    roc_curve
+    accuracy_score, f1_score, classification_report, 
+    confusion_matrix, roc_curve, roc_auc_score
 )
-from sklearn.model_selection import cross_val_score, RandomizedSearchCV
 from sklearn.utils.class_weight import compute_class_weight
+from sklearn.preprocessing import StandardScaler
 from xgboost import XGBClassifier
-from collections import Counter
 
-import os
-import sys
-from pathlib import Path
+# ---------------------------------------------------
+# PATHS
+# ---------------------------------------------------
 
-# Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
-# Define paths
 DATASET_PATH = project_root / 'datasets' / 'study-planner'
 TRAINED_MODELS_PATH = project_root / 'trained-models' / 'study-planner'
 VIZ_PATH = TRAINED_MODELS_PATH / 'visualizations'
 
+TRAINED_MODELS_PATH.mkdir(parents=True, exist_ok=True)
+VIZ_PATH.mkdir(parents=True, exist_ok=True)
+
+# ---------------------------------------------------
+# CLEANUP
+# ---------------------------------------------------
+
 def cleanup_old_models():
-    """Delete old model files for fresh training"""
-    print("\n" + "=" * 70)
-    print(" CLEANING UP OLD MODEL FILES ")
-    print("=" * 70)
+    print("\n🧹 Cleaning old models...")
     
-    if TRAINED_MODELS_PATH.exists():
-        # Delete all files but keep directory structure
-        for file in TRAINED_MODELS_PATH.glob('*'):
-            if file.is_file():
-                file.unlink()
-                print(f"  🗑️ Deleted: {file.name}")
-        print(f"\n  ✅ Cleaned {TRAINED_MODELS_PATH}")
-    else:
-        print(f"  📁 Creating directory: {TRAINED_MODELS_PATH}")
-        TRAINED_MODELS_PATH.mkdir(parents=True, exist_ok=True)
+    for file in TRAINED_MODELS_PATH.glob("*"):
+        if file.is_file() and file.suffix not in ['.json', '.txt']:
+            file.unlink(missing_ok=True)
     
-    # Recreate visualizations directory
     if VIZ_PATH.exists():
         shutil.rmtree(VIZ_PATH)
+    
     VIZ_PATH.mkdir(parents=True, exist_ok=True)
-    print(f"  📁 Created visualizations directory")
+    
+    print("✅ Cleanup done")
 
-def load_preprocessed_data():
-    """Load preprocessed data"""
-    print("\n" + "=" * 70)
-    print(" LOADING PREPROCESSED DATA ")
-    print("=" * 70)
+# ---------------------------------------------------
+# LOAD DATA
+# ---------------------------------------------------
+
+def load_data():
+    print("\n📊 Loading preprocessed data...")
     
-    # Check if files exist
-    X_train_path = DATASET_PATH / 'X_train.npy'
-    if not X_train_path.exists():
-        print("\n❌ Preprocessed data not found! Run data_preprocessing.py first!")
-        sys.exit(1)
+    X_train = np.load(DATASET_PATH / "X_train.npy")
+    X_val = np.load(DATASET_PATH / "X_val.npy")
+    X_test = np.load(DATASET_PATH / "X_test.npy")
     
-    X_train = np.load(DATASET_PATH / 'X_train.npy')
-    X_val = np.load(DATASET_PATH / 'X_val.npy')
-    y_train = np.load(DATASET_PATH / 'y_train.npy')
-    y_val = np.load(DATASET_PATH / 'y_val.npy')
-    X_test = np.load(DATASET_PATH / 'X_test.npy')
+    y_train = np.load(DATASET_PATH / "y_train.npy")
+    y_val = np.load(DATASET_PATH / "y_val.npy")
     
-    # Load or create feature columns
+    # Try to load feature columns if available
     feature_cols_path = TRAINED_MODELS_PATH / 'feature_columns.pkl'
     if feature_cols_path.exists():
         feature_cols = joblib.load(feature_cols_path)
     else:
-        feature_cols = [f'feature_{i}' for i in range(X_train.shape[1])]
+        feature_cols = [f"feature_{i}" for i in range(X_train.shape[1])]
     
-    print(f"  - X_train: {X_train.shape}")
-    print(f"  - X_val: {X_val.shape}")
-    print(f"  - X_test: {X_test.shape}")
-    print(f"  - y_train distribution: {dict(Counter(y_train))}")
-    print(f"  - y_val distribution: {dict(Counter(y_val))}")
-    print(f"  - Features: {len(feature_cols)}")
+    print(f"✅ Data loaded:")
+    print(f"   - Training: {X_train.shape}")
+    print(f"   - Validation: {X_val.shape}")
+    print(f"   - Test: {X_test.shape}")
+    print(f"   - Features: {len(feature_cols)}")
     
-    return X_train, X_val, y_train, y_val, X_test, feature_cols
+    return X_train, X_val, X_test, y_train, y_val, feature_cols
 
-def compute_and_save_class_weights(y_train):
-    """Compute class weights and save them"""
-    print("\n" + "=" * 70)
-    print(" COMPUTING CLASS WEIGHTS ")
-    print("=" * 70)
+# ---------------------------------------------------
+# CLASS WEIGHTS
+# ---------------------------------------------------
+
+def get_class_weights(y_train):
+    classes = np.unique(y_train)
+    weights = compute_class_weight(class_weight='balanced', classes=classes, y=y_train)
+    class_weight_dict = {int(c): float(w) for c, w in zip(classes, weights)}
     
-    # Get class distribution
-    class_counts = Counter(y_train)
-    n_samples = len(y_train)
-    n_classes = len(class_counts)
-    
-    print(f"\n  📊 Training Class Distribution:")
+    print("\n📊 Class Weights:")
     priority_names = {0: 'Low', 1: 'Medium', 2: 'High'}
-    for cls in sorted(class_counts.keys()):
-        count = class_counts[cls]
-        percentage = (count / n_samples) * 100
-        print(f"     Priority {cls} ({priority_names[cls]}): {count} samples ({percentage:.1f}%)")
-    
-    # Method 1: Balanced class weights
-    balanced_weights = compute_class_weight('balanced', classes=np.unique(y_train), y=y_train)
-    class_weight_dict = {int(cls): float(weight) for cls, weight in zip(np.unique(y_train), balanced_weights)}
-    
-    print(f"\n  📊 Computed Class Weights (balanced method):")
     for cls, weight in class_weight_dict.items():
-        print(f"     Priority {cls} ({priority_names[cls]}): {weight:.4f}")
-    
-    # Method 2: Manual inverse frequency weights
-    manual_weights = {}
-    for cls, count in class_counts.items():
-        manual_weights[cls] = n_samples / (n_classes * count)
-    
-    print(f"\n  📊 Manual Class Weights (inverse frequency):")
-    for cls, weight in manual_weights.items():
-        print(f"     Priority {cls} ({priority_names[cls]}): {weight:.4f}")
-    
-    # Save class weights
-    joblib.dump(class_weight_dict, TRAINED_MODELS_PATH / 'class_weights.pkl')
-    with open(TRAINED_MODELS_PATH / 'class_weights.json', 'w') as f:
-        json.dump(class_weight_dict, f, indent=2)
-    print(f"\n  ✅ Class weights saved")
+        print(f"   Priority {cls} ({priority_names[cls]}): {weight:.4f}")
     
     return class_weight_dict
 
-def plot_class_distribution(y_train, y_val):
-    """Plot class distribution"""
+# ---------------------------------------------------
+# TRAIN MODELS
+# ---------------------------------------------------
+
+def train_xgboost(X_train, y_train, X_val, y_val, class_weights):
+    """Train XGBoost model"""
+    print("\n🚀 Training XGBoost...")
+    
+    sample_weights = np.array([class_weights[y] for y in y_train])
+    
+    model = XGBClassifier(
+        objective='multi:softprob',
+        num_class=3,
+        eval_metric='mlogloss',
+        n_estimators=200,
+        max_depth=6,
+        learning_rate=0.1,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        random_state=42,
+        n_jobs=-1
+    )
+    
+    # Train
+    model.fit(X_train, y_train, sample_weight=sample_weights)
+    
+    # Predictions
+    y_pred = model.predict(X_val)
+    y_pred_proba = model.predict_proba(X_val)
+    
+    # Metrics
+    acc = accuracy_score(y_val, y_pred)
+    f1 = f1_score(y_val, y_pred, average='weighted')
+    
+    print(f"   ✅ Accuracy: {acc:.4f} ({acc*100:.2f}%)")
+    print(f"   ✅ F1-Score: {f1:.4f}")
+    
+    return model, acc, f1, y_pred, y_pred_proba
+
+def train_random_forest(X_train, y_train, X_val, y_val, class_weights):
+    """Train Random Forest model"""
+    print("\n🌲 Training Random Forest...")
+    
+    model = RandomForestClassifier(
+        n_estimators=300,
+        max_depth=15,
+        min_samples_split=5,
+        min_samples_leaf=2,
+        class_weight=class_weights,
+        random_state=42,
+        n_jobs=-1
+    )
+    
+    model.fit(X_train, y_train)
+    
+    # Predictions
+    y_pred = model.predict(X_val)
+    y_pred_proba = model.predict_proba(X_val)
+    
+    # Metrics
+    acc = accuracy_score(y_val, y_pred)
+    f1 = f1_score(y_val, y_pred, average='weighted')
+    
+    print(f"   ✅ Accuracy: {acc:.4f} ({acc*100:.2f}%)")
+    print(f"   ✅ F1-Score: {f1:.4f}")
+    
+    return model, acc, f1, y_pred, y_pred_proba
+
+def train_gradient_boosting(X_train, y_train, X_val, y_val, class_weights):
+    """Train Gradient Boosting model"""
+    print("\n📈 Training Gradient Boosting...")
+    
+    sample_weights = np.array([class_weights[y] for y in y_train])
+    
+    model = GradientBoostingClassifier(
+        n_estimators=200,
+        learning_rate=0.1,
+        max_depth=5,
+        subsample=0.8,
+        random_state=42
+    )
+    
+    model.fit(X_train, y_train, sample_weight=sample_weights)
+    
+    # Predictions
+    y_pred = model.predict(X_val)
+    y_pred_proba = model.predict_proba(X_val)
+    
+    # Metrics
+    acc = accuracy_score(y_val, y_pred)
+    f1 = f1_score(y_val, y_pred, average='weighted')
+    
+    print(f"   ✅ Accuracy: {acc:.4f} ({acc*100:.2f}%)")
+    print(f"   ✅ F1-Score: {f1:.4f}")
+    
+    return model, acc, f1, y_pred, y_pred_proba
+
+# ---------------------------------------------------
+# VISUALIZATION FUNCTIONS
+# ---------------------------------------------------
+
+def plot_class_distribution(y_train, y_val, save_path):
+    """Plot class distribution comparison"""
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
     
-    priority_names = ['Low (0)', 'Medium (1)', 'High (2)']
-    colors = ['green', 'orange', 'red']
+    priority_names = ['Low Priority\n(0)', 'Medium Priority\n(1)', 'High Priority\n(2)']
+    colors = ['#2ecc71', '#f39c12', '#e74c3c']
     
     # Training distribution
-    train_counts = Counter(y_train)
-    axes[0].bar(range(3), [train_counts.get(i, 0) for i in range(3)], color=colors)
-    axes[0].set_xlabel('Priority Level')
-    axes[0].set_ylabel('Count')
-    axes[0].set_title(f'Training Set\nTotal: {len(y_train)} samples')
-    axes[0].set_xticks(range(3))
-    axes[0].set_xticklabels(priority_names)
-    for i in range(3):
-        count = train_counts.get(i, 0)
-        axes[0].text(i, count + 5, str(count), ha='center')
+    train_counts = np.bincount(y_train.astype(int))
+    bars1 = axes[0].bar(priority_names, train_counts, color=colors, edgecolor='black', linewidth=1.5)
+    axes[0].set_title('Training Set Class Distribution', fontsize=14, fontweight='bold')
+    axes[0].set_ylabel('Number of Samples', fontsize=12)
+    axes[0].set_xlabel('Priority Level', fontsize=12)
+    
+    # Add value labels
+    for bar, count in zip(bars1, train_counts):
+        height = bar.get_height()
+        axes[0].text(bar.get_x() + bar.get_width()/2., height + 10,
+                    f'{count}\n({count/len(y_train)*100:.1f}%)',
+                    ha='center', va='bottom', fontsize=10)
     
     # Validation distribution
-    val_counts = Counter(y_val)
-    axes[1].bar(range(3), [val_counts.get(i, 0) for i in range(3)], color=colors)
-    axes[1].set_xlabel('Priority Level')
-    axes[1].set_ylabel('Count')
-    axes[1].set_title(f'Validation Set\nTotal: {len(y_val)} samples')
-    axes[1].set_xticks(range(3))
-    axes[1].set_xticklabels(priority_names)
-    for i in range(3):
-        count = val_counts.get(i, 0)
-        axes[1].text(i, count + 5, str(count), ha='center')
+    val_counts = np.bincount(y_val.astype(int))
+    bars2 = axes[1].bar(priority_names, val_counts, color=colors, edgecolor='black', linewidth=1.5)
+    axes[1].set_title('Validation Set Class Distribution', fontsize=14, fontweight='bold')
+    axes[1].set_ylabel('Number of Samples', fontsize=12)
+    axes[1].set_xlabel('Priority Level', fontsize=12)
     
-    plt.tight_layout()
-    plt.savefig(VIZ_PATH / 'class_distribution.png', dpi=150, bbox_inches='tight')
-    plt.close()
-    print(f"  ✅ Class distribution plot saved")
-
-def train_xgboost(X_train, y_train, X_val, y_val, class_weight_dict):
-    """Train XGBoost with class weights"""
-    print("\n" + "=" * 70)
-    print(" TRAINING XGBOOST (Primary Model)")
-    print("=" * 70)
-    
-    # Create sample weights
-    sample_weights = np.array([class_weight_dict[y] for y in y_train])
-    
-    print(f"\n  Sample weight statistics:")
-    print(f"     Min: {sample_weights.min():.4f}")
-    print(f"     Max: {sample_weights.max():.4f}")
-    print(f"     Mean: {sample_weights.mean():.4f}")
-    
-    # Hyperparameter tuning
-    print("\n  Tuning hyperparameters...")
-    
-    xgb_params = {
-        'n_estimators': [100, 200, 300],
-        'max_depth': [4, 6, 8],
-        'learning_rate': [0.05, 0.1, 0.15],
-        'subsample': [0.7, 0.8, 0.9],
-        'colsample_bytree': [0.7, 0.8, 0.9],
-        'min_child_weight': [1, 3, 5],
-        'gamma': [0, 0.1, 0.2]
-    }
-    
-    xgb_grid = RandomizedSearchCV(
-        XGBClassifier(random_state=42, use_label_encoder=False, eval_metric='mlogloss', n_jobs=-1),
-        xgb_params,
-        n_iter=30,
-        cv=5,
-        scoring='accuracy',
-        n_jobs=-1,
-        verbose=0,
-        random_state=42
-    )
-    
-    xgb_grid.fit(X_train, y_train, sample_weight=sample_weights)
-    
-    best_model = xgb_grid.best_estimator_
-    best_params = xgb_grid.best_params_
-    best_cv_score = xgb_grid.best_score_
-    
-    print(f"\n  ✅ Best parameters: {best_params}")
-    print(f"  ✅ Best CV score: {best_cv_score:.4f}")
-    
-    # Evaluate on validation set
-    y_val_pred = best_model.predict(X_val)
-    val_accuracy = accuracy_score(y_val, y_val_pred)
-    val_f1 = f1_score(y_val, y_val_pred, average='weighted')
-    
-    print(f"\n  📊 Validation Results:")
-    print(f"     Accuracy: {val_accuracy:.4f} ({val_accuracy*100:.2f}%)")
-    print(f"     F1-Score: {val_f1:.4f}")
-    
-    # Per-class accuracy
-    for cls in [0, 1, 2]:
-        mask = y_val == cls
-        if np.sum(mask) > 0:
-            class_acc = accuracy_score(y_val[mask], y_val_pred[mask])
-            print(f"     Priority {cls} Accuracy: {class_acc:.4f} ({class_acc*100:.2f}%)")
-    
-    # Get probabilities for ROC
-    y_val_proba = best_model.predict_proba(X_val)
-    
-    return best_model, best_params, best_cv_score, val_accuracy, val_f1, y_val_pred, y_val_proba
-
-def train_random_forest(X_train, y_train, X_val, y_val, class_weight_dict):
-    """Train Random Forest with class weights"""
-    print("\n" + "=" * 70)
-    print(" TRAINING RANDOM FOREST (Comparison)")
-    print("=" * 70)
-    
-    print("\n  Tuning hyperparameters...")
-    
-    rf_params = {
-        'n_estimators': [100, 200, 300],
-        'max_depth': [10, 15, 20, None],
-        'min_samples_split': [2, 5, 10],
-        'min_samples_leaf': [1, 2, 4],
-        'max_features': ['sqrt', 'log2']
-    }
-    
-    rf_grid = RandomizedSearchCV(
-        RandomForestClassifier(random_state=42, class_weight=class_weight_dict, n_jobs=-1),
-        rf_params,
-        n_iter=20,
-        cv=5,
-        scoring='accuracy',
-        n_jobs=-1,
-        verbose=0,
-        random_state=42
-    )
-    
-    rf_grid.fit(X_train, y_train)
-    
-    best_model = rf_grid.best_estimator_
-    best_params = rf_grid.best_params_
-    best_cv_score = rf_grid.best_score_
-    
-    print(f"\n  ✅ Best parameters: {best_params}")
-    print(f"  ✅ Best CV score: {best_cv_score:.4f}")
-    
-    # Evaluate on validation set
-    y_val_pred = best_model.predict(X_val)
-    val_accuracy = accuracy_score(y_val, y_val_pred)
-    val_f1 = f1_score(y_val, y_val_pred, average='weighted')
-    
-    print(f"\n  📊 Validation Results:")
-    print(f"     Accuracy: {val_accuracy:.4f} ({val_accuracy*100:.2f}%)")
-    print(f"     F1-Score: {val_f1:.4f}")
-    
-    # Per-class accuracy
-    for cls in [0, 1, 2]:
-        mask = y_val == cls
-        if np.sum(mask) > 0:
-            class_acc = accuracy_score(y_val[mask], y_val_pred[mask])
-            print(f"     Priority {cls} Accuracy: {class_acc:.4f} ({class_acc*100:.2f}%)")
-    
-    # Get probabilities for ROC
-    y_val_proba = best_model.predict_proba(X_val)
-    
-    return best_model, best_params, best_cv_score, val_accuracy, val_f1, y_val_pred, y_val_proba
-
-def train_gradient_boosting(X_train, y_train, X_val, y_val, class_weight_dict):
-    """Train Gradient Boosting with class weights"""
-    print("\n" + "=" * 70)
-    print(" TRAINING GRADIENT BOOSTING (Comparison)")
-    print("=" * 70)
-    
-    # Create sample weights
-    sample_weights = np.array([class_weight_dict[y] for y in y_train])
-    
-    print("\n  Tuning hyperparameters...")
-    
-    gb_params = {
-        'n_estimators': [100, 200, 300],
-        'max_depth': [3, 5, 7],
-        'learning_rate': [0.05, 0.1, 0.15],
-        'subsample': [0.7, 0.8, 0.9]
-    }
-    
-    gb_grid = RandomizedSearchCV(
-        GradientBoostingClassifier(random_state=42),
-        gb_params,
-        n_iter=15,
-        cv=5,
-        scoring='accuracy',
-        n_jobs=-1,
-        verbose=0,
-        random_state=42
-    )
-    
-    gb_grid.fit(X_train, y_train, sample_weight=sample_weights)
-    
-    best_model = gb_grid.best_estimator_
-    best_params = gb_grid.best_params_
-    best_cv_score = gb_grid.best_score_
-    
-    print(f"\n  ✅ Best parameters: {best_params}")
-    print(f"  ✅ Best CV score: {best_cv_score:.4f}")
-    
-    # Evaluate on validation set
-    y_val_pred = best_model.predict(X_val)
-    val_accuracy = accuracy_score(y_val, y_val_pred)
-    val_f1 = f1_score(y_val, y_val_pred, average='weighted')
-    
-    print(f"\n  📊 Validation Results:")
-    print(f"     Accuracy: {val_accuracy:.4f} ({val_accuracy*100:.2f}%)")
-    print(f"     F1-Score: {val_f1:.4f}")
-    
-    # Per-class accuracy
-    for cls in [0, 1, 2]:
-        mask = y_val == cls
-        if np.sum(mask) > 0:
-            class_acc = accuracy_score(y_val[mask], y_val_pred[mask])
-            print(f"     Priority {cls} Accuracy: {class_acc:.4f} ({class_acc*100:.2f}%)")
-    
-    # Get probabilities for ROC
-    y_val_proba = best_model.predict_proba(X_val)
-    
-    return best_model, best_params, best_cv_score, val_accuracy, val_f1, y_val_pred, y_val_proba
-
-def plot_confusion_matrix(y_true, y_pred, model_name, save_path):
-    """Plot confusion matrix"""
-    cm = confusion_matrix(y_true, y_pred)
-    fig, ax = plt.subplots(figsize=(8, 6))
-    
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax,
-                xticklabels=['Low (0)', 'Medium (1)', 'High (2)'],
-                yticklabels=['Low (0)', 'Medium (1)', 'High (2)'])
-    ax.set_xlabel('Predicted Priority')
-    ax.set_ylabel('Actual Priority')
-    ax.set_title(f'{model_name} - Confusion Matrix')
+    # Add value labels
+    for bar, count in zip(bars2, val_counts):
+        height = bar.get_height()
+        axes[1].text(bar.get_x() + bar.get_width()/2., height + 5,
+                    f'{count}\n({count/len(y_val)*100:.1f}%)',
+                    ha='center', va='bottom', fontsize=10)
     
     plt.tight_layout()
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
     plt.close()
+    print(f"   ✅ Class distribution plot saved")
 
-def plot_feature_importance(model, feature_cols, model_name, save_path, top_n=15):
-    """Plot feature importance"""
+def plot_confusion_matrices(models_data, y_val, save_path):
+    """Plot confusion matrices for all models"""
+    n_models = len(models_data)
+    fig, axes = plt.subplots(1, n_models, figsize=(5*n_models, 4))
+    
+    if n_models == 1:
+        axes = [axes]
+    
+    priority_names = ['Low', 'Medium', 'High']
+    
+    for idx, model_info in enumerate(models_data):
+        # Unpack based on length
+        if len(model_info) == 5:  # (name, model, acc, f1, pred)
+            model_name, _, _, _, y_pred = model_info
+        else:  # (name, model, acc, f1, pred, proba)
+            model_name, _, _, _, y_pred, _ = model_info
+        
+        cm = confusion_matrix(y_val, y_pred)
+        
+        # Create heatmap
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=axes[idx],
+                   xticklabels=priority_names, yticklabels=priority_names,
+                   cbar_kws={'label': 'Count'})
+        
+        acc = accuracy_score(y_val, y_pred)
+        axes[idx].set_title(f'{model_name}\nAccuracy: {acc*100:.2f}%', 
+                           fontsize=12, fontweight='bold')
+        axes[idx].set_xlabel('Predicted Priority', fontsize=10)
+        axes[idx].set_ylabel('Actual Priority', fontsize=10)
+    
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"   ✅ Confusion matrices saved")
+
+def plot_model_comparison(models_data, save_path):
+    """Plot model comparison bar charts"""
+    model_names = []
+    accuracies = []
+    f1_scores = []
+    
+    for model_info in models_data:
+        if len(model_info) == 5:  # (name, model, acc, f1, pred)
+            model_name, _, acc, f1, _ = model_info
+        else:  # (name, model, acc, f1, pred, proba)
+            model_name, _, acc, f1, _, _ = model_info
+        
+        model_names.append(model_name)
+        accuracies.append(acc)
+        f1_scores.append(f1)
+    
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    
+    # Accuracy comparison
+    colors = ['#3498db', '#2ecc71', '#e74c3c']
+    bars1 = axes[0].barh(model_names, accuracies, color=colors, edgecolor='black', linewidth=1.5)
+    axes[0].set_xlabel('Accuracy Score', fontsize=12, fontweight='bold')
+    axes[0].set_title('Model Accuracy Comparison', fontsize=14, fontweight='bold')
+    axes[0].set_xlim([0.7, 1.0])
+    
+    # Add value labels
+    for bar, acc in zip(bars1, accuracies):
+        width = bar.get_width()
+        axes[0].text(width + 0.01, bar.get_y() + bar.get_height()/2, 
+                    f'{acc*100:.2f}%', ha='left', va='center', fontsize=10, fontweight='bold')
+    
+    # F1-Score comparison
+    bars2 = axes[1].barh(model_names, f1_scores, color=colors, edgecolor='black', linewidth=1.5)
+    axes[1].set_xlabel('F1-Score', fontsize=12, fontweight='bold')
+    axes[1].set_title('Model F1-Score Comparison', fontsize=14, fontweight='bold')
+    axes[1].set_xlim([0.7, 1.0])
+    
+    # Add value labels
+    for bar, f1 in zip(bars2, f1_scores):
+        width = bar.get_width()
+        axes[1].text(width + 0.01, bar.get_y() + bar.get_height()/2, 
+                    f'{f1:.4f}', ha='left', va='center', fontsize=10, fontweight='bold')
+    
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"   ✅ Model comparison chart saved")
+
+def plot_roc_curves(models_data, y_val, save_path):
+    """Plot ROC curves for all models"""
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    
+    priority_names = ['Low Priority (0)', 'Medium Priority (1)', 'High Priority (2)']
+    colors = ['#2ecc71', '#f39c12', '#e74c3c']
+    linestyles = ['-', '--', '-.']
+    
+    for class_idx in range(3):
+        ax = axes[class_idx]
+        
+        for idx, model_info in enumerate(models_data):
+            # Unpack based on length
+            if len(model_info) == 6:  # (name, model, acc, f1, pred, proba)
+                model_name, _, _, _, _, y_pred_proba = model_info
+            else:  # (name, model, acc, f1, pred)
+                continue  # Skip if no probabilities
+            
+            fpr, tpr, _ = roc_curve(y_val == class_idx, y_pred_proba[:, class_idx])
+            auc = roc_auc_score(y_val == class_idx, y_pred_proba[:, class_idx])
+            ax.plot(fpr, tpr, label=f'{model_name} (AUC = {auc:.3f})', 
+                   linewidth=2, color=colors[idx], linestyle=linestyles[idx])
+        
+        ax.plot([0, 1], [0, 1], 'k--', label='Random Classifier', linewidth=1, alpha=0.5)
+        ax.set_xlabel('False Positive Rate', fontsize=11)
+        ax.set_ylabel('True Positive Rate', fontsize=11)
+        ax.set_title(f'ROC Curve - {priority_names[class_idx]}', fontsize=12, fontweight='bold')
+        ax.legend(loc='lower right', fontsize=9)
+        ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"   ✅ ROC curves saved")
+
+def plot_feature_importance(model, model_name, feature_cols, save_path, top_n=20):
+    """Plot feature importance for tree-based models"""
     if hasattr(model, 'feature_importances_'):
         importances = model.feature_importances_
+        
+        # Ensure we have the right number of features
+        if len(importances) != len(feature_cols):
+            feature_cols = [f'Feature_{i}' for i in range(len(importances))]
+        
         indices = np.argsort(importances)[::-1][:top_n]
         
-        fig, ax = plt.subplots(figsize=(12, 8))
-        bars = ax.barh(range(len(indices)), importances[indices])
-        ax.set_yticks(range(len(indices)))
-        ax.set_yticklabels([feature_cols[i][:35] for i in indices], fontsize=10)
-        ax.set_xlabel('Feature Importance')
-        ax.set_title(f'{model_name} - Top {top_n} Features')
+        fig, ax = plt.subplots(figsize=(10, 8))
+        
+        colors = plt.cm.viridis(np.linspace(0, 1, top_n))
+        bars = ax.barh(range(top_n), importances[indices], color=colors, edgecolor='black', linewidth=0.5)
+        
+        ax.set_yticks(range(top_n))
+        ax.set_yticklabels([feature_cols[i][:30] for i in indices], fontsize=9)
+        ax.set_xlabel('Importance Score', fontsize=12, fontweight='bold')
+        ax.set_title(f'{model_name} - Top {top_n} Feature Importance', fontsize=14, fontweight='bold')
         ax.invert_yaxis()
         
         # Add value labels
         for i, (bar, val) in enumerate(zip(bars, importances[indices])):
-            ax.text(val + 0.01, i, f'{val:.3f}', va='center', fontsize=9)
+            ax.text(val + 0.005, i, f'{val:.4f}', va='center', fontsize=8)
         
         plt.tight_layout()
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
         plt.close()
+        print(f"   ✅ Feature importance plot saved for {model_name}")
+
+def create_summary_plot(models_data, save_path):
+    """Create a summary plot with all metrics"""
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    model_names = []
+    accuracies = []
+    f1_scores = []
+    
+    for model_info in models_data:
+        if len(model_info) == 5:  # (name, model, acc, f1, pred)
+            model_name, _, acc, f1, _ = model_info
+        else:  # (name, model, acc, f1, pred, proba)
+            model_name, _, acc, f1, _, _ = model_info
         
-        # Save to CSV
-        importance_df = pd.DataFrame({
-            'Feature': [feature_cols[i] for i in indices],
-            'Importance': importances[indices]
-        })
-        importance_df.to_csv(TRAINED_MODELS_PATH / f'{model_name}_feature_importance.csv', index=False)
-
-def plot_roc_curves(y_true, y_proba, model_name, save_path):
-    """Plot ROC curves"""
-    if y_proba is None:
-        return
+        model_names.append(model_name)
+        accuracies.append(acc * 100)
+        f1_scores.append(f1 * 100)
     
-    n_classes = y_proba.shape[1]
-    fig, ax = plt.subplots(figsize=(8, 6))
+    x = np.arange(len(model_names))
+    width = 0.35
     
-    colors = ['blue', 'green', 'red']
-    class_names = ['Low (0)', 'Medium (1)', 'High (2)']
+    bars1 = ax.bar(x - width/2, accuracies, width, label='Accuracy', color='#3498db', edgecolor='black')
+    bars2 = ax.bar(x + width/2, f1_scores, width, label='F1-Score', color='#2ecc71', edgecolor='black')
     
-    for i in range(n_classes):
-        fpr, tpr, _ = roc_curve(y_true == i, y_proba[:, i])
-        auc = roc_auc_score(y_true == i, y_proba[:, i])
-        ax.plot(fpr, tpr, color=colors[i], label=f'{class_names[i]} (AUC = {auc:.3f})')
+    ax.set_xlabel('Models', fontsize=12, fontweight='bold')
+    ax.set_ylabel('Score (%)', fontsize=12, fontweight='bold')
+    ax.set_title('Model Performance Comparison', fontsize=14, fontweight='bold')
+    ax.set_xticks(x)
+    ax.set_xticklabels(model_names, fontsize=11)
+    ax.legend(fontsize=11)
+    ax.set_ylim([70, 100])
+    ax.grid(True, alpha=0.3, axis='y')
     
-    ax.plot([0, 1], [0, 1], 'k--', label='Random')
-    ax.set_xlabel('False Positive Rate')
-    ax.set_ylabel('True Positive Rate')
-    ax.set_title(f'{model_name} - ROC Curves')
-    ax.legend(loc='lower right')
+    # Add value labels on bars
+    for bars in [bars1, bars2]:
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height + 0.5,
+                   f'{height:.1f}%', ha='center', va='bottom', fontsize=9, fontweight='bold')
     
     plt.tight_layout()
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
     plt.close()
+    print(f"   ✅ Summary plot saved")
 
-def plot_model_comparison(results_df, save_path):
-    """Plot model comparison"""
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+def create_detailed_report(models_data, best_model_data, best_name, y_train, y_val, feature_cols, save_path):
+    """Create detailed text report"""
+    # Extract best model predictions
+    if len(best_model_data) == 5:  # (name, model, acc, f1, pred)
+        _, _, best_acc, best_f1, best_pred = best_model_data
+    else:  # (name, model, acc, f1, pred, proba)
+        _, _, best_acc, best_f1, best_pred, _ = best_model_data
     
-    # Accuracy comparison
-    axes[0].barh(results_df['Model'], results_df['Validation Accuracy'], color=['red', 'blue', 'green'])
-    axes[0].set_xlabel('Validation Accuracy')
-    axes[0].set_title('Model Accuracy Comparison')
-    axes[0].set_xlim([0.5, 1.0])
-    for i, (model, acc) in enumerate(zip(results_df['Model'], results_df['Validation Accuracy'])):
-        axes[0].text(acc + 0.01, i, f'{acc*100:.1f}%', va='center')
+    with open(save_path, 'w', encoding='utf-8') as f:
+        f.write("=" * 80 + "\n")
+        f.write("ACADEMIC PRIORITY PREDICTION - MODEL TRAINING REPORT\n")
+        f.write("=" * 80 + "\n\n")
+        
+        # Dataset summary
+        f.write("📊 DATASET SUMMARY\n")
+        f.write("-" * 40 + "\n")
+        f.write(f"Training samples: {len(y_train)}\n")
+        f.write(f"Validation samples: {len(y_val)}\n")
+        f.write(f"Number of features: {len(feature_cols)}\n")
+        f.write(f"Number of classes: 3 (Low, Medium, High)\n\n")
+        
+        # Class distribution
+        f.write("📈 CLASS DISTRIBUTION\n")
+        f.write("-" * 40 + "\n")
+        train_counts = np.bincount(y_train.astype(int))
+        val_counts = np.bincount(y_val.astype(int))
+        for i, name in enumerate(['Low', 'Medium', 'High']):
+            f.write(f"{name} Priority:\n")
+            f.write(f"  - Training: {train_counts[i]} ({train_counts[i]/len(y_train)*100:.1f}%)\n")
+            f.write(f"  - Validation: {val_counts[i]} ({val_counts[i]/len(y_val)*100:.1f}%)\n")
+        f.write("\n")
+        
+        # Model comparison
+        f.write("🏆 MODEL PERFORMANCE COMPARISON\n")
+        f.write("-" * 40 + "\n")
+        f.write(f"{'Model':<20} {'Accuracy':<12} {'F1-Score':<12}\n")
+        f.write("-" * 50 + "\n")
+        
+        for model_info in models_data:
+            if len(model_info) == 5:
+                model_name, _, acc, f1, _ = model_info
+            else:
+                model_name, _, acc, f1, _, _ = model_info
+            f.write(f"{model_name:<20} {acc*100:>6.2f}%{'':<4} {f1:>8.4f}\n")
+        f.write("\n")
+        
+        # Best model details
+        f.write(f"⭐ BEST MODEL: {best_name}\n")
+        f.write("-" * 40 + "\n")
+        f.write(f"Validation Accuracy: {best_acc*100:.2f}%\n")
+        f.write(f"Validation F1-Score: {best_f1:.4f}\n\n")
+        
+        # Classification report for best model
+        f.write("📋 DETAILED CLASSIFICATION REPORT\n")
+        f.write("-" * 40 + "\n")
+        report = classification_report(y_val, best_pred, 
+                                      target_names=['Low Priority', 'Medium Priority', 'High Priority'],
+                                      output_dict=True)
+        
+        f.write(f"{'Class':<15} {'Precision':<12} {'Recall':<12} {'F1-Score':<12} {'Support':<10}\n")
+        f.write("-" * 65 + "\n")
+        for class_name in ['Low Priority', 'Medium Priority', 'High Priority']:
+            metrics = report[class_name]
+            f.write(f"{class_name:<15} {metrics['precision']*100:>6.2f}%{'':<4} "
+                   f"{metrics['recall']*100:>6.2f}%{'':<4} "
+                   f"{metrics['f1-score']*100:>6.2f}%{'':<4} "
+                   f"{metrics['support']:<10}\n")
+        
+        f.write("\n")
+        f.write(f"{'Accuracy':<15} {report['accuracy']*100:>6.2f}%{'':<31}\n")
+        f.write(f"{'Macro Avg':<15} {report['macro avg']['precision']*100:>6.2f}%{'':<4} "
+               f"{report['macro avg']['recall']*100:>6.2f}%{'':<4} "
+               f"{report['macro avg']['f1-score']*100:>6.2f}%\n")
+        
+        # Confusion matrix
+        f.write("\n📊 CONFUSION MATRIX\n")
+        f.write("-" * 40 + "\n")
+        cm = confusion_matrix(y_val, best_pred)
+        f.write("                 Predicted\n")
+        f.write("                 Low   Medium  High\n")
+        f.write(f"Actual Low      {cm[0,0]:>4}   {cm[0,1]:>4}    {cm[0,2]:>4}\n")
+        f.write(f"      Medium    {cm[1,0]:>4}   {cm[1,1]:>4}    {cm[1,2]:>4}\n")
+        f.write(f"      High      {cm[2,0]:>4}   {cm[2,1]:>4}    {cm[2,2]:>4}\n")
+        
+        # Performance summary
+        f.write("\n📈 PERFORMANCE SUMMARY\n")
+        f.write("-" * 40 + "\n")
+        f.write(f"Overall Accuracy: {best_acc*100:.2f}%\n")
+        f.write(f"Macro F1-Score: {report['macro avg']['f1-score']*100:.2f}%\n")
+        f.write(f"Weighted F1-Score: {best_f1*100:.2f}%\n")
+        
+        f.write("\n" + "=" * 80 + "\n")
+        f.write("END OF REPORT\n")
+        f.write("=" * 80 + "\n")
     
-    # F1 Score comparison
-    axes[1].barh(results_df['Model'], results_df['Validation F1'], color=['red', 'blue', 'green'])
-    axes[1].set_xlabel('Validation F1-Score')
-    axes[1].set_title('Model F1-Score Comparison')
-    axes[1].set_xlim([0.5, 1.0])
-    for i, (model, f1) in enumerate(zip(results_df['Model'], results_df['Validation F1'])):
-        axes[1].text(f1 + 0.01, i, f'{f1*100:.1f}%', va='center')
-    
-    plt.tight_layout()
-    plt.savefig(save_path, dpi=150, bbox_inches='tight')
-    plt.close()
+    print(f"   ✅ Detailed report saved")
 
-def save_model_and_artifacts(model, model_name, metrics, X_train, y_train, feature_cols, scaler, class_weight_dict):
+# ---------------------------------------------------
+# SAVE MODEL
+# ---------------------------------------------------
+
+def save_all(model, scaler, feature_cols, model_metadata):
     """Save all model artifacts"""
-    print("\n" + "=" * 70)
-    print(" SAVING MODEL AND ARTIFACTS ")
-    print("=" * 70)
+    print("\n💾 Saving model artifacts...")
     
-    # Save primary model
-    model_path = TRAINED_MODELS_PATH / 'academic_priority_model.pkl'
-    joblib.dump(model, model_path)
-    print(f"  ✅ Primary model saved: {model_path}")
+    joblib.dump(model, TRAINED_MODELS_PATH / "xgboost_model.pkl")
+    joblib.dump(model, TRAINED_MODELS_PATH / "academic_priority_model.pkl")
+    joblib.dump(scaler, TRAINED_MODELS_PATH / "scaler.pkl")
+    joblib.dump(feature_cols, TRAINED_MODELS_PATH / "feature_columns.pkl")
     
-    # Save XGBoost model separately
-    xgboost_path = TRAINED_MODELS_PATH / 'xgboost_model.pkl'
-    joblib.dump(model, xgboost_path)
-    print(f"  ✅ XGBoost model saved: {xgboost_path}")
+    with open(TRAINED_MODELS_PATH / "model_metadata.json", "w") as f:
+        json.dump(model_metadata, f, indent=2)
     
-    # Save scaler
-    scaler_path = TRAINED_MODELS_PATH / 'scaler.pkl'
-    joblib.dump(scaler, scaler_path)
-    print(f"  ✅ Scaler saved: {scaler_path}")
-    
-    # Save feature columns
-    feature_cols_path = TRAINED_MODELS_PATH / 'feature_columns.pkl'
-    joblib.dump(feature_cols, feature_cols_path)
-    print(f"  ✅ Feature columns saved: {feature_cols_path}")
-    
-    # Save feature columns as JSON
-    with open(TRAINED_MODELS_PATH / 'feature_columns.json', 'w') as f:
-        json.dump(feature_cols, f, indent=2)
-    
-    # Save model metadata
-    metadata = {
-        'model_name': model_name,
-        'model_type': model.__class__.__name__,
-        'num_features': len(feature_cols),
-        'num_classes': len(np.unique(y_train)),
-        'class_weights': class_weight_dict,
-        'metrics': {
-            'accuracy': float(metrics['val_accuracy']),
-            'f1_score': float(metrics['val_f1']),
-            'best_cv_score': float(metrics['best_cv_score'])
-        }
-    }
-    
-    with open(TRAINED_MODELS_PATH / 'model_metadata.json', 'w') as f:
-        json.dump(metadata, f, indent=2)
-    print(f"  ✅ Model metadata saved")
-    
-    # Save model summary
-    with open(TRAINED_MODELS_PATH / 'model_summary.txt', 'w') as f:
-        f.write("=" * 60 + "\n")
-        f.write("ACADEMIC PRIORITY PREDICTION MODEL\n")
-        f.write("=" * 60 + "\n\n")
-        f.write(f"Model: {model_name}\n")
-        f.write(f"Model Type: {model.__class__.__name__}\n\n")
-        f.write(f"Number of Features: {len(feature_cols)}\n")
-        f.write(f"Number of Classes: {len(np.unique(y_train))}\n\n")
-        f.write("Class Weights:\n")
-        for cls, weight in class_weight_dict.items():
-            priority_name = {0: 'Low', 1: 'Medium', 2: 'High'}[cls]
-            f.write(f"  - Priority {cls} ({priority_name}): {weight:.4f}\n")
-        f.write("\nModel Performance:\n")
-        f.write(f"  - Validation Accuracy: {metrics['val_accuracy']:.4f}\n")
-        f.write(f"  - Validation F1-Score: {metrics['val_f1']:.4f}\n")
-        f.write(f"  - Best CV Score: {metrics['best_cv_score']:.4f}\n")
-    
-    print(f"  ✅ Model summary saved")
+    print("✅ All models and artifacts saved successfully")
+
+# ---------------------------------------------------
+# MAIN
+# ---------------------------------------------------
 
 def main():
-    """Main training pipeline"""
-    print("\n" + "=" * 70)
-    print(" ACADEMIC PRIORITY PREDICTION - MODEL TRAINING ")
-    print(" WITH CLASS WEIGHTS ")
-    print("=" * 70)
+    print("\n" + "=" * 60)
+    print("🎯 ACADEMIC PRIORITY MODEL TRAINING")
+    print("WITH COMPLETE VISUALIZATIONS")
+    print("=" * 60)
     
-    # Clean up old models
     cleanup_old_models()
     
     # Load data
-    X_train, X_val, y_train, y_val, X_test, feature_cols = load_preprocessed_data()
+    X_train, X_val, X_test, y_train, y_val, feature_cols = load_data()
     
-    # Create and save scaler
-    from sklearn.preprocessing import StandardScaler
+    # Scale data
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_val_scaled = scaler.transform(X_val)
     X_test_scaled = scaler.transform(X_test)
     
-    print(f"\n  ✅ Data scaled successfully")
-    
-    # Compute and save class weights
-    class_weight_dict = compute_and_save_class_weights(y_train)
-    
     # Plot class distribution
-    plot_class_distribution(y_train, y_val)
+    print("\n📊 Generating initial visualizations...")
+    plot_class_distribution(y_train, y_val, VIZ_PATH / 'class_distribution.png')
+    
+    # Get class weights
+    class_weights = get_class_weights(y_train)
     
     # Train all models
+    print("\n" + "=" * 50)
+    print("TRAINING MODELS")
+    print("=" * 50)
+    
     results = []
     
-    # 1. XGBoost
-    xgb_model, xgb_params, xgb_cv, xgb_acc, xgb_f1, xgb_pred, xgb_proba = train_xgboost(
-        X_train_scaled, y_train, X_val_scaled, y_val, class_weight_dict
+    # XGBoost
+    xgb_model, xgb_acc, xgb_f1, xgb_pred, xgb_proba = train_xgboost(
+        X_train_scaled, y_train, X_val_scaled, y_val, class_weights
     )
-    results.append({
-        'Model': 'XGBoost',
-        'CV Score': xgb_cv,
-        'Validation Accuracy': xgb_acc,
-        'Validation F1': xgb_f1,
-        'Model Object': xgb_model,
-        'Predictions': xgb_pred,
-        'Probabilities': xgb_proba
-    })
+    results.append(("XGBoost", xgb_model, xgb_acc, xgb_f1, xgb_pred, xgb_proba))
     
-    # 2. Random Forest
-    rf_model, rf_params, rf_cv, rf_acc, rf_f1, rf_pred, rf_proba = train_random_forest(
-        X_train_scaled, y_train, X_val_scaled, y_val, class_weight_dict
+    # Random Forest
+    rf_model, rf_acc, rf_f1, rf_pred, rf_proba = train_random_forest(
+        X_train_scaled, y_train, X_val_scaled, y_val, class_weights
     )
-    results.append({
-        'Model': 'Random Forest',
-        'CV Score': rf_cv,
-        'Validation Accuracy': rf_acc,
-        'Validation F1': rf_f1,
-        'Model Object': rf_model,
-        'Predictions': rf_pred,
-        'Probabilities': rf_proba
-    })
+    results.append(("Random Forest", rf_model, rf_acc, rf_f1, rf_pred, rf_proba))
     
-    # 3. Gradient Boosting
-    gb_model, gb_params, gb_cv, gb_acc, gb_f1, gb_pred, gb_proba = train_gradient_boosting(
-        X_train_scaled, y_train, X_val_scaled, y_val, class_weight_dict
+    # Gradient Boosting
+    gb_model, gb_acc, gb_f1, gb_pred, gb_proba = train_gradient_boosting(
+        X_train_scaled, y_train, X_val_scaled, y_val, class_weights
     )
-    results.append({
-        'Model': 'Gradient Boosting',
-        'CV Score': gb_cv,
-        'Validation Accuracy': gb_acc,
-        'Validation F1': gb_f1,
-        'Model Object': gb_model,
-        'Predictions': gb_pred,
-        'Probabilities': gb_proba
-    })
+    results.append(("Gradient Boosting", gb_model, gb_acc, gb_f1, gb_pred, gb_proba))
     
-    # Create comparison dataframe
-    comparison_df = pd.DataFrame([
-        {k: v for k, v in r.items() if k not in ['Model Object', 'Predictions', 'Probabilities']}
-        for r in results
-    ])
+    # Find best model
+    best_idx = np.argmax([r[2] for r in results])
+    best_model_data = results[best_idx]
+    best_name = best_model_data[0]
+    best_model = best_model_data[1]
+    best_acc = best_model_data[2]
+    best_f1 = best_model_data[3]
     
-    print("\n" + "=" * 70)
-    print(" MODEL COMPARISON RESULTS ")
-    print("=" * 70)
-    print(comparison_df.to_string(index=False))
+    print("\n" + "=" * 50)
+    print(f"🏆 BEST MODEL: {best_name}")
+    print(f"   Accuracy: {best_acc*100:.2f}%")
+    print(f"   F1-Score: {best_f1:.4f}")
+    print("=" * 50)
     
-    # Save comparison
-    comparison_df.to_csv(TRAINED_MODELS_PATH / 'model_comparison.csv', index=False)
+    # Generate all visualizations
+    print("\n📈 Generating comprehensive visualizations...")
     
-    # Select best model (by validation accuracy)
-    best_result = max(results, key=lambda x: x['Validation Accuracy'])
-    best_model = best_result['Model Object']
-    best_model_name = best_result['Model']
+    # Confusion matrices
+    plot_confusion_matrices(results, y_val, VIZ_PATH / 'confusion_matrices.png')
     
-    print(f"\n" + "=" * 70)
-    print(f"🏆 BEST MODEL: {best_model_name}")
-    print(f"   Validation Accuracy: {best_result['Validation Accuracy']*100:.2f}%")
-    print(f"   Validation F1-Score: {best_result['Validation F1']:.4f}")
-    print(f"   CV Score: {best_result['CV Score']:.4f}")
-    print("=" * 70)
+    # Model comparison
+    plot_model_comparison(results, VIZ_PATH / 'model_comparison.png')
     
-    # Generate visualizations for each model
-    print("\n" + "=" * 70)
-    print(" GENERATING VISUALIZATIONS ")
-    print("=" * 70)
+    # ROC curves
+    plot_roc_curves(results, y_val, VIZ_PATH / 'roc_curves.png')
     
-    for result in results:
-        model_name = result['Model']
-        model_viz_path = VIZ_PATH / model_name.replace(' ', '_')
-        model_viz_path.mkdir(exist_ok=True)
-        
-        # Confusion Matrix
-        plot_confusion_matrix(y_val, result['Predictions'], model_name,
-                             model_viz_path / f'{model_name}_confusion_matrix.png')
-        
-        # ROC Curves
-        plot_roc_curves(y_val, result['Probabilities'], model_name,
-                        model_viz_path / f'{model_name}_roc_curves.png')
-        
-        # Feature Importance (for tree-based models)
-        plot_feature_importance(result['Model Object'], feature_cols, model_name,
-                                model_viz_path / f'{model_name}_feature_importance.png')
-        
-        print(f"  ✅ {model_name} visualizations saved")
+    # Summary plot
+    create_summary_plot(results, VIZ_PATH / 'summary_plot.png')
     
-    # Plot model comparison
-    plot_model_comparison(comparison_df, VIZ_PATH / 'model_comparison.png')
-    print(f"  ✅ Model comparison chart saved")
+    # Feature importance for best model
+    plot_feature_importance(best_model, best_name, feature_cols, 
+                           VIZ_PATH / f'{best_name.lower().replace(" ", "_")}_feature_importance.png')
     
-    # Save best model and artifacts
-    metrics = {
-        'val_accuracy': best_result['Validation Accuracy'],
-        'val_f1': best_result['Validation F1'],
-        'best_cv_score': best_result['CV Score']
+    # Create detailed report
+    create_detailed_report(results, best_model_data, best_name, y_train, y_val, feature_cols,
+                          TRAINED_MODELS_PATH / 'training_report.txt')
+    
+    # Save everything
+    model_metadata = {
+        'best_model': best_name,
+        'accuracy': float(best_acc),
+        'f1_score': float(best_f1),
+        'num_features': X_train.shape[1],
+        'num_classes': 3,
+        'class_weights': class_weights
     }
     
-    save_model_and_artifacts(best_model, best_model_name, metrics,
-                            X_train_scaled, y_train, feature_cols, scaler, class_weight_dict)
+    save_all(best_model, scaler, feature_cols, model_metadata)
     
-    # Final evaluation
-    print("\n" + "=" * 70)
-    print(" FINAL EVALUATION REPORT ")
-    print("=" * 70)
-    
-    print("\n📊 Classification Report:")
-    print(classification_report(y_val, best_result['Predictions'], 
-                                target_names=['Low (0)', 'Medium (1)', 'High (2)']))
-    
-    # Test on unseen data
-    print("\n" + "=" * 70)
-    print(" TEST ON UNSEEN DATA ")
-    print("=" * 70)
-    
-    y_test_pred = best_model.predict(X_test_scaled)
-    print(f"  - Test predictions shape: {y_test_pred.shape}")
-    print(f"  - Test prediction distribution:")
-    for p in sorted(np.unique(y_test_pred)):
-        count = (y_test_pred == p).sum()
-        priority_name = {0: 'Low', 1: 'Medium', 2: 'High'}[p]
-        print(f"      Priority {p} ({priority_name}): {count} ({count/len(y_test_pred)*100:.1f}%)")
-    
-    # Save test predictions
-    np.save(TRAINED_MODELS_PATH / 'test_predictions.npy', y_test_pred)
-    np.save(TRAINED_MODELS_PATH / 'val_predictions.npy', best_result['Predictions'])
-    np.save(TRAINED_MODELS_PATH / 'val_true_labels.npy', y_val)
-    
-    print("\n" + "=" * 70)
-    print(" ✅ MODEL TRAINING COMPLETED SUCCESSFULLY ")
-    print("=" * 70)
+    # Print final summary
+    print("\n" + "=" * 60)
+    print("✅ TRAINING COMPLETED SUCCESSFULLY!")
+    print("=" * 60)
     print(f"\n📁 All artifacts saved in: {TRAINED_MODELS_PATH}")
     print(f"📊 Visualizations saved in: {VIZ_PATH}")
-    print(f"\n🎯 Final Model Accuracy: {best_result['Validation Accuracy']*100:.2f}%")
-    
-    if best_result['Validation Accuracy'] >= 0.90:
-        print(f"🎉 EXCELLENT! Model exceeds target (75-90%)!")
-    elif best_result['Validation Accuracy'] >= 0.75:
-        print(f"✅ GOOD! Model meets target (75-90%)!")
-    else:
-        print(f"⚠️ Model accuracy below target. Consider more data.")
-    
-    return best_model, best_model_name, best_result['Validation Accuracy']
+    print(f"\n📈 Generated Visualizations:")
+    print(f"   ✅ Class Distribution Plot")
+    print(f"   ✅ Confusion Matrices (all models)")
+    print(f"   ✅ Model Comparison Chart")
+    print(f"   ✅ ROC Curves")
+    print(f"   ✅ Summary Performance Plot")
+    print(f"   ✅ Feature Importance Plot")
+    print(f"   ✅ Detailed Text Report")
+    print(f"\n🎯 Best Model: {best_name}")
+    print(f"   Accuracy: {best_acc*100:.2f}%")
+    print(f"   F1-Score: {best_f1:.4f}")
+    print("=" * 60)
+
+# ---------------------------------------------------
 
 if __name__ == "__main__":
     main()
