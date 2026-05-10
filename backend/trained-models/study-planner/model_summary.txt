@@ -1,0 +1,19 @@
+============================================================
+ACADEMIC PRIORITY PREDICTION MODEL
+============================================================
+
+Model: XGBoost
+Model Type: XGBClassifier
+
+Number of Features: 28
+Number of Classes: 3
+
+Class Weights:
+  - Priority 0 (Low): 2.5518
+  - Priority 1 (Medium): 0.7222
+  - Priority 2 (High): 0.8174
+
+Model Performance:
+  - Validation Accuracy: 0.9725
+  - Validation F1-Score: 0.9725
+  - Best CV Score: 0.9583
