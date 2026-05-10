@@ -1,0 +1,16 @@
+{
+  "model_name": "XGBoost",
+  "model_type": "XGBClassifier",
+  "num_features": 28,
+  "num_classes": 3,
+  "class_weights": {
+    "0": 2.5518341307814993,
+    "1": 0.7221846084405326,
+    "2": 0.8173690932311622
+  },
+  "metrics": {
+    "accuracy": 0.9725,
+    "f1_score": 0.9725096523324184,
+    "best_cv_score": 0.9583115675588401
+  }
+}
