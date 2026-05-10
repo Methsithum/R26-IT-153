@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
-from backend.app.schemas.journal.analysis import BehaviorAnalysisRequest, BehaviorAnalysisResponse
+from app.schemas.journal.analysis import BehaviorAnalysisRequest, BehaviorAnalysisResponse
 from app.models.user.user import UserModel
 from app.models.journal.behavior_analysis import BehaviorAnalysisModel
-from backend.app.services.journal.behavior_analysis import build_activity_snapshot, analyze_behavior
+from app.services.journal.behavior_analysis import build_activity_snapshot, analyze_behavior
 
 router = APIRouter(prefix="/behavior", tags=["behavior"])
 
