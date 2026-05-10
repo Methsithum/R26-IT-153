@@ -1,3 +1,4 @@
 config.bat
 node_modules
 backend/backend_structure.md
+/backend/datasets/study-planner
