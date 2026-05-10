@@ -1,3 +1,4 @@
 config.bat
 node_modules
 /backend/datasets
+backend/trained-models/focus/features_cache.npz
