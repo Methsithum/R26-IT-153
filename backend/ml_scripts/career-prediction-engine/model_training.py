@@ -1,23 +1,21 @@
-# =============================================================================
-# FILE: model_training.py
-# PROJECT: Integrated Future & Career Prediction Engine
-# DESCRIPTION: Trains, evaluates, compares, and saves two predictive models:
-#   Model A — Academic Risk Classification  (Random Forest vs XGBoost)
-#   Model B — Career Readiness Regression   (Random Forest vs XGBoost)
-#
-# PREREQUISITES: Run dataset_preprocessing.py first to generate saved_objects/.
-# USAGE:         python model_training.py   (from ml_scripts/career-prediction-engine/)
-# =============================================================================
+"""
+Model training pipeline for the Integrated Future & Career Prediction Engine.
 
-import os
+Trains and evaluates three algorithms per task:
+  Model A — Academic Risk Classification  (Logistic Regression | RF | XGBoost)
+  Model B — Career Readiness Regression   (Ridge | RF | XGBoost)
+Saves all six models plus a metadata pickle to trained-models/saved_objects/.
+
+EXECUTION ORDER: 1. dataset_preprocessing.py  2. model_training.py  3. test_inference.py
+USAGE: python model_training.py   (from ml_scripts/career-prediction-engine/)
+"""
+
 import sys
 import warnings
 import joblib
 import numpy as np
 import pandas as pd
 
-# Use non-interactive backend so plots are written to files, not displayed.
-# This makes the script safe to run in terminal / CI environments.
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -25,6 +23,7 @@ import seaborn as sns
 
 from pathlib import Path
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.metrics import (
     accuracy_score, f1_score, classification_report,
     confusion_matrix, mean_absolute_error, mean_squared_error, r2_score
@@ -39,10 +38,7 @@ warnings.filterwarnings('ignore')
 # PATH SETUP & VALIDATION
 # =============================================================================
 
-# __file__ gives the absolute path of this script regardless of the working
-# directory, so paths stay correct even if the user runs the script from a
-# different folder.
-BASE_DIR  = Path(__file__).resolve().parent          # ml_scripts/career-prediction-engine/
+BASE_DIR  = Path(__file__).resolve().parent
 SAVED_DIR = (BASE_DIR / '..' / '..' / 'trained-models'
              / 'career-prediction-engine' / 'saved_objects').resolve()
 PLOTS_DIR = (BASE_DIR / '..' / '..' / 'trained-models'
@@ -58,8 +54,19 @@ if not SAVED_DIR.exists():
     print("=" * 65)
     sys.exit(1)
 
-# Create the plots directory if it does not yet exist.
 PLOTS_DIR.mkdir(parents=True, exist_ok=True)
+
+# Fixed filenames for all 6 saved models — inference layer uses these directly.
+RISK_FILENAMES = {
+    'Logistic Regression': 'model_A_risk_logistic_regression.pkl',
+    'Random Forest'      : 'model_A_risk_random_forest.pkl',
+    'XGBoost'            : 'model_A_risk_xgboost.pkl',
+}
+CAREER_FILENAMES = {
+    'Ridge Regression': 'model_B_career_ridge.pkl',
+    'Random Forest'   : 'model_B_career_random_forest.pkl',
+    'XGBoost'         : 'model_B_career_xgboost.pkl',
+}
 
 
 # =============================================================================
@@ -70,20 +77,15 @@ print("=" * 65)
 print("  STEP 1: LOADING PREPROCESSED DATA FROM saved_objects/")
 print("=" * 65)
 
-# All objects were serialised by dataset_preprocessing.py using joblib.
-# We load them directly — no re-splitting, re-scaling, or re-balancing.
 scaler          = joblib.load(SAVED_DIR / 'scaler.pkl')
 feature_columns = joblib.load(SAVED_DIR / 'feature_columns.pkl')
 
-# risk_train contains the SMOTE-balanced training set for classification.
 X_train_r, y_train_r = joblib.load(SAVED_DIR / 'risk_train.pkl')
 X_test_r,  y_test_r  = joblib.load(SAVED_DIR / 'risk_test.pkl')
 
-# career_train/test contain the scaled regression splits.
 X_train_c, y_train_c = joblib.load(SAVED_DIR / 'career_train.pkl')
 X_test_c,  y_test_c  = joblib.load(SAVED_DIR / 'career_test.pkl')
 
-# Human-readable label map used for classification reports and plots.
 RISK_LABEL_MAP = {0: 'Low', 1: 'Medium', 2: 'High'}
 RISK_LABELS    = [RISK_LABEL_MAP[i] for i in sorted(RISK_LABEL_MAP)]
 
@@ -101,51 +103,50 @@ print("\n" + "=" * 65)
 print("  STEP 2: TRAINING MODEL A — ACADEMIC RISK CLASSIFICATION")
 print("=" * 65)
 
+# ── Logistic Regression (linear baseline) ────────────────────────────────────
+# Training LR first gives a lower-bound reference point. If RF/XGB only
+# marginally outperform LR, the added complexity is not justified.
+print("  Training Logistic Regression (baseline)...")
+lr_risk = LogisticRegression(
+    C            = 0.5,
+    max_iter     = 1000,
+    class_weight = 'balanced',
+    solver       = 'lbfgs',
+    random_state = 42
+)
+lr_risk.fit(X_train_r, y_train_r)
+print("  Logistic Regression (Risk) — done.")
+
 # ── Random Forest Classifier ─────────────────────────────────────────────────
-# class_weight='balanced' adds a second layer of imbalance protection on top of
-# the SMOTE already applied during preprocessing. This guards against any
-# residual imbalance in the SMOTE-balanced splits.
-# n_estimators=300 gives stable, low-variance predictions on a 10k-row dataset.
-# max_depth=15 prevents trees from growing too deep and memorising noise.
-# min_samples_split/leaf add regularisation by requiring meaningful support
-# before any further split or leaf creation.
+# Reduced vs previous version (n_estimators 300→100, max_depth 15→8,
+# min_samples 10/4→20/10) to prevent memorising the SMOTE-augmented set.
 print("  Training Random Forest Classifier...")
 rf_risk = RandomForestClassifier(
-    n_estimators     = 300,
-    max_depth        = 15,
-    min_samples_split= 10,
-    min_samples_leaf = 4,
-    max_features     = 'sqrt',      # standard heuristic for classification
-    class_weight     = 'balanced',
-    random_state     = 42,
-    n_jobs           = -1           # use all CPU cores
+    n_estimators      = 100,
+    max_depth         = 8,
+    min_samples_split = 20,
+    min_samples_leaf  = 10,
+    max_features      = 'sqrt',
+    class_weight      = 'balanced',
+    random_state      = 42
 )
 rf_risk.fit(X_train_r, y_train_r)
 print("  Random Forest (Risk) — done.")
 
 # ── XGBoost Classifier ───────────────────────────────────────────────────────
-# subsample + colsample_bytree introduce stochasticity that reduces overfitting
-# while maintaining strong predictive power.
-# gamma (min_child_weight) and reg_alpha/lambda (L1/L2) further regularise the
-# model, which is important for a research dataset of moderate size.
-# A lower learning_rate (0.05) with more estimators typically generalises
-# better than a high rate with fewer trees.
 print("  Training XGBoost Classifier...")
 xgb_risk = XGBClassifier(
-    n_estimators     = 300,
-    max_depth        = 6,
+    n_estimators     = 100,
+    max_depth        = 4,
     learning_rate    = 0.05,
-    subsample        = 0.8,
-    colsample_bytree = 0.8,
-    gamma            = 1,
+    subsample        = 0.7,
+    colsample_bytree = 0.7,
     reg_alpha        = 0.1,
-    reg_lambda       = 1.0,
-    objective        = 'multi:softmax',
-    num_class        = 3,
+    reg_lambda       = 1.5,
+    min_child_weight = 5,
     eval_metric      = 'mlogloss',
     random_state     = 42,
-    verbosity        = 0,
-    n_jobs           = -1
+    verbosity        = 0
 )
 xgb_risk.fit(X_train_r, y_train_r)
 print("  XGBoost (Risk) — done.")
@@ -163,37 +164,16 @@ print("=" * 65)
 def evaluate_classifier(model, X_test, y_test, model_name,
                          cv_X, cv_y, label_names, n_splits=5):
     """
-    Evaluate a trained classifier on the held-out test set and via cross-validation.
+    Evaluate a classifier on the held-out test set and via cross-validation.
 
-    Args:
-        model       : Fitted sklearn-compatible classifier.
-        X_test      : Scaled test features.
-        y_test      : True integer labels for the test set.
-        model_name  : Display name used in printed output.
-        cv_X / cv_y : Training data used for cross-validation.
-        label_names : Ordered list of class name strings.
-        n_splits    : Number of stratified CV folds.
-
-    Returns:
-        dict with model, name, y_pred, accuracy, f1, cv_mean, cv_std.
-
-    Note on CV data: cv_X comes from the SMOTE-balanced training set. This means
-    synthetic samples may appear in both train and validation folds, which can
-    give slightly optimistic CV estimates. The held-out test set (no SMOTE) is
-    the definitive evaluation benchmark.
+    Returns dict with model, name, y_pred, accuracy, f1, cv_mean, cv_std.
     """
     y_pred = model.predict(X_test)
+    acc    = accuracy_score(y_test, y_pred)
+    f1     = f1_score(y_test, y_pred, average='weighted')
 
-    acc = accuracy_score(y_test, y_pred)
-    # Weighted F1 accounts for class-frequency differences in the test set,
-    # making it a more informative single metric than macro F1 here.
-    f1  = f1_score(y_test, y_pred, average='weighted')
-
-    # Stratified folds preserve the class ratio in every fold, which is
-    # essential for a 3-class problem where fold composition matters.
     skf    = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
     cv_acc = cross_val_score(model, cv_X, cv_y, cv=skf, scoring='accuracy', n_jobs=-1)
-
     report = classification_report(y_test, y_pred, target_names=label_names)
 
     print(f"\n  {'─' * 42}")
@@ -202,7 +182,7 @@ def evaluate_classifier(model, X_test, y_test, model_name,
     print(f"  Test Accuracy        : {acc:.4f}")
     print(f"  Weighted F1 Score    : {f1:.4f}")
     print(f"  CV Accuracy (5-fold) : {cv_acc.mean():.4f} ± {cv_acc.std():.4f}")
-    print(f"\n  Classification Report:\n")
+    print("\n  Classification Report:\n")
     for line in report.splitlines():
         print(f"    {line}")
 
@@ -217,38 +197,30 @@ def evaluate_classifier(model, X_test, y_test, model_name,
     }
 
 
+lr_risk_results  = evaluate_classifier(
+    lr_risk,  X_test_r, y_test_r, 'Logistic Regression', X_train_r, y_train_r, RISK_LABELS
+)
 rf_risk_results  = evaluate_classifier(
-    rf_risk,  X_test_r, y_test_r, 'Random Forest', X_train_r, y_train_r, RISK_LABELS
+    rf_risk,  X_test_r, y_test_r, 'Random Forest',       X_train_r, y_train_r, RISK_LABELS
 )
 xgb_risk_results = evaluate_classifier(
-    xgb_risk, X_test_r, y_test_r, 'XGBoost',       X_train_r, y_train_r, RISK_LABELS
+    xgb_risk, X_test_r, y_test_r, 'XGBoost',             X_train_r, y_train_r, RISK_LABELS
 )
 
-# Select winner by weighted F1: more robust than accuracy alone because it
-# rewards correct predictions across all three risk classes proportionally.
-best_risk_result = max([rf_risk_results, xgb_risk_results], key=lambda r: r['f1'])
-best_risk_model  = best_risk_result['model']
-best_risk_slug   = best_risk_result['name'].lower().replace(' ', '_')
-
+best_risk_result = max(
+    [lr_risk_results, rf_risk_results, xgb_risk_results], key=lambda r: r['f1']
+)
 print(f"\n  >> Best Model A: {best_risk_result['name']}"
       f" (Weighted F1 = {best_risk_result['f1']:.4f})")
 
+
 # ── Confusion Matrix ──────────────────────────────────────────────────────────
 def plot_confusion_matrix(y_true, y_pred, label_names, title, save_path):
-    """
-    Plot and save a confusion matrix heatmap.
-
-    The confusion matrix shows per-class prediction patterns. Off-diagonal
-    values reveal which risk classes are most frequently confused, helping
-    identify where the model needs improvement.
-    """
     cm = confusion_matrix(y_true, y_pred)
-
     plt.figure(figsize=(7, 5))
     sns.heatmap(
         cm, annot=True, fmt='d', cmap='Blues',
-        xticklabels=label_names, yticklabels=label_names,
-        linewidths=0.5
+        xticklabels=label_names, yticklabels=label_names, linewidths=0.5
     )
     plt.title(title, fontsize=13)
     plt.ylabel('True Label')
@@ -276,41 +248,38 @@ print("\n" + "=" * 65)
 print("  STEP 4: TRAINING MODEL B — CAREER READINESS REGRESSION")
 print("=" * 65)
 
+# ── Ridge Regression (linear baseline) ───────────────────────────────────────
+print("  Training Ridge Regression (baseline)...")
+ridge_career = Ridge(alpha=1.0)
+ridge_career.fit(X_train_c, y_train_c)
+print("  Ridge (Career) — done.")
+
 # ── Random Forest Regressor ───────────────────────────────────────────────────
-# min_samples_leaf=5 smooths predictions on the continuous career_readiness_score
-# target, reducing variance without significantly increasing bias.
 print("  Training Random Forest Regressor...")
 rf_career = RandomForestRegressor(
-    n_estimators     = 300,
-    max_depth        = 15,
-    min_samples_split= 10,
-    min_samples_leaf = 5,
-    max_features     = 'sqrt',
-    random_state     = 42,
-    n_jobs           = -1
+    n_estimators      = 100,
+    max_depth         = 8,
+    min_samples_split = 20,
+    min_samples_leaf  = 10,
+    max_features      = 'sqrt',
+    random_state      = 42
 )
 rf_career.fit(X_train_c, y_train_c)
 print("  Random Forest (Career) — done.")
 
 # ── XGBoost Regressor ─────────────────────────────────────────────────────────
-# reg:squarederror is the standard MSE objective for regression.
-# The same regularisation strategy as Model A is applied: low learning_rate
-# with many estimators, L1+L2 penalties, and column/row subsampling.
 print("  Training XGBoost Regressor...")
 xgb_career = XGBRegressor(
-    n_estimators     = 300,
-    max_depth        = 6,
+    n_estimators     = 100,
+    max_depth        = 4,
     learning_rate    = 0.05,
-    subsample        = 0.8,
-    colsample_bytree = 0.8,
-    gamma            = 1,
+    subsample        = 0.7,
+    colsample_bytree = 0.7,
     reg_alpha        = 0.1,
-    reg_lambda       = 1.0,
-    objective        = 'reg:squarederror',
-    eval_metric      = 'rmse',
+    reg_lambda       = 1.5,
+    min_child_weight = 5,
     random_state     = 42,
-    verbosity        = 0,
-    n_jobs           = -1
+    verbosity        = 0
 )
 xgb_career.fit(X_train_c, y_train_c)
 print("  XGBoost (Career) — done.")
@@ -327,23 +296,9 @@ print("=" * 65)
 
 def evaluate_regressor(model, X_test, y_test, model_name, cv_X, cv_y, n_splits=5):
     """
-    Evaluate a trained regressor on the held-out test set and via cross-validation.
+    Evaluate a regressor on the held-out test set and via cross-validation.
 
-    Args:
-        model       : Fitted sklearn-compatible regressor.
-        X_test      : Scaled test features.
-        y_test      : True continuous target values.
-        model_name  : Display name used in printed output.
-        cv_X / cv_y : Training data for cross-validation.
-        n_splits    : Number of KFold CV folds.
-
-    Returns:
-        dict with model, name, y_pred, mae, rmse, r2, cv_mean, cv_std.
-
-    Metrics used:
-        MAE  — average absolute error; interpretable in the same units as the score.
-        RMSE — penalises large errors more than MAE; useful for detecting outlier predictions.
-        R²   — proportion of variance explained; scale-independent and intuitive.
+    Returns dict with model, name, y_pred, mae, rmse, r2, cv_mean, cv_std.
     """
     y_pred = model.predict(X_test)
     y_true = np.asarray(y_test)
@@ -352,7 +307,6 @@ def evaluate_regressor(model, X_test, y_test, model_name, cv_X, cv_y, n_splits=5
     rmse = np.sqrt(mean_squared_error(y_true, y_pred))
     r2   = r2_score(y_true, y_pred)
 
-    # Standard KFold (not stratified) is appropriate for regression.
     kf    = KFold(n_splits=n_splits, shuffle=True, random_state=42)
     cv_r2 = cross_val_score(model, cv_X, cv_y, cv=kf, scoring='r2', n_jobs=-1)
 
@@ -376,34 +330,27 @@ def evaluate_regressor(model, X_test, y_test, model_name, cv_X, cv_y, n_splits=5
     }
 
 
-rf_career_results  = evaluate_regressor(
-    rf_career,  X_test_c, y_test_c, 'Random Forest', X_train_c, y_train_c
+ridge_career_results = evaluate_regressor(
+    ridge_career, X_test_c, y_test_c, 'Ridge Regression', X_train_c, y_train_c
 )
-xgb_career_results = evaluate_regressor(
-    xgb_career, X_test_c, y_test_c, 'XGBoost',       X_train_c, y_train_c
+rf_career_results    = evaluate_regressor(
+    rf_career,    X_test_c, y_test_c, 'Random Forest',    X_train_c, y_train_c
+)
+xgb_career_results   = evaluate_regressor(
+    xgb_career,   X_test_c, y_test_c, 'XGBoost',          X_train_c, y_train_c
 )
 
-# Select winner by R²: higher means the model explains more variance in the
-# career readiness score. R² is preferred over RMSE here because it is
-# scale-independent and directly comparable across datasets.
-best_career_result = max([rf_career_results, xgb_career_results], key=lambda r: r['r2'])
-best_career_model  = best_career_result['model']
-best_career_slug   = best_career_result['name'].lower().replace(' ', '_')
-
+best_career_result = max(
+    [ridge_career_results, rf_career_results, xgb_career_results], key=lambda r: r['r2']
+)
 print(f"\n  >> Best Model B: {best_career_result['name']}"
       f" (R² = {best_career_result['r2']:.4f})")
 
+
 # ── Actual vs Predicted Scatter Plot ─────────────────────────────────────────
 def plot_actual_vs_predicted(y_true, y_pred, model_name, save_path):
-    """
-    Scatter plot of true vs predicted values for a regression model.
-
-    Points clustered tightly along the red diagonal (perfect-fit line) indicate
-    a well-calibrated model. Systematic deviation from the diagonal (e.g., a
-    curved band) signals non-linearity that the model has not captured.
-    """
-    y_true = np.asarray(y_true)
-    y_pred = np.asarray(y_pred)
+    y_true  = np.asarray(y_true)
+    y_pred  = np.asarray(y_pred)
     min_val = min(y_true.min(), y_pred.min()) - 1
     max_val = max(y_true.max(), y_pred.max()) + 1
 
@@ -438,38 +385,31 @@ print("\n" + "=" * 65)
 print("  STEP 6: FEATURE IMPORTANCE COMPARISON PLOT")
 print("=" * 65)
 
+# LR and Ridge use coefficients, not feature_importances_ — excluded from chart.
+# Use the better-scoring tree model from each task for the side-by-side view.
+risk_tree_result   = max([rf_risk_results,   xgb_risk_results],   key=lambda r: r['f1'])
+career_tree_result = max([rf_career_results, xgb_career_results], key=lambda r: r['r2'])
+
 
 def plot_feature_importance_comparison(model_a, model_b, feature_names, save_path, top_n=15):
-    """
-    Side-by-side horizontal bar chart comparing feature importances from the
-    two best models (one classifier, one regressor).
+    label_a = f"Risk ({risk_tree_result['name']})"
+    label_b = f"Career ({career_tree_result['name']})"
 
-    Features are ranked by their average importance across both models so that
-    features critical to either task appear at the top. This view helps identify
-    which student attributes are universally predictive vs task-specific.
+    imp_a = pd.Series(model_a.feature_importances_, index=feature_names, name=label_a)
+    imp_b = pd.Series(model_b.feature_importances_, index=feature_names, name=label_b)
 
-    Args:
-        model_a      : Best classification model (risk).
-        model_b      : Best regression model (career).
-        feature_names: List of feature column names (same order as training data).
-        save_path    : File path to save the PNG.
-        top_n        : Number of top features to display.
-    """
-    imp_a = pd.Series(model_a.feature_importances_, index=feature_names, name='Risk Model (A)')
-    imp_b = pd.Series(model_b.feature_importances_, index=feature_names, name='Career Model (B)')
-
-    # Rank features by average importance across both tasks.
     avg_imp      = (imp_a + imp_b) / 2
     top_features = avg_imp.nlargest(top_n).index
 
     df_imp = pd.DataFrame({
-        'Risk Model (A)': imp_a[top_features],
-        'Career Model (B)': imp_b[top_features]
-    }).sort_values('Risk Model (A)', ascending=True)
+        label_a: imp_a[top_features],
+        label_b: imp_b[top_features]
+    }).sort_values(label_a, ascending=True)
 
-    fig, ax = plt.subplots(figsize=(10, 8))
+    _, ax = plt.subplots(figsize=(10, 8))
     df_imp.plot(kind='barh', ax=ax, color=['#2196F3', '#4CAF50'], alpha=0.85, width=0.7)
-    ax.set_title(f'Top {top_n} Feature Importances — Risk vs Career Model', fontsize=13)
+    ax.set_title(f'Top {top_n} Feature Importances — Risk vs Career Model (Tree Models)',
+                 fontsize=13)
     ax.set_xlabel('Feature Importance Score')
     ax.set_ylabel('Feature')
     ax.legend(loc='lower right')
@@ -481,59 +421,51 @@ def plot_feature_importance_comparison(model_a, model_b, feature_names, save_pat
 
 
 plot_feature_importance_comparison(
-    best_risk_model,
-    best_career_model,
+    risk_tree_result['model'],
+    career_tree_result['model'],
     feature_columns,
     PLOTS_DIR / 'feature_importance_comparison.png'
 )
 
 
 # =============================================================================
-# SECTION 7 — MODEL COMPARISON BAR CHART
+# SECTION 7 — MODEL COMPARISON BAR CHART  (all 3 algorithms)
 # =============================================================================
 
 print("\n" + "=" * 65)
-print("  STEP 7: ALGORITHM COMPARISON BAR CHART (RF vs XGBoost)")
+print("  STEP 7: ALGORITHM COMPARISON BAR CHART (LR/Ridge | RF | XGBoost)")
 print("=" * 65)
 
 
-def plot_model_comparison(risk_rf, risk_xgb, career_rf, career_xgb, save_path):
-    """
-    Grouped bar chart comparing Random Forest and XGBoost across both tasks.
-
-    Metric used per task:
-        Model A (classification) — Weighted F1 score (0–1 scale)
-        Model B (regression)     — R² score         (0–1 scale)
-    Both metrics are on the same 0–1 scale, so placing them side by side in a
-    single chart gives an intuitive visual comparison without misleading the reader.
-    """
-    algorithms  = ['Random Forest', 'XGBoost']
-    risk_scores   = [risk_rf['f1'],     risk_xgb['f1']]
-    career_scores = [career_rf['r2'],   career_xgb['r2']]
+def plot_model_comparison(risk_results_list, career_results_list, save_path):
+    """Grouped bar chart: all 3 algorithms × both tasks side by side."""
+    algorithms    = [r['name'] for r in risk_results_list]
+    risk_scores   = [r['f1'] for r in risk_results_list]
+    career_scores = [r['r2'] for r in career_results_list]
 
     x     = np.arange(len(algorithms))
     width = 0.35
 
-    fig, ax = plt.subplots(figsize=(8, 5))
+    _, ax = plt.subplots(figsize=(10, 5))
     bars1 = ax.bar(x - width / 2, risk_scores,   width,
-                   label='Model A — Academic Risk (Weighted F1)',   color='#2196F3', alpha=0.85)
+                   label='Model A — Academic Risk (Weighted F1)',  color='#2196F3', alpha=0.85)
     bars2 = ax.bar(x + width / 2, career_scores, width,
                    label='Model B — Career Readiness (R² Score)', color='#4CAF50', alpha=0.85)
 
-    # Annotate each bar with its numeric value for quick reading.
-    for bar in list(bars1) + list(bars2):
+    for rect in list(bars1) + list(bars2):
         ax.text(
-            bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + 0.008,
-            f'{bar.get_height():.3f}',
+            rect.get_x() + rect.get_width() / 2,
+            rect.get_height() + 0.008,
+            f'{rect.get_height():.3f}',
             ha='center', va='bottom', fontsize=9, fontweight='bold'
         )
 
     ax.set_xticks(x)
-    ax.set_xticklabels(algorithms, fontsize=11)
+    ax.set_xticklabels(algorithms, fontsize=10)
     ax.set_ylim(0, 1.15)
     ax.set_ylabel('Score (higher is better)')
-    ax.set_title('Algorithm Comparison — Random Forest vs XGBoost', fontsize=13)
+    ax.set_title('Algorithm Comparison — Logistic Regression | Random Forest | XGBoost',
+                 fontsize=12)
     ax.legend(fontsize=9)
     ax.grid(axis='y', linestyle='--', alpha=0.4)
     plt.tight_layout()
@@ -543,55 +475,71 @@ def plot_model_comparison(risk_rf, risk_xgb, career_rf, career_xgb, save_path):
 
 
 plot_model_comparison(
-    rf_risk_results, xgb_risk_results,
-    rf_career_results, xgb_career_results,
+    [lr_risk_results,      rf_risk_results,    xgb_risk_results],
+    [ridge_career_results, rf_career_results,  xgb_career_results],
     PLOTS_DIR / 'model_comparison_bar_chart.png'
 )
 
 
 # =============================================================================
-# SECTION 8 — SAVE BEST MODELS & METADATA
+# SECTION 8 — SAVE ALL 6 MODELS & METADATA
 # =============================================================================
 
 print("\n" + "=" * 65)
-print("  STEP 8: SAVING MODELS & METADATA")
+print("  STEP 8: SAVING ALL MODELS & METADATA")
 print("=" * 65)
 
-# Filenames embed the winning algorithm so saved files are self-documenting.
-risk_filename   = f'model_A_risk_{best_risk_slug}.pkl'
-career_filename = f'model_B_career_{best_career_slug}.pkl'
+# All 6 models saved with fixed filenames — inference layer can load any of them.
+model_save_map = {
+    RISK_FILENAMES['Logistic Regression']: lr_risk,
+    RISK_FILENAMES['Random Forest']      : rf_risk,
+    RISK_FILENAMES['XGBoost']            : xgb_risk,
+    CAREER_FILENAMES['Ridge Regression'] : ridge_career,
+    CAREER_FILENAMES['Random Forest']    : rf_career,
+    CAREER_FILENAMES['XGBoost']          : xgb_career,
+}
 
-joblib.dump(best_risk_model,   SAVED_DIR / risk_filename)
-print(f"  Saved: {risk_filename}")
+for filename, model_obj in model_save_map.items():
+    joblib.dump(model_obj, SAVED_DIR / filename)
+    print(f"  Saved: {filename}")
 
-joblib.dump(best_career_model, SAVED_DIR / career_filename)
-print(f"  Saved: {career_filename}")
-
-# model_metadata.pkl is the single source of truth for the inference layer.
-# It contains everything the API/simulation script needs to load the right
-# model files, reconstruct predictions, and report metrics — without having
-# to hard-code algorithm names or paths elsewhere.
+# Metadata stores all three results per task + the winner name/filename so the
+# inference layer knows which model to load without hard-coding algorithm names.
 metadata = {
-    # Model A
-    'model_A_filename'   : risk_filename,
-    'model_A_algorithm'  : best_risk_result['name'],
-    'model_A_accuracy'   : round(best_risk_result['accuracy'], 6),
-    'model_A_f1'         : round(best_risk_result['f1'],       6),
-    'model_A_cv_accuracy': round(best_risk_result['cv_mean'],  6),
-    # Model B
-    'model_B_filename'   : career_filename,
-    'model_B_algorithm'  : best_career_result['name'],
-    'model_B_mae'        : round(best_career_result['mae'],     6),
-    'model_B_rmse'       : round(best_career_result['rmse'],    6),
-    'model_B_r2'         : round(best_career_result['r2'],      6),
-    'model_B_cv_r2'      : round(best_career_result['cv_mean'], 6),
-    # Shared
-    'feature_columns'    : feature_columns,
-    'risk_label_map'     : RISK_LABEL_MAP,
-    'scaler_filename'    : 'scaler.pkl',
+    # ── Model A ──────────────────────────────────────────────────────────────
+    'model_A_winner'         : best_risk_result['name'],
+    'model_A_winner_filename': RISK_FILENAMES[best_risk_result['name']],
+    'model_A_lr_accuracy'    : round(lr_risk_results['accuracy'],  6),
+    'model_A_lr_f1'          : round(lr_risk_results['f1'],        6),
+    'model_A_lr_cv_accuracy' : round(lr_risk_results['cv_mean'],   6),
+    'model_A_rf_accuracy'    : round(rf_risk_results['accuracy'],  6),
+    'model_A_rf_f1'          : round(rf_risk_results['f1'],        6),
+    'model_A_rf_cv_accuracy' : round(rf_risk_results['cv_mean'],   6),
+    'model_A_xgb_accuracy'   : round(xgb_risk_results['accuracy'], 6),
+    'model_A_xgb_f1'         : round(xgb_risk_results['f1'],       6),
+    'model_A_xgb_cv_accuracy': round(xgb_risk_results['cv_mean'],  6),
+    # ── Model B ──────────────────────────────────────────────────────────────
+    'model_B_winner'         : best_career_result['name'],
+    'model_B_winner_filename': CAREER_FILENAMES[best_career_result['name']],
+    'model_B_ridge_mae'      : round(ridge_career_results['mae'],    6),
+    'model_B_ridge_rmse'     : round(ridge_career_results['rmse'],   6),
+    'model_B_ridge_r2'       : round(ridge_career_results['r2'],     6),
+    'model_B_ridge_cv_r2'    : round(ridge_career_results['cv_mean'], 6),
+    'model_B_rf_mae'         : round(rf_career_results['mae'],       6),
+    'model_B_rf_rmse'        : round(rf_career_results['rmse'],      6),
+    'model_B_rf_r2'          : round(rf_career_results['r2'],        6),
+    'model_B_rf_cv_r2'       : round(rf_career_results['cv_mean'],   6),
+    'model_B_xgb_mae'        : round(xgb_career_results['mae'],      6),
+    'model_B_xgb_rmse'       : round(xgb_career_results['rmse'],     6),
+    'model_B_xgb_r2'         : round(xgb_career_results['r2'],       6),
+    'model_B_xgb_cv_r2'      : round(xgb_career_results['cv_mean'],  6),
+    # ── Shared ───────────────────────────────────────────────────────────────
+    'feature_columns'        : feature_columns,
+    'risk_label_map'         : RISK_LABEL_MAP,
+    'scaler_filename'        : 'scaler.pkl',
 }
 joblib.dump(metadata, SAVED_DIR / 'model_metadata.pkl')
-print(f"  Saved: model_metadata.pkl")
+print("  Saved: model_metadata.pkl")
 print(f"\n  All models saved to: {SAVED_DIR}")
 
 
@@ -603,42 +551,39 @@ print("\n" + "=" * 65)
 print("  TRAINING COMPLETE — FINAL SUMMARY")
 print("=" * 65)
 
-print(f"""
-  MODEL A — Academic Risk Classification
-  {'─' * 52}
-  Algorithms compared  : Random Forest  |  XGBoost
-  RF  — Accuracy: {rf_risk_results['accuracy']:.4f}   F1: {rf_risk_results['f1']:.4f}
-  XGB — Accuracy: {xgb_risk_results['accuracy']:.4f}   F1: {xgb_risk_results['f1']:.4f}
-  Winner               : {best_risk_result['name']}
-  Final Accuracy        : {best_risk_result['accuracy']:.4f}
-  Final Weighted F1     : {best_risk_result['f1']:.4f}
-  5-Fold CV Accuracy    : {best_risk_result['cv_mean']:.4f} ± {best_risk_result['cv_std']:.4f}
+W   = 22
+SEP = "─" * 62
 
-  MODEL B — Career Readiness Regression
-  {'─' * 52}
-  Algorithms compared  : Random Forest  |  XGBoost
-  RF  — MAE: {rf_career_results['mae']:.4f}   RMSE: {rf_career_results['rmse']:.4f}   R²: {rf_career_results['r2']:.4f}
-  XGB — MAE: {xgb_career_results['mae']:.4f}   RMSE: {xgb_career_results['rmse']:.4f}   R²: {xgb_career_results['r2']:.4f}
-  Winner               : {best_career_result['name']}
-  Final MAE             : {best_career_result['mae']:.4f}
-  Final RMSE            : {best_career_result['rmse']:.4f}
-  Final R² Score        : {best_career_result['r2']:.4f}
-  5-Fold CV R²          : {best_career_result['cv_mean']:.4f} ± {best_career_result['cv_std']:.4f}
+print(f"\n  MODEL A — Academic Risk Classification")
+print(f"  {SEP}")
+print(f"  {'Algorithm':<{W}} {'Accuracy':>10} {'Weighted F1':>12} {'CV Acc (5-fold)':>16}")
+print(f"  {SEP}")
+for res in [lr_risk_results, rf_risk_results, xgb_risk_results]:
+    print(f"  {res['name']:<{W}} {res['accuracy']:>10.4f} {res['f1']:>12.4f}"
+          f" {res['cv_mean']:>10.4f} ± {res['cv_std']:.4f}")
+print(f"  Winner: {best_risk_result['name']}")
 
-  SAVED FILES
-  {'─' * 52}
-  Models & metadata  → {SAVED_DIR}
-    {risk_filename}
-    {career_filename}
-    model_metadata.pkl
+print(f"\n  MODEL B — Career Readiness Regression")
+print(f"  {SEP}")
+print(f"  {'Algorithm':<{W}} {'MAE':>8} {'RMSE':>8} {'R²':>8} {'CV R² (5-fold)':>16}")
+print(f"  {SEP}")
+for res in [ridge_career_results, rf_career_results, xgb_career_results]:
+    print(f"  {res['name']:<{W}} {res['mae']:>8.4f} {res['rmse']:>8.4f}"
+          f" {res['r2']:>8.4f} {res['cv_mean']:>10.4f} ± {res['cv_std']:.4f}")
+print(f"  Winner: {best_career_result['name']}")
 
-  Plots              → {PLOTS_DIR}
-    confusion_matrix_risk.png
-    actual_vs_predicted_career.png
-    feature_importance_comparison.png
-    model_comparison_bar_chart.png
-""")
+print("\n  SAVED FILES")
+print(f"  {SEP}")
+print(f"  Models & metadata  → {SAVED_DIR}")
+for fname in model_save_map:
+    print(f"    {fname}")
+print("    model_metadata.pkl")
+print(f"\n  Plots              → {PLOTS_DIR}")
+print("    confusion_matrix_risk.png")
+print("    actual_vs_predicted_career.png")
+print("    feature_importance_comparison.png")
+print("    model_comparison_bar_chart.png")
 
-print("=" * 65)
+print("\n" + "=" * 65)
 print("  Ready for simulation / inference pipeline.")
 print("=" * 65)
