@@ -38,11 +38,13 @@ warnings.filterwarnings('ignore')
 # PATH SETUP & VALIDATION
 # =============================================================================
 
-BASE_DIR  = Path(__file__).resolve().parent
-SAVED_DIR = (BASE_DIR / '..' / '..' / 'trained-models'
-             / 'career-prediction-engine' / 'saved_objects').resolve()
-PLOTS_DIR = (BASE_DIR / '..' / '..' / 'trained-models'
-             / 'career-prediction-engine' / 'plots').resolve()
+BASE_DIR     = Path(__file__).resolve().parent
+SAVED_DIR    = (BASE_DIR / '..' / '..' / 'trained-models'
+                / 'career-prediction-engine' / 'saved_objects').resolve()
+PLOTS_DIR    = (BASE_DIR / '..' / '..' / 'trained-models'
+                / 'career-prediction-engine' / 'plots').resolve()
+PROFILES_DIR = (BASE_DIR / '..' / '..' / 'trained-models'
+                / 'career-prediction-engine' / 'student_profiles').resolve()
 
 if not SAVED_DIR.exists():
     print("\n" + "=" * 65)
@@ -55,6 +57,7 @@ if not SAVED_DIR.exists():
     sys.exit(1)
 
 PLOTS_DIR.mkdir(parents=True, exist_ok=True)
+PROFILES_DIR.mkdir(parents=True, exist_ok=True)
 
 # Fixed filenames for all 6 saved models — inference layer uses these directly.
 RISK_FILENAMES = {
@@ -544,6 +547,87 @@ print(f"\n  All models saved to: {SAVED_DIR}")
 
 
 # =============================================================================
+# SECTION 9 — STUDENT PROFILE VALIDATION (200-ROW HOLDOUT)
+# =============================================================================
+
+print("\n" + "=" * 65)
+print("  STEP 9: STUDENT PROFILE VALIDATION (200-ROW HOLDOUT)")
+print("=" * 65)
+
+profile_pkl = SAVED_DIR / 'student_profiles.pkl'
+if not profile_pkl.exists():
+    print("  WARNING: student_profiles.pkl not found — skipping.")
+    print("  Run dataset_preprocessing.py to generate the profile holdout set.")
+else:
+    df_profiles = joblib.load(profile_pkl)
+    print(f"  Loaded profiles : {df_profiles.shape}")
+
+    X_profiles_scaled = scaler.transform(df_profiles[feature_columns])
+
+    risk_pred   = xgb_risk.predict(X_profiles_scaled)
+    risk_proba  = xgb_risk.predict_proba(X_profiles_scaled)
+    career_pred = best_career_result['model'].predict(X_profiles_scaled)
+
+    y_actual_risk   = df_profiles['academic_risk_encoded'].values
+    y_actual_career = df_profiles['career_readiness_score'].values
+
+    profile_acc = accuracy_score(y_actual_risk, risk_pred)
+    profile_f1  = f1_score(y_actual_risk, risk_pred, average='weighted')
+    profile_mae = mean_absolute_error(y_actual_career, career_pred)
+    profile_r2  = r2_score(y_actual_career, career_pred)
+
+    n_correct = int(profile_acc * len(df_profiles))
+    print(f"\n  Profile Validation Metrics:")
+    print(f"  {'─' * 42}")
+    print(f"  Risk  — Accuracy    : {profile_acc:.4f}  ({n_correct}/{len(df_profiles)} correct)")
+    print(f"  Risk  — Weighted F1 : {profile_f1:.4f}")
+    print(f"  Career — MAE        : {profile_mae:.4f}")
+    print(f"  Career — R²         : {profile_r2:.4f}")
+
+    actual_risk_labels = [RISK_LABEL_MAP[r] for r in y_actual_risk]
+    pred_risk_labels   = [RISK_LABEL_MAP[r] for r in risk_pred]
+
+    results_df = pd.DataFrame({
+        'profile_id'            : range(1, len(df_profiles) + 1),
+        'actual_risk'           : actual_risk_labels,
+        'predicted_risk'        : pred_risk_labels,
+        'correct'               : [a == p for a, p in zip(actual_risk_labels, pred_risk_labels)],
+        'prob_low'              : risk_proba[:, 0].round(4),
+        'prob_medium'           : risk_proba[:, 1].round(4),
+        'prob_high'             : risk_proba[:, 2].round(4),
+        'actual_career_score'   : y_actual_career.round(2),
+        'predicted_career_score': career_pred.round(2),
+        'career_error'          : (career_pred - y_actual_career).round(2),
+    })
+
+    report_path = PROFILES_DIR / 'profile_predictions_report.csv'
+    results_df.to_csv(report_path, index=False)
+    print(f"\n  Report saved : {report_path}")
+
+    print(f"\n  FIRST 10 PROFILE PREDICTIONS")
+    print(f"  {'─' * 74}")
+    print(f"  {'ID':>4}  {'Actual':8} {'Predicted':10} {'OK':3}  "
+          f"{'P(Low)':7} {'P(Mid)':7} {'P(High)':7}  "
+          f"{'Act Cr':8} {'Pred Cr':7}")
+    print(f"  {'─' * 74}")
+    for _, row in results_df.head(10).iterrows():
+        ok = 'Y' if row['correct'] else 'N'
+        print(f"  {int(row['profile_id']):>4}  {row['actual_risk']:8} "
+              f"{row['predicted_risk']:10} {ok:3}  "
+              f"{row['prob_low']:7.3f} {row['prob_medium']:7.3f} {row['prob_high']:7.3f}  "
+              f"{row['actual_career_score']:8.2f} {row['predicted_career_score']:7.2f}")
+
+    print(f"\n  BREAKDOWN BY RISK CLASS")
+    print(f"  {'─' * 42}")
+    for label in ['Low', 'Medium', 'High']:
+        mask    = results_df['actual_risk'] == label
+        correct = results_df.loc[mask, 'correct'].sum()
+        total   = mask.sum()
+        pct     = correct / total * 100 if total > 0 else 0.0
+        print(f"    {label:6s}: {correct:3}/{total:3} correct  ({pct:.1f}%)")
+
+
+# =============================================================================
 # SUMMARY
 # =============================================================================
 
@@ -578,6 +662,9 @@ print(f"  Models & metadata  → {SAVED_DIR}")
 for fname in model_save_map:
     print(f"    {fname}")
 print("    model_metadata.pkl")
+print("    student_profiles.pkl")
+print(f"\n  Profile reports    → {PROFILES_DIR}")
+print("    profile_predictions_report.csv")
 print(f"\n  Plots              → {PLOTS_DIR}")
 print("    confusion_matrix_risk.png")
 print("    actual_vs_predicted_career.png")
