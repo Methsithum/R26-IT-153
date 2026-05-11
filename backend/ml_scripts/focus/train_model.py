@@ -1,9 +1,3 @@
-"""
-STEP 2 - Model Training
-========================
-File: backend/ml_scripts/focus/train_model.py
-"""
-
 import os
 import json
 import warnings
@@ -115,7 +109,7 @@ def augment_image(img):
     return img
 
 # ══════════════════════════════════════════════════════
-# GET BALANCED PATHS (RAM friendly — images load නොකරයි)
+# GET BALANCED PATHS (RAM friendly — no images load)
 # ══════════════════════════════════════════════════════
 
 def get_balanced_paths(paths, labels, target):
@@ -286,7 +280,7 @@ y_tr = le.transform(y_train)
 y_v  = le.transform(y_val)
 y_te = le.transform(y_test)
 
-# Scale features (SVM ට)
+# Scale features (SVM)
 scaler  = StandardScaler()
 X_tr_sc = scaler.fit_transform(X_train)
 X_v_sc  = scaler.transform(X_val)
@@ -300,7 +294,7 @@ X_te_sc = scaler.transform(X_test)
 CLASS_W = {
     0: 10.0,   # Focused
     1: 10.0,   # Fatigue
-    2:  0.2,   # Anxiety  ← low (dominate නොකරන්න)
+    2:  0.2,   # Anxiety  ← low
     3: 12.0,   # Boredom
 }
 
