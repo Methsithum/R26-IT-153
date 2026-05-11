@@ -203,9 +203,28 @@ def derive_academic_risk(row):
     elif row['attendance_rate'] < 0.75:           score += 1
     if row['assignment_completion_rate'] < 0.5:   score += 2
     elif row['assignment_completion_rate'] < 0.7: score += 1
-    if 3 <= score <= 6:
-        if random.random() < 0.12:
-            score += random.choice([-2, 2])
+
+    # ── CHANGE THIS SECTION ──────────────────────────────
+    # OLD: 12% noise on borderline only (score 3-6)
+    # NEW: 30% noise on ALL cases, wider score range
+    
+    noise_chance = random.random()
+    
+    if score <= 3:                    # clear Low — small noise
+        if noise_chance < 0.15:
+            score += random.choice([1, 2])
+            
+    elif 4 <= score <= 6:             # borderline — heavy noise  
+        if noise_chance < 0.30:
+            score += random.choice([-3, -2, 2, 3])
+            
+    elif score >= 7:                  # clear High — small noise
+        if noise_chance < 0.15:
+            score += random.choice([-2, -1])
+    # ─────────────────────────────────────────────────────
+
+    score = max(0, score)             # prevent negative scores
+
     if score >= 7:   return 'High'
     elif score >= 4: return 'Medium'
     else:            return 'Low'
@@ -394,6 +413,66 @@ X_test_c_scaled  = pd.DataFrame(
 print(f"  Scaler fitted on X_train_r only ({X_train_r.shape})")
 print(f"  Risk   scaled — train: {X_train_r_scaled.shape}  | test: {X_test_r_scaled.shape}")
 print(f"  Career scaled — train: {X_train_c_scaled.shape}  | test: {X_test_c_scaled.shape}")
+
+# ═══════════════════════════════════════════════════════════════════
+# STEP 3B — ADD FEATURE NOISE (simulate real-world measurement error)
+# Why: Synthetic data is mathematically perfect. Real student data
+#      has survey errors, recording mistakes, and natural variation.
+#      Adding controlled noise prevents models from finding perfect
+#      decision boundaries and forces more realistic accuracy.
+# ═══════════════════════════════════════════════════════════════════
+
+print("\n" + "=" * 65)
+print("  STEP 3B: ADDING FEATURE-LEVEL NOISE")
+print("=" * 65)
+
+np.random.seed(123)
+
+# Noise levels per feature (as % of each feature's std deviation)
+# Higher = more noise = harder for model to find clean boundaries
+NOISE_LEVELS = {
+    'gpa_cumulative'            : 0.05,  # 5% std noise
+    'gpa_trend'                 : 0.10,
+    'assignment_completion_rate': 0.08,
+    'late_submission_rate'      : 0.08,
+    'resit_count'               : 0.05,
+    'project_performance'       : 0.08,
+    'attendance_rate'           : 0.08,
+    'weekly_study_hours'        : 0.10,
+    'sleep_hours_avg'           : 0.08,
+    'sleep_consistency'         : 0.08,
+    'part_time_work_hours'      : 0.10,
+    'stress_level'              : 0.10,
+    'anxiety_score'             : 0.10,
+    'mood_stability'            : 0.10,
+    'career_clarity_score'      : 0.08,
+}
+
+for col, noise_pct in NOISE_LEVELS.items():
+    col_std  = df[col].std()
+    noise    = np.random.normal(0, col_std * noise_pct, size=len(df))
+    df[col]  = df[col] + noise
+
+# Clip features back to valid ranges after noise
+df['gpa_cumulative']             = df['gpa_cumulative'].clip(0.0, 4.0)
+df['gpa_trend']                  = df['gpa_trend'].clip(-2.0, 2.0)
+df['assignment_completion_rate'] = df['assignment_completion_rate'].clip(0.0, 1.0)
+df['late_submission_rate']       = df['late_submission_rate'].clip(0.0, 1.0)
+df['resit_count']                = df['resit_count'].clip(0).round().astype(int)
+df['project_performance']        = df['project_performance'].clip(0, 100)
+df['attendance_rate']            = df['attendance_rate'].clip(0.0, 1.0)
+df['weekly_study_hours']         = df['weekly_study_hours'].clip(0, 80)
+df['sleep_hours_avg']            = df['sleep_hours_avg'].clip(3.0, 12.0)
+df['sleep_consistency']          = df['sleep_consistency'].clip(0.0, 1.0)
+df['part_time_work_hours']       = df['part_time_work_hours'].clip(0, 40)
+df['stress_level']               = df['stress_level'].clip(0, 100)
+df['anxiety_score']              = df['anxiety_score'].clip(0, 25)
+df['mood_stability']             = df['mood_stability'].clip(0, 100)
+df['career_clarity_score']       = df['career_clarity_score'].clip(0, 100)
+
+print("  Noise added to all 15 features (5-10% of each feature std)")
+print("  All features clipped back to valid ranges")
+print(f"  Shape unchanged: {df.shape}")
 
 
 # ═══════════════════════════════════════════════════════════════════
