@@ -2,26 +2,30 @@ import { useMemo, useState } from 'react'
 import { formatDeadline, getTodayIso, priorityConfig } from '../../data/dashboardData.js'
 
 export const SummaryCard = ({ value, label, subtitle, accent, trend, trendUp }) => (
-  <div className="rounded-3xl border border-white/70 bg-white/85 p-4 shadow-[0_12px_40px_rgba(15,23,42,0.06)] backdrop-blur-xl">
+  <div className="group rounded-[1.6rem] border border-white/80 bg-white/88 p-4 shadow-[0_14px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-transform duration-200 hover:-translate-y-1 hover:shadow-[0_22px_55px_rgba(15,23,42,0.12)]">
+    <div className={`mb-4 h-1.5 w-16 rounded-full ${accent.replace('text-', 'bg-')}`} />
     <div className="mb-3 flex items-start justify-between gap-3">
-      <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${accent} bg-slate-100 text-sm font-bold`}>
+      <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${accent} bg-slate-100 text-sm font-bold ring-1 ring-white/70`}>
         {label.slice(0, 2).toUpperCase()}
       </div>
       <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${trendUp ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
         {trend}
       </span>
     </div>
-    <p className="text-2xl font-bold text-slate-900">{value}</p>
+    <p className="text-3xl font-black tracking-tight text-slate-900">{value}</p>
     <p className="text-sm font-medium text-slate-700">{label}</p>
     <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
   </div>
 )
 
 const Panel = ({ title, subtitle, children, className = '' }) => (
-  <section className={`rounded-[1.5rem] border border-white/70 bg-white/85 p-5 shadow-[0_12px_40px_rgba(15,23,42,0.06)] backdrop-blur-xl ${className}`}>
-    <div className="mb-4">
-      <h3 className="text-base font-semibold text-slate-900">{title}</h3>
-      {subtitle ? <p className="mt-1 text-xs text-slate-500">{subtitle}</p> : null}
+  <section className={`rounded-[1.6rem] border border-white/80 bg-white/88 p-5 shadow-[0_14px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl ${className}`}>
+    <div className="mb-5 flex items-start justify-between gap-3">
+      <div>
+        <h3 className="text-base font-semibold tracking-tight text-slate-900">{title}</h3>
+        {subtitle ? <p className="mt-1 text-xs text-slate-500">{subtitle}</p> : null}
+      </div>
+      <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-br from-indigo-500 to-cyan-400 shadow-[0_0_0_6px_rgba(99,102,241,0.08)]" />
     </div>
     {children}
   </section>
@@ -36,24 +40,31 @@ export const DashboardView = ({ greeting, studentData, modules, completedTasks, 
     <div className="space-y-6">
       <Panel title={`${greeting.emoji} ${greeting.text}, ${studentData.name.split(' ')[0]}!`} subtitle={greeting.sub} className="relative overflow-hidden">
         <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-gradient-to-br from-indigo-200/40 to-cyan-200/20 blur-3xl" />
-        <div className="relative grid gap-5 md:grid-cols-[1.3fr_0.7fr] md:items-end">
+        <div className="absolute left-1/3 top-0 h-24 w-24 rounded-full bg-emerald-200/20 blur-2xl" />
+        <div className="relative grid gap-5 md:grid-cols-[1.25fr_0.75fr] md:items-end">
           <div>
-            <p className="text-sm text-slate-500">Your week is structured around deadlines, weak areas, and daily momentum.</p>
+            <div className="inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 shadow-sm">
+              <span className="h-2 w-2 rounded-full bg-indigo-500" />
+              Personalized study snapshot
+            </div>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-slate-500">Your week is structured around deadlines, weak areas, and daily momentum. The planner highlights what matters now, not just what is overdue.</p>
             {todayTasks.length > 0 ? (
-              <div className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                <span>-</span>
+              <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 shadow-sm">
+                <span>●</span>
                 <span>{todayTasks.length} task{todayTasks.length > 1 ? 's' : ''} due today</span>
               </div>
             ) : null}
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl bg-slate-900 px-4 py-3 text-white">
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Current GPA</p>
-              <p className="mt-2 text-2xl font-bold">{studentData.gpa}</p>
+            <div className="rounded-[1.4rem] bg-slate-950 px-4 py-4 text-white shadow-[0_20px_50px_rgba(15,23,42,0.18)]">
+              <p className="text-[11px] uppercase tracking-[0.22em] text-slate-400">Current GPA</p>
+              <p className="mt-2 text-3xl font-black tracking-tight">{studentData.gpa}</p>
+              <p className="mt-2 text-xs text-slate-300">Target: 3.8</p>
             </div>
-            <div className="rounded-2xl bg-emerald-500 px-4 py-3 text-white">
-              <p className="text-xs uppercase tracking-[0.2em] text-emerald-50">Tasks Done</p>
-              <p className="mt-2 text-2xl font-bold">{completedTasks}/{totalTasks}</p>
+            <div className="rounded-[1.4rem] bg-gradient-to-br from-emerald-500 to-cyan-500 px-4 py-4 text-white shadow-[0_20px_50px_rgba(16,185,129,0.18)]">
+              <p className="text-[11px] uppercase tracking-[0.22em] text-emerald-50/80">Tasks Done</p>
+              <p className="mt-2 text-3xl font-black tracking-tight">{completedTasks}/{totalTasks}</p>
+              <p className="mt-2 text-xs text-emerald-50/90">Keep the streak alive</p>
             </div>
           </div>
         </div>

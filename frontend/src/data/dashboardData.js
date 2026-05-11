@@ -57,10 +57,10 @@ export const navItems = [
 export const getGreeting = () => {
   const hour = new Date().getHours()
 
-  if (hour < 12) return { text: 'Good Morning', emoji: 'Morning', sub: 'Ready to push your goals forward today?' }
-  if (hour < 17) return { text: 'Good Afternoon', emoji: 'Afternoon', sub: 'Keep the momentum going.' }
-  if (hour < 21) return { text: 'Good Evening', emoji: 'Evening', sub: 'Finish the day strong.' }
-  return { text: 'Good Night', emoji: 'Night', sub: 'Late session? Stay focused and pace yourself.' }
+  if (hour < 12) return { text: 'Good Morning', emoji: '🌤️', sub: 'Ready to push your goals forward today?' }
+  if (hour < 17) return { text: 'Good Afternoon', emoji: '☀️', sub: 'Keep the momentum going.' }
+  if (hour < 21) return { text: 'Good Evening', emoji: '🌆', sub: 'Finish the day strong.' }
+  return { text: 'Good Night', emoji: '🌙', sub: 'Late session? Stay focused and pace yourself.' }
 }
 
 export const getTodayIso = () => new Date().toISOString().split('T')[0]

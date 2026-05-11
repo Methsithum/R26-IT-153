@@ -3,15 +3,26 @@ import { navItems } from '../../data/dashboardData.js'
 const Sidebar = ({ activeTab, setActiveTab, sidebarOpen, setSidebarOpen, studentData, pendingTasks, highPriorityPending }) => {
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-40 flex h-full w-72 flex-col border-r border-white/60 bg-white/85 shadow-[0_18px_60px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
+      className={`fixed inset-y-0 left-0 z-40 flex h-full w-72 flex-col border-r border-white/70 bg-white/82 shadow-[0_30px_80px_rgba(15,23,42,0.12)] backdrop-blur-2xl transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
     >
-      <div className="flex items-center gap-3 border-b border-slate-200/70 px-6 py-5">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-500 to-cyan-500 text-lg font-bold text-white shadow-lg shadow-indigo-200/60">
-          SU
-        </div>
-        <div>
-          <p className="text-sm font-semibold tracking-wide text-slate-900">Smart Uni Guide</p>
-          <p className="text-xs text-slate-500">Academic management hub</p>
+      <div className="border-b border-slate-200/70 px-5 py-5">
+        <div className="rounded-[1.6rem] bg-gradient-to-br from-slate-900 via-indigo-950 to-indigo-700 p-4 text-white shadow-[0_18px_45px_rgba(79,70,229,0.22)]">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 text-lg font-bold backdrop-blur-sm">
+              SU
+            </div>
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/90">Smart Uni Guide</p>
+              <p className="text-xs text-white/70">Academic management hub</p>
+            </div>
+          </div>
+          <div className="mt-4 flex items-center justify-between rounded-2xl border border-white/10 bg-white/10 px-3 py-2 backdrop-blur-sm">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.2em] text-white/60">Today</p>
+              <p className="text-sm font-semibold text-white">{highPriorityPending} urgent items</p>
+            </div>
+            <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-[11px] font-semibold text-emerald-200">Active</span>
+          </div>
         </div>
       </div>
 
