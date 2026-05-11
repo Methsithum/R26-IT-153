@@ -219,7 +219,7 @@ plt.close()
 print("[VIZ] All plots saved to:", VIZ_DIR)
 
 # ── 12. Save Report ───────────────────────────────────────────────
-with open(REPORT_OUT, "w") as f:
+with open(REPORT_OUT, "w", encoding="utf-8") as f:
     f.write("\n".join(report_lines))
 print(f"\n[REPORT] Saved → {REPORT_OUT}")
 print("\n✅  Step 1 complete — data cleaning done.\n")

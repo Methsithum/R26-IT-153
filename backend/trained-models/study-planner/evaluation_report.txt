@@ -1,0 +1,57 @@
+============================================================
+  STEP 3 — Deep Evaluation
+============================================================
+
+Loaded  : Random Forest  (300 trees)
+Features: 18
+
+────────────────────────────────────────
+  Overall Metrics (Test Set)
+────────────────────────────────────────
+  Accuracy         : 0.9400
+  Precision (wtd)  : 0.9427
+  Recall    (wtd)  : 0.9400
+  F1        (wtd)  : 0.9397
+  F1        (macro): 0.9308
+  AUC-ROC   (OVR)  : 0.9905
+
+--- Per-Class Report ---
+              precision    recall  f1-score   support
+
+         Low       0.99      0.82      0.90       131
+      Medium       0.91      0.97      0.94       461
+        High       0.97      0.94      0.96       408
+
+    accuracy                           0.94      1000
+   macro avg       0.96      0.91      0.93      1000
+weighted avg       0.94      0.94      0.94      1000
+
+
+--- Feature Importances (Random Forest) ---
+              Feature  Importance      Std
+    Overall_Avg_Score    0.269100 0.099076
+       Projects_Score    0.213485 0.038318
+       Avg_Exam_Score    0.111103 0.064368
+          Final_Score    0.106192 0.055761
+      Assignments_Avg    0.047384 0.019069
+  Participation_Score    0.036099 0.018130
+Attendance_Efficiency    0.035151 0.028636
+    Score_Variability    0.032089 0.015904
+     Exam_Improvement    0.030825 0.016823
+        Midterm_Score    0.026449 0.015132
+          Quizzes_Avg    0.020719 0.008685
+      Low_Score_Count    0.018376 0.025209
+       Attendance (%)    0.014244 0.008566
+ Study_Hours_per_Week    0.010811 0.004079
+    Study_Sleep_Ratio    0.010533 0.003991
+Sleep_Hours_per_Night    0.009327 0.003802
+  Stress_Level (1-10)    0.006512 0.003048
+      Extracurricular    0.001602 0.001382
+
+--- Error Analysis ---
+  Total errors : 60 / 1000  (6.0%)
+
+  Error breakdown by true class:
+    Low   : 23/131 errors (17.6%)
+    Medium: 13/461 errors (2.8%)
+    High  : 24/408 errors (5.9%)

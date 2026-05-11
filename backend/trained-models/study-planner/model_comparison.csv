@@ -1,0 +1,4 @@
+Model,CV_F1_mean,CV_F1_std,Test_Accuracy,Test_F1_weighted,Test_F1_macro,Test_AUC
+Logistic Regression,0.9804,0.0021,0.976,0.9762,0.9695,0.9993
+Gradient Boosting,0.9435,0.0076,0.949,0.949,0.9419,0.9955
+Random Forest,0.9248,0.0062,0.94,0.9397,0.9308,0.9905
