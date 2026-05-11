@@ -37,9 +37,9 @@ export default function ActivitySelection({ onContinue }) {
   };
 
   return (
-    <div className="min-h-screen px-5 py-8" style={{ background: '#0d0f1a' }}>
+    <div className="min-h-screen px-4 py-6 sm:px-6 sm:py-8 lg:px-8" style={{ background: '#0d0f1a' }}>
       <motion.div
-        className="max-w-md mx-auto"
+        className="mx-auto w-full max-w-6xl"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
@@ -50,7 +50,7 @@ export default function ActivitySelection({ onContinue }) {
           <p className="text-sm text-slate-500 mt-1">Select your activities to generate missions</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mb-6">
+        <div className="grid grid-cols-1 gap-3 mb-6 sm:grid-cols-2 lg:grid-cols-3">
           {ACTIVITIES.map((act, i) => {
             const isSelected = selected.includes(act.id);
             return (
@@ -104,7 +104,7 @@ export default function ActivitySelection({ onContinue }) {
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
             >
-              <p className="text-xs uppercase tracking-widest text-slate-500 mb-3">Name your missions (optional)</p>
+                <p className="text-xs uppercase tracking-widest text-slate-500 mb-3">Name your missions (optional)</p>
               <div className="flex flex-col gap-2">
                 {selected.map(id => {
                   const act = ACTIVITIES.find(a => a.id === id);
@@ -127,7 +127,7 @@ export default function ActivitySelection({ onContinue }) {
         </AnimatePresence>
 
         <motion.button
-          className="w-full py-4 rounded-2xl text-sm font-semibold border-0 transition-all"
+          className="w-full py-4 rounded-2xl text-sm font-semibold border-0 transition-all sm:mx-auto sm:max-w-md"
           style={{
             background: selected.length > 0
               ? 'linear-gradient(135deg, #7c3aed, #4f46e5)'

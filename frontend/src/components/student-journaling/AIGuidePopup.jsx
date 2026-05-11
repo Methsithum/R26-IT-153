@@ -63,7 +63,7 @@ export default function AIGuidePopup({ visible, mission, onComplete, onClose }) 
   return (
     <AnimatePresence>
       <motion.div
-        className="fixed inset-0 z-40 flex items-end justify-center p-4"
+        className="fixed inset-0 z-40 flex items-end justify-center p-3 sm:p-4"
         style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -71,7 +71,7 @@ export default function AIGuidePopup({ visible, mission, onComplete, onClose }) 
         onClick={(e) => e.target === e.currentTarget && onClose && onClose()}
       >
         <motion.div
-          className="w-full max-w-md rounded-3xl border p-6 relative overflow-hidden"
+          className="w-full max-w-2xl rounded-3xl border p-5 sm:p-6 relative overflow-hidden"
           style={{
             background: 'linear-gradient(160deg, #0f1128, #13162e)',
             borderColor: 'rgba(124,58,237,0.45)',

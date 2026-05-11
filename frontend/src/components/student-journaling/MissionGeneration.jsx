@@ -10,9 +10,9 @@ export default function MissionGeneration({ missions, onBeginJourney }) {
   const totalXP = missions.reduce((s, m) => s + m.xp, 0);
 
   return (
-    <div className="min-h-screen px-5 py-8" style={{ background: '#0d0f1a' }}>
+    <div className="min-h-screen px-4 py-6 sm:px-6 sm:py-8 lg:px-8" style={{ background: '#0d0f1a' }}>
       <motion.div
-        className="max-w-md mx-auto"
+        className="mx-auto w-full max-w-6xl"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
       >
@@ -24,7 +24,7 @@ export default function MissionGeneration({ missions, onBeginJourney }) {
           </p>
         </div>
 
-        <div className="flex flex-col gap-3 mb-6">
+        <div className="grid gap-3 mb-6 lg:grid-cols-2">
           {missions.map((m, i) => {
             const dc = DIFFICULTY_COLORS[m.difficulty] || DIFFICULTY_COLORS.Medium;
             return (
@@ -76,7 +76,7 @@ export default function MissionGeneration({ missions, onBeginJourney }) {
         </div>
 
         <motion.button
-          className="w-full py-4 rounded-2xl text-sm font-semibold text-white border-0 relative overflow-hidden"
+          className="w-full py-4 rounded-2xl text-sm font-semibold text-white border-0 relative overflow-hidden sm:mx-auto sm:max-w-md"
           style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.98 }}

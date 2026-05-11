@@ -99,75 +99,42 @@ export default function StudentJournalingPage() {
 
   return (
     <div className="relative overflow-hidden" style={{ background: '#0d0f1a', minHeight: '100vh' }}>
-      {/* Bottom nav bar */}
-      {screen !== 'complete' && (
-        <div
-          className="fixed bottom-0 left-0 right-0 z-30 flex items-center justify-around border-t px-4 py-3"
-          style={{ background: 'rgba(13,15,26,0.95)', borderColor: 'rgba(255,255,255,0.07)', backdropFilter: 'blur(12px)' }}
+      <AnimatePresence mode="wait" custom={direction}>
+        <motion.div
+          key={screen}
+          custom={direction}
+          variants={slideVariants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={{ duration: 0.28, ease: 'easeInOut' }}
         >
-          {[
-            { id: 'dashboard', icon: '🏠', label: 'Home' },
-            { id: 'activities', icon: '✅', label: 'Activities' },
-            { id: 'missions', icon: '⚡', label: 'Missions' },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              className="flex flex-col items-center gap-1 px-4 py-1 rounded-xl transition-colors"
-              style={{ color: screen === tab.id ? '#c4b5fd' : '#475569' }}
-              onClick={() => navigate(tab.id)}
-            >
-              <span className="text-lg">{tab.icon}</span>
-              <span className="text-[9px] font-medium tracking-wider uppercase">{tab.label}</span>
-              {screen === tab.id && (
-                <motion.div
-                  className="w-1 h-1 rounded-full bg-violet-400"
-                  layoutId="nav-dot"
-                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                />
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className={screen !== 'complete' ? 'pb-20' : ''}>
-        <AnimatePresence mode="wait" custom={direction}>
-          <motion.div
-            key={screen}
-            custom={direction}
-            variants={slideVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={{ duration: 0.28, ease: 'easeInOut' }}
-          >
-            {screen === 'dashboard' && (
-              <Dashboard
-                missions={missions}
-                totalXP={totalXP}
-                onStartJourney={handleStartJourney}
-                onMissionClick={handleMissionClick}
-              />
-            )}
-            {screen === 'activities' && (
-              <ActivitySelection onContinue={handleActivitiesComplete} />
-            )}
-            {screen === 'missions' && (
-              <MissionGeneration
-                missions={missions.filter(m => m.status !== 'done')}
-                onBeginJourney={handleBeginJourney}
-              />
-            )}
-            {screen === 'complete' && completedMission && (
-              <MissionComplete
-                mission={completedMission}
-                xpGained={completedMission.xp}
-                onContinue={() => navigate('dashboard')}
-              />
-            )}
-          </motion.div>
-        </AnimatePresence>
-      </div>
+          {screen === 'dashboard' && (
+            <Dashboard
+              missions={missions}
+              totalXP={totalXP}
+              onStartJourney={handleStartJourney}
+              onMissionClick={handleMissionClick}
+            />
+          )}
+          {screen === 'activities' && (
+            <ActivitySelection onContinue={handleActivitiesComplete} />
+          )}
+          {screen === 'missions' && (
+            <MissionGeneration
+              missions={missions.filter(m => m.status !== 'done')}
+              onBeginJourney={handleBeginJourney}
+            />
+          )}
+          {screen === 'complete' && completedMission && (
+            <MissionComplete
+              mission={completedMission}
+              xpGained={completedMission.xp}
+              onContinue={() => navigate('dashboard')}
+            />
+          )}
+        </motion.div>
+      </AnimatePresence>
 
       {/* AI Guide popup overlay */}
       <AIGuidePopup

@@ -129,7 +129,7 @@ export default function MissionComplete({ mission, xpGained, onContinue }) {
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden" style={{ background: '#0d0f1a' }}>
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden px-4 py-6 sm:px-6 sm:py-8" style={{ background: '#0d0f1a' }}>
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full pointer-events-none"
@@ -137,7 +137,7 @@ export default function MissionComplete({ mission, xpGained, onContinue }) {
       />
 
       <motion.div
-        className="relative z-10 flex flex-col items-center text-center px-6 py-12 max-w-sm w-full"
+        className="relative z-10 flex w-full max-w-2xl flex-col items-center px-5 py-10 text-center sm:px-6 sm:py-12"
         variants={containerVariants}
         initial="hidden"
         animate="visible"
