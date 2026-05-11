@@ -2,9 +2,8 @@ import { motion } from 'framer-motion';
 import LevelCard from './LevelCard';
 import XPBar from './XPBar';
 import StreakCard from './StreakCard';
-import MissionCard from './MissionCard';
 
-const STUDENT = {
+const DEFAULT_STUDENT = {
   name: 'Ashan Perera',
   department: 'Software Engineering',
   year: 3,
@@ -22,8 +21,14 @@ const ACHIEVEMENTS = [
   { icon: '⚡', name: 'Quick Learner', desc: 'Completed 5 missions in one day' },
 ];
 
-export default function Dashboard({ missions, onStartJourney, onMissionClick }) {
-  const activeMission = missions.find(m => m.status === 'active');
+export default function Dashboard({ missions, onStartJourney, student = DEFAULT_STUDENT }) {
+  const currentStudent = {
+    ...DEFAULT_STUDENT,
+    ...student,
+    xp: student?.xp ?? student?.total_xp ?? DEFAULT_STUDENT.xp,
+    streak: student?.streak ?? student?.current_streak ?? DEFAULT_STUDENT.streak,
+    achievements: student?.achievements ?? student?.badges?.length ?? DEFAULT_STUDENT.achievements,
+  };
 
   return (
     <div className="min-h-screen px-4 py-6 sm:px-6 sm:py-8 lg:px-8" style={{ background: '#0d0f1a' }}>
@@ -59,22 +64,22 @@ export default function Dashboard({ missions, onStartJourney, onMissionClick }) 
         {/* Level + name */}
         <div className="mb-5 p-5 rounded-2xl border" style={{ background: 'rgba(255,255,255,0.03)', borderColor: 'rgba(255,255,255,0.07)' }}>
           <LevelCard
-            level={STUDENT.level}
-            name={STUDENT.name}
-            department={STUDENT.department}
-            year={STUDENT.year}
+            level={currentStudent.level}
+            name={currentStudent.name}
+            department={currentStudent.department}
+            year={currentStudent.year}
           />
           <div className="mt-4">
-            <XPBar current={STUDENT.xp} max={STUDENT.xpMax} level={STUDENT.level} />
+            <XPBar current={currentStudent.xp} max={currentStudent.xpMax} level={currentStudent.level} />
           </div>
         </div>
 
         {/* Stats row */}
         <div className="grid grid-cols-1 gap-3 mb-5 sm:grid-cols-3">
           {[
-            { val: STUDENT.missionsCompleted, label: 'Missions', icon: '✅' },
-            { val: `${STUDENT.streak}d`, label: 'Streak', icon: '🔥' },
-            { val: STUDENT.achievements, label: 'Badges', icon: '🏅' },
+            { val: currentStudent.missionsCompleted, label: 'Missions', icon: '✅' },
+            { val: `${currentStudent.streak}d`, label: 'Streak', icon: '🔥' },
+            { val: currentStudent.achievements, label: 'Badges', icon: '🏅' },
           ].map((s, i) => (
             <motion.div
               key={s.label}
@@ -93,7 +98,7 @@ export default function Dashboard({ missions, onStartJourney, onMissionClick }) 
 
         {/* Streak card */}
         <div className="mb-5">
-          <StreakCard streak={STUDENT.streak} />
+          <StreakCard streak={currentStudent.streak} />
         </div>
 
         <div className="mb-8">

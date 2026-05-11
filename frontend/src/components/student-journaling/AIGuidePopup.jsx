@@ -1,17 +1,33 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import QuestionOptions from './QuestionOptions';
+import { answerDailySession } from '../../services/api';
 
-export default function AIGuidePopup({ visible, mission, onComplete, onClose }) {
+export default function AIGuidePopup({ visible, mission, session, onSessionUpdate, onComplete, onClose }) {
   const [step, setStep] = useState(0);
   const [selected, setSelected] = useState(null);
   const [displayedText, setDisplayedText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [answers, setAnswers] = useState([]);
+  const [backendTurns, setBackendTurns] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const typingRef = useRef(null);
 
-  const dialogue = mission ? buildDialogue(mission) : [];
+  const sessionQuestion = session?.question || '';
+  const sessionOptions = session?.options || [];
+  const useBackendSession = Boolean(session?.session_id && sessionQuestion);
+  const fallbackDialogue = mission ? buildDialogue(mission) : [];
+  const dialogue = useBackendSession ? backendTurns : fallbackDialogue;
   const current = dialogue[step];
+
+  useEffect(() => {
+    if (visible && useBackendSession && sessionQuestion) {
+      setBackendTurns([{ message: sessionQuestion, options: sessionOptions }]);
+      setStep(0);
+      setSelected(null);
+      setAnswers([]);
+    }
+  }, [visible, useBackendSession, sessionQuestion, sessionOptions]);
 
   useEffect(() => {
     if (visible && current) {
@@ -31,24 +47,52 @@ export default function AIGuidePopup({ visible, mission, onComplete, onClose }) 
       }, 22);
     }
     return () => clearInterval(typingRef.current);
-  }, [step, visible, mission]);
+  }, [step, visible, current?.message]);
 
   useEffect(() => {
     if (visible) {
-      setStep(0);
-      setAnswers([]);
+      if (!useBackendSession) {
+        setStep(0);
+        setAnswers([]);
+      }
     }
-  }, [visible, mission]);
+  }, [visible, mission, useBackendSession]);
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (selected === null) return;
+    if (!current) return;
+
     const newAnswers = [...answers, { question: current.message, answer: current.options[selected].text }];
     setAnswers(newAnswers);
+
+    if (useBackendSession) {
+      setIsSubmitting(true);
+      try {
+        const response = await answerDailySession({
+          session_id: session.session_id,
+          answer: current.options[selected].text,
+        });
+
+        if (response.completed) {
+          onComplete && onComplete({ answers: newAnswers, result: response });
+          return;
+        }
+
+        onSessionUpdate && onSessionUpdate(response);
+        setBackendTurns((prev) => [...prev, { message: response.question, options: response.options || [] }]);
+        setStep((value) => value + 1);
+        setSelected(null);
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
     if (step < dialogue.length - 1) {
       setStep(s => s + 1);
       setSelected(null);
     } else {
-      onComplete && onComplete(newAnswers);
+      onComplete && onComplete({ answers: newAnswers });
     }
   };
 
@@ -191,13 +235,14 @@ export default function AIGuidePopup({ visible, mission, onComplete, onClose }) 
                       : 'rgba(255,255,255,0.04)',
                     borderColor: selected !== null ? 'transparent' : 'rgba(255,255,255,0.08)',
                     color: selected !== null ? '#fff' : '#334155',
-                    cursor: selected !== null ? 'pointer' : 'not-allowed',
+                    cursor: selected !== null && !isSubmitting ? 'pointer' : 'not-allowed',
                   }}
-                  whileHover={selected !== null ? { scale: 1.01 } : {}}
-                  whileTap={selected !== null ? { scale: 0.98 } : {}}
+                  whileHover={selected !== null && !isSubmitting ? { scale: 1.01 } : {}}
+                  whileTap={selected !== null && !isSubmitting ? { scale: 0.98 } : {}}
+                  disabled={selected === null || isSubmitting}
                   onClick={handleNext}
                 >
-                  {step < dialogue.length - 1 ? 'Continue →' : '✨ Complete Mission'}
+                  {isSubmitting ? 'Saving...' : step < dialogue.length - 1 ? 'Continue →' : '✨ Complete Mission'}
                 </motion.button>
               </motion.div>
             )}

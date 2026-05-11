@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Dashboard from '../../components/student-journaling/Dashboard';
 import ActivitySelection from '../../components/student-journaling/ActivitySelection';
@@ -7,6 +6,7 @@ import MissionGeneration from '../../components/student-journaling/MissionGenera
 import AIGuidePopup from '../../components/student-journaling/AIGuidePopup';
 import MissionComplete from '../../components/student-journaling/MissionComplete';
 import AchievementPopup from '../../components/student-journaling/AchievementPopup';
+import { createUser, getUserGamification, startDailySession } from '../../services/api';
 
 const INITIAL_MISSIONS = [
   { id: 'oop', name: 'OOP Revision', subject: 'Object-Oriented Programming', type: 'revision', xp: 25, difficulty: 'Easy', status: 'done', icon: '📚', progress: 100 },
@@ -22,6 +22,48 @@ const slideVariants = {
   exit: (dir) => ({ x: dir > 0 ? -60 : 60, opacity: 0 }),
 };
 
+const DEMO_USER_KEY = 'smart-uni-guide-demo-user-id';
+const DEMO_USER = {
+  name: 'Ashan Perera',
+  email: 'demo@smartuniguide.local',
+};
+
+const ACTIVITY_TO_BACKEND = {
+  assignment: 'assignment_work',
+  project: 'project_development',
+  revision: 'academic_study',
+  internship: 'internship',
+  club: 'club_participation',
+  lab: 'academic_study',
+};
+
+const buildStudentState = (user, gamification) => {
+  const totalXP = gamification?.total_xp ?? user?.total_xp ?? 2340;
+
+  return {
+    id: user?.id,
+    name: user?.name || DEMO_USER.name,
+    email: user?.email || DEMO_USER.email,
+    total_xp: totalXP,
+    xp: totalXP,
+    level: Math.floor(totalXP / 250) + 1,
+    current_streak: gamification?.current_streak ?? user?.current_streak ?? 12,
+    streak: gamification?.current_streak ?? user?.current_streak ?? 12,
+    longest_streak: gamification?.longest_streak ?? user?.longest_streak ?? 12,
+    badges: gamification?.badges ?? user?.badges ?? [],
+    achievements: gamification?.badges?.length ?? user?.badges?.length ?? 8,
+  };
+};
+
+const buildBackendActivityList = (missionsList) => {
+  const selected = missionsList
+    .filter((mission) => mission.status === 'active')
+    .map((mission) => ACTIVITY_TO_BACKEND[mission.id])
+    .filter(Boolean);
+
+  return selected.length > 0 ? selected : ['other'];
+};
+
 export default function StudentJournalingPage() {
   const [screen, setScreen] = useState('dashboard');
   const [direction, setDirection] = useState(1);
@@ -29,14 +71,56 @@ export default function StudentJournalingPage() {
   const [activeMission, setActiveMission] = useState(null);
   const [guideVisible, setGuideVisible] = useState(false);
   const [completedMission, setCompletedMission] = useState(null);
+  const [completionResult, setCompletionResult] = useState(null);
   const [achievement, setAchievement] = useState(null);
-  const [totalXP, setTotalXP] = useState(2340);
+  const [student, setStudent] = useState(buildStudentState());
+  const [journeySession, setJourneySession] = useState(null);
   const achievementTimers = useRef([]);
 
   useEffect(() => {
     return () => {
       achievementTimers.current.forEach((timer) => clearTimeout(timer));
       achievementTimers.current = [];
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const bootstrapUser = async () => {
+      try {
+        const storedUserId = localStorage.getItem(DEMO_USER_KEY);
+
+        if (storedUserId) {
+          try {
+            const gamification = await getUserGamification(storedUserId);
+            if (!cancelled) {
+              setStudent(buildStudentState({ id: storedUserId, ...DEMO_USER }, gamification));
+            }
+            return;
+          } catch (_error) {
+            localStorage.removeItem(DEMO_USER_KEY);
+          }
+        }
+
+        const createdUser = await createUser(DEMO_USER);
+        localStorage.setItem(DEMO_USER_KEY, createdUser.id);
+        const gamification = await getUserGamification(createdUser.id);
+
+        if (!cancelled) {
+          setStudent(buildStudentState(createdUser, gamification));
+        }
+      } catch (_error) {
+        if (!cancelled) {
+          setStudent(buildStudentState());
+        }
+      }
+    };
+
+    bootstrapUser();
+
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -62,7 +146,28 @@ export default function StudentJournalingPage() {
     const first = missions.find(m => m.status === 'active');
     if (first) {
       setActiveMission(first);
-      setGuideVisible(true);
+      const storedUserId = localStorage.getItem(DEMO_USER_KEY) || student.id;
+      const selectedActivities = buildBackendActivityList(missions);
+
+      if (!storedUserId) {
+        setJourneySession(null);
+        setGuideVisible(true);
+        return;
+      }
+
+      startDailySession({
+        user_id: storedUserId,
+        date: new Date().toISOString(),
+        selected_activities: selectedActivities,
+      })
+        .then((session) => {
+          setJourneySession(session);
+          setGuideVisible(true);
+        })
+        .catch(() => {
+          setJourneySession(null);
+          setGuideVisible(true);
+        });
     }
   };
 
@@ -73,7 +178,7 @@ export default function StudentJournalingPage() {
     }
   };
 
-  const handleGuideComplete = (answers) => {
+  const handleGuideComplete = async ({ result } = {}) => {
     setGuideVisible(false);
 
     setMissions(prev => {
@@ -85,9 +190,27 @@ export default function StudentJournalingPage() {
       return updated;
     });
 
-    setTotalXP(x => x + (activeMission?.xp || 30));
     setCompletedMission(activeMission);
+    setCompletionResult(result || null);
+    setJourneySession(null);
     navigate('complete');
+
+    if (student.id) {
+      try {
+        const gamification = await getUserGamification(student.id);
+        setStudent(buildStudentState({ ...student, ...gamification }, gamification));
+      } catch (_error) {
+        if (result?.xp_earned) {
+          const updatedXP = (student.total_xp || 0) + result.xp_earned;
+          setStudent((prev) => ({
+            ...prev,
+            total_xp: updatedXP,
+            xp: updatedXP,
+            level: Math.floor(updatedXP / 250) + 1,
+          }));
+        }
+      }
+    }
 
     const revealTimer = setTimeout(() => {
       setAchievement({ icon: '🏆', name: 'Consistent Scholar', desc: 'Completed 3 missions in a row' });
@@ -112,7 +235,7 @@ export default function StudentJournalingPage() {
           {screen === 'dashboard' && (
             <Dashboard
               missions={missions}
-              totalXP={totalXP}
+              student={student}
               onStartJourney={handleStartJourney}
               onMissionClick={handleMissionClick}
             />
@@ -129,7 +252,7 @@ export default function StudentJournalingPage() {
           {screen === 'complete' && completedMission && (
             <MissionComplete
               mission={completedMission}
-              xpGained={completedMission.xp}
+              xpGained={completionResult?.xp_earned || completedMission.xp}
               onContinue={() => navigate('dashboard')}
             />
           )}
@@ -140,6 +263,8 @@ export default function StudentJournalingPage() {
       <AIGuidePopup
         visible={guideVisible}
         mission={activeMission}
+        session={journeySession}
+        onSessionUpdate={setJourneySession}
         onComplete={handleGuideComplete}
         onClose={() => setGuideVisible(false)}
       />

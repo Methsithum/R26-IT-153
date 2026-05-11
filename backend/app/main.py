@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from app.routes.auth import router as auth_router
 from app.routes.health import router as health_router
 from app.routes.user.user import router as user_router
 from app.routes.journal.daily import router as daily_router
@@ -10,6 +11,7 @@ from app.routes.journal.behavior import router as behavior_router
 
 app = FastAPI(title="Smart Uni Guide API")
 
+app.include_router(auth_router)
 app.include_router(health_router)
 app.include_router(user_router)
 app.include_router(daily_router)
