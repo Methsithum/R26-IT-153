@@ -22,3 +22,6 @@ class NextQuestionResponse(BaseModel):
     options: Optional[List[str]] = None
     completed: bool = False
     journal_entry: Optional[str] = None
+    xp_earned: Optional[int] = None
+    new_badges: Optional[List[str]] = None
+    level_up: Optional[bool] = None

@@ -213,7 +213,10 @@ async def answer_question(req: AnswerRequest):
             logger.warning(f"Failed to update learning patterns: {e}")
 
         # Gamification
-        await update_streak_and_xp(
+        prev_total_xp = user.get("total_xp", 0)
+        prev_level = (prev_total_xp // 250) + 1
+
+        xp_earned, new_badges = await update_streak_and_xp(
             session["user_id"],
             session["date"],
             questions_count=len(qa_history),
@@ -221,10 +224,19 @@ async def answer_question(req: AnswerRequest):
             has_at_risk=bool(context.get("at_risk_tasks"))
         )
 
+        # re-fetch user to compute level change
+        updated_user = await UserModel.find_by_id(session["user_id"])
+        new_total_xp = updated_user.get("total_xp", 0)
+        new_level = (new_total_xp // 250) + 1
+        level_up = new_level > prev_level
+
         return NextQuestionResponse(
             session_id=req.session_id,
             completed=True,
-            journal_entry=journal
+            journal_entry=journal,
+            xp_earned=xp_earned,
+            new_badges=new_badges,
+            level_up=level_up
         )
     else:
         update_data["pending_question"] = decision["next_question"]
