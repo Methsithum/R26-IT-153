@@ -96,49 +96,25 @@ export default function Dashboard({ missions, onStartJourney, onMissionClick }) 
           <StreakCard streak={STUDENT.streak} />
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr] lg:items-start">
-          {/* Missions list */}
-          <div className="mb-5 lg:mb-8">
-            <p className="text-[10px] uppercase tracking-widest text-slate-600 mb-3">Today's Missions</p>
-            <div className="flex flex-col gap-2">
-              {missions.length === 0 ? (
-                <div className="text-center py-8 text-slate-600 text-sm">
-                  No missions yet · Start your journey to generate some!
+        <div className="mb-8">
+          <p className="text-[10px] uppercase tracking-widest text-slate-600 mb-3">Recent Achievements</p>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {ACHIEVEMENTS.map((a, i) => (
+              <motion.div
+                key={a.name}
+                className="flex items-center gap-3 p-3 rounded-xl border"
+                style={{ background: 'rgba(255,255,255,0.02)', borderColor: 'rgba(255,255,255,0.06)' }}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.4 + i * 0.07 }}
+              >
+                <span className="text-xl">{a.icon}</span>
+                <div>
+                  <p className="text-xs font-medium text-slate-300">{a.name}</p>
+                  <p className="text-[10px] text-slate-600">{a.desc}</p>
                 </div>
-              ) : (
-                missions.map((m, i) => (
-                  <MissionCard
-                    key={m.id}
-                    mission={m}
-                    index={i}
-                    onClick={() => onMissionClick && onMissionClick(m)}
-                  />
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Recent achievements */}
-          <div className="mb-8 lg:mb-8">
-            <p className="text-[10px] uppercase tracking-widest text-slate-600 mb-3">Recent Achievements</p>
-            <div className="flex flex-col gap-2">
-              {ACHIEVEMENTS.map((a, i) => (
-                <motion.div
-                  key={a.name}
-                  className="flex items-center gap-3 p-3 rounded-xl border"
-                  style={{ background: 'rgba(255,255,255,0.02)', borderColor: 'rgba(255,255,255,0.06)' }}
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.4 + i * 0.07 }}
-                >
-                  <span className="text-xl">{a.icon}</span>
-                  <div>
-                    <p className="text-xs font-medium text-slate-300">{a.name}</p>
-                    <p className="text-[10px] text-slate-600">{a.desc}</p>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+              </motion.div>
+            ))}
           </div>
         </div>
 
