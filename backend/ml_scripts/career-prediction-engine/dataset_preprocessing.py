@@ -58,11 +58,8 @@ PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 PROFILES_DIR.mkdir(parents=True, exist_ok=True)
 
 
-# ═══════════════════════════════════════════════════════════════════
+
 # STEP 1 — LOAD DATA
-# Why: Verify the dataset exists and has the expected shape before
-#      any transformations begin. Fail fast with a clear message.
-# ═══════════════════════════════════════════════════════════════════
 
 print("=" * 65)
 print("  STEP 1: LOAD DATA")
@@ -79,12 +76,7 @@ print(f"  Shape  : {df.shape}  (expected 9,500 × 27)")
 print(f"  Columns ({len(df.columns)}): {df.columns.tolist()}")
 
 
-# ═══════════════════════════════════════════════════════════════════
 # STEP 2 — DROP UNWANTED COLUMNS
-# Why: Reduce to the 15 supervisor-approved features only.
-#      Selecting by name is more robust than dropping by name —
-#      future columns in the raw file are silently ignored.
-# ═══════════════════════════════════════════════════════════════════
 
 print("\n" + "=" * 65)
 print("  STEP 2: DROP UNWANTED COLUMNS")
@@ -103,12 +95,7 @@ print(f"  Columns dropped : {len(dropped)}  {dropped}")
 print(f"  Shape after drop: {df.shape}  (expected 9,500 × 15)")
 
 
-# ═══════════════════════════════════════════════════════════════════
 # STEP 3 — HANDLE MISSING VALUES (MEDIAN IMPUTATION)
-# Why: ML models cannot process NaN values. Median imputation is
-#      robust to outliers and preserves the column distribution
-#      better than mean when data is skewed.
-# ═══════════════════════════════════════════════════════════════════
 
 print("\n" + "=" * 65)
 print("  STEP 3: HANDLE MISSING VALUES (MEDIAN IMPUTATION)")
