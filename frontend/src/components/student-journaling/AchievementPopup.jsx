@@ -6,7 +6,7 @@ export default function AchievementPopup({ achievement, onClose }) {
   return (
     <AnimatePresence>
       <motion.div
-        className="fixed top-5 left-1/2 z-50 w-[340px] -translate-x-1/2"
+        className="fixed top-5 left-1/2 z-50 w-85 -translate-x-1/2"
         initial={{ y: -80, opacity: 0, scale: 0.85 }}
         animate={{ y: 0, opacity: 1, scale: 1 }}
         exit={{ y: -60, opacity: 0, scale: 0.9 }}
@@ -21,7 +21,8 @@ export default function AchievementPopup({ achievement, onClose }) {
           }}
         >
           <motion.div
-            className="text-4xl flex-shrink-0"
+            className="text-4xl"
+            style={{ flexShrink: 0 }}
             animate={{ rotate: [0, -10, 10, -5, 5, 0], scale: [1, 1.2, 1] }}
             transition={{ duration: 0.6, delay: 0.2 }}
           >
@@ -36,7 +37,8 @@ export default function AchievementPopup({ achievement, onClose }) {
           </div>
           <button
             onClick={onClose}
-            className="text-slate-600 hover:text-slate-400 flex-shrink-0 transition-colors text-lg"
+            className="text-slate-600 hover:text-slate-400 transition-colors text-lg"
+            style={{ flexShrink: 0 }}
           >
             ×
           </button>

@@ -106,7 +106,6 @@ export default function MissionComplete({ mission, xpGained, onContinue }) {
         });
         phaserRef.current = game;
       } catch (e) {
-        console.warn('Phaser init error:', e);
       }
     };
 

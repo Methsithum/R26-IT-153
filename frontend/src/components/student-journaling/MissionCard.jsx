@@ -40,8 +40,8 @@ export default function MissionCard({ mission, index, onClick }) {
       onClick={!isLocked ? onClick : undefined}
     >
       <motion.div
-        className="w-2 h-2 rounded-full flex-shrink-0"
-        style={{ background: s.dot, boxShadow: mission.status === 'active' ? `0 0 8px ${s.glow}` : 'none' }}
+        className="w-2 h-2 rounded-full"
+        style={{ flexShrink: 0, background: s.dot, boxShadow: mission.status === 'active' ? `0 0 8px ${s.glow}` : 'none' }}
         animate={mission.status === 'active' ? { boxShadow: [`0 0 5px ${s.glow}`, `0 0 14px ${s.glow}`, `0 0 5px ${s.glow}`] } : {}}
         transition={{ duration: 2, repeat: Infinity }}
       />
@@ -49,7 +49,7 @@ export default function MissionCard({ mission, index, onClick }) {
         <p className="text-sm text-slate-200 font-medium truncate">{mission.name}</p>
         <p className="text-xs text-slate-500 mt-0.5">{mission.subject}</p>
       </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="flex items-center gap-2" style={{ flexShrink: 0 }}>
         <span className="text-xs font-medium" style={{ color: s.badge.color }}>
           {mission.status === 'done' ? `+${mission.xp} XP` : `+${mission.xp} XP`}
         </span>

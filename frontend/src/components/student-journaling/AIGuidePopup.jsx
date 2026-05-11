@@ -94,7 +94,8 @@ export default function AIGuidePopup({ visible, mission, onComplete, onClose }) 
           <div className="flex items-center gap-3 mb-5">
             <div className="relative">
               <motion.div
-                className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl border flex-shrink-0"
+                className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl border"
+                style={{ flexShrink: 0 }}
                 style={{
                   background: 'linear-gradient(135deg, rgba(124,58,237,0.4), rgba(79,70,229,0.4))',
                   borderColor: 'rgba(167,139,250,0.35)',
@@ -143,7 +144,7 @@ export default function AIGuidePopup({ visible, mission, onComplete, onClose }) 
           {/* Message bubble */}
           <motion.div
             key={step}
-            className="mb-5 min-h-[60px]"
+            className="mb-5 min-h-15"
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}

@@ -22,7 +22,8 @@ export default function QuestionOptions({ options, selected, onSelect }) {
             onClick={() => onSelect(i)}
           >
             <span
-              className="w-6 h-6 rounded-lg flex items-center justify-center text-[11px] font-semibold flex-shrink-0 border transition-colors"
+              className="w-6 h-6 rounded-lg flex items-center justify-center text-[11px] font-semibold border transition-colors"
+              style={{ flexShrink: 0 }}
               style={{
                 background: isSelected ? 'rgba(124,58,237,0.4)' : 'rgba(255,255,255,0.06)',
                 borderColor: isSelected ? 'rgba(124,58,237,0.6)' : 'rgba(255,255,255,0.1)',

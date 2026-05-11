@@ -110,7 +110,7 @@ export default function ActivitySelection({ onContinue }) {
                   const act = ACTIVITIES.find(a => a.id === id);
                   return (
                     <div key={id} className="flex items-center gap-3">
-                      <span className="text-lg flex-shrink-0">{act.icon}</span>
+                      <span className="text-lg">{act.icon}</span>
                       <input
                         type="text"
                         placeholder={`${act.name} mission name…`}

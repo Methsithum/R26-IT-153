@@ -38,8 +38,8 @@ export default function MissionGeneration({ missions, onBeginJourney }) {
               >
                 <div className="flex items-start gap-3 mb-3">
                   <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 border"
-                    style={{ background: 'rgba(124,58,237,0.15)', borderColor: 'rgba(124,58,237,0.25)' }}
+                    className="w-10 h-10 rounded-xl flex items-center justify-center text-xl border"
+                    style={{ flexShrink: 0, background: 'rgba(124,58,237,0.15)', borderColor: 'rgba(124,58,237,0.25)' }}
                   >
                     {m.icon}
                   </div>
@@ -47,7 +47,7 @@ export default function MissionGeneration({ missions, onBeginJourney }) {
                     <p className="text-sm font-semibold text-slate-100 truncate">{m.name}</p>
                     <p className="text-xs text-slate-500 mt-0.5">{m.subject}</p>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-2 shrink-0">
                     <span
                       className="text-[10px] px-2 py-0.5 rounded-md border font-medium"
                       style={{ background: dc.bg, color: dc.color, borderColor: dc.border }}

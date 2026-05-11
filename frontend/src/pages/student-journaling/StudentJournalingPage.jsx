@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Dashboard from '../../components/student-journaling/Dashboard';
 import ActivitySelection from '../../components/student-journaling/ActivitySelection';
@@ -30,6 +31,14 @@ export default function StudentJournalingPage() {
   const [completedMission, setCompletedMission] = useState(null);
   const [achievement, setAchievement] = useState(null);
   const [totalXP, setTotalXP] = useState(2340);
+  const achievementTimers = useRef([]);
+
+  useEffect(() => {
+    return () => {
+      achievementTimers.current.forEach((timer) => clearTimeout(timer));
+      achievementTimers.current = [];
+    };
+  }, []);
 
   const navigate = (to) => {
     const fromIdx = SCREENS.indexOf(screen);
@@ -80,10 +89,12 @@ export default function StudentJournalingPage() {
     setCompletedMission(activeMission);
     navigate('complete');
 
-    setTimeout(() => {
+    const revealTimer = setTimeout(() => {
       setAchievement({ icon: '🏆', name: 'Consistent Scholar', desc: 'Completed 3 missions in a row' });
-      setTimeout(() => setAchievement(null), 4000);
+      const hideTimer = setTimeout(() => setAchievement(null), 4000);
+      achievementTimers.current.push(hideTimer);
     }, 1500);
+    achievementTimers.current.push(revealTimer);
   };
 
   return (
