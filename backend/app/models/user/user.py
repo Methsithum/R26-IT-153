@@ -49,6 +49,8 @@ class UserModel:
             "current_streak": 0,
             "longest_streak": 0,
             "badges": [],
+            "journal_missions": [],
+            "journal_missions_updated_at": None,
             "last_journal_date": None,
             "created_at": datetime.utcnow()
         }
@@ -86,6 +88,25 @@ class UserModel:
     @staticmethod
     async def update(user_id: str, update_data: dict):
         user_collection.update_one({"_id": ObjectId(user_id)}, {"$set": update_data})
+
+    @staticmethod
+    async def get_journal_missions(user_id: str):
+        doc = user_collection.find_one({"_id": ObjectId(user_id)}, {"journal_missions": 1, "journal_missions_updated_at": 1})
+        if not doc:
+            return None
+        return {
+            "missions": doc.get("journal_missions", []),
+            "updated_at": doc.get("journal_missions_updated_at"),
+        }
+
+    @staticmethod
+    async def set_journal_missions(user_id: str, missions: list[dict]):
+        now = datetime.utcnow()
+        user_collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": {"journal_missions": missions, "journal_missions_updated_at": now}},
+        )
+        return {"missions": missions, "updated_at": now}
 
     @staticmethod
     async def list_users():

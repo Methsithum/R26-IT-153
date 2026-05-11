@@ -6,7 +6,7 @@ import MissionGeneration from '../../components/student-journaling/MissionGenera
 import AIGuidePopup from '../../components/student-journaling/AIGuidePopup';
 import MissionComplete from '../../components/student-journaling/MissionComplete';
 import AchievementPopup from '../../components/student-journaling/AchievementPopup';
-import { analyzeBehavior, getUserGamification, startDailySession } from '../../services/api';
+import { analyzeBehavior, getUserGamification, getUserMissions, saveUserMissions, startDailySession } from '../../services/api';
 
 const INITIAL_MISSIONS = [
   { id: 'oop', name: 'OOP Revision', subject: 'Object-Oriented Programming', type: 'revision', xp: 25, difficulty: 'Easy', status: 'done', icon: '📚', progress: 100 },
@@ -111,9 +111,13 @@ export default function StudentJournalingPage({ user = null }) {
         }
 
         const gamification = await getUserGamification(activeUserId);
+        const missionState = await getUserMissions(activeUserId);
 
         if (!cancelled) {
           setStudent((prev) => buildStudentState({ ...prev, ...user, id: activeUserId, ...gamification }));
+          if (Array.isArray(missionState?.missions) && missionState.missions.length > 0) {
+            setMissions(missionState.missions);
+          }
         }
       } catch (_error) {
         if (!cancelled) {
@@ -138,9 +142,23 @@ export default function StudentJournalingPage({ user = null }) {
 
   const handleStartJourney = () => navigate('activities');
 
+  const persistMissions = async (missionsToSave) => {
+    const activeUserId = student.id || user?.id || localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!activeUserId) {
+      return;
+    }
+
+    try {
+      await saveUserMissions(activeUserId, missionsToSave);
+    } catch (_error) {
+      // Keep the local flow working even if persistence is temporarily unavailable.
+    }
+  };
+
   const handleActivitiesComplete = (newMissions) => {
     // Replace existing missions with the newly generated missions
     setMissions(newMissions);
+    persistMissions(newMissions);
     navigate('missions');
   };
 
@@ -183,14 +201,16 @@ export default function StudentJournalingPage({ user = null }) {
   const handleGuideComplete = async ({ result } = {}) => {
     setGuideVisible(false);
 
-    setMissions(prev => {
-      const updated = prev.map(m =>
-        m.id === activeMission.id ? { ...m, status: 'done', progress: 100 } : m
-      );
-      const lockedIdx = updated.findIndex(m => m.status === 'locked');
-      if (lockedIdx !== -1) updated[lockedIdx] = { ...updated[lockedIdx], status: 'active' };
-      return updated;
-    });
+    const updatedMissions = missions.map((m) => (
+      m.id === activeMission.id ? { ...m, status: 'done', progress: 100 } : m
+    ));
+    const lockedIdx = updatedMissions.findIndex((m) => m.status === 'locked');
+    if (lockedIdx !== -1) {
+      updatedMissions[lockedIdx] = { ...updatedMissions[lockedIdx], status: 'active' };
+    }
+
+    setMissions(updatedMissions);
+    persistMissions(updatedMissions);
 
     setCompletedMission(activeMission);
     setCompletionResult(result || null);

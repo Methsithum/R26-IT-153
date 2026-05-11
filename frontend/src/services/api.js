@@ -22,6 +22,16 @@ export async function getUserGamification(userId) {
   return data;
 }
 
+export async function getUserMissions(userId) {
+  const { data } = await api.get(`/users/${userId}/missions`);
+  return data;
+}
+
+export async function saveUserMissions(userId, missions) {
+  const { data } = await api.put(`/users/${userId}/missions`, { missions });
+  return data;
+}
+
 export async function startDailySession(payload) {
   const { data } = await api.post('/daily/start', payload);
   return data;

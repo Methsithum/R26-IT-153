@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import Phaser from 'phaser';
 
 export default function MissionComplete({ mission, xpGained, result, onContinue }) {
   const canvasRef = useRef(null);
@@ -15,29 +16,16 @@ export default function MissionComplete({ mission, xpGained, result, onContinue 
 
   useEffect(() => {
     if (!canvasRef.current) return;
-
     let game;
 
-    const loadPhaser = async () => {
-      if (window.Phaser) {
-        startParticles();
-        return;
-      }
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js';
-      script.onload = startParticles;
-      document.head.appendChild(script);
-    };
-
     const startParticles = () => {
-      if (!window.Phaser || !canvasRef.current) return;
+      if (!Phaser || !canvasRef.current) return;
 
       const { width, height } = canvasRef.current.getBoundingClientRect();
 
-      class ParticleScene extends window.Phaser.Scene {
+      class ParticleScene extends Phaser.Scene {
         create() {
           const colors = [0x7c3aed, 0xa78bfa, 0xc4b5fd, 0xf97316, 0xeab308, 0x22c55e, 0xffffff];
-          const graphics = this.add.graphics();
 
           const burst = (x, y, count = 12) => {
             for (let i = 0; i < count; i++) {
@@ -103,8 +91,8 @@ export default function MissionComplete({ mission, xpGained, result, onContinue 
       }
 
       try {
-        game = new window.Phaser.Game({
-          type: window.Phaser.CANVAS,
+        game = new Phaser.Game({
+          type: Phaser.CANVAS,
           width,
           height,
           transparent: true,
@@ -114,10 +102,11 @@ export default function MissionComplete({ mission, xpGained, result, onContinue 
         });
         phaserRef.current = game;
       } catch (e) {
+        // ignore
       }
     };
 
-    loadPhaser();
+    startParticles();
 
     return () => {
       if (phaserRef.current) {

@@ -1,11 +1,19 @@
 from fastapi import APIRouter, HTTPException
-from app.schemas.user.user import UserCreate, UserResponse
+from app.schemas.user.user import UserCreate, UserResponse, MissionsUpdateRequest
 from app.models.user.user import UserModel
 from app.models.journal.daily_session import DailySessionModel
 from app.models.journal.task import TaskModel
 from app.models.journal.reflection import ReflectionModel
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+def _mission_payload(mission):
+    if hasattr(mission, "model_dump"):
+        return mission.model_dump()
+    if hasattr(mission, "dict"):
+        return mission.dict()
+    return dict(mission)
 
 @router.post("/", response_model=UserResponse)
 async def create_user(user_data: UserCreate):
@@ -29,6 +37,32 @@ async def get_user(user_id: str):
         total_xp=user["total_xp"], current_streak=user["current_streak"],
         longest_streak=user["longest_streak"], badges=user["badges"]
     )
+
+
+@router.get("/{user_id}/missions")
+async def get_user_missions(user_id: str):
+    user = await UserModel.find_by_id(user_id)
+    if not user:
+        raise HTTPException(404, "User not found")
+    missions_state = await UserModel.get_journal_missions(user_id)
+    return {
+        "user_id": user_id,
+        "missions": missions_state["missions"] if missions_state else [],
+        "updated_at": missions_state["updated_at"] if missions_state else None,
+    }
+
+
+@router.put("/{user_id}/missions")
+async def update_user_missions(user_id: str, payload: MissionsUpdateRequest):
+    user = await UserModel.find_by_id(user_id)
+    if not user:
+        raise HTTPException(404, "User not found")
+    missions_state = await UserModel.set_journal_missions(user_id, [_mission_payload(mission) for mission in payload.missions])
+    return {
+        "user_id": user_id,
+        "missions": missions_state["missions"],
+        "updated_at": missions_state["updated_at"],
+    }
 
 
 @router.get("/{user_id}/sessions")

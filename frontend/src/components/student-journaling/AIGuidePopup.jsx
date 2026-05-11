@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import QuestionOptions from './QuestionOptions';
 import DatePickerQuestion from './DatePickerQuestion';
+import JourneyEffectsLayer from './JourneyEffectsLayer';
 import { answerDailySession } from '../../services/api';
 
 const normalizeOptions = (options = []) =>
@@ -17,8 +18,11 @@ export default function AIGuidePopup({ visible, mission, session, onSessionUpdat
   const [answers, setAnswers] = useState([]);
   const [backendTurns, setBackendTurns] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [comboCount, setComboCount] = useState(0);
   const typingRef = useRef(null);
   const seededQuestionRef = useRef('');
+  const journeyFxRef = useRef(null);
+  const prefersReducedMotion = useReducedMotion();
 
   const sessionQuestion = session?.question || '';
   const sessionOptions = useMemo(() => normalizeOptions(session?.options || []), [session?.options]);
@@ -35,6 +39,8 @@ export default function AIGuidePopup({ visible, mission, session, onSessionUpdat
       setStep(0);
       setSelected(null);
       setAnswers([]);
+      setComboCount(0);
+      journeyFxRef.current?.reset();
     }
   }, [visible, useBackendSession, session?.session_id, sessionQuestion, sessionOptions]);
 
@@ -47,6 +53,8 @@ export default function AIGuidePopup({ visible, mission, session, onSessionUpdat
   useEffect(() => {
     if (!visible) {
       seededQuestionRef.current = '';
+      setComboCount(0);
+      journeyFxRef.current?.reset();
     }
   }, [visible]);
 
@@ -54,28 +62,71 @@ export default function AIGuidePopup({ visible, mission, session, onSessionUpdat
     if (visible && current) {
       setSelected(null);
       setDisplayedText('');
-      setIsTyping(true);
-      let i = 0;
-      const msg = current.message;
       clearInterval(typingRef.current);
-      typingRef.current = setInterval(() => {
-        i++;
-        setDisplayedText(msg.slice(0, i));
-        if (i >= msg.length) {
-          clearInterval(typingRef.current);
-          setIsTyping(false);
-        }
-      }, 22);
+      if (prefersReducedMotion) {
+        setDisplayedText(current.message);
+        setIsTyping(false);
+      } else {
+        setIsTyping(true);
+        let i = 0;
+        const msg = current.message;
+        typingRef.current = setInterval(() => {
+          i++;
+          setDisplayedText(msg.slice(0, i));
+          if (i >= msg.length) {
+            clearInterval(typingRef.current);
+            setIsTyping(false);
+          }
+        }, 22);
+      }
     }
     return () => clearInterval(typingRef.current);
-  }, [step, visible, current?.message]);
+  }, [step, visible, current?.message, prefersReducedMotion]);
 
   useEffect(() => {
     if (visible && !useBackendSession) {
       setStep(0);
       setAnswers([]);
+      setComboCount(0);
+      journeyFxRef.current?.reset();
     }
   }, [visible, mission, useBackendSession]);
+
+  useEffect(() => {
+    if (visible) {
+      journeyFxRef.current?.stepAdvance(step + 1);
+    }
+  }, [step, visible]);
+
+  const applyResponseAndAdvance = (response) => {
+    if (response.completed) {
+      journeyFxRef.current?.finishBurst();
+      return true;
+    }
+
+    const nextQuestion = response?.question;
+    const nextOptions = normalizeOptions(response?.options || []);
+    if (!nextQuestion) {
+      return false;
+    }
+
+    onSessionUpdate && onSessionUpdate(response);
+    setBackendTurns((prev) => [
+      ...prev,
+      {
+        message: nextQuestion,
+        options: nextOptions,
+        question_type: response.question_type || 'regular',
+      },
+    ]);
+    setStep((value) => value + 1);
+    setSelected(null);
+
+    const nextCombo = comboCount + 1;
+    setComboCount(nextCombo);
+    journeyFxRef.current?.comboPulse(nextCombo);
+    return false;
+  };
 
   const handleNext = async () => {
     if (selected === null) return;
@@ -86,6 +137,7 @@ export default function AIGuidePopup({ visible, mission, session, onSessionUpdat
 
     const newAnswers = [...answers, { question: current.message, answer: selectedAnswer }];
     setAnswers(newAnswers);
+    journeyFxRef.current?.submitBurst();
 
     if (useBackendSession) {
       setIsSubmitting(true);
@@ -100,25 +152,14 @@ export default function AIGuidePopup({ visible, mission, session, onSessionUpdat
           return;
         }
 
-        const nextQuestion = response?.question;
-        const nextOptions = normalizeOptions(response?.options || []);
-        if (!nextQuestion) {
+        const completed = applyResponseAndAdvance(response);
+        if (completed) {
+          onComplete && onComplete({ answers: newAnswers, result: response });
           return;
         }
-
-        onSessionUpdate && onSessionUpdate(response);
-        setBackendTurns((prev) => [
-          ...prev,
-          { 
-            message: nextQuestion, 
-            options: nextOptions,
-            question_type: response.question_type || 'regular'
-          },
-        ]);
-        setStep((value) => value + 1);
-        setSelected(null);
       } catch (_error) {
         // Keep current state intact so the user can retry selection submission.
+        setComboCount(0);
       } finally {
         setIsSubmitting(false);
       }
@@ -128,7 +169,11 @@ export default function AIGuidePopup({ visible, mission, session, onSessionUpdat
     if (step < dialogue.length - 1) {
       setStep(s => s + 1);
       setSelected(null);
+      const nextCombo = comboCount + 1;
+      setComboCount(nextCombo);
+      journeyFxRef.current?.comboPulse(nextCombo);
     } else {
+      journeyFxRef.current?.finishBurst();
       onComplete && onComplete({ answers: newAnswers });
     }
   };
@@ -137,6 +182,7 @@ export default function AIGuidePopup({ visible, mission, session, onSessionUpdat
     const selectedAnswer = `Deadline: ${date.toLocaleDateString()}`;
     const newAnswers = [...answers, { question: current.message, answer: selectedAnswer }];
     setAnswers(newAnswers);
+    journeyFxRef.current?.deadlineSet();
     
     setIsSubmitting(true);
     try {
@@ -147,29 +193,15 @@ export default function AIGuidePopup({ visible, mission, session, onSessionUpdat
       });
 
       if (response.completed) {
+        journeyFxRef.current?.finishBurst();
         onComplete && onComplete({ answers: newAnswers, result: response });
         return;
       }
 
-      const nextQuestion = response?.question;
-      const nextOptions = normalizeOptions(response?.options || []);
-      if (!nextQuestion) {
-        return;
-      }
-
-      onSessionUpdate && onSessionUpdate(response);
-      setBackendTurns((prev) => [
-        ...prev,
-        { 
-          message: nextQuestion, 
-          options: nextOptions,
-          question_type: response.question_type || 'regular'
-        },
-      ]);
-      setStep((value) => value + 1);
-      setSelected(null);
+      applyResponseAndAdvance(response);
     } catch (_error) {
       // Keep current state intact
+      setComboCount(0);
     } finally {
       setIsSubmitting(false);
     }
@@ -180,6 +212,7 @@ export default function AIGuidePopup({ visible, mission, session, onSessionUpdat
     const selectedAnswer = 'Skip for now';
     const newAnswers = [...answers, { question: current.message, answer: selectedAnswer }];
     setAnswers(newAnswers);
+    journeyFxRef.current?.submitBurst();
     
     setIsSubmitting(true);
     try {
@@ -189,29 +222,15 @@ export default function AIGuidePopup({ visible, mission, session, onSessionUpdat
       });
 
       if (response.completed) {
+        journeyFxRef.current?.finishBurst();
         onComplete && onComplete({ answers: newAnswers, result: response });
         return;
       }
 
-      const nextQuestion = response?.question;
-      const nextOptions = normalizeOptions(response?.options || []);
-      if (!nextQuestion) {
-        return;
-      }
-
-      onSessionUpdate && onSessionUpdate(response);
-      setBackendTurns((prev) => [
-        ...prev,
-        { 
-          message: nextQuestion, 
-          options: nextOptions,
-          question_type: response.question_type || 'regular'
-        },
-      ]);
-      setStep((value) => value + 1);
-      setSelected(null);
+      applyResponseAndAdvance(response);
     } catch (_error) {
       // Keep current state intact
+      setComboCount(0);
     } finally {
       setIsSubmitting(false);
     }
@@ -247,13 +266,19 @@ export default function AIGuidePopup({ visible, mission, session, onSessionUpdat
           exit={{ y: 60, opacity: 0, scale: 0.95 }}
           transition={{ type: 'spring', stiffness: 200, damping: 24 }}
         >
+          <JourneyEffectsLayer ref={journeyFxRef} reducedMotion={prefersReducedMotion} />
+
           {/* glow ring */}
-          <motion.div
-            className="absolute inset-0 rounded-3xl pointer-events-none"
-            style={{ border: '1px solid rgba(124,58,237,0.2)' }}
-            animate={{ opacity: [0.4, 0.9, 0.4] }}
-            transition={{ duration: 3, repeat: Infinity }}
-          />
+          {prefersReducedMotion ? (
+            <div className="absolute inset-0 rounded-3xl pointer-events-none" style={{ border: '1px solid rgba(124,58,237,0.14)' }} />
+          ) : (
+            <motion.div
+              className="absolute inset-0 rounded-3xl pointer-events-none"
+              style={{ border: '1px solid rgba(124,58,237,0.2)' }}
+              animate={{ opacity: [0.4, 0.9, 0.4] }}
+              transition={{ duration: 3, repeat: Infinity }}
+            />
+          )}
 
           {/* Header */}
           <div className="flex items-center gap-3 mb-5">
@@ -265,16 +290,16 @@ export default function AIGuidePopup({ visible, mission, session, onSessionUpdat
                   background: 'linear-gradient(135deg, rgba(124,58,237,0.4), rgba(79,70,229,0.4))',
                   borderColor: 'rgba(167,139,250,0.35)',
                 }}
-                animate={{ y: [0, -3, 0] }}
-                transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+                animate={prefersReducedMotion ? undefined : { y: [0, -3, 0] }}
+                transition={prefersReducedMotion ? undefined : { duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
               >
                 🤖
               </motion.div>
               <motion.div
                 className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2"
                 style={{ background: '#22c55e', borderColor: '#0f1128' }}
-                animate={{ scale: [1, 1.3, 1] }}
-                transition={{ duration: 2, repeat: Infinity }}
+                animate={prefersReducedMotion ? undefined : { scale: [1, 1.3, 1] }}
+                transition={prefersReducedMotion ? undefined : { duration: 2, repeat: Infinity }}
               />
             </div>
             <div className="flex-1">

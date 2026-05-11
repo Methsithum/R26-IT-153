@@ -12,3 +12,19 @@ class UserResponse(BaseModel):
     current_streak: int
     longest_streak: int
     badges: list[str]
+
+
+class MissionItem(BaseModel):
+    id: str
+    name: str
+    subject: str
+    type: str
+    xp: int
+    difficulty: str
+    status: str
+    icon: str
+    progress: int
+
+
+class MissionsUpdateRequest(BaseModel):
+    missions: list[MissionItem]
