@@ -1,16 +1,3 @@
-"""
-Model Test Evaluation
-======================
-File: backend/ml_scripts/focus/test_evaluate.py
-
-කරන දේ:
-① Test images load කරනවා
-② Predict කරනවා
-③ Actual vs Predicted compare කරනවා
-④ Per-class accuracy report + graphs
-⑤ Visual window — image + prediction show කරනවා
-"""
-
 import cv2
 import numpy as np
 import joblib
@@ -41,7 +28,7 @@ IMG_SIZE       = 224
 CLASSES        = ["Focused", "Fatigue", "Anxiety", "Boredom"]
 CONF_THRESHOLD = 0.60
 FATIGUE_THRESH = 0.80
-SAMPLE_PER_CLASS = 50    # Class එකකට test images කීයද (None = all)
+SAMPLE_PER_CLASS = 50    # Class test images (None = all)
 
 STATE_COLORS_BGR = {
     "Focused": (0,   200,   0),
