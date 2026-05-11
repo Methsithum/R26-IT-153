@@ -4,14 +4,14 @@ import { INTERVENTIONS } from "./focusData";
 export default function IntModal({ open, onClose, type, onComplete }) {
   const [done, setDone] = useState([]);
 
-  const cfg = INTERVENTIONS[type] || INTERVENTIONS.focus;
-  const finished = done.length === cfg.steps.length;
+  const cfg = INTERVENTIONS[type] || INTERVENTIONS.Focused;
+  const finished = cfg && done.length === cfg.steps.length;
 
   useEffect(() => {
     if (open) setDone([]);
   }, [open, type]);
 
-  if (!open) return null;
+  if (!open || !cfg) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(15,23,42,0.35)", backdropFilter: "blur(8px)" }}>
