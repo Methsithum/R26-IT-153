@@ -1,9 +1,3 @@
-"""
-STEP 3 - Real-time Focus Detection
-====================================
-File: backend/app/services/focus/detector.py
-"""
-
 import cv2
 import numpy as np
 import joblib
@@ -13,23 +7,21 @@ from pathlib import Path
 from tensorflow.keras.models import load_model
 from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 
-# ══════════════════════════════════════════════════════
+
 # PATHS
-# ══════════════════════════════════════════════════════
 
 BASE_DIR    = Path(__file__).resolve().parents[3]
 MODELS_PATH = BASE_DIR / "trained-models" / "focus"
 
-# ══════════════════════════════════════════════════════
+
 # SETTINGS
-# ══════════════════════════════════════════════════════
 
 IMG_SIZE         = 224
 CLASSES          = ["Focused", "Fatigue", "Anxiety", "Boredom"]
 PREDICT_FPS      = 2
 SMOOTH_N         = 10       # Stable predictions
 CONF_THRESHOLD   = 0.60     # 60% below → Focused
-FATIGUE_THRESH   = 0.80     # Fatigue accept කරන්නේ 80%+ confidence ලදිදී
+FATIGUE_THRESH   = 0.80     # Fatigue accept 80%+ confidence
 
 STATE_COLORS = {
     "Focused": (0,   200,   0),
