@@ -4,6 +4,7 @@ export default function QuestionOptions({ options, selected, onSelect }) {
   return (
     <div className="flex flex-col gap-2">
       {options.map((opt, i) => {
+        const optionText = typeof opt === 'string' ? opt : opt?.text;
         const isSelected = selected === i;
         return (
           <motion.button
@@ -32,7 +33,7 @@ export default function QuestionOptions({ options, selected, onSelect }) {
             >
               {isSelected ? '✓' : String.fromCharCode(65 + i)}
             </span>
-            <span className="font-medium">{opt.text}</span>
+            <span className="font-medium">{optionText}</span>
             {isSelected && (
               <motion.div
                 className="absolute inset-0 rounded-xl pointer-events-none"

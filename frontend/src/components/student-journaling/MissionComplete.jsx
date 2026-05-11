@@ -1,9 +1,17 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 
-export default function MissionComplete({ mission, xpGained, onContinue }) {
+export default function MissionComplete({ mission, xpGained, result, onContinue }) {
   const canvasRef = useRef(null);
   const phaserRef = useRef(null);
+  const [displayedJournal, setDisplayedJournal] = useState('');
+
+  const journalEntry = useMemo(
+    () => result?.journal_entry?.trim() || 'Great progress today. Your journal summary is being prepared.',
+    [result?.journal_entry]
+  );
+  const unlockedBadges = result?.new_badges || [];
+  const didLevelUp = Boolean(result?.level_up);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -119,6 +127,20 @@ export default function MissionComplete({ mission, xpGained, onContinue }) {
     };
   }, []);
 
+  useEffect(() => {
+    let index = 0;
+    setDisplayedJournal('');
+    const timer = window.setInterval(() => {
+      index += 1;
+      setDisplayedJournal(journalEntry.slice(0, index));
+      if (index >= journalEntry.length) {
+        window.clearInterval(timer);
+      }
+    }, 12);
+
+    return () => window.clearInterval(timer);
+  }, [journalEntry]);
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
@@ -227,6 +249,61 @@ export default function MissionComplete({ mission, xpGained, onContinue }) {
             </div>
           </div>
         </motion.div>
+
+        <motion.div
+          className="w-full rounded-2xl p-4 border mb-6 text-left"
+          variants={itemVariants}
+          style={{
+            background: 'rgba(15,23,42,0.55)',
+            borderColor: 'rgba(148,163,184,0.2)',
+          }}
+        >
+          <p className="text-[10px] uppercase tracking-widest text-violet-300/80 mb-2">Daily Journal Summary</p>
+          <p className="text-sm leading-6 text-slate-200 whitespace-pre-wrap">
+            {displayedJournal}
+            {displayedJournal.length < journalEntry.length && (
+              <span className="inline-block w-1.5 h-3.5 ml-1 align-middle bg-violet-300/80 animate-pulse rounded-sm" />
+            )}
+          </p>
+        </motion.div>
+
+        {(didLevelUp || unlockedBadges.length > 0) && (
+          <motion.div
+            className="w-full rounded-2xl p-4 border mb-6"
+            variants={itemVariants}
+            style={{
+              background: 'rgba(30,41,59,0.45)',
+              borderColor: 'rgba(125,211,252,0.25)',
+            }}
+          >
+            <p className="text-[10px] uppercase tracking-widest text-cyan-300/80 mb-3 text-left">Session Rewards</p>
+            <div className="flex flex-wrap items-center gap-2">
+              {didLevelUp && (
+                <motion.span
+                  className="px-3 py-1.5 rounded-full text-xs font-semibold"
+                  style={{ background: 'rgba(16,185,129,0.2)', color: '#6ee7b7', border: '1px solid rgba(16,185,129,0.35)' }}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                >
+                  Level Up
+                </motion.span>
+              )}
+              {unlockedBadges.map((badge, index) => (
+                <motion.span
+                  key={`${badge}-${index}`}
+                  className="px-3 py-1.5 rounded-full text-xs font-semibold"
+                  style={{ background: 'rgba(59,130,246,0.2)', color: '#93c5fd', border: '1px solid rgba(59,130,246,0.35)' }}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.18 + index * 0.08 }}
+                >
+                  {badge}
+                </motion.span>
+              ))}
+            </div>
+          </motion.div>
+        )}
 
         <motion.button
           className="w-full py-4 rounded-2xl text-sm font-semibold text-white border-0"

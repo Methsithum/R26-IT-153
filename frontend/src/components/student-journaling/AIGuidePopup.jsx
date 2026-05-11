@@ -1,7 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import QuestionOptions from './QuestionOptions';
 import { answerDailySession } from '../../services/api';
+
+const normalizeOptions = (options = []) =>
+  options.map((option) => (typeof option === 'string' ? { text: option } : option));
+
+const getOptionText = (option) => (typeof option === 'string' ? option : option?.text || '');
 
 export default function AIGuidePopup({ visible, mission, session, onSessionUpdate, onComplete, onClose }) {
   const [step, setStep] = useState(0);
@@ -12,22 +17,37 @@ export default function AIGuidePopup({ visible, mission, session, onSessionUpdat
   const [backendTurns, setBackendTurns] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const typingRef = useRef(null);
+  const seededQuestionRef = useRef('');
 
   const sessionQuestion = session?.question || '';
-  const sessionOptions = session?.options || [];
-  const useBackendSession = Boolean(session?.session_id && sessionQuestion);
+  const sessionOptions = useMemo(() => normalizeOptions(session?.options || []), [session?.options]);
+  const useBackendSession = Boolean(session?.session_id);
   const fallbackDialogue = mission ? buildDialogue(mission) : [];
   const dialogue = useBackendSession ? backendTurns : fallbackDialogue;
   const current = dialogue[step];
 
   useEffect(() => {
-    if (visible && useBackendSession && sessionQuestion) {
+    const seedKey = `${session?.session_id || ''}:${sessionQuestion}`;
+    if (visible && useBackendSession && sessionQuestion && seededQuestionRef.current !== seedKey) {
+      seededQuestionRef.current = seedKey;
       setBackendTurns([{ message: sessionQuestion, options: sessionOptions }]);
       setStep(0);
       setSelected(null);
       setAnswers([]);
     }
-  }, [visible, useBackendSession, sessionQuestion, sessionOptions]);
+  }, [visible, useBackendSession, session?.session_id, sessionQuestion, sessionOptions]);
+
+  useEffect(() => {
+    if (useBackendSession && backendTurns.length > 0 && step >= backendTurns.length) {
+      setStep(backendTurns.length - 1);
+    }
+  }, [useBackendSession, backendTurns, step]);
+
+  useEffect(() => {
+    if (!visible) {
+      seededQuestionRef.current = '';
+    }
+  }, [visible]);
 
   useEffect(() => {
     if (visible && current) {
@@ -50,11 +70,9 @@ export default function AIGuidePopup({ visible, mission, session, onSessionUpdat
   }, [step, visible, current?.message]);
 
   useEffect(() => {
-    if (visible) {
-      if (!useBackendSession) {
-        setStep(0);
-        setAnswers([]);
-      }
+    if (visible && !useBackendSession) {
+      setStep(0);
+      setAnswers([]);
     }
   }, [visible, mission, useBackendSession]);
 
@@ -62,7 +80,10 @@ export default function AIGuidePopup({ visible, mission, session, onSessionUpdat
     if (selected === null) return;
     if (!current) return;
 
-    const newAnswers = [...answers, { question: current.message, answer: current.options[selected].text }];
+    const selectedAnswer = getOptionText(current.options[selected]);
+    if (!selectedAnswer) return;
+
+    const newAnswers = [...answers, { question: current.message, answer: selectedAnswer }];
     setAnswers(newAnswers);
 
     if (useBackendSession) {
@@ -70,7 +91,7 @@ export default function AIGuidePopup({ visible, mission, session, onSessionUpdat
       try {
         const response = await answerDailySession({
           session_id: session.session_id,
-          answer: current.options[selected].text,
+          answer: selectedAnswer,
         });
 
         if (response.completed) {
@@ -78,10 +99,21 @@ export default function AIGuidePopup({ visible, mission, session, onSessionUpdat
           return;
         }
 
+        const nextQuestion = response?.question;
+        const nextOptions = normalizeOptions(response?.options || []);
+        if (!nextQuestion || nextOptions.length === 0) {
+          return;
+        }
+
         onSessionUpdate && onSessionUpdate(response);
-        setBackendTurns((prev) => [...prev, { message: response.question, options: response.options || [] }]);
+        setBackendTurns((prev) => [
+          ...prev,
+          { message: nextQuestion, options: nextOptions },
+        ]);
         setStep((value) => value + 1);
         setSelected(null);
+      } catch (_error) {
+        // Keep current state intact so the user can retry selection submission.
       } finally {
         setIsSubmitting(false);
       }
@@ -242,7 +274,13 @@ export default function AIGuidePopup({ visible, mission, session, onSessionUpdat
                   disabled={selected === null || isSubmitting}
                   onClick={handleNext}
                 >
-                  {isSubmitting ? 'Saving...' : step < dialogue.length - 1 ? 'Continue →' : '✨ Complete Mission'}
+                  {isSubmitting
+                    ? 'Saving...'
+                    : useBackendSession
+                      ? 'Continue →'
+                      : step < dialogue.length - 1
+                        ? 'Continue →'
+                        : '✨ Complete Mission'}
                 </motion.button>
               </motion.div>
             )}

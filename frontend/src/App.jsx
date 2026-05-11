@@ -104,5 +104,5 @@ export default function App() {
     );
   }
 
-  return <StudentJournalingPage />;
+  return <StudentJournalingPage user={authUser} />;
 }

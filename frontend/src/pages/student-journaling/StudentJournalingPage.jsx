@@ -6,7 +6,7 @@ import MissionGeneration from '../../components/student-journaling/MissionGenera
 import AIGuidePopup from '../../components/student-journaling/AIGuidePopup';
 import MissionComplete from '../../components/student-journaling/MissionComplete';
 import AchievementPopup from '../../components/student-journaling/AchievementPopup';
-import { createUser, getUserGamification, startDailySession } from '../../services/api';
+import { analyzeBehavior, getUserGamification, startDailySession } from '../../services/api';
 
 const INITIAL_MISSIONS = [
   { id: 'oop', name: 'OOP Revision', subject: 'Object-Oriented Programming', type: 'revision', xp: 25, difficulty: 'Easy', status: 'done', icon: '📚', progress: 100 },
@@ -22,7 +22,7 @@ const slideVariants = {
   exit: (dir) => ({ x: dir > 0 ? -60 : 60, opacity: 0 }),
 };
 
-const DEMO_USER_KEY = 'smart-uni-guide-demo-user-id';
+const AUTH_STORAGE_KEY = 'smart-uni-guide-user-id';
 const DEMO_USER = {
   name: 'Ashan Perera',
   email: 'demo@smartuniguide.local',
@@ -37,21 +37,23 @@ const ACTIVITY_TO_BACKEND = {
   lab: 'academic_study',
 };
 
-const buildStudentState = (user, gamification) => {
-  const totalXP = gamification?.total_xp ?? user?.total_xp ?? 2340;
+const buildStudentState = (user = null) => {
+  // Use provided user data, fallback to DEMO_USER for fields that might be missing
+  const userData = user || DEMO_USER;
+  const totalXP = user?.total_xp ?? 2340;
 
   return {
     id: user?.id,
-    name: user?.name || DEMO_USER.name,
-    email: user?.email || DEMO_USER.email,
+    name: userData.name || DEMO_USER.name,
+    email: userData.email || DEMO_USER.email,
     total_xp: totalXP,
     xp: totalXP,
     level: Math.floor(totalXP / 250) + 1,
-    current_streak: gamification?.current_streak ?? user?.current_streak ?? 12,
-    streak: gamification?.current_streak ?? user?.current_streak ?? 12,
-    longest_streak: gamification?.longest_streak ?? user?.longest_streak ?? 12,
-    badges: gamification?.badges ?? user?.badges ?? [],
-    achievements: gamification?.badges?.length ?? user?.badges?.length ?? 8,
+    current_streak: user?.current_streak ?? 12,
+    streak: user?.current_streak ?? 12,
+    longest_streak: user?.longest_streak ?? 12,
+    badges: user?.badges ?? [],
+    achievements: user?.badges?.length ?? 8,
   };
 };
 
@@ -64,7 +66,7 @@ const buildBackendActivityList = (missionsList) => {
   return selected.length > 0 ? selected : ['other'];
 };
 
-export default function StudentJournalingPage() {
+export default function StudentJournalingPage({ user = null }) {
   const [screen, setScreen] = useState('dashboard');
   const [direction, setDirection] = useState(1);
   const [missions, setMissions] = useState(INITIAL_MISSIONS);
@@ -73,7 +75,7 @@ export default function StudentJournalingPage() {
   const [completedMission, setCompletedMission] = useState(null);
   const [completionResult, setCompletionResult] = useState(null);
   const [achievement, setAchievement] = useState(null);
-  const [student, setStudent] = useState(buildStudentState());
+  const [student, setStudent] = useState(buildStudentState(user));
   const [journeySession, setJourneySession] = useState(null);
   const achievementTimers = useRef([]);
 
@@ -84,35 +86,34 @@ export default function StudentJournalingPage() {
     };
   }, []);
 
+  // Update student data when user prop changes
+  useEffect(() => {
+    if (user) {
+      setStudent(buildStudentState(user));
+    }
+  }, [user]);
+
   useEffect(() => {
     let cancelled = false;
 
     const bootstrapUser = async () => {
       try {
-        const storedUserId = localStorage.getItem(DEMO_USER_KEY);
-
-        if (storedUserId) {
-          try {
-            const gamification = await getUserGamification(storedUserId);
-            if (!cancelled) {
-              setStudent(buildStudentState({ id: storedUserId, ...DEMO_USER }, gamification));
-            }
-            return;
-          } catch (_error) {
-            localStorage.removeItem(DEMO_USER_KEY);
+        const activeUserId = user?.id || localStorage.getItem(AUTH_STORAGE_KEY);
+        if (!activeUserId) {
+          if (!cancelled) {
+            setStudent(buildStudentState(user));
           }
+          return;
         }
 
-        const createdUser = await createUser(DEMO_USER);
-        localStorage.setItem(DEMO_USER_KEY, createdUser.id);
-        const gamification = await getUserGamification(createdUser.id);
+        const gamification = await getUserGamification(activeUserId);
 
         if (!cancelled) {
-          setStudent(buildStudentState(createdUser, gamification));
+          setStudent((prev) => buildStudentState({ ...prev, ...user, id: activeUserId, ...gamification }));
         }
       } catch (_error) {
         if (!cancelled) {
-          setStudent(buildStudentState());
+          setStudent(buildStudentState(user));
         }
       }
     };
@@ -122,7 +123,7 @@ export default function StudentJournalingPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user]);
 
   const navigate = (to) => {
     const fromIdx = SCREENS.indexOf(screen);
@@ -146,7 +147,7 @@ export default function StudentJournalingPage() {
     const first = missions.find(m => m.status === 'active');
     if (first) {
       setActiveMission(first);
-      const storedUserId = localStorage.getItem(DEMO_USER_KEY) || student.id;
+      const storedUserId = student.id || user?.id || localStorage.getItem(AUTH_STORAGE_KEY);
       const selectedActivities = buildBackendActivityList(missions);
 
       if (!storedUserId) {
@@ -196,9 +197,15 @@ export default function StudentJournalingPage() {
     navigate('complete');
 
     if (student.id) {
+      analyzeBehavior({ user_id: student.id }).catch(() => {
+        // Behavior analysis is analytics-only; do not block the journal flow.
+      });
+    }
+
+    if (student.id) {
       try {
         const gamification = await getUserGamification(student.id);
-        setStudent(buildStudentState({ ...student, ...gamification }, gamification));
+        setStudent(buildStudentState({ ...student, ...gamification }));
       } catch (_error) {
         if (result?.xp_earned) {
           const updatedXP = (student.total_xp || 0) + result.xp_earned;
@@ -253,6 +260,7 @@ export default function StudentJournalingPage() {
             <MissionComplete
               mission={completedMission}
               xpGained={completionResult?.xp_earned || completedMission.xp}
+              result={completionResult}
               onContinue={() => navigate('dashboard')}
             />
           )}

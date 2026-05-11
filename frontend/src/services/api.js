@@ -32,6 +32,11 @@ export async function answerDailySession(payload) {
   return data;
 }
 
+export async function analyzeBehavior(payload) {
+  const { data } = await api.post('/behavior/analyze', payload);
+  return data;
+}
+
 export async function registerUser(payload) {
   const { data } = await api.post('/auth/register', payload);
   return data;
