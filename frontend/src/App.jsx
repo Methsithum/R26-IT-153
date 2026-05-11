@@ -1,18 +1,15 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import DashboardPage from './pages/DashboardPage.jsx'
 
 function App() {
   return (
-    <Router>
-      
-      <div>
-        
-        <Routes>
-          <Route path="/" element={<Home/>} />
-        </Routes>
-      </div>
-    </Router>
-  );
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  )
 }
 
-export default App;
+export default App
