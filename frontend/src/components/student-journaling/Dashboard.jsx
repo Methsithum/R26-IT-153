@@ -15,11 +15,45 @@ const DEFAULT_STUDENT = {
   achievements: 8,
 };
 
-const ACHIEVEMENTS = [
+const BADGE_CATALOG = {
+  first_journal: { icon: '🏆', name: 'First Journal Entry', desc: 'Completed your first journal session' },
+  streak_3: { icon: '🔥', name: '3-Day Streak', desc: 'Maintained 3 days streak' },
+  streak_7: { icon: '🔥', name: '7-Day Streak', desc: 'Maintained 7 days streak' },
+  streak_30: { icon: '🔥', name: '30-Day Streak', desc: 'Maintained 30 days streak' },
+  journal_10: { icon: '📓', name: '10 Journals', desc: 'Completed 10 journal entries' },
+  journal_30: { icon: '📘', name: '30 Journals', desc: 'Completed 30 journal entries' },
+  journal_50: { icon: '📚', name: '50 Journals', desc: 'Completed 50 journal entries' },
+  xp_500: { icon: '⚡', name: '500 XP', desc: 'Reached 500 total XP' },
+  xp_1000: { icon: '⚡', name: '1000 XP', desc: 'Reached 1000 total XP' },
+  xp_2500: { icon: '⚡', name: '2500 XP', desc: 'Reached 2500 total XP' },
+  tasks_5: { icon: '✅', name: '5 Tasks Completed', desc: 'Completed 5 tasks' },
+  tasks_10: { icon: '✅', name: '10 Tasks Completed', desc: 'Completed 10 tasks' },
+};
+
+const DEFAULT_ACHIEVEMENTS = [
   { icon: '🏆', name: 'First Mission', desc: 'Completed your first mission' },
   { icon: '🔥', name: '7-Day Streak', desc: 'Maintained 7 days streak' },
   { icon: '⚡', name: 'Quick Learner', desc: 'Completed 5 missions in one day' },
 ];
+
+const formatBadgeAchievement = (badgeKey) => {
+  if (!badgeKey) return null;
+  if (typeof badgeKey === 'object') {
+    return {
+      icon: badgeKey.icon || '🏅',
+      name: badgeKey.name || badgeKey.label || 'Achievement',
+      desc: badgeKey.desc || badgeKey.description || 'Unlocked from your progress',
+    };
+  }
+
+  const catalogEntry = BADGE_CATALOG[String(badgeKey)] || {
+    icon: '🏅',
+    name: String(badgeKey).replaceAll('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase()),
+    desc: 'Unlocked from your progress',
+  };
+
+  return catalogEntry;
+};
 
 export default function Dashboard({ missions, onStartJourney, student = DEFAULT_STUDENT }) {
   const currentStudent = {
@@ -27,8 +61,14 @@ export default function Dashboard({ missions, onStartJourney, student = DEFAULT_
     ...student,
     xp: student?.xp ?? student?.total_xp ?? DEFAULT_STUDENT.xp,
     streak: student?.streak ?? student?.current_streak ?? DEFAULT_STUDENT.streak,
+    missionsCompleted: student?.missionsCompleted ?? student?.completed_sessions ?? student?.total_sessions ?? DEFAULT_STUDENT.missionsCompleted,
     achievements: student?.achievements ?? student?.badges?.length ?? DEFAULT_STUDENT.achievements,
   };
+
+  const achievementCards = (student?.badges?.length ? student.badges : DEFAULT_ACHIEVEMENTS)
+    .map(formatBadgeAchievement)
+    .filter(Boolean)
+    .slice(0, 3);
 
   return (
     <div className="min-h-screen px-4 py-6 sm:px-6 sm:py-8 lg:px-8" style={{ background: '#0d0f1a' }}>
@@ -104,7 +144,7 @@ export default function Dashboard({ missions, onStartJourney, student = DEFAULT_
         <div className="mb-8">
           <p className="text-[10px] uppercase tracking-widest text-slate-600 mb-3">Recent Achievements</p>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {ACHIEVEMENTS.map((a, i) => (
+            {achievementCards.map((a, i) => (
               <motion.div
                 key={a.name}
                 className="flex items-center gap-3 p-3 rounded-xl border"

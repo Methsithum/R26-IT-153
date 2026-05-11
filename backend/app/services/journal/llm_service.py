@@ -48,10 +48,22 @@ You are an AI academic coach. The student {user_name} has completed these activi
 Current streak: {streak} days.
 Their existing tasks (deadlines, progress): {json.dumps(existing_tasks, default=str)}.
 
-Generate the FIRST question to better understand their day. Focus on missing details: if "academic_study" is selected, ask about study duration and subject.
-If assignments are due soon, ask about progress.
-Output a JSON with "question" and "options" (list of 2-5 predefined choices).
-Example: {{"question": "How long did you study today?", "options": ["<1 hour", "1-2 hours", "3-4 hours", ">4 hours"]}}
+Generate the FIRST question to deeply understand their day and learning journey.
+Focus on:
+- Study duration/intensity if academic_study is selected
+- Assignment progress if assignment_work is selected
+- Learning challenges or breakthroughs
+- Motivation and engagement level
+- What worked well or what they'd change
+
+Ask a meaningful question that starts the reflection, not just a status check.
+Examples:
+- "How would you rate your focus during today's study session, and what helped or distracted you?"
+- "What was the most challenging part of your assignment today?"
+- "On a scale of 1-10, how effective do you feel today's work was, and why?"
+
+Output a JSON with "question" and "options" (list of 2-5 predefined choices that encourage reflection).
+Example: {{"question": "How would you rate your overall productivity today?", "options": ["Very productive - achieved goals", "Good progress - on track", "Moderate - some distractions", "Struggled - need to adjust approach"]}}
 Only output valid JSON.
 """
     resp = await client.chat.completions.create(
@@ -106,7 +118,7 @@ async def process_answer_and_get_next(
         at_risk_info = f"\n🚨 AT-RISK TASKS (PRIORITIZE QUESTIONS ABOUT THESE):\n{at_risk_str}\n"
 
     prompt = f"""
-You are an AI academic coach. Student: {user_name}.
+You are an AI academic coach conducting a deep learning reflection with student {user_name}.
 Today's activities: {', '.join(selected_activities)}.
 {extra_info}{at_risk_info}
 Questions answered so far:
@@ -124,15 +136,32 @@ Your job:
 1. If you have enough information (or reached max questions) set "end_session": true AND "next_question": null.
 2. If there are AT-RISK TASKS above, PRIORITIZE asking about them first before asking generic questions.
 3. Otherwise, generate a COMPLETELY DIFFERENT next question. NEVER repeat, rephrase, or ask similar variations of the questions above.
-4. Provide 2-5 predefined options.
+
+IMPORTANT: Ask comprehensive, insightful questions that explore:
+- CHALLENGES & BARRIERS: What obstacles did they face? Why?
+- LEARNING INSIGHTS: Did they learn something new? How effective was their approach?
+- DEEPER UNDERSTANDING: Why did they choose that approach? What worked/didn't work?
+- MOTIVATION & ENGAGEMENT: How motivated were they? What helped/hindered focus?
+- STUDY TECHNIQUES: What methods did they use? Would they change anything?
+- REFLECTION: What's their biggest takeaway? How will they apply it next time?
+
+Examples of good deeper questions:
+- "What was the biggest challenge in understanding [topic]? What would help you overcome it?"
+- "How did today's approach differ from what normally works for you?"
+- "What's one thing you wish you'd done differently during this session?"
+- "Which part felt most rewarding today, and why?"
+
+4. Provide 2-5 predefined options that encourage deeper reflection, not just task status updates.
 5. If the student's answer implies a task progress update (e.g., assignment stage changed), output "task_updates" list. Each update: {{"task_id": (existing id or null for new), "title": "...", "progress_stage": "...", "deadline": ...}}
-6. Only use progress stages from: {sorted(TASK_PROGRESS_STAGES)}.
-7. Always respond with JSON.
+6. If a task has NO deadline and the student mentions timing/urgency, ask them to set a deadline with question_type: "deadline_picker".
+7. Only use progress stages from: {sorted(TASK_PROGRESS_STAGES)}.
+8. Always respond with JSON.
 
 Output format:
 {{
   "next_question": "string or null",
   "options": ["option1", ...],
+  "question_type": "deadline_picker" or "regular",
   "end_session": boolean,
   "task_updates": []
 }}

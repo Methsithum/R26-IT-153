@@ -41,6 +41,7 @@ const buildStudentState = (user = null) => {
   // Use provided user data, fallback to DEMO_USER for fields that might be missing
   const userData = user || DEMO_USER;
   const totalXP = user?.total_xp ?? 2340;
+  const completedSessions = user?.completed_sessions ?? user?.total_sessions ?? 24;
 
   return {
     id: user?.id,
@@ -54,6 +55,9 @@ const buildStudentState = (user = null) => {
     longest_streak: user?.longest_streak ?? 12,
     badges: user?.badges ?? [],
     achievements: user?.badges?.length ?? 8,
+    missionsCompleted: completedSessions,
+    completed_sessions: completedSessions,
+    total_sessions: user?.total_sessions ?? completedSessions,
   };
 };
 
@@ -135,11 +139,8 @@ export default function StudentJournalingPage({ user = null }) {
   const handleStartJourney = () => navigate('activities');
 
   const handleActivitiesComplete = (newMissions) => {
-    setMissions(prev => {
-      const ids = new Set(newMissions.map(m => m.id));
-      const merged = prev.filter(m => !ids.has(m.id));
-      return [...newMissions, ...merged];
-    });
+    // Replace existing missions with the newly generated missions
+    setMissions(newMissions);
     navigate('missions');
   };
 

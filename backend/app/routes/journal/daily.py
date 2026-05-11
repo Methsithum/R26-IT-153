@@ -73,19 +73,31 @@ def _build_fallback_followup_question(selected_activities: List[str], asked_coun
     """Provide deterministic follow-up questions when LLM output is incomplete or ends too early."""
     if asked_count <= 1:
         return (
-            "What was the biggest challenge you faced while doing this activity?",
-            ["Understanding concepts", "Time management", "Technical issue", "No major challenge"]
+            "What was your biggest learning challenge during this activity?",
+            ["Struggled to understand concepts", "Time management issues", "Technical/practical problems", "Couldn't stay focused", "No major challenges"]
+        )
+
+    if asked_count == 2:
+        return (
+            "How effective did you feel your approach was compared to usual?",
+            ["More effective than usual", "About the same", "Less effective - need to adjust", "Tried a completely new method"]
         )
 
     if "assignment_work" in selected_activities or "project_development" in selected_activities:
         return (
-            "What is your next concrete step for this work?",
-            ["Start a new section", "Revise existing work", "Run tests/checks", "Submit/finalize"]
+            "What's one key insight you gained from today's work?",
+            ["Discovered a new technique", "Better understood the requirements", "Realized what I need to improve", "Completed a major milestone", "No major insights yet"]
+        )
+
+    if asked_count > 3:
+        return (
+            "What would you do differently in your next session to improve?",
+            ["Use a different study technique", "Manage time better", "Find quieter environment", "Ask for help earlier", "Nothing - went well"]
         )
 
     return (
-        "How focused were you during this session?",
-        ["Very focused", "Mostly focused", "Some distractions", "Hard to focus"]
+        "What part of today's work felt most rewarding to you?",
+        ["Making progress on a tough task", "Helping someone or collaborating", "Learning something new", "Completing something", "Nothing felt rewarding yet"]
     )
 
 
@@ -352,6 +364,17 @@ async def answer_question(req: AnswerRequest):
         except Exception:
             logger.warning("Skipping invalid task update payload", exc_info=True)
             continue
+
+    # Handle deadline setting from user response
+    if req.deadline:
+        try:
+            # Update the most recent task that doesn't have a deadline
+            for task in tasks_data:
+                if not task.get("deadline") and task.get("id"):
+                    await TaskModel.update(str(task["id"]), {"deadline": req.deadline})
+                    break
+        except Exception:
+            logger.warning("Failed to update task deadline", exc_info=True)
 
     # Use dynamic max_questions for session completion check
     max_questions = session.get("max_questions", 12)

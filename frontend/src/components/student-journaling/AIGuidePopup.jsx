@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import QuestionOptions from './QuestionOptions';
+import DatePickerQuestion from './DatePickerQuestion';
 import { answerDailySession } from '../../services/api';
 
 const normalizeOptions = (options = []) =>
@@ -101,14 +102,18 @@ export default function AIGuidePopup({ visible, mission, session, onSessionUpdat
 
         const nextQuestion = response?.question;
         const nextOptions = normalizeOptions(response?.options || []);
-        if (!nextQuestion || nextOptions.length === 0) {
+        if (!nextQuestion) {
           return;
         }
 
         onSessionUpdate && onSessionUpdate(response);
         setBackendTurns((prev) => [
           ...prev,
-          { message: nextQuestion, options: nextOptions },
+          { 
+            message: nextQuestion, 
+            options: nextOptions,
+            question_type: response.question_type || 'regular'
+          },
         ]);
         setStep((value) => value + 1);
         setSelected(null);
@@ -125,6 +130,90 @@ export default function AIGuidePopup({ visible, mission, session, onSessionUpdat
       setSelected(null);
     } else {
       onComplete && onComplete({ answers: newAnswers });
+    }
+  };
+
+  const handleDeadlineSelect = async (date) => {
+    const selectedAnswer = `Deadline: ${date.toLocaleDateString()}`;
+    const newAnswers = [...answers, { question: current.message, answer: selectedAnswer }];
+    setAnswers(newAnswers);
+    
+    setIsSubmitting(true);
+    try {
+      const response = await answerDailySession({
+        session_id: session.session_id,
+        answer: selectedAnswer,
+        deadline: date.toISOString(),
+      });
+
+      if (response.completed) {
+        onComplete && onComplete({ answers: newAnswers, result: response });
+        return;
+      }
+
+      const nextQuestion = response?.question;
+      const nextOptions = normalizeOptions(response?.options || []);
+      if (!nextQuestion) {
+        return;
+      }
+
+      onSessionUpdate && onSessionUpdate(response);
+      setBackendTurns((prev) => [
+        ...prev,
+        { 
+          message: nextQuestion, 
+          options: nextOptions,
+          question_type: response.question_type || 'regular'
+        },
+      ]);
+      setStep((value) => value + 1);
+      setSelected(null);
+    } catch (_error) {
+      // Keep current state intact
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeadlineCancel = async () => {
+    // Skip deadline - send "Skip" answer
+    const selectedAnswer = 'Skip for now';
+    const newAnswers = [...answers, { question: current.message, answer: selectedAnswer }];
+    setAnswers(newAnswers);
+    
+    setIsSubmitting(true);
+    try {
+      const response = await answerDailySession({
+        session_id: session.session_id,
+        answer: selectedAnswer,
+      });
+
+      if (response.completed) {
+        onComplete && onComplete({ answers: newAnswers, result: response });
+        return;
+      }
+
+      const nextQuestion = response?.question;
+      const nextOptions = normalizeOptions(response?.options || []);
+      if (!nextQuestion) {
+        return;
+      }
+
+      onSessionUpdate && onSessionUpdate(response);
+      setBackendTurns((prev) => [
+        ...prev,
+        { 
+          message: nextQuestion, 
+          options: nextOptions,
+          question_type: response.question_type || 'regular'
+        },
+      ]);
+      setStep((value) => value + 1);
+      setSelected(null);
+    } catch (_error) {
+      // Keep current state intact
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -253,35 +342,44 @@ export default function AIGuidePopup({ visible, mission, session, onSessionUpdat
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.3 }}
               >
-                <QuestionOptions
-                  options={current.options}
-                  selected={selected}
-                  onSelect={setSelected}
-                />
+                {current?.question_type === 'deadline_picker' ? (
+                  <DatePickerQuestion
+                    onSelect={handleDeadlineSelect}
+                    onCancel={handleDeadlineCancel}
+                  />
+                ) : (
+                  <>
+                    <QuestionOptions
+                      options={current.options}
+                      selected={selected}
+                      onSelect={setSelected}
+                    />
 
-                <motion.button
-                  className="w-full mt-4 py-3.5 rounded-xl text-sm font-semibold border transition-all"
-                  style={{
-                    background: selected !== null
-                      ? 'linear-gradient(135deg, #7c3aed, #4f46e5)'
-                      : 'rgba(255,255,255,0.04)',
-                    borderColor: selected !== null ? 'transparent' : 'rgba(255,255,255,0.08)',
-                    color: selected !== null ? '#fff' : '#334155',
-                    cursor: selected !== null && !isSubmitting ? 'pointer' : 'not-allowed',
-                  }}
-                  whileHover={selected !== null && !isSubmitting ? { scale: 1.01 } : {}}
-                  whileTap={selected !== null && !isSubmitting ? { scale: 0.98 } : {}}
-                  disabled={selected === null || isSubmitting}
-                  onClick={handleNext}
-                >
-                  {isSubmitting
-                    ? 'Saving...'
-                    : useBackendSession
-                      ? 'Continue →'
-                      : step < dialogue.length - 1
-                        ? 'Continue →'
-                        : '✨ Complete Mission'}
-                </motion.button>
+                    <motion.button
+                      className="w-full mt-4 py-3.5 rounded-xl text-sm font-semibold border transition-all"
+                      style={{
+                        background: selected !== null
+                          ? 'linear-gradient(135deg, #7c3aed, #4f46e5)'
+                          : 'rgba(255,255,255,0.04)',
+                        borderColor: selected !== null ? 'transparent' : 'rgba(255,255,255,0.08)',
+                        color: selected !== null ? '#fff' : '#334155',
+                        cursor: selected !== null && !isSubmitting ? 'pointer' : 'not-allowed',
+                      }}
+                      whileHover={selected !== null && !isSubmitting ? { scale: 1.01 } : {}}
+                      whileTap={selected !== null && !isSubmitting ? { scale: 0.98 } : {}}
+                      disabled={selected === null || isSubmitting}
+                      onClick={handleNext}
+                    >
+                      {isSubmitting
+                        ? 'Saving...'
+                        : useBackendSession
+                          ? 'Continue →'
+                          : step < dialogue.length - 1
+                            ? 'Continue →'
+                            : '✨ Complete Mission'}
+                    </motion.button>
+                  </>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

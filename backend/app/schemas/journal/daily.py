@@ -15,6 +15,7 @@ class StartDailyRequest(BaseModel):
 class AnswerRequest(BaseModel):
     session_id: str
     answer: str
+    deadline: Optional[datetime] = None  # For deadline-setting answers
 
 class NextQuestionResponse(BaseModel):
     session_id: str
