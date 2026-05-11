@@ -34,6 +34,12 @@ export const TEAM = [
 ];
 
 export const INTERVENTIONS = {
+  Focused: {
+    title:"Keep It Up", emoji:"🎯", color:"#22c55e",
+    msg:"You're in the zone! Maintain this momentum.",
+    steps:["Continue your current task","Take a note of progress","Celebrate this focus time"],
+    reward:10, timer:30,
+  },
   Fatigue: {
     title:"Break Challenge", emoji:"😴", color:"#f97316",
     msg:"Your tree needs energy! Rest your eyes for 2 minutes.",
