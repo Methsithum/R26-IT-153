@@ -99,6 +99,49 @@ export default function StudentJournalingPage({ user = null, onSignOut }) {
     }
   }, [user]);
 
+  // When the authenticated user changes, clear any lingering UI state
+  // so data from the previous user (achievements, streaks, missions) doesn't persist.
+  useEffect(() => {
+    let cancelled = false;
+
+    const resetAndReload = async () => {
+      setStudent(buildStudentState(user));
+      setMissions(INITIAL_MISSIONS);
+      setActiveMission(null);
+      setGuideVisible(false);
+      setCompletedMission(null);
+      setCompletionResult(null);
+      setJourneySession(null);
+      setAchievement(null);
+      setScreen('dashboard');
+
+      const activeUserId = user?.id || localStorage.getItem(AUTH_STORAGE_KEY);
+      if (!activeUserId) return;
+
+      try {
+        const [gamification, missionState] = await Promise.all([
+          getUserGamification(activeUserId),
+          getUserMissions(activeUserId),
+        ]);
+
+        if (cancelled) return;
+
+        setStudent((prev) => buildStudentState({ ...prev, ...user, id: activeUserId, ...gamification }));
+        if (Array.isArray(missionState?.missions) && missionState.missions.length > 0) {
+          setMissions(missionState.missions);
+        }
+      } catch (_error) {
+        // If fetch fails, keep the reset state but do not block the UI.
+      }
+    };
+
+    resetAndReload();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
   useEffect(() => {
     let cancelled = false;
 
