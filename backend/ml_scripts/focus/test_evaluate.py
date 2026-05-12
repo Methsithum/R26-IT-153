@@ -12,17 +12,10 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-# ══════════════════════════════════════════════════════
-# PATHS
-# ══════════════════════════════════════════════════════
-
 BASE_DIR     = Path(__file__).resolve().parents[2]
 MODELS_PATH  = BASE_DIR / "trained-models" / "focus"
 DATASET_PATH = BASE_DIR / "datasets" / "focus" / "Final_dataset" / "test"
 
-# ══════════════════════════════════════════════════════
-# SETTINGS
-# ══════════════════════════════════════════════════════
 
 IMG_SIZE       = 224
 CLASSES        = ["Focused", "Fatigue", "Anxiety", "Boredom"]
