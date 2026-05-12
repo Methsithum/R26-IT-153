@@ -6,6 +6,7 @@ import MissionGeneration from '../../components/student-journaling/MissionGenera
 import AIGuidePopup from '../../components/student-journaling/AIGuidePopup';
 import MissionComplete from '../../components/student-journaling/MissionComplete';
 import AchievementPopup from '../../components/student-journaling/AchievementPopup';
+import ReflectionsPanel from '../../components/student-journaling/ReflectionsPanel';
 import { analyzeBehavior, getUserGamification, getUserMissions, saveUserMissions, startDailySession } from '../../services/api';
 
 const INITIAL_MISSIONS = [
@@ -70,7 +71,7 @@ const buildBackendActivityList = (missionsList) => {
   return selected.length > 0 ? selected : ['other'];
 };
 
-export default function StudentJournalingPage({ user = null }) {
+export default function StudentJournalingPage({ user = null, onSignOut }) {
   const [screen, setScreen] = useState('dashboard');
   const [direction, setDirection] = useState(1);
   const [missions, setMissions] = useState(INITIAL_MISSIONS);
@@ -79,6 +80,7 @@ export default function StudentJournalingPage({ user = null }) {
   const [completedMission, setCompletedMission] = useState(null);
   const [completionResult, setCompletionResult] = useState(null);
   const [achievement, setAchievement] = useState(null);
+  const [sidebarView, setSidebarView] = useState('journal');
   const [student, setStudent] = useState(buildStudentState(user));
   const [journeySession, setJourneySession] = useState(null);
   const achievementTimers = useRef([]);
@@ -249,60 +251,113 @@ export default function StudentJournalingPage({ user = null }) {
   };
 
   return (
-    <div className="relative overflow-hidden" style={{ background: '#0d0f1a', minHeight: '100vh' }}>
-      <AnimatePresence mode="wait" custom={direction}>
-        <motion.div
-          key={screen}
-          custom={direction}
-          variants={slideVariants}
-          initial="enter"
-          animate="center"
-          exit="exit"
-          transition={{ duration: 0.28, ease: 'easeInOut' }}
-        >
-          {screen === 'dashboard' && (
-            <Dashboard
-              missions={missions}
-              student={student}
-              onStartJourney={handleStartJourney}
-              onMissionClick={handleMissionClick}
-            />
-          )}
-          {screen === 'activities' && (
-            <ActivitySelection onContinue={handleActivitiesComplete} />
-          )}
-          {screen === 'missions' && (
-            <MissionGeneration
-              missions={missions.filter(m => m.status !== 'done')}
-              onBeginJourney={handleBeginJourney}
-            />
-          )}
-          {screen === 'complete' && completedMission && (
-            <MissionComplete
-              mission={completedMission}
-              xpGained={completionResult?.xp_earned || completedMission.xp}
-              result={completionResult}
-              onContinue={() => navigate('dashboard')}
-            />
-          )}
-        </motion.div>
-      </AnimatePresence>
+    <div className="min-h-screen" style={{ background: '#ffffff' }}>
+      <div className="mx-auto flex w-full max-w-375 gap-4 px-3 py-3 sm:px-4 sm:py-4">
+        <aside className="sticky top-3 h-[calc(100vh-1.5rem)] w-56 shrink-0 rounded-2xl border p-3 hidden md:flex md:flex-col" style={{ background: '#f8fafc', borderColor: '#e2e8f0' }}>
+          <div className="mb-4">
+            <p className="text-[10px] uppercase tracking-widest text-slate-500">Smart Uni Guide</p>
+            <p className="text-sm font-semibold text-slate-800 mt-1">Student Menu</p>
+          </div>
 
-      {/* AI Guide popup overlay */}
-      <AIGuidePopup
-        visible={guideVisible}
-        mission={activeMission}
-        session={journeySession}
-        onSessionUpdate={setJourneySession}
-        onComplete={handleGuideComplete}
-        onClose={() => setGuideVisible(false)}
-      />
+          <button
+            onClick={() => setSidebarView('journal')}
+            className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium border transition-colors"
+            style={{
+              background: sidebarView === 'journal' ? 'rgba(59,130,246,0.1)' : '#ffffff',
+              borderColor: sidebarView === 'journal' ? 'rgba(59,130,246,0.3)' : '#e2e8f0',
+              color: sidebarView === 'journal' ? '#1d4ed8' : '#334155',
+            }}
+          >
+            Dashboard
+          </button>
 
-      {/* Achievement toast */}
-      <AchievementPopup
-        achievement={achievement}
-        onClose={() => setAchievement(null)}
-      />
+          <button
+            onClick={() => setSidebarView('reflections')}
+            className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium border mt-2 transition-colors"
+            style={{
+              background: sidebarView === 'reflections' ? 'rgba(168,85,247,0.1)' : '#ffffff',
+              borderColor: sidebarView === 'reflections' ? 'rgba(168,85,247,0.3)' : '#e2e8f0',
+              color: sidebarView === 'reflections' ? '#7e22ce' : '#334155',
+            }}
+          >
+            Reflections
+          </button>
+
+          <div className="mt-auto">
+            <button
+              onClick={onSignOut}
+              className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium border transition-colors"
+              style={{
+                background: 'rgba(244,63,94,0.08)',
+                borderColor: 'rgba(244,63,94,0.28)',
+                color: '#be123c',
+              }}
+            >
+              Sign Out
+            </button>
+          </div>
+        </aside>
+
+        <main className="relative overflow-hidden flex-1 rounded-2xl border" style={{ background: '#ffffff', borderColor: '#e2e8f0' }}>
+          {sidebarView === 'journal' ? (
+            <>
+              <AnimatePresence mode="wait" custom={direction}>
+                <motion.div
+                  key={screen}
+                  custom={direction}
+                  variants={slideVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{ duration: 0.28, ease: 'easeInOut' }}
+                >
+                  {screen === 'dashboard' && (
+                    <Dashboard
+                      missions={missions}
+                      student={student}
+                      onStartJourney={handleStartJourney}
+                      onMissionClick={handleMissionClick}
+                    />
+                  )}
+                  {screen === 'activities' && (
+                    <ActivitySelection onContinue={handleActivitiesComplete} />
+                  )}
+                  {screen === 'missions' && (
+                    <MissionGeneration
+                      missions={missions.filter(m => m.status !== 'done')}
+                      onBeginJourney={handleBeginJourney}
+                    />
+                  )}
+                  {screen === 'complete' && completedMission && (
+                    <MissionComplete
+                      mission={completedMission}
+                      xpGained={completionResult?.xp_earned || completedMission.xp}
+                      result={completionResult}
+                      onContinue={() => navigate('dashboard')}
+                    />
+                  )}
+                </motion.div>
+              </AnimatePresence>
+
+              <AIGuidePopup
+                visible={guideVisible}
+                mission={activeMission}
+                session={journeySession}
+                onSessionUpdate={setJourneySession}
+                onComplete={handleGuideComplete}
+                onClose={() => setGuideVisible(false)}
+              />
+
+              <AchievementPopup
+                achievement={achievement}
+                onClose={() => setAchievement(null)}
+              />
+            </>
+          ) : (
+            <ReflectionsPanel userId={student.id || user?.id} />
+          )}
+        </main>
+      </div>
     </div>
   );
 }

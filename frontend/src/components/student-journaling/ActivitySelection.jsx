@@ -37,7 +37,7 @@ export default function ActivitySelection({ onContinue }) {
   };
 
   return (
-    <div className="min-h-screen px-4 py-6 sm:px-6 sm:py-8 lg:px-8" style={{ background: '#0d0f1a' }}>
+    <div className="min-h-screen px-4 py-6 sm:px-6 sm:py-8 lg:px-8" style={{ background: '#f8fafc' }}>
       <motion.div
         className="mx-auto w-full max-w-6xl"
         initial={{ opacity: 0, y: 20 }}
@@ -45,9 +45,9 @@ export default function ActivitySelection({ onContinue }) {
         transition={{ duration: 0.4 }}
       >
         <div className="mb-6">
-          <p className="text-xs uppercase tracking-widest text-violet-400/70 mb-1">Step 1 of 2</p>
-          <h1 className="text-2xl font-semibold text-slate-100">What did you work on?</h1>
-          <p className="text-sm text-slate-500 mt-1">Select your activities to generate missions</p>
+          <p className="text-xs uppercase tracking-widest text-blue-600/70 mb-1">Step 1 of 2</p>
+          <h1 className="text-2xl font-semibold text-slate-800">What did you work on?</h1>
+          <p className="text-sm text-slate-600 mt-1">Select your activities to generate missions</p>
         </div>
 
         <div className="grid grid-cols-1 gap-3 mb-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -58,8 +58,8 @@ export default function ActivitySelection({ onContinue }) {
                 key={act.id}
                 className="relative text-left p-4 rounded-2xl border transition-colors"
                 style={{
-                  background: isSelected ? 'rgba(124,58,237,0.15)' : 'rgba(255,255,255,0.03)',
-                  borderColor: isSelected ? 'rgba(124,58,237,0.5)' : 'rgba(255,255,255,0.07)',
+                  background: isSelected ? 'rgba(59,130,246,0.1)' : '#ffffff',
+                  borderColor: isSelected ? 'rgba(59,130,246,0.45)' : '#e2e8f0',
                 }}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -71,21 +71,21 @@ export default function ActivitySelection({ onContinue }) {
                 {isSelected && (
                   <motion.div
                     className="absolute inset-0 rounded-2xl pointer-events-none"
-                    style={{ boxShadow: '0 0 20px rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.4)' }}
+                    style={{ boxShadow: '0 0 20px rgba(59,130,246,0.18)', border: '1px solid rgba(59,130,246,0.4)' }}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                   />
                 )}
                 <div className="text-2xl mb-2">{act.icon}</div>
-                <p className="text-sm font-medium text-slate-200">{act.name}</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">{act.sub}</p>
+                <p className="text-sm font-medium text-slate-800">{act.name}</p>
+                <p className="text-[11px] text-slate-600 mt-0.5">{act.sub}</p>
                 <div className="flex items-center justify-between mt-2">
-                  <span className="text-[10px] text-violet-400">+{act.xp} XP</span>
+                  <span className="text-[10px] text-amber-600">+{act.xp} XP</span>
                   <div
                     className="w-4 h-4 rounded-full border flex items-center justify-center transition-all"
                     style={{
-                      borderColor: isSelected ? '#7c3aed' : 'rgba(255,255,255,0.15)',
-                      background: isSelected ? '#7c3aed' : 'transparent',
+                      borderColor: isSelected ? '#3b82f6' : '#cbd5e1',
+                      background: isSelected ? '#3b82f6' : 'transparent',
                     }}
                   >
                     {isSelected && <span className="text-white text-[9px]">✓</span>}
@@ -116,7 +116,7 @@ export default function ActivitySelection({ onContinue }) {
                         placeholder={`${act.name} mission name…`}
                         value={missionNames[id] || ''}
                         onChange={e => setMissionNames(p => ({ ...p, [id]: e.target.value }))}
-                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-slate-200 placeholder-slate-600 outline-none focus:border-violet-500/50 transition-colors"
+                        className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 placeholder-slate-400 outline-none focus:border-blue-400/70 transition-colors"
                       />
                     </div>
                   );
@@ -130,8 +130,8 @@ export default function ActivitySelection({ onContinue }) {
           className="w-full py-4 rounded-2xl text-sm font-semibold border-0 transition-all sm:mx-auto sm:max-w-md"
           style={{
             background: selected.length > 0
-              ? 'linear-gradient(135deg, #7c3aed, #4f46e5)'
-              : 'rgba(255,255,255,0.04)',
+              ? 'linear-gradient(135deg, #3b82f6, #1d4ed8)'
+              : '#e2e8f0',
             color: selected.length > 0 ? '#fff' : '#334155',
             cursor: selected.length > 0 ? 'pointer' : 'not-allowed',
           }}

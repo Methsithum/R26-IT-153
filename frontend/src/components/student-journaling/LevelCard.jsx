@@ -2,10 +2,10 @@ import { motion } from 'framer-motion';
 
 const RANKS = [
   { min: 1, max: 4, title: 'Freshman', color: '#64748b', glow: 'rgba(100,116,139,0.3)' },
-  { min: 5, max: 9, title: 'Scholar', color: '#7c3aed', glow: 'rgba(124,58,237,0.4)' },
-  { min: 10, max: 14, title: 'Achiever', color: '#0ea5e9', glow: 'rgba(14,165,233,0.4)' },
-  { min: 15, max: 19, title: 'Master', color: '#f97316', glow: 'rgba(249,115,22,0.4)' },
-  { min: 20, max: 99, title: 'Legend', color: '#eab308', glow: 'rgba(234,179,8,0.4)' },
+  { min: 5, max: 9, title: 'Scholar', color: '#a855f7', glow: 'rgba(168,85,247,0.4)' },
+  { min: 10, max: 14, title: 'Achiever', color: '#3b82f6', glow: 'rgba(59,130,246,0.4)' },
+  { min: 15, max: 19, title: 'Master', color: '#f59e0b', glow: 'rgba(245,158,11,0.4)' },
+  { min: 20, max: 99, title: 'Legend', color: '#10b981', glow: 'rgba(16,185,129,0.4)' },
 ];
 
 export default function LevelCard({ level, name, department, year }) {
@@ -30,7 +30,7 @@ export default function LevelCard({ level, name, department, year }) {
             <span>Level {level} · {rank.title}</span>
           </motion.div>
           <motion.h2
-            className="text-2xl font-semibold text-slate-100 tracking-tight"
+            className="text-2xl font-semibold text-slate-800 tracking-tight"
             initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.15 }}

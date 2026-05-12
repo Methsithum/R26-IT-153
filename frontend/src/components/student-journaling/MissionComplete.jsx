@@ -25,7 +25,7 @@ export default function MissionComplete({ mission, xpGained, result, onContinue 
 
       class ParticleScene extends Phaser.Scene {
         create() {
-          const colors = [0x7c3aed, 0xa78bfa, 0xc4b5fd, 0xf97316, 0xeab308, 0x22c55e, 0xffffff];
+          const colors = [0x3b82f6, 0xa855f7, 0xf59e0b, 0x10b981, 0xf43f5e, 0x1e293b, 0xffffff];
 
           const burst = (x, y, count = 12) => {
             for (let i = 0; i < count; i++) {
@@ -140,7 +140,7 @@ export default function MissionComplete({ mission, xpGained, result, onContinue 
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden px-4 py-6 sm:px-6 sm:py-8" style={{ background: '#0d0f1a' }}>
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden px-4 py-6 sm:px-6 sm:py-8" style={{ background: '#f8fafc' }}>
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full pointer-events-none"
@@ -163,7 +163,7 @@ export default function MissionComplete({ mission, xpGained, result, onContinue 
         </motion.div>
 
         <motion.h1
-          className="text-4xl font-bold text-white mb-1 tracking-tight"
+          className="text-4xl font-bold text-slate-800 mb-1 tracking-tight"
           variants={itemVariants}
           style={{ fontFamily: "'Georgia', serif" }}
         >
@@ -174,14 +174,14 @@ export default function MissionComplete({ mission, xpGained, result, onContinue 
           variants={itemVariants}
           style={{
             fontFamily: "'Georgia', serif",
-            background: 'linear-gradient(135deg, #a78bfa, #7c3aed)',
+            background: 'linear-gradient(135deg, #a855f7, #3b82f6)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
           }}
         >
           Complete!
         </motion.h1>
-        <motion.p className="text-sm text-slate-400 mb-8" variants={itemVariants}>
+        <motion.p className="text-sm text-slate-600 mb-8" variants={itemVariants}>
           {mission?.name} · logged successfully
         </motion.p>
 
@@ -189,9 +189,9 @@ export default function MissionComplete({ mission, xpGained, result, onContinue 
           <div
             className="flex items-center gap-2 px-4 py-2.5 rounded-full border text-sm font-semibold"
             style={{
-              background: 'rgba(124,58,237,0.2)',
-              borderColor: 'rgba(124,58,237,0.4)',
-              color: '#c4b5fd',
+              background: 'rgba(59,130,246,0.12)',
+              borderColor: 'rgba(59,130,246,0.28)',
+              color: '#1d4ed8',
             }}
           >
             <span>⚡</span>
@@ -200,9 +200,9 @@ export default function MissionComplete({ mission, xpGained, result, onContinue 
           <div
             className="flex items-center gap-2 px-4 py-2.5 rounded-full border text-sm font-semibold"
             style={{
-              background: 'rgba(249,115,22,0.15)',
-              borderColor: 'rgba(249,115,22,0.3)',
-              color: '#fb923c',
+              background: 'rgba(245,158,11,0.12)',
+              borderColor: 'rgba(245,158,11,0.28)',
+              color: '#b45309',
             }}
           >
             <motion.span
@@ -219,8 +219,8 @@ export default function MissionComplete({ mission, xpGained, result, onContinue 
           className="w-full rounded-2xl p-4 border mb-6"
           variants={itemVariants}
           style={{
-            background: 'rgba(234,179,8,0.07)',
-            borderColor: 'rgba(234,179,8,0.25)',
+            background: 'rgba(245,158,11,0.08)',
+            borderColor: 'rgba(245,158,11,0.26)',
           }}
         >
           <div className="flex items-center gap-3">
@@ -232,9 +232,9 @@ export default function MissionComplete({ mission, xpGained, result, onContinue 
               🏆
             </motion.div>
             <div className="text-left">
-              <p className="text-[10px] uppercase tracking-widest text-yellow-500/70 mb-0.5">Achievement Unlocked</p>
-              <p className="text-sm font-semibold text-yellow-200">Consistent Scholar</p>
-              <p className="text-xs text-slate-500">Completed 3 missions in a row</p>
+              <p className="text-[10px] uppercase tracking-widest text-amber-700/70 mb-0.5">Achievement Unlocked</p>
+              <p className="text-sm font-semibold text-amber-700">Consistent Scholar</p>
+              <p className="text-xs text-slate-600">Completed 3 missions in a row</p>
             </div>
           </div>
         </motion.div>
@@ -243,15 +243,15 @@ export default function MissionComplete({ mission, xpGained, result, onContinue 
           className="w-full rounded-2xl p-4 border mb-6 text-left"
           variants={itemVariants}
           style={{
-            background: 'rgba(15,23,42,0.55)',
-            borderColor: 'rgba(148,163,184,0.2)',
+            background: '#ffffff',
+            borderColor: '#e2e8f0',
           }}
         >
-          <p className="text-[10px] uppercase tracking-widest text-violet-300/80 mb-2">Daily Journal Summary</p>
-          <p className="text-sm leading-6 text-slate-200 whitespace-pre-wrap">
+          <p className="text-[10px] uppercase tracking-widest text-purple-700/80 mb-2">Daily Journal Summary</p>
+          <p className="text-sm leading-6 text-slate-700 whitespace-pre-wrap">
             {displayedJournal}
             {displayedJournal.length < journalEntry.length && (
-              <span className="inline-block w-1.5 h-3.5 ml-1 align-middle bg-violet-300/80 animate-pulse rounded-sm" />
+              <span className="inline-block w-1.5 h-3.5 ml-1 align-middle bg-purple-500/80 animate-pulse rounded-sm" />
             )}
           </p>
         </motion.div>
@@ -261,16 +261,16 @@ export default function MissionComplete({ mission, xpGained, result, onContinue 
             className="w-full rounded-2xl p-4 border mb-6"
             variants={itemVariants}
             style={{
-              background: 'rgba(30,41,59,0.45)',
-              borderColor: 'rgba(125,211,252,0.25)',
+              background: '#ffffff',
+              borderColor: '#e2e8f0',
             }}
           >
-            <p className="text-[10px] uppercase tracking-widest text-cyan-300/80 mb-3 text-left">Session Rewards</p>
+            <p className="text-[10px] uppercase tracking-widest text-blue-700/80 mb-3 text-left">Session Rewards</p>
             <div className="flex flex-wrap items-center gap-2">
               {didLevelUp && (
                 <motion.span
                   className="px-3 py-1.5 rounded-full text-xs font-semibold"
-                  style={{ background: 'rgba(16,185,129,0.2)', color: '#6ee7b7', border: '1px solid rgba(16,185,129,0.35)' }}
+                  style={{ background: 'rgba(16,185,129,0.12)', color: '#047857', border: '1px solid rgba(16,185,129,0.35)' }}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 }}
@@ -282,7 +282,7 @@ export default function MissionComplete({ mission, xpGained, result, onContinue 
                 <motion.span
                   key={`${badge}-${index}`}
                   className="px-3 py-1.5 rounded-full text-xs font-semibold"
-                  style={{ background: 'rgba(59,130,246,0.2)', color: '#93c5fd', border: '1px solid rgba(59,130,246,0.35)' }}
+                  style={{ background: 'rgba(59,130,246,0.12)', color: '#1d4ed8', border: '1px solid rgba(59,130,246,0.35)' }}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.18 + index * 0.08 }}
@@ -296,7 +296,7 @@ export default function MissionComplete({ mission, xpGained, result, onContinue 
 
         <motion.button
           className="w-full py-4 rounded-2xl text-sm font-semibold text-white border-0"
-          style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}
+          style={{ background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)' }}
           variants={itemVariants}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}

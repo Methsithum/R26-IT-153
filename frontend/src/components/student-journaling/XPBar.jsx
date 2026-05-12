@@ -7,17 +7,17 @@ export default function XPBar({ current, max, level }) {
     <div className="w-full">
       <div className="flex justify-between items-center mb-2">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-violet-600/30 border border-violet-500/40 flex items-center justify-center">
-            <span className="text-xs font-bold text-violet-300">{level}</span>
+          <div className="w-7 h-7 rounded-lg bg-purple-100 border border-purple-200 flex items-center justify-center">
+            <span className="text-xs font-bold text-purple-700">{level}</span>
           </div>
-          <span className="text-xs font-medium text-violet-300 tracking-widest uppercase">XP Progress</span>
+          <span className="text-xs font-medium text-purple-700 tracking-widest uppercase">XP Progress</span>
         </div>
-        <span className="text-xs text-slate-400 font-mono">{current.toLocaleString()} / {max.toLocaleString()}</span>
+        <span className="text-xs text-slate-600 font-mono">{current.toLocaleString()} / {max.toLocaleString()}</span>
       </div>
-      <div className="relative h-2.5 rounded-full bg-white/5 overflow-hidden border border-white/5">
+      <div className="relative h-2.5 rounded-full bg-slate-100 overflow-hidden border border-slate-200">
         <motion.div
           className="absolute inset-y-0 left-0 rounded-full"
-          style={{ background: 'linear-gradient(90deg, #7c3aed, #a78bfa, #c4b5fd)' }}
+          style={{ background: 'linear-gradient(90deg, #3b82f6, #a855f7, #10b981)' }}
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}
           transition={{ duration: 1.2, ease: 'easeOut', delay: 0.3 }}

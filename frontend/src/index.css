@@ -1,1 +1,24 @@
 @import "tailwindcss";
+
+:root {
+	--sug-primary: #3b82f6;
+	--sug-dark: #1e293b;
+	--sug-surface: #f8fafc;
+	--sug-accent: #f59e0b;
+	--sug-success: #10b981;
+	--sug-danger: #f43f5e;
+	--sug-creative: #a855f7;
+	--sug-border: #e2e8f0;
+}
+
+html,
+body,
+#root {
+	min-height: 100%;
+	background: #ffffff;
+}
+
+body {
+	margin: 0;
+	color: #1e293b;
+}

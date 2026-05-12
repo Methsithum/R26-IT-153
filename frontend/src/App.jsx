@@ -84,6 +84,13 @@ export default function App() {
     setAuthError('');
   };
 
+  const handleSignOut = () => {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    setAuthUser(null);
+    setAuthError('');
+    setAuthLoading(false);
+  };
+
   if (authLoading && !authUser) {
     return <LoginPage onSubmit={() => {}} isLoading isRegister={isRegisterMode} />;
   }
@@ -104,5 +111,5 @@ export default function App() {
     );
   }
 
-  return <StudentJournalingPage user={authUser} />;
+  return <StudentJournalingPage user={authUser} onSignOut={handleSignOut} />;
 }

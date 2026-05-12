@@ -32,6 +32,11 @@ export async function saveUserMissions(userId, missions) {
   return data;
 }
 
+export async function getUserReflections(userId) {
+  const { data } = await api.get(`/users/${userId}/reflections`);
+  return data;
+}
+
 export async function startDailySession(payload) {
   const { data } = await api.post('/daily/start', payload);
   return data;
