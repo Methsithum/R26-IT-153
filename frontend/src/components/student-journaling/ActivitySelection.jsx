@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 const ACTIVITIES = [
   { id: 'assignment', icon: '📝', name: 'Assignment', sub: 'Submit & review work', type: 'assignment', xp: 30, difficulty: 'Medium' },
@@ -12,7 +12,6 @@ const ACTIVITIES = [
 
 export default function ActivitySelection({ onContinue }) {
   const [selected, setSelected] = useState([]);
-  const [missionNames, setMissionNames] = useState({});
 
   const toggle = (id) => {
     setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
@@ -23,7 +22,7 @@ export default function ActivitySelection({ onContinue }) {
       const act = ACTIVITIES.find(a => a.id === id);
       return {
         id,
-        name: missionNames[id] || act.name,
+        name: act.name,
         subject: act.name,
         type: act.type,
         xp: act.xp,
@@ -95,36 +94,6 @@ export default function ActivitySelection({ onContinue }) {
             );
           })}
         </div>
-
-        <AnimatePresence>
-          {selected.length > 0 && (
-            <motion.div
-              className="mb-6"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-            >
-                <p className="text-xs uppercase tracking-widest text-slate-500 mb-3">Name your missions (optional)</p>
-              <div className="flex flex-col gap-2">
-                {selected.map(id => {
-                  const act = ACTIVITIES.find(a => a.id === id);
-                  return (
-                    <div key={id} className="flex items-center gap-3">
-                      <span className="text-lg">{act.icon}</span>
-                      <input
-                        type="text"
-                        placeholder={`${act.name} mission name…`}
-                        value={missionNames[id] || ''}
-                        onChange={e => setMissionNames(p => ({ ...p, [id]: e.target.value }))}
-                        className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 placeholder-slate-400 outline-none focus:border-blue-400/70 transition-colors"
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         <motion.button
           className="w-full py-4 rounded-2xl text-sm font-semibold border-0 transition-all sm:mx-auto sm:max-w-md"

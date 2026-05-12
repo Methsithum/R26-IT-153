@@ -1,7 +1,13 @@
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import LevelCard from './LevelCard';
 import XPBar from './XPBar';
 import StreakCard from './StreakCard';
+
+const formatJournalHeaderDate = (date) => {
+  const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(date);
+  return `${weekday} · Academic Journal`;
+};
 
 const DEFAULT_STUDENT = {
   name: 'Ashan Perera',
@@ -56,6 +62,14 @@ const formatBadgeAchievement = (badgeKey) => {
 };
 
 export default function Dashboard({ missions, onStartJourney, student = DEFAULT_STUDENT }) {
+  const [journalDateLabel, setJournalDateLabel] = useState(() => formatJournalHeaderDate(new Date()));
+
+  useEffect(() => {
+    const updateLabel = () => setJournalDateLabel(formatJournalHeaderDate(new Date()));
+    const timerId = window.setInterval(updateLabel, 60 * 1000);
+    return () => window.clearInterval(timerId);
+  }, []);
+
   const currentStudent = {
     ...DEFAULT_STUDENT,
     ...student,
@@ -91,7 +105,7 @@ export default function Dashboard({ missions, onStartJourney, student = DEFAULT_
         <div className="flex items-center justify-between mb-6">
           <div>
             <p className="text-[10px] uppercase tracking-widest text-slate-500">Smart Uni Guide</p>
-            <p className="text-xs text-slate-600 mt-0.5">Monday · Academic Journal</p>
+            <p className="text-xs text-slate-600 mt-0.5">{journalDateLabel}</p>
           </div>
           <motion.div
             className="w-9 h-9 rounded-xl bg-blue-100 border border-blue-200 flex items-center justify-center text-sm"
