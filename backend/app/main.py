@@ -1,11 +1,44 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
-from app.routes.health import router as health_router
+from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="Smart Uni Guide API")
+from app.routes.predict import router as predict_router
+from app.services.prediction import load_models
 
-app.include_router(health_router)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Load ML models on startup; release on shutdown."""
+    load_models()
+    yield
 
 
-@app.get("/")
+app = FastAPI(
+    title="Career Prediction Engine API",
+    description="Academic risk classification and career readiness regression for students.",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(predict_router)
+
+
+@app.get("/api/health", tags=["Health"])
+def health_check():
+    """Liveness probe — confirms the API process is running."""
+    return {"status": "ok", "message": "API is running"}
+
+
+@app.get("/", tags=["Health"])
 def root():
-    return {"message": "Smart Uni Guide backend is running"}
+    """Root endpoint."""
+    return {"message": "Career Prediction Engine API — visit /docs for the interactive UI"}
