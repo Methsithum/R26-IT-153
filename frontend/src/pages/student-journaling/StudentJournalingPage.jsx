@@ -1,21 +1,35 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Dashboard from '../../components/student-journaling/Dashboard';
 import ActivitySelection from '../../components/student-journaling/ActivitySelection';
-import MissionGeneration from '../../components/student-journaling/MissionGeneration';
-import AIGuidePopup from '../../components/student-journaling/AIGuidePopup';
-import MissionComplete from '../../components/student-journaling/MissionComplete';
+import AdventurePreview from './AdventurePreview';
+import AdventureComplete from './AdventureComplete';
+import JournalPage from './JournalPage';
+import JournalHistoryPage from './JournalHistoryPage';
+import WeeklyReflection from './WeeklyReflection';
+import SemesterReflection from './SemesterReflection';
+import GameLoadingScreen from './GameLoadingScreen';
 import AchievementPopup from '../../components/student-journaling/AchievementPopup';
-import ReflectionsPanel from '../../components/student-journaling/ReflectionsPanel';
-import { analyzeBehavior, getUserGamification, getUserMissions, saveUserMissions, startDailySession } from '../../services/api';
+import { analyzeBehavior, getUserGamification, getUserMissions, saveUserMissions } from '../../services/api';
+import { startGameSession } from '../../services/gameApi';
+import { buildMapSequence, ACTIVITY_TO_BACKEND, buildBackendActivities } from '../../constants/gameMaps';
+import { isDemoUser, createDemoSession } from '../../constants/demoMode';
 
-const INITIAL_MISSIONS = [
-  { id: 'oop', name: 'OOP Revision', subject: 'Object-Oriented Programming', type: 'revision', xp: 25, difficulty: 'Easy', status: 'done', icon: '📚', progress: 100 },
-  { id: 'se', name: 'SE Assignment', subject: 'Software Engineering', type: 'assignment', xp: 30, difficulty: 'Medium', status: 'active', icon: '📝', progress: 60 },
-  { id: 'proj', name: 'Smart Uni Guide Project', subject: 'Final Year Project', type: 'project', xp: 40, difficulty: 'Hard', status: 'locked', icon: '💻', progress: 0 },
+const GamePage = lazy(() => import('./GamePage'));
+
+const AUTH_STORAGE_KEY = 'smart-uni-guide-user-id';
+
+const SCREENS = [
+  'dashboard',
+  'activities',
+  'preview',
+  'game',
+  'adventure-complete',
+  'journal',
+  'journal-history',
+  'weekly',
+  'semester',
 ];
-
-const SCREENS = ['dashboard', 'activities', 'missions', 'journey', 'complete'];
 
 const slideVariants = {
   enter: (dir) => ({ x: dir > 0 ? 60 : -60, opacity: 0 }),
@@ -23,160 +37,68 @@ const slideVariants = {
   exit: (dir) => ({ x: dir > 0 ? -60 : 60, opacity: 0 }),
 };
 
-const AUTH_STORAGE_KEY = 'smart-uni-guide-user-id';
-const DEMO_USER = {
-  name: 'Ashan Perera',
-  email: 'demo@smartuniguide.local',
-};
-
-const ACTIVITY_TO_BACKEND = {
-  assignment: 'assignment_work',
-  project: 'project_development',
-  revision: 'academic_study',
-  internship: 'internship',
-  club: 'club_participation',
-  lab: 'academic_study',
-};
-
 const buildStudentState = (user = null) => {
-  // Use provided user data, fallback to DEMO_USER for fields that might be missing
-  const userData = user || DEMO_USER;
-  const totalXP = user?.total_xp ?? 2340;
-  const completedSessions = user?.completed_sessions ?? user?.total_sessions ?? 24;
-
+  const totalXP = user?.total_xp ?? 0;
+  const completedSessions = user?.completed_sessions ?? user?.total_sessions ?? 0;
   return {
     id: user?.id,
-    name: userData.name || DEMO_USER.name,
-    email: userData.email || DEMO_USER.email,
+    name: user?.name || 'Adventurer',
+    email: user?.email,
     total_xp: totalXP,
     xp: totalXP,
     level: Math.floor(totalXP / 250) + 1,
-    current_streak: user?.current_streak ?? 12,
-    streak: user?.current_streak ?? 12,
-    longest_streak: user?.longest_streak ?? 12,
+    current_streak: user?.current_streak ?? 0,
+    streak: user?.current_streak ?? 0,
+    longest_streak: user?.longest_streak ?? 0,
     badges: user?.badges ?? [],
-    achievements: user?.badges?.length ?? 8,
     missionsCompleted: completedSessions,
     completed_sessions: completedSessions,
     total_sessions: user?.total_sessions ?? completedSessions,
   };
 };
 
-const buildBackendActivityList = (missionsList) => {
-  const selected = missionsList
-    .filter((mission) => mission.status === 'active')
-    .map((mission) => ACTIVITY_TO_BACKEND[mission.id])
-    .filter(Boolean);
-
-  return selected.length > 0 ? selected : ['other'];
-};
-
 export default function StudentJournalingPage({ user = null, onSignOut }) {
   const [screen, setScreen] = useState('dashboard');
   const [direction, setDirection] = useState(1);
-  const [missions, setMissions] = useState(INITIAL_MISSIONS);
-  const [activeMission, setActiveMission] = useState(null);
-  const [guideVisible, setGuideVisible] = useState(false);
-  const [completedMission, setCompletedMission] = useState(null);
-  const [completionResult, setCompletionResult] = useState(null);
-  const [achievement, setAchievement] = useState(null);
-  const [sidebarView, setSidebarView] = useState('journal');
+  const [missions, setMissions] = useState([]);
+  const [mapSequence, setMapSequence] = useState([]);
   const [student, setStudent] = useState(buildStudentState(user));
   const [journeySession, setJourneySession] = useState(null);
+  const [completionResult, setCompletionResult] = useState(null);
+  const [achievement, setAchievement] = useState(null);
+  const [sessionLoading, setSessionLoading] = useState(false);
   const achievementTimers = useRef([]);
 
-  useEffect(() => {
-    return () => {
-      achievementTimers.current.forEach((timer) => clearTimeout(timer));
-      achievementTimers.current = [];
-    };
+  useEffect(() => () => {
+    achievementTimers.current.forEach(clearTimeout);
   }, []);
 
-  // Update student data when user prop changes
   useEffect(() => {
-    if (user) {
-      setStudent(buildStudentState(user));
-    }
+    if (user) setStudent(buildStudentState(user));
   }, [user]);
 
-  // When the authenticated user changes, clear any lingering UI state
-  // so data from the previous user (achievements, streaks, missions) doesn't persist.
   useEffect(() => {
     let cancelled = false;
-
-    const resetAndReload = async () => {
-      setStudent(buildStudentState(user));
-      setMissions(INITIAL_MISSIONS);
-      setActiveMission(null);
-      setGuideVisible(false);
-      setCompletedMission(null);
-      setCompletionResult(null);
-      setJourneySession(null);
-      setAchievement(null);
-      setScreen('dashboard');
-
-      const activeUserId = user?.id || localStorage.getItem(AUTH_STORAGE_KEY);
-      if (!activeUserId) return;
-
+    const load = async () => {
+      const userId = user?.id || localStorage.getItem(AUTH_STORAGE_KEY);
+      if (!userId || isDemoUser(userId)) return;
       try {
         const [gamification, missionState] = await Promise.all([
-          getUserGamification(activeUserId),
-          getUserMissions(activeUserId),
+          getUserGamification(userId),
+          getUserMissions(userId),
         ]);
-
         if (cancelled) return;
-
-        setStudent((prev) => buildStudentState({ ...prev, ...user, id: activeUserId, ...gamification }));
+        setStudent(buildStudentState({ ...user, id: userId, ...gamification }));
         if (Array.isArray(missionState?.missions) && missionState.missions.length > 0) {
           setMissions(missionState.missions);
         }
-      } catch (_error) {
-        // If fetch fails, keep the reset state but do not block the UI.
+      } catch (_e) {
+        /* keep defaults */
       }
     };
-
-    resetAndReload();
-
-    return () => {
-      cancelled = true;
-    };
+    load();
+    return () => { cancelled = true; };
   }, [user?.id]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const bootstrapUser = async () => {
-      try {
-        const activeUserId = user?.id || localStorage.getItem(AUTH_STORAGE_KEY);
-        if (!activeUserId) {
-          if (!cancelled) {
-            setStudent(buildStudentState(user));
-          }
-          return;
-        }
-
-        const gamification = await getUserGamification(activeUserId);
-        const missionState = await getUserMissions(activeUserId);
-
-        if (!cancelled) {
-          setStudent((prev) => buildStudentState({ ...prev, ...user, id: activeUserId, ...gamification }));
-          if (Array.isArray(missionState?.missions) && missionState.missions.length > 0) {
-            setMissions(missionState.missions);
-          }
-        }
-      } catch (_error) {
-        if (!cancelled) {
-          setStudent(buildStudentState(user));
-        }
-      }
-    };
-
-    bootstrapUser();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
 
   const navigate = (to) => {
     const fromIdx = SCREENS.indexOf(screen);
@@ -185,94 +107,65 @@ export default function StudentJournalingPage({ user = null, onSignOut }) {
     setScreen(to);
   };
 
-  const handleStartJourney = () => navigate('activities');
-
   const persistMissions = async (missionsToSave) => {
-    const activeUserId = student.id || user?.id || localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!activeUserId) {
-      return;
-    }
-
+    const userId = student.id || user?.id || localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!userId || isDemoUser(userId)) return;
     try {
-      await saveUserMissions(activeUserId, missionsToSave);
-    } catch (_error) {
-      // Keep the local flow working even if persistence is temporarily unavailable.
-    }
+      await saveUserMissions(userId, missionsToSave);
+    } catch (_e) { /* offline ok */ }
   };
 
   const handleActivitiesComplete = (newMissions) => {
-    // Replace existing missions with the newly generated missions
     setMissions(newMissions);
     persistMissions(newMissions);
-    navigate('missions');
+    setMapSequence(buildMapSequence(newMissions.map((m) => m.id)));
+    navigate('preview');
   };
 
-  const handleBeginJourney = () => {
-    const first = missions.find(m => m.status === 'active');
-    if (first) {
-      setActiveMission(first);
-      const storedUserId = student.id || user?.id || localStorage.getItem(AUTH_STORAGE_KEY);
-      const selectedActivities = buildBackendActivityList(missions);
+  const handleStartAdventure = async () => {
+    const userId = student.id || user?.id || localStorage.getItem(AUTH_STORAGE_KEY);
+    const activities = buildBackendActivities(missions);
 
-      if (!storedUserId) {
-        setJourneySession(null);
-        setGuideVisible(true);
+    setSessionLoading(true);
+    try {
+      if (isDemoUser(userId)) {
+        setJourneySession(createDemoSession());
+        navigate('game');
         return;
       }
 
-      startDailySession({
-        user_id: storedUserId,
-        date: new Date().toISOString(),
-        selected_activities: selectedActivities,
-      })
-        .then((session) => {
-          setJourneySession(session);
-          setGuideVisible(true);
-        })
-        .catch(() => {
-          setJourneySession(null);
-          setGuideVisible(true);
+      let session = null;
+      if (userId) {
+        session = await startGameSession({
+          userId,
+          selectedActivities: activities.length ? activities : ['other'],
         });
+        setJourneySession(session);
+      }
+      navigate('game');
+    } catch (_e) {
+      if (isDemoUser(userId)) {
+        setJourneySession(createDemoSession());
+      } else {
+        setJourneySession(null);
+      }
+      navigate('game');
+    } finally {
+      setSessionLoading(false);
     }
   };
 
-  const handleMissionClick = (m) => {
-    if (m.status === 'active') {
-      setActiveMission(m);
-      setGuideVisible(true);
-    }
-  };
+  const handleAdventureComplete = async (result) => {
+    setCompletionResult(result);
+    navigate('adventure-complete');
 
-  const handleGuideComplete = async ({ result } = {}) => {
-    setGuideVisible(false);
-
-    const updatedMissions = missions.map((m) => (
-      m.id === activeMission.id ? { ...m, status: 'done', progress: 100 } : m
-    ));
-    const lockedIdx = updatedMissions.findIndex((m) => m.status === 'locked');
-    if (lockedIdx !== -1) {
-      updatedMissions[lockedIdx] = { ...updatedMissions[lockedIdx], status: 'active' };
-    }
-
-    setMissions(updatedMissions);
-    persistMissions(updatedMissions);
-
-    setCompletedMission(activeMission);
-    setCompletionResult(result || null);
-    setJourneySession(null);
-    navigate('complete');
-
-    if (student.id) {
-      analyzeBehavior({ user_id: student.id }).catch(() => {
-        // Behavior analysis is analytics-only; do not block the journal flow.
-      });
-    }
-
-    if (student.id) {
+    const userId = student.id;
+    if (userId && !isDemoUser(userId)) {
+      analyzeBehavior({ user_id: userId }).catch(() => {});
       try {
-        const gamification = await getUserGamification(student.id);
+        const gamification = await getUserGamification(userId);
         setStudent(buildStudentState({ ...student, ...gamification }));
-      } catch (_error) {
+      } catch (_e) {
         if (result?.xp_earned) {
           const updatedXP = (student.total_xp || 0) + result.xp_earned;
           setStudent((prev) => ({
@@ -285,122 +178,147 @@ export default function StudentJournalingPage({ user = null, onSignOut }) {
       }
     }
 
-    const revealTimer = setTimeout(() => {
-      setAchievement({ icon: '🏆', name: 'Consistent Scholar', desc: 'Completed 3 missions in a row' });
-      const hideTimer = setTimeout(() => setAchievement(null), 4000);
-      achievementTimers.current.push(hideTimer);
-    }, 1500);
-    achievementTimers.current.push(revealTimer);
+    if (result?.new_badges?.length) {
+      const t = setTimeout(() => {
+        setAchievement({
+          icon: '🏆',
+          name: result.new_badges[0],
+          desc: 'New badge unlocked!',
+        });
+        achievementTimers.current.push(setTimeout(() => setAchievement(null), 4000));
+      }, 1200);
+      achievementTimers.current.push(t);
+    }
   };
 
+  const isFullscreen = screen === 'game';
+
   return (
-    <div className="min-h-screen" style={{ background: '#ffffff' }}>
-      <div className="mx-auto flex w-full max-w-375 gap-4 px-3 py-3 sm:px-4 sm:py-4">
-        <aside className="sticky top-3 h-[calc(100vh-1.5rem)] w-56 shrink-0 rounded-2xl border p-3 hidden md:flex md:flex-col" style={{ background: '#f8fafc', borderColor: '#e2e8f0' }}>
-          <div className="mb-4">
-            <p className="text-[10px] uppercase tracking-widest text-slate-500">Smart Uni Guide</p>
-            <p className="text-sm font-semibold text-slate-800 mt-1">Student Menu</p>
-          </div>
-
+    <div className={`min-h-screen ${isFullscreen ? '' : 'game-bg'}`}>
+      {!isFullscreen && (
+        <header
+          className="sticky top-0 z-20 border-b border-violet-500/10 backdrop-blur-md px-4 py-3 flex items-center justify-between"
+          style={{ background: 'rgba(10,10,18,0.85)' }}
+        >
+          <p className="text-xs font-semibold text-violet-300">Smart Uni Guide</p>
           <button
-            onClick={() => setSidebarView('journal')}
-            className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium border transition-colors"
-            style={{
-              background: sidebarView === 'journal' ? 'rgba(59,130,246,0.1)' : '#ffffff',
-              borderColor: sidebarView === 'journal' ? 'rgba(59,130,246,0.3)' : '#e2e8f0',
-              color: sidebarView === 'journal' ? '#1d4ed8' : '#334155',
-            }}
+            type="button"
+            onClick={onSignOut}
+            className="text-xs text-slate-500 hover:text-rose-400 transition px-3 py-1.5 rounded-lg border border-white/5"
           >
-            Dashboard
+            Sign Out
           </button>
+        </header>
+      )}
 
-          <button
-            onClick={() => setSidebarView('reflections')}
-            className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium border mt-2 transition-colors"
-            style={{
-              background: sidebarView === 'reflections' ? 'rgba(168,85,247,0.1)' : '#ffffff',
-              borderColor: sidebarView === 'reflections' ? 'rgba(168,85,247,0.3)' : '#e2e8f0',
-              color: sidebarView === 'reflections' ? '#7e22ce' : '#334155',
-            }}
+      <main className={isFullscreen ? 'fixed inset-0' : 'relative overflow-hidden'}>
+        <AnimatePresence mode="wait" custom={direction}>
+          <motion.div
+            key={screen}
+            custom={direction}
+            variants={isFullscreen ? undefined : slideVariants}
+            initial={isFullscreen ? undefined : 'enter'}
+            animate={isFullscreen ? undefined : 'center'}
+            exit={isFullscreen ? undefined : 'exit'}
+            transition={{ duration: 0.28, ease: 'easeInOut' }}
+            className={isFullscreen ? 'h-full' : ''}
           >
-            Reflections
-          </button>
-
-          <div className="mt-auto">
-            <button
-              onClick={onSignOut}
-              className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium border transition-colors"
-              style={{
-                background: 'rgba(244,63,94,0.08)',
-                borderColor: 'rgba(244,63,94,0.28)',
-                color: '#be123c',
-              }}
-            >
-              Sign Out
-            </button>
-          </div>
-        </aside>
-
-        <main className="relative overflow-hidden flex-1 rounded-2xl border" style={{ background: '#ffffff', borderColor: '#e2e8f0' }}>
-          {sidebarView === 'journal' ? (
-            <>
-              <AnimatePresence mode="wait" custom={direction}>
-                <motion.div
-                  key={screen}
-                  custom={direction}
-                  variants={slideVariants}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  transition={{ duration: 0.28, ease: 'easeInOut' }}
-                >
-                  {screen === 'dashboard' && (
-                    <Dashboard
-                      missions={missions}
-                      student={student}
-                      onStartJourney={handleStartJourney}
-                      onMissionClick={handleMissionClick}
-                    />
-                  )}
-                  {screen === 'activities' && (
-                    <ActivitySelection onContinue={handleActivitiesComplete} />
-                  )}
-                  {screen === 'missions' && (
-                    <MissionGeneration
-                      missions={missions.filter(m => m.status !== 'done')}
-                      onBeginJourney={handleBeginJourney}
-                    />
-                  )}
-                  {screen === 'complete' && completedMission && (
-                    <MissionComplete
-                      mission={completedMission}
-                      xpGained={completionResult?.xp_earned || completedMission.xp}
-                      result={completionResult}
-                      onContinue={() => navigate('dashboard')}
-                    />
-                  )}
-                </motion.div>
-              </AnimatePresence>
-
-              <AIGuidePopup
-                visible={guideVisible}
-                mission={activeMission}
-                session={journeySession}
-                onSessionUpdate={setJourneySession}
-                onComplete={handleGuideComplete}
-                onClose={() => setGuideVisible(false)}
+            {screen === 'dashboard' && (
+              <Dashboard
+                student={student}
+                missions={missions}
+                onStartJourney={() => navigate('activities')}
+                onJournal={() => navigate('journal-history')}
+                onWeeklyReflection={() => navigate('weekly')}
+                onSemesterReflection={() => navigate('semester')}
               />
+            )}
 
-              <AchievementPopup
-                achievement={achievement}
-                onClose={() => setAchievement(null)}
+            {screen === 'activities' && (
+              <ActivitySelection
+                onContinue={handleActivitiesComplete}
+                onBack={() => navigate('dashboard')}
               />
-            </>
-          ) : (
-            <ReflectionsPanel userId={student.id || user?.id} />
-          )}
-        </main>
-      </div>
+            )}
+
+            {screen === 'preview' && (
+              <AdventurePreview
+                maps={mapSequence}
+                onStart={handleStartAdventure}
+                onBack={() => navigate('activities')}
+                isLoading={sessionLoading}
+              />
+            )}
+
+            {screen === 'game' && (
+              sessionLoading ? (
+                <GameLoadingScreen />
+              ) : (
+                <Suspense fallback={<GameLoadingScreen />}>
+                  <GamePage
+                    maps={mapSequence}
+                    userId={student.id}
+                    session={journeySession}
+                    onAdventureComplete={handleAdventureComplete}
+                    onExit={() => navigate('dashboard')}
+                  />
+                </Suspense>
+              )
+            )}
+
+            {screen === 'adventure-complete' && (
+              <AdventureComplete
+                result={completionResult}
+                sessionXp={completionResult?.xp_earned}
+                streak={student.current_streak || student.streak}
+                onViewJournal={() => navigate('journal')}
+                onHome={() => navigate('dashboard')}
+              />
+            )}
+
+            {screen === 'journal' && (
+              <JournalPage
+                result={completionResult}
+                student={student}
+                activities={missions}
+                onHome={() => navigate('dashboard')}
+                onViewHistory={() => navigate('journal-history')}
+              />
+            )}
+
+            {screen === 'journal-history' && (
+              <JournalHistoryPage
+                userId={student.id}
+                onBack={() => navigate('dashboard')}
+                onOpenJournal={(s) => {
+                  setCompletionResult({ journal_entry: s.journal_entry, xp_earned: 0 });
+                  navigate('journal');
+                }}
+              />
+            )}
+
+            {screen === 'weekly' && (
+              <WeeklyReflection
+                userId={student.id}
+                studentName={student.name}
+                onBack={() => navigate('dashboard')}
+              />
+            )}
+
+            {screen === 'semester' && (
+              <SemesterReflection
+                userId={student.id}
+                student={student}
+                onBack={() => navigate('dashboard')}
+              />
+            )}
+          </motion.div>
+        </AnimatePresence>
+
+        <AchievementPopup achievement={achievement} onClose={() => setAchievement(null)} />
+      </main>
     </div>
   );
 }
+
+export { ACTIVITY_TO_BACKEND, buildMapSequence };

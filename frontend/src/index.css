@@ -1,24 +1,77 @@
 @import "tailwindcss";
 
 :root {
-	--sug-primary: #3b82f6;
-	--sug-dark: #1e293b;
-	--sug-surface: #f8fafc;
-	--sug-accent: #f59e0b;
-	--sug-success: #10b981;
-	--sug-danger: #f43f5e;
-	--sug-creative: #a855f7;
-	--sug-border: #e2e8f0;
+  --sug-primary: #8b5cf6;
+  --sug-dark: #0f0a1a;
+  --sug-surface: rgba(15, 23, 42, 0.75);
+  --sug-accent: #f59e0b;
+  --sug-success: #4ade80;
+  --sug-danger: #f43f5e;
+  --sug-creative: #a855f7;
+  --sug-border: rgba(139, 92, 246, 0.25);
 }
 
 html,
 body,
 #root {
-	min-height: 100%;
-	background: #ffffff;
+  min-height: 100%;
+  background: #0a0a12;
 }
 
 body {
-	margin: 0;
-	color: #1e293b;
+  margin: 0;
+  color: #e2e8f0;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.game-bg {
+  background: linear-gradient(160deg, #0a0a12 0%, #0f172a 40%, #1e1b4b 100%);
+  min-height: 100vh;
+}
+
+.game-panel {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(139, 92, 246, 0.15);
+}
+
+.game-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  color: #c4b5fd;
+}
+
+.game-btn {
+  background: rgba(30, 27, 75, 0.8);
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  color: #e2e8f0;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.game-btn-primary {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  color: #fff;
+  border: none;
+  box-shadow: 0 4px 24px rgba(124, 58, 237, 0.35);
+}
+
+.game-btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }

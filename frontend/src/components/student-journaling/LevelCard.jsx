@@ -8,8 +8,10 @@ const RANKS = [
   { min: 20, max: 99, title: 'Legend', color: '#10b981', glow: 'rgba(16,185,129,0.4)' },
 ];
 
-export default function LevelCard({ level, name, department, year }) {
+export default function LevelCard({ level, name, department, year, dark = false }) {
   const rank = RANKS.find(r => level >= r.min && level <= r.max) || RANKS[0];
+  const nameColor = dark ? '#f8fafc' : '#1e293b';
+  const subText = year ? `${department} · Year ${year}` : department;
 
   return (
     <div className="relative overflow-hidden">
@@ -30,7 +32,8 @@ export default function LevelCard({ level, name, department, year }) {
             <span>Level {level} · {rank.title}</span>
           </motion.div>
           <motion.h2
-            className="text-2xl font-semibold text-slate-800 tracking-tight"
+            className="text-2xl font-semibold tracking-tight"
+            style={{ color: nameColor }}
             initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.15 }}
@@ -44,7 +47,7 @@ export default function LevelCard({ level, name, department, year }) {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            {department} · Year {year}
+            {subText}
           </motion.p>
         </div>
 

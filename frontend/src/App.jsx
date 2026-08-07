@@ -2,10 +2,30 @@ import { useEffect, useState } from 'react';
 import StudentJournalingPage from './pages/student-journaling/StudentJournalingPage';
 import LoginPage from './pages/auth/LoginPage';
 import { loginUser, registerUser, getUser, getUserGamification } from './services/api';
+import { DEMO_USER_ID } from './constants/demoMode';
 
 const AUTH_STORAGE_KEY = 'smart-uni-guide-user-id';
 
+const DEMO_USER = {
+  id: DEMO_USER_ID,
+  name: 'Demo Player',
+  email: 'demo@test.local',
+  total_xp: 500,
+  xp: 500,
+  level: 3,
+  current_streak: 3,
+  streak: 3,
+  longest_streak: 5,
+  badges: [],
+  completed_sessions: 2,
+  total_sessions: 2,
+};
+
 async function loadUserProfile(userId) {
+  if (userId === DEMO_USER_ID) {
+    return { ...DEMO_USER };
+  }
+
   const [user, gamification] = await Promise.all([
     getUser(userId),
     getUserGamification(userId),
@@ -91,6 +111,13 @@ export default function App() {
     setAuthLoading(false);
   };
 
+  const handleDemoPlay = () => {
+    localStorage.setItem(AUTH_STORAGE_KEY, DEMO_USER_ID);
+    setAuthUser({ ...DEMO_USER });
+    setAuthError('');
+    setAuthLoading(false);
+  };
+
   if (authLoading && !authUser) {
     return <LoginPage onSubmit={() => {}} isLoading isRegister={isRegisterMode} />;
   }
@@ -99,7 +126,14 @@ export default function App() {
     return (
       <div>
         <LoginPage onSubmit={handleAuth} isLoading={authLoading} error={authError} isRegister={isRegisterMode} />
-        <div className="fixed bottom-4 left-0 right-0 flex justify-center">
+        <div className="fixed bottom-4 left-0 right-0 flex flex-col items-center gap-2">
+          <button
+            type="button"
+            onClick={handleDemoPlay}
+            className="text-sm font-semibold text-violet-300 hover:text-violet-100 transition px-5 py-2.5 rounded-xl border border-violet-500/40 bg-violet-500/10"
+          >
+            🎮 Test Game (Skip Login)
+          </button>
           <button
             onClick={toggleMode}
             className="text-xs text-slate-400 hover:text-slate-200 transition"
