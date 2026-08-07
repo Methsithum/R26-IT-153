@@ -1,15 +1,17 @@
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function MapTransition({ map, onContinue, visible }) {
+export default function MapTransition({ map, mission, onContinue, visible, stats = {}, isLastMission = false }) {
   if (!visible || !map) return null;
 
-  const total = map.collectibles?.length ? 25 : 0;
+  const accuracy = stats.totalQuestions
+    ? Math.round((stats.correctAnswers / stats.totalQuestions) * 100)
+    : 0;
 
   return (
     <AnimatePresence>
       <motion.div
         className="fixed inset-0 z-50 flex items-center justify-center p-4"
-        style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}
+        style={{ background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(10px)' }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -27,13 +29,34 @@ export default function MapTransition({ map, onContinue, visible }) {
           >
             {map.icon}
           </motion.div>
-          <h2 className="text-2xl font-bold text-white mb-1">{map.name} Complete!</h2>
-          <p className="text-violet-300 text-sm mb-6">Great run, adventurer!</p>
 
-          <div className="flex flex-wrap justify-center gap-3 mb-6">
-            <span className="game-badge">⭐ +{map.xpReward || 100} XP</span>
-            <span className="game-badge">{map.collectibleEmoji} {total} {map.collectibleLabel}</span>
-            <span className="game-badge">🏆 {map.name.split(' ')[0]} Explorer</span>
+          <p className="text-[10px] uppercase tracking-widest text-violet-400 mb-1">Mission Complete</p>
+          <h2 className="text-2xl font-bold text-white mb-1">
+            {mission?.name || map.name}
+          </h2>
+          <p className="text-violet-300 text-sm mb-6">
+            {isLastMission ? 'Final mission cleared!' : 'Great run — ready for the next challenge?'}
+          </p>
+
+          <div className="grid grid-cols-2 gap-2 mb-6">
+            <div className="game-panel p-3 rounded-xl">
+              <p className="text-lg font-bold text-amber-400">⭐ {stats.sessionXp ?? 0}</p>
+              <p className="text-[10px] text-slate-400">Session XP</p>
+            </div>
+            <div className="game-panel p-3 rounded-xl">
+              <p className="text-lg font-bold text-emerald-400">{accuracy}%</p>
+              <p className="text-[10px] text-slate-400">Path Accuracy</p>
+            </div>
+            <div className="game-panel p-3 rounded-xl">
+              <p className="text-lg font-bold text-violet-300">
+                {map.collectibleEmoji} {stats.collectedCount ?? 0}
+              </p>
+              <p className="text-[10px] text-slate-400">{map.collectibleLabel}</p>
+            </div>
+            <div className="game-panel p-3 rounded-xl">
+              <p className="text-lg font-bold text-rose-400">{stats.penalties ?? 0}</p>
+              <p className="text-[10px] text-slate-400">Penalties</p>
+            </div>
           </div>
 
           <motion.button
@@ -43,7 +66,7 @@ export default function MapTransition({ map, onContinue, visible }) {
             whileTap={{ scale: 0.98 }}
             onClick={onContinue}
           >
-            Continue Adventure →
+            {isLastMission ? 'View Adventure Summary →' : 'Next Mission →'}
           </motion.button>
         </motion.div>
       </motion.div>

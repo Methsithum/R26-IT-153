@@ -155,6 +155,17 @@ export default function StudentJournalingPage({ user = null, onSignOut }) {
     }
   };
 
+  const handleMissionComplete = (result) => {
+    setMissions((prev) => {
+      const updated = prev.map((m, i) => {
+        if (i !== result.mapIndex) return m;
+        return { ...m, progress: 100, status: 'done' };
+      });
+      persistMissions(updated);
+      return updated;
+    });
+  };
+
   const handleAdventureComplete = async (result) => {
     setCompletionResult(result);
     navigate('adventure-complete');
@@ -257,8 +268,10 @@ export default function StudentJournalingPage({ user = null, onSignOut }) {
                 <Suspense fallback={<GameLoadingScreen />}>
                   <GamePage
                     maps={mapSequence}
+                    missions={missions}
                     userId={student.id}
                     session={journeySession}
+                    onMissionComplete={handleMissionComplete}
                     onAdventureComplete={handleAdventureComplete}
                     onExit={() => navigate('dashboard')}
                   />

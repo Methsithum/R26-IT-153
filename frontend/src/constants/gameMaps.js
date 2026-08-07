@@ -24,6 +24,7 @@ export const MAP_DEFINITIONS = {
     skyColor: '#0a1628',
     fogColor: '#1a3a2a',
     groundColor: '#2d5a3d',
+    pathSecondary: '#1e4030',
     accentColor: '#4ade80',
     ambientIntensity: 0.4,
     envType: 'forest',
@@ -44,6 +45,7 @@ export const MAP_DEFINITIONS = {
     skyColor: '#0f0a14',
     fogColor: '#2a1a3a',
     groundColor: '#3d3d4a',
+    pathSecondary: '#2a2a35',
     accentColor: '#f59e0b',
     ambientIntensity: 0.25,
     envType: 'dungeon',
@@ -64,6 +66,7 @@ export const MAP_DEFINITIONS = {
     skyColor: '#0a0f1a',
     fogColor: '#1a2a4a',
     groundColor: '#1e293b',
+    pathSecondary: '#0f172a',
     accentColor: '#38bdf8',
     ambientIntensity: 0.35,
     envType: 'lab',
@@ -84,6 +87,7 @@ export const MAP_DEFINITIONS = {
     skyColor: '#0c1222',
     fogColor: '#1e3a5f',
     groundColor: '#334155',
+    pathSecondary: '#1e293b',
     accentColor: '#818cf8',
     ambientIntensity: 0.3,
     envType: 'city',
@@ -104,6 +108,7 @@ export const MAP_DEFINITIONS = {
     skyColor: '#0a1420',
     fogColor: '#1a3050',
     groundColor: '#1a472a',
+    pathSecondary: '#14532d',
     accentColor: '#f472b6',
     ambientIntensity: 0.4,
     envType: 'arena',
@@ -156,4 +161,8 @@ export const LANES = [-2, 0, 2];
 export const RUN_SPEED = 14;
 export const JUMP_FORCE = 10;
 export const MAP_COMPLETE_DISTANCE = 160;
-export const MIN_COLLECTIBLES_FOR_CHECKPOINT = 8;
+export const MIN_COLLECTIBLES_FOR_CHECKPOINT = 6;
+export const QUESTIONS_PER_MISSION = 3;
+export const CORRECT_ANSWER_XP = 20;
+export const WRONG_ANSWER_XP_PENALTY = 15;
+export const WRONG_ANSWER_KNOCKBACK = 12;
