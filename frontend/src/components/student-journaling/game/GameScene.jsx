@@ -1,14 +1,14 @@
 import { Suspense, useCallback, useMemo, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Sparkles } from '@react-three/drei';
+import { Sparkles, Cloud } from '@react-three/drei';
 import * as THREE from 'three';
 import Player from './Player';
 import Collectible, { generateCollectibles } from './Collectible';
 import Obstacle, { generateObstacles } from './Obstacle';
+import QuestionGate, { generateQuestionGates } from './QuestionGate';
+import MissionGoal from './MissionGoal';
 import GameEnvironment, { GameLighting } from './GameEnvironment';
-import GuideCharacter from './GuideCharacter';
-import Monster from './Monster';
-import { LANES } from '../../../constants/gameMaps';
+import { LANES, MAP_COMPLETE_DISTANCE } from '../../../constants/gameMaps';
 
 function RunnerCamera({ playerPosRef, isPaused }) {
   const { camera } = useThree();
@@ -17,99 +17,197 @@ function RunnerCamera({ playerPosRef, isPaused }) {
   useFrame((_, delta) => {
     const p = playerPosRef.current;
     const followSpeed = isPaused ? 4 : 10;
-    camera.position.x = THREE.MathUtils.lerp(camera.position.x, p.x * 0.3, followSpeed * delta);
-    camera.position.y = THREE.MathUtils.lerp(camera.position.y, 3.4, followSpeed * delta);
-    camera.position.z = THREE.MathUtils.lerp(camera.position.z, p.z + 6, followSpeed * delta);
-    lookAt.current.set(p.x * 0.12, 1.45, p.z - 16);
+    camera.position.x = THREE.MathUtils.lerp(camera.position.x, p.x * 0.35, followSpeed * delta);
+    camera.position.y = THREE.MathUtils.lerp(camera.position.y, 3.8, followSpeed * delta);
+    camera.position.z = THREE.MathUtils.lerp(camera.position.z, p.z + 7, followSpeed * delta);
+    lookAt.current.set(p.x * 0.15, 1.6, p.z - 18);
     camera.lookAt(lookAt.current);
   });
 
   return null;
 }
 
-/** Temple Run–style 3-lane path with glowing edges */
-function StylizedPath({ color, accent }) {
+/** Temple Run–style path with stone blocks and cliff walls */
+function EnhancedPath({ color, accent, secondary }) {
+  const blocks = useMemo(() => {
+    const items = [];
+    for (let i = 0; i < 90; i++) {
+      items.push({ z: -i * 5.5, shade: i % 2 });
+    }
+    return items;
+  }, []);
+
   return (
     <group>
-      {/* base path */}
+      {/* cliff sides */}
+      {[-4.2, 4.2].map((x) => (
+        <group key={x} position={[x, 0, -150]}>
+          <mesh position={[0, 1.2, 0]}>
+            <boxGeometry args={[2.5, 2.4, 500]} />
+            <meshStandardMaterial color={secondary || '#1a3324'} roughness={0.95} />
+          </mesh>
+          {/* torches */}
+          {Array.from({ length: 25 }).map((_, i) => (
+            <group key={i} position={[x > 0 ? -0.8 : 0.8, 1.8, -i * 20]}>
+              <mesh>
+                <boxGeometry args={[0.12, 0.35, 0.12]} />
+                <meshStandardMaterial color="#78350f" />
+              </mesh>
+              <mesh position={[0, 0.35, 0]}>
+                <sphereGeometry args={[0.1, 8, 8]} />
+                <meshStandardMaterial color="#fbbf24" emissive="#f59e0b" emissiveIntensity={0.9} />
+              </mesh>
+            </group>
+          ))}
+        </group>
+      ))}
+
+      {/* main path */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, -150]} receiveShadow>
-        <planeGeometry args={[5.5, 500]} />
-        <meshStandardMaterial color={color} roughness={0.85} />
+        <planeGeometry args={[5.8, 520]} />
+        <meshStandardMaterial color={color} roughness={0.88} />
       </mesh>
+
+      {/* stone block rhythm */}
+      {blocks.map((b) => (
+        <group key={b.z} position={[0, 0, b.z]}>
+          {LANES.map((lane) => (
+            <mesh key={lane} rotation={[-Math.PI / 2, 0, 0]} position={[lane, 0.02, 0]}>
+              <planeGeometry args={[1.7, 4.8]} />
+              <meshStandardMaterial
+                color={b.shade ? color : secondary || '#234a32'}
+                roughness={0.9}
+              />
+            </mesh>
+          ))}
+        </group>
+      ))}
+
       {/* center stripe */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, -150]}>
-        <planeGeometry args={[0.12, 500]} />
-        <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={0.25} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, -150]}>
+        <planeGeometry args={[0.15, 520]} />
+        <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={0.35} />
       </mesh>
-      {/* lane lines */}
-      {LANES.slice(0, 2).map((lane, i) => (
-        <mesh key={i} rotation={[-Math.PI / 2, 0, 0]} position={[(lane + LANES[i + 1]) / 2, 0.025, -150]}>
-          <planeGeometry args={[0.06, 500]} />
-          <meshStandardMaterial color="#ffffff" transparent opacity={0.2} />
-        </mesh>
-      ))}
+
       {/* glowing rails */}
-      {[-2.85, 2.85].map((x) => (
-        <mesh key={x} position={[x, 0.15, -150]}>
-          <boxGeometry args={[0.12, 0.3, 500]} />
-          <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={0.45} />
-        </mesh>
-      ))}
-      {/* path tiles (visual rhythm) */}
-      {Array.from({ length: 80 }).map((_, i) => (
-        <mesh key={i} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.015, -i * 6]}>
-          <planeGeometry args={[5.3, 2.8]} />
-          <meshStandardMaterial color={i % 2 === 0 ? color : '#000000'} transparent opacity={i % 2 === 0 ? 1 : 0.06} />
+      {[-2.9, 2.9].map((x) => (
+        <mesh key={x} position={[x, 0.2, -150]}>
+          <boxGeometry args={[0.14, 0.35, 520]} />
+          <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={0.55} metalness={0.2} />
         </mesh>
       ))}
     </group>
   );
 }
 
-function WorldScroller({ mapDef, onCollect, onHit, playerPosRef }) {
-  const collectibles = useMemo(() => generateCollectibles(mapDef, 36), [mapDef?.id]);
-  const obstacles = useMemo(() => generateObstacles(10), [mapDef?.id]);
+function WorldScroller({
+  mapDef,
+  onCollect,
+  onHit,
+  onResolveGate,
+  playerPosRef,
+  laneIndexRef,
+  resolvedGateIds,
+}) {
+  const collectibles = useMemo(() => generateCollectibles(mapDef, 30), [mapDef?.id]);
+  const obstacles = useMemo(() => generateObstacles(12), [mapDef?.id]);
+  const gates = useMemo(() => generateQuestionGates(mapDef?.id), [mapDef?.id]);
   const accent = mapDef?.accentColor || '#4ade80';
 
   return (
     <>
-      <StylizedPath color={mapDef?.groundColor || '#2d5a3d'} accent={accent} />
+      <EnhancedPath
+        color={mapDef?.groundColor || '#2d5a3d'}
+        accent={accent}
+        secondary={mapDef?.pathSecondary || '#1e4030'}
+      />
       <GameEnvironment mapDef={mapDef} />
-      <Sparkles count={60} scale={[6, 3, 80]} size={2} speed={0.3} color={accent} position={[0, 2, -40]} />
+      <Sparkles count={80} scale={[8, 4, 100]} size={2.5} speed={0.25} color={accent} position={[0, 3, -50]} />
+      <Cloud opacity={0.25} speed={0.1} segments={20} position={[-6, 8, -30]} />
+      <Cloud opacity={0.2} speed={0.08} segments={16} position={[7, 7, -60]} />
+
       {collectibles.map((c) => (
         <Collectible key={c.id} type={c.type} position={c.position} onCollect={onCollect} playerPosRef={playerPosRef} />
       ))}
       {obstacles.map((o) => (
         <Obstacle key={o.id} type={o.type} position={o.position} onHit={onHit} playerPosRef={playerPosRef} />
       ))}
+      {gates.map((gate) => (
+        <QuestionGate
+          key={gate.id}
+          gate={gate}
+          playerPosRef={playerPosRef}
+          laneIndexRef={laneIndexRef}
+          resolved={resolvedGateIds.includes(gate.id)}
+          onResolve={onResolveGate}
+          accent={accent}
+        />
+      ))}
+      <MissionGoal z={-MAP_COMPLETE_DISTANCE} accent={accent} />
     </>
   );
 }
 
-function SceneContent({ mapDef, laneIndex, jumpTrigger, isPaused, showGuide, showMonster, bossDefeated, onTick, onCollect, onHit }) {
+function SceneContent({
+  mapDef,
+  laneIndex,
+  laneIndexRef,
+  jumpTrigger,
+  knockbackTrigger,
+  isPaused,
+  resolvedGateIds,
+  onTick,
+  onCollect,
+  onHit,
+  onResolveGate,
+}) {
   const playerPosRef = useRef({ x: 0, y: 1.05, z: 0 });
+  laneIndexRef.current = laneIndex;
 
   const handlePosition = useCallback((pos) => {
     playerPosRef.current = pos;
-    onTick(Math.abs(pos.z));
+    onTick(Math.abs(pos.z), pos.z);
   }, [onTick]);
 
   return (
     <>
       <color attach="background" args={[mapDef?.skyColor || '#0a1628']} />
-      <fog attach="fog" args={[mapDef?.fogColor || '#1a3a2a', 35, 120]} />
+      <fog attach="fog" args={[mapDef?.fogColor || '#1a3a2a', 30, 130]} />
       <GameLighting mapDef={mapDef} />
       <RunnerCamera playerPosRef={playerPosRef} isPaused={isPaused} />
-      <Player laneIndex={laneIndex} jumpTrigger={jumpTrigger} isPaused={isPaused} onPositionChange={handlePosition} />
-      <WorldScroller mapDef={mapDef} onCollect={onCollect} onHit={onHit} playerPosRef={playerPosRef} />
-      <GuideCharacter visible={showGuide} />
-      <Monster mapDef={mapDef} visible={showMonster} defeated={bossDefeated} />
+      <Player
+        laneIndex={laneIndex}
+        jumpTrigger={jumpTrigger}
+        knockbackTrigger={knockbackTrigger}
+        isPaused={isPaused}
+        onPositionChange={handlePosition}
+      />
+      <WorldScroller
+        mapDef={mapDef}
+        onCollect={onCollect}
+        onHit={onHit}
+        onResolveGate={onResolveGate}
+        playerPosRef={playerPosRef}
+        laneIndexRef={laneIndexRef}
+        resolvedGateIds={resolvedGateIds}
+      />
     </>
   );
 }
 
-export default function GameScene({ mapDef, gameState, laneIndex, jumpTrigger, onTick, onCollect, onHit }) {
-  const isPaused = gameState.isPaused || gameState.isCheckpoint || gameState.mapComplete;
+export default function GameScene({
+  mapDef,
+  gameState,
+  laneIndex,
+  laneIndexRef,
+  jumpTrigger,
+  knockbackTrigger,
+  onTick,
+  onCollect,
+  onHit,
+  onResolveGate,
+}) {
+  const isPaused = gameState.isPaused || gameState.missionComplete;
   if (!mapDef) return null;
 
   return (
@@ -118,21 +216,22 @@ export default function GameScene({ mapDef, gameState, laneIndex, jumpTrigger, o
         shadows
         dpr={[1, 1.5]}
         style={{ width: '100%', height: '100%', display: 'block' }}
-        camera={{ position: [0, 3.4, 6], fov: 55, near: 0.1, far: 200 }}
+        camera={{ position: [0, 3.8, 7], fov: 58, near: 0.1, far: 220 }}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
       >
         <Suspense fallback={null}>
           <SceneContent
             mapDef={mapDef}
             laneIndex={laneIndex}
+            laneIndexRef={laneIndexRef}
             jumpTrigger={jumpTrigger}
+            knockbackTrigger={knockbackTrigger}
             isPaused={isPaused}
-            showGuide={gameState.isCheckpoint}
-            showMonster={gameState.isBossEncounter || gameState.mapComplete}
-            bossDefeated={gameState.bossDefeated}
+            resolvedGateIds={gameState.resolvedGateIds}
             onTick={onTick}
             onCollect={onCollect}
             onHit={onHit}
+            onResolveGate={onResolveGate}
           />
         </Suspense>
       </Canvas>

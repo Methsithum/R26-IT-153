@@ -1,104 +1,82 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import GameScene from '../../components/student-journaling/game/GameScene';
 import GameHUD from '../../components/student-journaling/game/GameHUD';
 import GameControls from '../../components/student-journaling/game/GameControls';
-import GuideDialogue from '../../components/student-journaling/dialogue/GuideDialogue';
 import MapTransition from '../../components/student-journaling/game/MapTransition';
 import CollectBurst from '../../components/student-journaling/game/CollectBurst';
+import InPathQuestionBanner, { GateResultToast } from '../../components/student-journaling/game/InPathQuestionBanner';
 import useGameSession from '../../hooks/useGameSession';
 import useGameSound from '../../hooks/useGameSound';
-import { submitCheckpointAnswer } from '../../services/gameApi';
-import { activateDemoCheckpoint, answerDemoSession, resetDemoForNextMap } from '../../constants/demoMode';
-import { MIN_COLLECTIBLES_FOR_CHECKPOINT } from '../../constants/gameMaps';
+import { generateMissionGates } from '../../constants/missionQuestions';
+import { buildDemoCompletion } from '../../constants/demoMode';
+import {
+  MIN_COLLECTIBLES_FOR_CHECKPOINT,
+  QUESTIONS_PER_MISSION,
+} from '../../constants/gameMaps';
 
 export default function GamePage({
   maps,
+  missions = [],
   session: initialSession,
   onAdventureComplete,
+  onMissionComplete,
   onExit,
 }) {
   const {
     state,
     currentMap,
+    currentMission,
     progress,
+    missionProgress,
     collectedCount,
     initSession,
     setDistance,
     collectItem,
     removeFloatingXp,
     hitObstacle,
-    endCheckpoint,
-    defeatBoss,
+    resolveGate,
+    clearGateResult,
+    endMissionPause,
     nextMap,
-    setSession,
     setCompletion,
   } = useGameSession();
 
   const sound = useGameSound(true);
   const [laneIndex, setLaneIndex] = useState(1);
   const [jumpTrigger, setJumpTrigger] = useState(0);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showMapTransition, setShowMapTransition] = useState(false);
+  const [knockbackTrigger, setKnockbackTrigger] = useState(0);
+  const [showMissionComplete, setShowMissionComplete] = useState(false);
   const [bursts, setBursts] = useState([]);
-  const sessionRef = useRef(initialSession);
-  const pendingBackendQ = useRef(null);
-  const prevCheckpoint = useRef(false);
-  const checkpointReady = useRef(false);
+  const [playerZ, setPlayerZ] = useState(0);
+  const laneIndexRef = useRef(1);
+  const gates = useMemo(() => generateMissionGates(currentMap?.id), [currentMap?.id]);
 
   useEffect(() => {
     if (maps?.length) {
-      initSession(maps, initialSession);
-      sessionRef.current = initialSession;
-      checkpointReady.current = false;
-
-      // Hold backend question until boss checkpoint (after collecting)
-      if (initialSession?.question && initialSession?.session_id !== 'demo-session') {
-        pendingBackendQ.current = {
-          question: initialSession.question,
-          options: initialSession.options,
-        };
-        sessionRef.current = { ...initialSession, question: null, options: null };
-      }
+      initSession(maps, initialSession, missions);
     }
-  }, [maps, initialSession, initSession]);
+  }, [maps, initialSession, missions, initSession]);
 
   useEffect(() => {
     sound.unlock();
   }, [sound]);
 
-  // Activate Luna dialogue ONLY when boss checkpoint opens (after collecting)
   useEffect(() => {
-    if (!state.isCheckpoint || !state.checkpointActivated || checkpointReady.current) return;
-
-    if (sessionRef.current?.session_id === 'demo-session') {
-      const activated = activateDemoCheckpoint(sessionRef.current, currentMap, collectedCount);
-      sessionRef.current = activated;
-      setSession(activated);
-      checkpointReady.current = true;
+    if (state.missionComplete && !showMissionComplete) {
       sound.playCheckpoint();
-      return;
+      setShowMissionComplete(true);
     }
-
-    if (pendingBackendQ.current) {
-      sessionRef.current = {
-        ...sessionRef.current,
-        intro: `Great run! You collected ${collectedCount} ${currentMap?.collectibleLabel?.toLowerCase() || 'items'} in ${currentMap?.name || 'this map'}.`,
-        question: pendingBackendQ.current.question,
-        options: pendingBackendQ.current.options,
-      };
-      pendingBackendQ.current = null;
-      setSession(sessionRef.current);
-      checkpointReady.current = true;
-      sound.playCheckpoint();
-    }
-  }, [state.isCheckpoint, state.checkpointActivated, currentMap, collectedCount, setSession, sound]);
+  }, [state.missionComplete, showMissionComplete, sound]);
 
   useEffect(() => {
-    if (!state.isCheckpoint) {
-      checkpointReady.current = false;
+    if (state.lastGateResult === 'wrong') {
+      sound.playHit();
+      setKnockbackTrigger((n) => n + 1);
+    } else if (state.lastGateResult === 'correct') {
+      sound.playCollect();
     }
-  }, [state.isCheckpoint]);
+  }, [state.lastGateResult, sound]);
 
   const moveLeft = useCallback(() => {
     setLaneIndex((i) => {
@@ -123,7 +101,7 @@ export default function GamePage({
 
   useEffect(() => {
     const onKey = (e) => {
-      if (state.isCheckpoint || state.mapComplete || state.adventureComplete) return;
+      if (state.isPaused || state.missionComplete || state.adventureComplete) return;
       if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') moveLeft();
       if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') moveRight();
       if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
@@ -133,7 +111,12 @@ export default function GamePage({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [moveLeft, moveRight, jump, state.isCheckpoint, state.mapComplete, state.adventureComplete]);
+  }, [moveLeft, moveRight, jump, state.isPaused, state.missionComplete, state.adventureComplete]);
+
+  const handleTick = useCallback((distance, z) => {
+    setDistance(distance);
+    setPlayerZ(z);
+  }, [setDistance]);
 
   const handleCollect = useCallback((type, color) => {
     sound.playCollect();
@@ -148,109 +131,57 @@ export default function GamePage({
     hitObstacle();
   }, [hitObstacle, sound]);
 
+  const handleResolveGate = useCallback((gateId, selectedLane, gate) => {
+    resolveGate(gateId, selectedLane, gate);
+  }, [resolveGate]);
+
   const removeBurst = useCallback((id) => {
     setBursts((b) => b.filter((x) => x.id !== id));
   }, []);
 
-  const isLastMap = state.currentMapIndex >= (state.maps.length - 1);
+  const isLastMission = state.currentMapIndex >= state.maps.length - 1;
 
-  const handleAnswer = async ({ answer, deadline }) => {
-    const session = sessionRef.current;
+  const handleMissionContinue = () => {
+    setShowMissionComplete(false);
+    endMissionPause();
 
-    if (session?.session_id === 'demo-session') {
-      setIsSubmitting(true);
-      try {
-        const response = answerDemoSession(session, answer, currentMap, collectedCount, isLastMap);
-        sessionRef.current = response;
-        setSession(response);
+    const missionResult = {
+      mapIndex: state.currentMapIndex,
+      map: currentMap,
+      mission: currentMission,
+      sessionXp: state.sessionXp,
+      collectedCount,
+      correctAnswers: state.correctAnswers,
+      penalties: state.penalties,
+      answers: state.answers,
+    };
 
-        if (response._mapBossDone) {
-          endCheckpoint();
-          defeatBoss();
-          setShowMapTransition(true);
-          sessionRef.current = resetDemoForNextMap(response);
-          return;
-        }
+    onMissionComplete?.(missionResult);
 
-        if (response.completed) {
-          sound.playComplete();
-          setCompletion(response);
-          onAdventureComplete?.(response);
-          return;
-        }
-
-        endCheckpoint();
-      } finally {
-        setIsSubmitting(false);
-      }
+    if (isLastMission) {
+      const completion = buildDemoCompletion(
+        state.maps,
+        state.answers,
+        state.sessionXp,
+        state.correctAnswers,
+        initialSession,
+      );
+      sound.playComplete();
+      setCompletion(completion);
+      onAdventureComplete?.(completion);
       return;
     }
 
-    if (!session?.session_id) {
-      endCheckpoint();
-      if (state.mapComplete) setShowMapTransition(true);
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const response = await submitCheckpointAnswer({
-        sessionId: session.session_id,
-        answer,
-        deadline,
-      });
-
-      sessionRef.current = { ...response, intro: null };
-      setSession(sessionRef.current);
-
-      if (response.completed) {
-        sound.playComplete();
-        setCompletion(response);
-        onAdventureComplete?.(response);
-        return;
-      }
-
-      // More questions for this boss — keep checkpoint open
-      if (response.question) {
-        sessionRef.current = {
-          ...response,
-          intro: 'Thanks! One more thing...',
-        };
-        setSession(sessionRef.current);
-        return;
-      }
-
-      endCheckpoint();
-      defeatBoss();
-      if (!isLastMap) {
-        setShowMapTransition(true);
-      } else {
-        onAdventureComplete?.(response);
-      }
-    } catch (_err) {
-      endCheckpoint();
-      defeatBoss();
-      if (state.mapComplete) setShowMapTransition(true);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleMapTransitionContinue = () => {
-    setShowMapTransition(false);
-    defeatBoss();
     nextMap();
-    checkpointReady.current = false;
+    setLaneIndex(1);
   };
 
-  useEffect(() => {
-    if (state.mapComplete && !showMapTransition && !state.adventureComplete && state.isCheckpoint) {
-      // Wait for Q&A before showing transition — handled in handleAnswer
-    }
-  }, [state.mapComplete, showMapTransition, state.adventureComplete, state.isCheckpoint]);
+  const nextGate = gates.find((g) => !state.resolvedGateIds.includes(g.id));
+  const gateDistance = nextGate ? Math.abs(playerZ - nextGate.z) : null;
 
-  const isInvincible = state.invincibleUntil > Date.now();
+  const questionsRemaining = QUESTIONS_PER_MISSION - state.questionsResolved;
   const collectRemaining = Math.max(0, MIN_COLLECTIBLES_FOR_CHECKPOINT - collectedCount);
+  const isInvincible = state.invincibleUntil > Date.now();
 
   if (!currentMap) {
     return (
@@ -266,13 +197,28 @@ export default function GamePage({
         mapDef={currentMap}
         gameState={state}
         laneIndex={laneIndex}
+        laneIndexRef={laneIndexRef}
         jumpTrigger={jumpTrigger}
-        onTick={setDistance}
+        knockbackTrigger={knockbackTrigger}
+        onTick={handleTick}
         onCollect={handleCollect}
         onHit={handleHit}
+        onResolveGate={handleResolveGate}
       />
 
       <CollectBurst bursts={bursts} onDone={removeBurst} />
+
+      <InPathQuestionBanner
+        gate={nextGate}
+        distance={gateDistance}
+        resolved={!nextGate}
+      />
+
+      <AnimatePresence>
+        {state.lastGateResult && (
+          <GateResultToast result={state.lastGateResult} onDone={clearGateResult} />
+        )}
+      </AnimatePresence>
 
       {isInvincible && (
         <motion.div
@@ -282,11 +228,25 @@ export default function GamePage({
         />
       )}
 
-      {collectRemaining > 0 && !state.isCheckpoint && (
+      {!state.missionComplete && questionsRemaining > 0 && (
         <div className="absolute top-16 left-0 right-0 z-10 flex justify-center pointer-events-none">
           <span className="game-badge text-[10px]">
-            Collect {collectRemaining} more {currentMap.collectibleLabel} to reach the boss
+            🎯 {questionsRemaining} question{questionsRemaining > 1 ? 's' : ''} ahead on the path
           </span>
+        </div>
+      )}
+
+      {!state.missionComplete && questionsRemaining === 0 && collectRemaining > 0 && (
+        <div className="absolute top-16 left-0 right-0 z-10 flex justify-center pointer-events-none">
+          <span className="game-badge text-[10px]">
+            Collect {collectRemaining} more {currentMap.collectibleLabel} to reach mission goal
+          </span>
+        </div>
+      )}
+
+      {!state.missionComplete && questionsRemaining === 0 && collectRemaining === 0 && progress < 100 && (
+        <div className="absolute top-16 left-0 right-0 z-10 flex justify-center pointer-events-none">
+          <span className="game-badge text-[10px]">🏁 Run to the Mission Goal!</span>
         </div>
       )}
 
@@ -295,36 +255,39 @@ export default function GamePage({
         sessionXp={state.sessionXp}
         collectibles={state.collectibles}
         mapName={currentMap.name}
+        missionName={currentMission?.name}
         progress={progress}
+        missionProgress={missionProgress}
+        questionsResolved={state.questionsResolved}
+        questionsTotal={QUESTIONS_PER_MISSION}
+        penalties={state.penalties}
         collectibleLabel={currentMap.collectibleLabel}
         collectibleEmoji={currentMap.collectibleEmoji}
         floatingXp={state.floatingXp}
         onFloatingXpDone={removeFloatingXp}
       />
 
-      <GameControls onLeft={moveLeft} onRight={moveRight} onJump={jump} disabled={state.isPaused} />
-
-      <GuideDialogue
-        visible={state.isCheckpoint && !!state.session?.question}
-        session={state.session}
-        onAnswer={handleAnswer}
-        collectedCount={collectedCount}
-        collectibleLabel={currentMap.collectibleLabel?.toLowerCase()}
-        bossName={state.isBossEncounter ? currentMap.bossName : ''}
-        isSubmitting={isSubmitting}
+      <GameControls
+        onLeft={moveLeft}
+        onRight={moveRight}
+        onJump={jump}
+        disabled={state.isPaused}
       />
 
-      {state.isBossEncounter && !state.bossDefeated && !state.isCheckpoint && (
-        <motion.div
-          className="absolute top-1/3 left-0 right-0 z-20 text-center pointer-events-none"
-          initial={{ opacity: 0, scale: 0.5 }}
-          animate={{ opacity: 1, scale: 1 }}
-        >
-          <p className="text-red-400 text-lg font-bold">{currentMap.bossEmoji} {currentMap.bossName}</p>
-        </motion.div>
-      )}
-
-      <MapTransition map={currentMap} visible={showMapTransition} onContinue={handleMapTransitionContinue} />
+      <MapTransition
+        map={currentMap}
+        mission={currentMission}
+        visible={showMissionComplete}
+        stats={{
+          sessionXp: state.sessionXp,
+          collectedCount,
+          correctAnswers: state.correctAnswers,
+          totalQuestions: QUESTIONS_PER_MISSION,
+          penalties: state.penalties,
+        }}
+        isLastMission={isLastMission}
+        onContinue={handleMissionContinue}
+      />
 
       <button
         type="button"
