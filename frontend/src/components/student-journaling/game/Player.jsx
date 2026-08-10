@@ -36,7 +36,7 @@ export default function Player({ laneIndex = 1, jumpTrigger = 0, isPaused, onPos
 
     if (!isPaused) {
       pos.current.z -= RUN_SPEED * dt;
-      runPhase.current += dt * 14;
+      runPhase.current += dt * RUN_SPEED;
     }
 
     if (jumpQueued.current && grounded.current && !isPaused) {

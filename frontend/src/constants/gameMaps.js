@@ -160,7 +160,7 @@ export function buildBackendActivities(missions) {
 export const LANES = [-4.5, -1.5, 1.5, 4.5];
 export const LANE_COUNT = 4;
 export const PATH_WIDTH = 11;
-export const RUN_SPEED = 14;
+export const RUN_SPEED = 8;
 export const JUMP_FORCE = 10;
 export const MAP_COMPLETE_DISTANCE = 160;
 export const MIN_COLLECTIBLES_FOR_CHECKPOINT = 6;
