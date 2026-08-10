@@ -40,7 +40,7 @@ function EnhancedPath({ color, accent, secondary }) {
   return (
     <group>
       {/* cliff sides */}
-      {[-4.2, 4.2].map((x) => (
+      {[-7, 7].map((x) => (
         <group key={x} position={[x, 0, -150]}>
           <mesh position={[0, 1.2, 0]}>
             <boxGeometry args={[2.5, 2.4, 500]} />
@@ -64,7 +64,7 @@ function EnhancedPath({ color, accent, secondary }) {
 
       {/* main path */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, -150]} receiveShadow>
-        <planeGeometry args={[5.8, 520]} />
+        <planeGeometry args={[11, 520]} />
         <meshStandardMaterial color={color} roughness={0.88} />
       </mesh>
 
@@ -73,7 +73,7 @@ function EnhancedPath({ color, accent, secondary }) {
         <group key={b.z} position={[0, 0, b.z]}>
           {LANES.map((lane) => (
             <mesh key={lane} rotation={[-Math.PI / 2, 0, 0]} position={[lane, 0.02, 0]}>
-              <planeGeometry args={[1.7, 4.8]} />
+              <planeGeometry args={[2.4, 4.8]} />
               <meshStandardMaterial
                 color={b.shade ? color : secondary || '#234a32'}
                 roughness={0.9}
@@ -90,7 +90,7 @@ function EnhancedPath({ color, accent, secondary }) {
       </mesh>
 
       {/* glowing rails */}
-      {[-2.9, 2.9].map((x) => (
+      {[-5.75, 5.75].map((x) => (
         <mesh key={x} position={[x, 0.2, -150]}>
           <boxGeometry args={[0.14, 0.35, 520]} />
           <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={0.55} metalness={0.2} />
@@ -153,7 +153,6 @@ function SceneContent({
   laneIndex,
   laneIndexRef,
   jumpTrigger,
-  knockbackTrigger,
   isPaused,
   resolvedGateIds,
   onTick,
@@ -178,7 +177,6 @@ function SceneContent({
       <Player
         laneIndex={laneIndex}
         jumpTrigger={jumpTrigger}
-        knockbackTrigger={knockbackTrigger}
         isPaused={isPaused}
         onPositionChange={handlePosition}
       />
@@ -201,7 +199,6 @@ export default function GameScene({
   laneIndex,
   laneIndexRef,
   jumpTrigger,
-  knockbackTrigger,
   onTick,
   onCollect,
   onHit,
@@ -225,7 +222,6 @@ export default function GameScene({
             laneIndex={laneIndex}
             laneIndexRef={laneIndexRef}
             jumpTrigger={jumpTrigger}
-            knockbackTrigger={knockbackTrigger}
             isPaused={isPaused}
             resolvedGateIds={gameState.resolvedGateIds}
             onTick={onTick}

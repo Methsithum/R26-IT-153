@@ -7,7 +7,7 @@ import RunnerCharacter, { RunnerShadow } from './RunnerCharacter';
 const GROUND_Y = 1.05;
 const GRAVITY = 28;
 
-export default function Player({ laneIndex = 1, jumpTrigger = 0, knockbackTrigger = 0, isPaused, onPositionChange }) {
+export default function Player({ laneIndex = 1, jumpTrigger = 0, isPaused, onPositionChange }) {
   const groupRef = useRef(null);
   const pos = useRef({ x: LANES[laneIndex], y: GROUND_Y, z: 0 });
   const vy = useRef(0);
@@ -29,12 +29,6 @@ export default function Player({ laneIndex = 1, jumpTrigger = 0, knockbackTrigge
   useEffect(() => {
     jumpQueued.current = true;
   }, [jumpTrigger]);
-
-  useEffect(() => {
-    if (knockbackTrigger > 0) {
-      pos.current.z += 12;
-    }
-  }, [knockbackTrigger]);
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.05);

@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { LANES } from '../../../constants/gameMaps';
 
 const JUMP_CLEAR_Y = {
   rock: 1.5,
@@ -65,12 +66,11 @@ export default function Obstacle({ position, type = 'rock', onHit, playerPosRef 
 
 export function generateObstacles(count = 10) {
   const types = ['rock', 'tree', 'deadline', 'stress'];
-  const lanes = [-2, 0, 2];
   const items = [];
 
   for (let i = 0; i < count; i++) {
     const zDist = 18 + i * 14;
-    const lane = lanes[(i + 1) % 3];
+    const lane = LANES[(i + 1) % LANES.length];
     const type = types[i % types.length];
     items.push({ id: `o-${i}`, type, position: [lane, 0, -zDist] });
   }

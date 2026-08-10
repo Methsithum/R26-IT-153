@@ -3,9 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 export default function MapTransition({ map, mission, onContinue, visible, stats = {}, isLastMission = false }) {
   if (!visible || !map) return null;
 
-  const accuracy = stats.totalQuestions
-    ? Math.round((stats.correctAnswers / stats.totalQuestions) * 100)
-    : 0;
+  const questionsAnswered = stats.questionsAnswered ?? 0;
 
   return (
     <AnimatePresence>
@@ -44,8 +42,8 @@ export default function MapTransition({ map, mission, onContinue, visible, stats
               <p className="text-[10px] text-slate-400">Session XP</p>
             </div>
             <div className="game-panel p-3 rounded-xl">
-              <p className="text-lg font-bold text-emerald-400">{accuracy}%</p>
-              <p className="text-[10px] text-slate-400">Path Accuracy</p>
+              <p className="text-lg font-bold text-emerald-400">{questionsAnswered}/{stats.totalQuestions ?? 3}</p>
+              <p className="text-[10px] text-slate-400">Questions Answered</p>
             </div>
             <div className="game-panel p-3 rounded-xl">
               <p className="text-lg font-bold text-violet-300">

@@ -5,12 +5,13 @@ import GameHUD from '../../components/student-journaling/game/GameHUD';
 import GameControls from '../../components/student-journaling/game/GameControls';
 import MapTransition from '../../components/student-journaling/game/MapTransition';
 import CollectBurst from '../../components/student-journaling/game/CollectBurst';
-import InPathQuestionBanner, { GateResultToast } from '../../components/student-journaling/game/InPathQuestionBanner';
+import InPathQuestionBanner, { AnswerRecordedToast } from '../../components/student-journaling/game/InPathQuestionBanner';
 import useGameSession from '../../hooks/useGameSession';
 import useGameSound from '../../hooks/useGameSound';
 import { generateMissionGates } from '../../constants/missionQuestions';
 import { buildDemoCompletion } from '../../constants/demoMode';
 import {
+  LANE_COUNT,
   MIN_COLLECTIBLES_FOR_CHECKPOINT,
   QUESTIONS_PER_MISSION,
 } from '../../constants/gameMaps';
@@ -36,7 +37,7 @@ export default function GamePage({
     removeFloatingXp,
     hitObstacle,
     resolveGate,
-    clearGateResult,
+    clearRecordedAnswer,
     endMissionPause,
     nextMap,
     setCompletion,
@@ -45,7 +46,6 @@ export default function GamePage({
   const sound = useGameSound(true);
   const [laneIndex, setLaneIndex] = useState(1);
   const [jumpTrigger, setJumpTrigger] = useState(0);
-  const [knockbackTrigger, setKnockbackTrigger] = useState(0);
   const [showMissionComplete, setShowMissionComplete] = useState(false);
   const [bursts, setBursts] = useState([]);
   const [playerZ, setPlayerZ] = useState(0);
@@ -70,13 +70,10 @@ export default function GamePage({
   }, [state.missionComplete, showMissionComplete, sound]);
 
   useEffect(() => {
-    if (state.lastGateResult === 'wrong') {
-      sound.playHit();
-      setKnockbackTrigger((n) => n + 1);
-    } else if (state.lastGateResult === 'correct') {
+    if (state.lastRecordedAnswer) {
       sound.playCollect();
     }
-  }, [state.lastGateResult, sound]);
+  }, [state.lastRecordedAnswer, sound]);
 
   const moveLeft = useCallback(() => {
     setLaneIndex((i) => {
@@ -88,7 +85,7 @@ export default function GamePage({
 
   const moveRight = useCallback(() => {
     setLaneIndex((i) => {
-      const next = Math.min(2, i + 1);
+      const next = Math.min(LANE_COUNT - 1, i + 1);
       if (next !== i) sound.playLane();
       return next;
     });
@@ -151,7 +148,7 @@ export default function GamePage({
       mission: currentMission,
       sessionXp: state.sessionXp,
       collectedCount,
-      correctAnswers: state.correctAnswers,
+      questionsAnswered: state.questionsResolved,
       penalties: state.penalties,
       answers: state.answers,
     };
@@ -159,13 +156,7 @@ export default function GamePage({
     onMissionComplete?.(missionResult);
 
     if (isLastMission) {
-      const completion = buildDemoCompletion(
-        state.maps,
-        state.answers,
-        state.sessionXp,
-        state.correctAnswers,
-        initialSession,
-      );
+      const completion = buildDemoCompletion(state.maps, state.answers, state.sessionXp, initialSession);
       sound.playComplete();
       setCompletion(completion);
       onAdventureComplete?.(completion);
@@ -199,7 +190,6 @@ export default function GamePage({
         laneIndex={laneIndex}
         laneIndexRef={laneIndexRef}
         jumpTrigger={jumpTrigger}
-        knockbackTrigger={knockbackTrigger}
         onTick={handleTick}
         onCollect={handleCollect}
         onHit={handleHit}
@@ -215,8 +205,8 @@ export default function GamePage({
       />
 
       <AnimatePresence>
-        {state.lastGateResult && (
-          <GateResultToast result={state.lastGateResult} onDone={clearGateResult} />
+        {state.lastRecordedAnswer && (
+          <AnswerRecordedToast answer={state.lastRecordedAnswer} onDone={clearRecordedAnswer} />
         )}
       </AnimatePresence>
 
@@ -231,7 +221,7 @@ export default function GamePage({
       {!state.missionComplete && questionsRemaining > 0 && (
         <div className="absolute top-16 left-0 right-0 z-10 flex justify-center pointer-events-none">
           <span className="game-badge text-[10px]">
-            🎯 {questionsRemaining} question{questionsRemaining > 1 ? 's' : ''} ahead on the path
+            🎯 {questionsRemaining} question{questionsRemaining > 1 ? 's' : ''} ahead — pick a lane to answer
           </span>
         </div>
       )}
@@ -281,7 +271,7 @@ export default function GamePage({
         stats={{
           sessionXp: state.sessionXp,
           collectedCount,
-          correctAnswers: state.correctAnswers,
+          questionsAnswered: state.questionsResolved,
           totalQuestions: QUESTIONS_PER_MISSION,
           penalties: state.penalties,
         }}

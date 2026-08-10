@@ -3,8 +3,7 @@ import {
   MAP_COMPLETE_DISTANCE,
   MIN_COLLECTIBLES_FOR_CHECKPOINT,
   QUESTIONS_PER_MISSION,
-  CORRECT_ANSWER_XP,
-  WRONG_ANSWER_XP_PENALTY,
+  ANSWER_XP,
 } from '../constants/gameMaps';
 
 const initialState = {
@@ -22,13 +21,11 @@ const initialState = {
   floatingXp: [],
   session: null,
   completionResult: null,
-  // Mission / in-path question state
   resolvedGateIds: [],
   answers: [],
   questionsResolved: 0,
   penalties: 0,
-  lastGateResult: null,
-  correctAnswers: 0,
+  lastRecordedAnswer: null,
 };
 
 function totalCollected(collectibles) {
@@ -81,11 +78,10 @@ function reducer(state, action) {
       const { gateId, laneIndex, gate } = action;
       if (state.resolvedGateIds.includes(gateId)) return state;
 
-      const correct = laneIndex === gate.correctLane;
-      const selectedAnswer = gate.options[laneIndex];
+      const selectedAnswer = gate.options[laneIndex] ?? gate.options[0];
       const answers = [
         ...state.answers,
-        { question: gate.question, answer: selectedAnswer, correct, gateId },
+        { question: gate.question, answer: selectedAnswer, gateId },
       ];
 
       return {
@@ -93,19 +89,13 @@ function reducer(state, action) {
         answers,
         questionsResolved: state.questionsResolved + 1,
         resolvedGateIds: [...state.resolvedGateIds, gateId],
-        sessionXp: correct
-          ? state.sessionXp + CORRECT_ANSWER_XP
-          : Math.max(0, state.sessionXp - WRONG_ANSWER_XP_PENALTY),
-        health: correct ? state.health : Math.max(0, state.health - 1),
-        penalties: correct ? state.penalties : state.penalties + 1,
-        correctAnswers: correct ? state.correctAnswers + 1 : state.correctAnswers,
-        lastGateResult: correct ? 'correct' : 'wrong',
-        invincibleUntil: correct ? state.invincibleUntil : Date.now() + 1200,
+        sessionXp: state.sessionXp + ANSWER_XP,
+        lastRecordedAnswer: selectedAnswer,
       };
     }
 
-    case 'CLEAR_GATE_RESULT':
-      return { ...state, lastGateResult: null };
+    case 'CLEAR_RECORDED_ANSWER':
+      return { ...state, lastRecordedAnswer: null };
 
     case 'CHECK_PROGRESS': {
       const collected = totalCollected(state.collectibles);
@@ -145,8 +135,7 @@ function reducer(state, action) {
         answers: [],
         questionsResolved: 0,
         penalties: 0,
-        lastGateResult: null,
-        correctAnswers: 0,
+        lastRecordedAnswer: null,
       };
     }
 
@@ -187,7 +176,7 @@ export default function useGameSession() {
     dispatch({ type: 'RESOLVE_GATE', gateId, laneIndex, gate });
   }, []);
 
-  const clearGateResult = useCallback(() => dispatch({ type: 'CLEAR_GATE_RESULT' }), []);
+  const clearRecordedAnswer = useCallback(() => dispatch({ type: 'CLEAR_RECORDED_ANSWER' }), []);
 
   const endMissionPause = useCallback(() => dispatch({ type: 'END_MISSION_PAUSE' }), []);
 
@@ -219,7 +208,7 @@ export default function useGameSession() {
     removeFloatingXp,
     hitObstacle,
     resolveGate,
-    clearGateResult,
+    clearRecordedAnswer,
     endMissionPause,
     nextMap,
     setSession,

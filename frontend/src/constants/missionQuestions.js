@@ -1,88 +1,73 @@
-/** In-path questions per map — player picks answer by choosing a lane. */
+/** In-path questions per map — player picks answer by choosing a lane (4 options). */
 export const MISSION_QUESTIONS = {
   knowledge_forest: [
     {
       question: 'Which subject did you revise today?',
-      options: ['Database Systems', 'Networking', 'Software Engineering'],
-      correctLane: 0,
+      options: ['Database Systems', 'Networking', 'Software Engineering', 'OOP'],
     },
     {
       question: 'How long was your study session?',
-      options: ['Under 30 min', '30–60 min', 'Over 1 hour'],
-      correctLane: 1,
+      options: ['Under 30 min', '30–60 min', '1–2 hours', 'Over 2 hours'],
     },
     {
       question: 'How well do you understand today\'s topic?',
-      options: ['Still confused', 'Getting there', 'Confident'],
-      correctLane: 2,
+      options: ['Still confused', 'Getting there', 'Mostly clear', 'Confident'],
     },
   ],
   assignment_dungeon: [
     {
       question: 'How far is your assignment progress?',
-      options: ['Just started', 'Halfway done', 'Almost finished'],
-      correctLane: 1,
+      options: ['Just started', '25% done', 'Halfway done', 'Almost finished'],
     },
     {
       question: 'What blocked you most today?',
-      options: ['Research', 'Writing', 'Formatting'],
-      correctLane: 0,
+      options: ['Research', 'Writing', 'Formatting', 'Time pressure'],
     },
     {
       question: 'When is your deadline?',
-      options: ['This week', 'Next week', 'Later'],
-      correctLane: 0,
+      options: ['Today', 'This week', 'Next week', 'Later'],
     },
   ],
   project_laboratory: [
     {
       question: 'What did you work on today?',
-      options: ['Planning', 'Coding', 'Testing'],
-      correctLane: 1,
+      options: ['Planning', 'Coding', 'Testing', 'Documentation'],
     },
     {
       question: 'Team collaboration level?',
-      options: ['Solo work', 'Pair work', 'Full team'],
-      correctLane: 1,
+      options: ['Solo work', 'Pair work', 'Small team', 'Full team'],
     },
     {
       question: 'Biggest project challenge?',
-      options: ['Scope creep', 'Technical bugs', 'Time management'],
-      correctLane: 2,
+      options: ['Scope creep', 'Technical bugs', 'Time management', 'Communication'],
     },
   ],
   internship_city: [
     {
       question: 'Main internship focus today?',
-      options: ['Meetings', 'Technical tasks', 'Learning tools'],
-      correctLane: 1,
+      options: ['Meetings', 'Technical tasks', 'Learning tools', 'Reporting'],
     },
     {
       question: 'Work environment today?',
-      options: ['On-site', 'Remote', 'Hybrid'],
-      correctLane: 2,
+      options: ['On-site', 'Remote', 'Hybrid', 'Field visit'],
     },
     {
       question: 'Skill you practiced most?',
-      options: ['Communication', 'Coding', 'Problem solving'],
-      correctLane: 2,
+      options: ['Communication', 'Coding', 'Problem solving', 'Leadership'],
     },
   ],
   activity_arena: [
     {
       question: 'Which activity did you do?',
-      options: ['Sports', 'Club meeting', 'University event'],
-      correctLane: 0,
+      options: ['Sports', 'Club meeting', 'University event', 'Volunteering'],
     },
     {
       question: 'How active were you?',
-      options: ['Light', 'Moderate', 'Very intense'],
-      correctLane: 1,
+      options: ['Light', 'Moderate', 'Very intense', 'Competition level'],
     },
     {
       question: 'Social engagement level?',
-      options: ['Mostly alone', 'Small group', 'Large group'],
-      correctLane: 1,
+      options: ['Mostly alone', 'Small group', 'Medium group', 'Large group'],
     },
   ],
 };
@@ -93,7 +78,6 @@ export function generateMissionGates(mapId) {
     id: `${mapId}-gate-${i}`,
     z: -(40 + i * 45),
     question: q.question,
-    options: q.options,
-    correctLane: q.correctLane,
+    options: q.options.slice(0, 4),
   }));
 }

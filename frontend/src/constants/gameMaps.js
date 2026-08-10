@@ -157,12 +157,12 @@ export function buildBackendActivities(missions) {
     .filter(Boolean);
 }
 
-export const LANES = [-2, 0, 2];
+export const LANES = [-4.5, -1.5, 1.5, 4.5];
+export const LANE_COUNT = 4;
+export const PATH_WIDTH = 11;
 export const RUN_SPEED = 14;
 export const JUMP_FORCE = 10;
 export const MAP_COMPLETE_DISTANCE = 160;
 export const MIN_COLLECTIBLES_FOR_CHECKPOINT = 6;
 export const QUESTIONS_PER_MISSION = 3;
-export const CORRECT_ANSWER_XP = 20;
-export const WRONG_ANSWER_XP_PENALTY = 15;
-export const WRONG_ANSWER_KNOCKBACK = 12;
+export const ANSWER_XP = 15;

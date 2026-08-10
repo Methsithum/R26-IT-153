@@ -13,16 +13,15 @@ export function createDemoSession() {
 }
 
 /** Build journal completion from in-path answers collected during gameplay. */
-export function buildDemoCompletion(maps, answers, sessionXp, correctAnswers, session) {
+export function buildDemoCompletion(maps, answers, sessionXp, session) {
   const mapNames = maps.map((m) => m.name).join(', ');
   const reflections = answers
-    .filter((a) => a.correct)
-    .slice(0, 5)
+    .slice(0, 6)
     .map((a) => `"${a.question}" → ${a.answer}`)
     .join('; ');
 
   const summary = reflections
-    || answers.map((a) => a.answer).slice(0, 3).join(', ')
+    || answers.map((a) => a.answer).slice(0, 4).join(', ')
     || 'my selected activities';
 
   return {
@@ -30,11 +29,11 @@ export function buildDemoCompletion(maps, answers, sessionXp, correctAnswers, se
     completed: true,
     journal_entry:
       `Today I completed ${maps.length} mission${maps.length > 1 ? 's' : ''} through ${mapNames}. ` +
-      `I answered ${answers.length} in-path questions (${correctAnswers} correct paths) while running, ` +
+      `I answered ${answers.length} in-path questions while running, ` +
       `collecting rewards and avoiding obstacles. Key reflections: ${summary}. ` +
       `This game-based journey helped me track my learning activities naturally.`,
     xp_earned: Math.max(80, sessionXp),
-    new_badges: correctAnswers >= answers.length * 0.7 ? ['path_master'] : ['demo_explorer'],
+    new_badges: answers.length >= 6 ? ['path_master'] : ['demo_explorer'],
     level_up: false,
   };
 }

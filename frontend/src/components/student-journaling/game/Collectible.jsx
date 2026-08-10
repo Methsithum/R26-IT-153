@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { LANES } from '../../../constants/gameMaps';
 import CollectibleMesh, { COLLECTIBLE_COLORS } from './CollectibleMesh';
 
 export default function Collectible({ type = 'book', position, onCollect, playerPosRef }) {
@@ -34,11 +35,10 @@ export default function Collectible({ type = 'book', position, onCollect, player
 export function generateCollectibles(mapDef, count = 36) {
   const types = mapDef?.collectibles || ['book'];
   const items = [];
-  const lanes = [-2, 0, 2];
 
   for (let i = 0; i < count; i++) {
     const zDist = 6 + i * 4.5;
-    const lane = lanes[i % 3];
+    const lane = LANES[i % LANES.length];
     const type = types[i % types.length];
     const y = type === 'knowledge_star' ? 1.35 : 0.75;
     items.push({ id: `c-${i}`, type, position: [lane, y, -zDist] });
