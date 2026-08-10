@@ -8,8 +8,9 @@ const LANE_HINTS = ['← Far Left', '← Left', 'Right →', 'Far Right →'];
 export default function InPathQuestionBanner({ gate, distance, resolved }) {
   if (!gate || resolved || distance == null) return null;
 
-  const show = distance < 55 && distance > 8;
-  const urgency = distance < 25;
+  const isInputGate = gate.question_type && gate.question_type !== 'lane';
+  const show = distance < 55 && distance > 2;
+  const urgency = distance < 22;
 
   return (
     <AnimatePresence>
@@ -29,20 +30,28 @@ export default function InPathQuestionBanner({ gate, distance, resolved }) {
               {urgency ? '⚡ Choose your path!' : '🔮 Question ahead'}
             </p>
             <p className="text-sm sm:text-base font-semibold text-white mb-3">{gate.question}</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {gate.options.map((opt, i) => (
-                <span
-                  key={i}
-                  className="text-[10px] sm:text-xs px-2 py-1.5 rounded-lg bg-white/5 text-violet-200 border border-white/10"
-                >
-                  <span className="block text-[9px] text-slate-500 mb-0.5">{LANE_HINTS[i]}</span>
-                  {opt}
-                </span>
-              ))}
-            </div>
-            <p className="text-[10px] text-slate-400 mt-2">
-              Use A/D or arrow keys to move across {LANES.length} lanes
-            </p>
+            {isInputGate ? (
+              <p className="text-xs text-amber-300 bg-amber-500/10 rounded-lg py-2 px-3 border border-amber-400/30">
+                Run through the gate to type your answer
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {gate.options.map((opt, i) => (
+                  <span
+                    key={i}
+                    className="text-[10px] sm:text-xs px-2 py-1.5 rounded-lg bg-white/5 text-violet-200 border border-white/10"
+                  >
+                    <span className="block text-[9px] text-slate-500 mb-0.5">{LANE_HINTS[i]}</span>
+                    {opt}
+                  </span>
+                ))}
+              </div>
+            )}
+            {!isInputGate && (
+              <p className="text-[10px] text-slate-400 mt-2">
+                Use A/D or arrow keys to move across {LANES.length} lanes
+              </p>
+            )}
           </div>
         </motion.div>
       )}

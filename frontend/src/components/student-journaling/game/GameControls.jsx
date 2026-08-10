@@ -1,18 +1,22 @@
 import { motion } from 'framer-motion';
 
 function ControlButton({ label, onPress, disabled, wide = false, children }) {
+  const fire = (e) => {
+    e.stopPropagation();
+    if (disabled) return;
+    onPress?.();
+  };
+
   return (
     <motion.button
       type="button"
+      tabIndex={-1}
       className={`game-btn rounded-2xl font-bold select-none ${wide ? 'w-20 h-20 text-sm' : 'w-16 h-16 text-2xl'}`}
-      style={{ touchAction: 'none' }}
+      style={{ touchAction: 'manipulation' }}
       whileTap={{ scale: disabled ? 1 : 0.9 }}
-      onPointerDown={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (disabled) return;
-        onPress?.();
-      }}
+      onMouseDown={(e) => e.preventDefault()}
+      onTouchStart={(e) => e.preventDefault()}
+      onPointerUp={fire}
       disabled={disabled}
       aria-label={label}
     >
@@ -30,8 +34,7 @@ export default function GameControls({ onLeft, onRight, onJump, disabled }) {
         <span>Space / ↑ Jump forward</span>
       </div>
 
-      {/* Touch + mouse — single pointer event, no double-fire */}
-      <div className="absolute bottom-4 left-0 right-0 z-20 flex items-center justify-center gap-4 px-4 pointer-events-auto">
+      <div className="absolute bottom-4 left-0 right-0 z-40 flex items-center justify-center gap-4 px-4 pointer-events-auto">
         <ControlButton label="Move left" onPress={onLeft} disabled={disabled}>
           ←
         </ControlButton>

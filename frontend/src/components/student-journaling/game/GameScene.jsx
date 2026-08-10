@@ -108,10 +108,17 @@ function WorldScroller({
   playerPosRef,
   laneIndexRef,
   resolvedGateIds,
+  customGates,
+  minimalWorld,
+  collectibleCount = 30,
 }) {
-  const collectibles = useMemo(() => generateCollectibles(mapDef, 30), [mapDef?.id]);
-  const obstacles = useMemo(() => generateObstacles(12), [mapDef?.id]);
-  const gates = useMemo(() => generateQuestionGates(mapDef?.id), [mapDef?.id]);
+  const collectibles = useMemo(
+    () => (minimalWorld ? [] : generateCollectibles(mapDef, collectibleCount)),
+    [mapDef?.id, minimalWorld, collectibleCount],
+  );
+  const obstacles = useMemo(() => (minimalWorld ? [] : generateObstacles(12)), [mapDef?.id, minimalWorld]);
+  const staticGates = useMemo(() => generateQuestionGates(mapDef?.id), [mapDef?.id]);
+  const gates = customGates ?? staticGates;
   const accent = mapDef?.accentColor || '#4ade80';
 
   return (
@@ -126,10 +133,10 @@ function WorldScroller({
       <Cloud opacity={0.25} speed={0.1} segments={20} position={[-6, 8, -30]} />
       <Cloud opacity={0.2} speed={0.08} segments={16} position={[7, 7, -60]} />
 
-      {collectibles.map((c) => (
+      {!minimalWorld && collectibles.map((c) => (
         <Collectible key={c.id} type={c.type} position={c.position} onCollect={onCollect} playerPosRef={playerPosRef} />
       ))}
-      {obstacles.map((o) => (
+      {!minimalWorld && obstacles.map((o) => (
         <Obstacle key={o.id} type={o.type} position={o.position} onHit={onHit} playerPosRef={playerPosRef} />
       ))}
       {gates.map((gate) => (
@@ -143,25 +150,27 @@ function WorldScroller({
           accent={accent}
         />
       ))}
-      <MissionGoal z={-MAP_COMPLETE_DISTANCE} accent={accent} />
+      {!minimalWorld && <MissionGoal z={-MAP_COMPLETE_DISTANCE} accent={accent} />}
     </>
   );
 }
 
 function SceneContent({
   mapDef,
-  laneIndex,
   laneIndexRef,
-  jumpTrigger,
-  isPaused,
+  jumpQueuedRef,
+  haltMovement,
+  slowCamera,
   resolvedGateIds,
   onTick,
   onCollect,
   onHit,
   onResolveGate,
+  customGates,
+  minimalWorld,
+  collectibleCount,
 }) {
   const playerPosRef = useRef({ x: 0, y: 1.05, z: 0 });
-  laneIndexRef.current = laneIndex;
 
   const handlePosition = useCallback((pos) => {
     playerPosRef.current = pos;
@@ -173,11 +182,11 @@ function SceneContent({
       <color attach="background" args={[mapDef?.skyColor || '#0a1628']} />
       <fog attach="fog" args={[mapDef?.fogColor || '#1a3a2a', 30, 130]} />
       <GameLighting mapDef={mapDef} />
-      <RunnerCamera playerPosRef={playerPosRef} isPaused={isPaused} />
+      <RunnerCamera playerPosRef={playerPosRef} isPaused={slowCamera} />
       <Player
-        laneIndex={laneIndex}
-        jumpTrigger={jumpTrigger}
-        isPaused={isPaused}
+        laneIndexRef={laneIndexRef}
+        jumpQueuedRef={jumpQueuedRef}
+        haltMovement={haltMovement}
         onPositionChange={handlePosition}
       />
       <WorldScroller
@@ -188,6 +197,9 @@ function SceneContent({
         playerPosRef={playerPosRef}
         laneIndexRef={laneIndexRef}
         resolvedGateIds={resolvedGateIds}
+        customGates={customGates}
+        minimalWorld={minimalWorld}
+        collectibleCount={collectibleCount}
       />
     </>
   );
@@ -196,38 +208,45 @@ function SceneContent({
 export default function GameScene({
   mapDef,
   gameState,
-  laneIndex,
   laneIndexRef,
-  jumpTrigger,
+  jumpQueuedRef,
   onTick,
   onCollect,
   onHit,
   onResolveGate,
+  customGates,
+  minimalWorld,
+  collectibleCount,
 }) {
-  const isPaused = gameState.isPaused || gameState.missionComplete;
+  const haltMovement = gameState.haltMovement ?? gameState.missionComplete;
+  const slowCamera = gameState.slowCamera ?? (gameState.isPaused || gameState.missionComplete);
   if (!mapDef) return null;
 
   return (
-    <div className="absolute inset-0 touch-none z-0">
+    <div className="absolute inset-0 touch-none z-0 pointer-events-none">
       <Canvas
+        frameloop="always"
         shadows
         dpr={[1, 1.5]}
-        style={{ width: '100%', height: '100%', display: 'block' }}
+        style={{ width: '100%', height: '100%', display: 'block', pointerEvents: 'none' }}
         camera={{ position: [0, 3.8, 7], fov: 58, near: 0.1, far: 220 }}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
       >
         <Suspense fallback={null}>
           <SceneContent
             mapDef={mapDef}
-            laneIndex={laneIndex}
             laneIndexRef={laneIndexRef}
-            jumpTrigger={jumpTrigger}
-            isPaused={isPaused}
+            jumpQueuedRef={jumpQueuedRef}
+            haltMovement={haltMovement}
+            slowCamera={slowCamera}
             resolvedGateIds={gameState.resolvedGateIds}
             onTick={onTick}
             onCollect={onCollect}
             onHit={onHit}
             onResolveGate={onResolveGate}
+            customGates={customGates}
+            minimalWorld={minimalWorld}
+            collectibleCount={collectibleCount}
           />
         </Suspense>
       </Canvas>

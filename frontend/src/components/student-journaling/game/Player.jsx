@@ -1,61 +1,58 @@
-import { useRef, useEffect } from 'react';
+import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { LANES, JUMP_FORCE, RUN_SPEED } from '../../../constants/gameMaps';
-import RunnerCharacter, { RunnerShadow } from './RunnerCharacter';
+import GltfRunner, { RunnerShadow } from './GltfRunner';
 
 const GROUND_Y = 1.05;
 const GRAVITY = 28;
 
-export default function Player({ laneIndex = 1, jumpTrigger = 0, isPaused, onPositionChange }) {
+export default function Player({
+  laneIndexRef,
+  jumpQueuedRef,
+  haltMovement = false,
+  onPositionChange,
+}) {
   const groupRef = useRef(null);
-  const pos = useRef({ x: LANES[laneIndex], y: GROUND_Y, z: 0 });
+  const startLane = laneIndexRef?.current ?? 1;
+  const pos = useRef({ x: LANES[startLane], y: GROUND_Y, z: 0 });
   const vy = useRef(0);
   const grounded = useRef(true);
-  const jumpQueued = useRef(false);
-  const targetX = useRef(LANES[laneIndex]);
-  const runPhase = useRef(0);
+  const targetX = useRef(LANES[startLane]);
   const visualRef = useRef(null);
-  const leftLeg = useRef(null);
-  const rightLeg = useRef(null);
-  const leftArm = useRef(null);
-  const rightArm = useRef(null);
   const shadowRef = useRef(null);
-
-  useEffect(() => {
-    targetX.current = LANES[laneIndex];
-  }, [laneIndex]);
-
-  useEffect(() => {
-    jumpQueued.current = true;
-  }, [jumpTrigger]);
+  const isJumpingRef = useRef(false);
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.05);
+    const laneIndex = laneIndexRef?.current ?? 1;
+    targetX.current = LANES[laneIndex];
     pos.current.x = THREE.MathUtils.lerp(pos.current.x, targetX.current, 18 * dt);
 
-    if (!isPaused) {
+    if (!haltMovement) {
       pos.current.z -= RUN_SPEED * dt;
-      runPhase.current += dt * RUN_SPEED;
     }
 
-    if (jumpQueued.current && grounded.current && !isPaused) {
+    if (jumpQueuedRef?.current && grounded.current && !haltMovement) {
       vy.current = JUMP_FORCE;
       grounded.current = false;
-      jumpQueued.current = false;
+      jumpQueuedRef.current = false;
     }
 
     if (!grounded.current) {
       vy.current -= GRAVITY * dt;
       pos.current.y += vy.current * dt;
+      isJumpingRef.current = true;
       if (pos.current.y <= GROUND_Y) {
         pos.current.y = GROUND_Y;
         vy.current = 0;
         grounded.current = true;
+        isJumpingRef.current = false;
       }
     } else {
       pos.current.y = GROUND_Y;
       vy.current = 0;
+      isJumpingRef.current = false;
     }
 
     if (groupRef.current) {
@@ -68,28 +65,16 @@ export default function Player({ laneIndex = 1, jumpTrigger = 0, isPaused, onPos
       shadowRef.current.material.opacity = grounded.current ? 0.28 : 0.12;
     }
 
-    if (visualRef.current) {
-      const swing = grounded.current ? Math.sin(runPhase.current) * 0.65 : 0.35;
-      if (leftLeg.current) leftLeg.current.rotation.x = swing;
-      if (rightLeg.current) rightLeg.current.rotation.x = -swing;
-      if (leftArm.current) leftArm.current.rotation.x = -swing * 0.85;
-      if (rightArm.current) rightArm.current.rotation.x = swing * 0.85;
-      visualRef.current.position.y = grounded.current ? Math.abs(Math.sin(runPhase.current * 2)) * 0.05 : 0;
-      visualRef.current.rotation.x = isPaused ? 0 : -0.2;
-    }
-
     onPositionChange?.({ x: pos.current.x, y: pos.current.y, z: pos.current.z });
   });
 
   return (
-    <group ref={groupRef} position={[LANES[laneIndex], GROUND_Y, 0]}>
+    <group ref={groupRef} position={[LANES[startLane], GROUND_Y, 0]}>
       <RunnerShadow ref={shadowRef} />
-      <RunnerCharacter
+      <GltfRunner
         visualRef={visualRef}
-        leftLeg={leftLeg}
-        rightLeg={rightLeg}
-        leftArm={leftArm}
-        rightArm={rightArm}
+        haltMovement={haltMovement}
+        isJumpingRef={isJumpingRef}
       />
     </group>
   );

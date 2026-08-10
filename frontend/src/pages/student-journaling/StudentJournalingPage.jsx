@@ -14,12 +14,15 @@ import { analyzeBehavior, getUserGamification, getUserMissions, saveUserMissions
 import { startGameSession } from '../../services/gameApi';
 import { buildMapSequence, ACTIVITY_TO_BACKEND, buildBackendActivities } from '../../constants/gameMaps';
 import { isDemoUser, createDemoSession } from '../../constants/demoMode';
+import { isLocalFirstJourneyComplete } from '../../constants/firstJourneyLocal';
 
 const GamePage = lazy(() => import('./GamePage'));
+const FirstJourneyPage = lazy(() => import('./FirstJourneyPage'));
 
 const AUTH_STORAGE_KEY = 'smart-uni-guide-user-id';
 
 const SCREENS = [
+  'first-journey',
   'dashboard',
   'activities',
   'preview',
@@ -76,6 +79,15 @@ export default function StudentJournalingPage({ user = null, onSignOut }) {
   useEffect(() => {
     if (user) setStudent(buildStudentState(user));
   }, [user]);
+
+  const handleStartFromDashboard = () => {
+    const userId = student.id || user?.id || localStorage.getItem(AUTH_STORAGE_KEY);
+    if (userId && isDemoUser(userId) && !isLocalFirstJourneyComplete()) {
+      navigate('first-journey');
+      return;
+    }
+    navigate('activities');
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -202,7 +214,7 @@ export default function StudentJournalingPage({ user = null, onSignOut }) {
     }
   };
 
-  const isFullscreen = screen === 'game';
+  const isFullscreen = screen === 'game' || screen === 'first-journey';
 
   return (
     <div className={`min-h-screen ${isFullscreen ? '' : 'game-bg'}`}>
@@ -234,11 +246,21 @@ export default function StudentJournalingPage({ user = null, onSignOut }) {
             transition={{ duration: 0.28, ease: 'easeInOut' }}
             className={isFullscreen ? 'h-full' : ''}
           >
+            {screen === 'first-journey' && (
+              <Suspense fallback={<GameLoadingScreen />}>
+                <FirstJourneyPage
+                  userId={student.id}
+                  onComplete={() => navigate('dashboard')}
+                  onExit={() => navigate('dashboard')}
+                />
+              </Suspense>
+            )}
+
             {screen === 'dashboard' && (
               <Dashboard
                 student={student}
                 missions={missions}
-                onStartJourney={() => navigate('activities')}
+                onStartJourney={handleStartFromDashboard}
                 onJournal={() => navigate('journal-history')}
                 onWeeklyReflection={() => navigate('weekly')}
                 onSemesterReflection={() => navigate('semester')}
@@ -269,6 +291,7 @@ export default function StudentJournalingPage({ user = null, onSignOut }) {
                   <GamePage
                     maps={mapSequence}
                     missions={missions}
+                    userId={student.id}
                     userId={student.id}
                     session={journeySession}
                     onMissionComplete={handleMissionComplete}

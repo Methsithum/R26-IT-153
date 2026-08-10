@@ -85,6 +85,8 @@ export default function QuestionGate({
     );
   }
 
+  const isInputGate = gate.question_type && gate.question_type !== 'lane';
+
   return (
     <group ref={groupRef} position={[0, 0, gateZ]}>
       <mesh position={[-PATH_HALF - 0.15, 1.8, 0]}>
@@ -112,16 +114,24 @@ export default function QuestionGate({
         </div>
       </Html>
 
-      {gate.options.map((opt, i) => (
-        <LanePortal
-          key={i}
-          x={LANES[i]}
-          label={opt}
-          accent={PORTAL_COLORS[i] || accent}
-        />
-      ))}
+      {isInputGate ? (
+        <Html position={[0, 2.5, 0]} center distanceFactor={16} transform style={{ pointerEvents: 'none' }}>
+          <div className="px-4 py-2 rounded-xl text-xs font-bold text-amber-300 bg-slate-900/90 border border-amber-400/50">
+            ⌨️ Run through to enter your answer
+          </div>
+        </Html>
+      ) : (
+        gate.options.map((opt, i) => (
+          <LanePortal
+            key={i}
+            x={LANES[i]}
+            label={opt}
+            accent={PORTAL_COLORS[i] || accent}
+          />
+        ))
+      )}
 
-      {LANES.map((x, i) => (
+      {!isInputGate && LANES.map((x, i) => (
         <mesh key={i} rotation={[-Math.PI / 2, 0, 0]} position={[x, 0.03, 0]}>
           <ringGeometry args={[0.45, 0.65, 16]} />
           <meshStandardMaterial

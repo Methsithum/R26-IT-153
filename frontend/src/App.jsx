@@ -17,8 +17,9 @@ const DEMO_USER = {
   streak: 3,
   longest_streak: 5,
   badges: [],
-  completed_sessions: 2,
-  total_sessions: 2,
+  completed_sessions: 0,
+  total_sessions: 0,
+  first_journey_completed: false,
 };
 
 async function loadUserProfile(userId) {
@@ -50,7 +51,10 @@ export default function App() {
       const storedUserId = localStorage.getItem(AUTH_STORAGE_KEY);
 
       if (!storedUserId) {
+        // Testing mode: skip login, go straight to demo game
         if (!cancelled) {
+          localStorage.setItem(AUTH_STORAGE_KEY, DEMO_USER_ID);
+          setAuthUser({ ...DEMO_USER });
           setAuthLoading(false);
         }
         return;
