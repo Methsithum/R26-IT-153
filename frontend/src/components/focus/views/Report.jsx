@@ -1,23 +1,49 @@
-import React, { useState } from "react";
+import React from "react";
 import Card from "../Card";
-import { WEEKLY, REPORT_TYPES } from "../focusData";
 
-export default function TabReport({ focusMin, points, dist, myRank }) {
-  const [selectedDate, setSelectedDate] = useState(WEEKLY[2].date);
-  const selectedDay = WEEKLY.find(d => d.date === selectedDate) || WEEKLY[2];
+// All figures here come from the live session (props from FocusApp) — there's
+// no persistence, so this is a "today so far" report, not a multi-day one.
+export default function TabReport({ focusMin, points, dist, myRank, todayGoal }) {
+  const distTotal = Object.values(dist).reduce((a, b) => a + b, 0);
+  const trackedTotal = focusMin + distTotal;
+  const focusScore = trackedTotal > 0 ? Math.round((focusMin / trackedTotal) * 100) : 0;
+  const goalPct = Math.round(Math.min((focusMin / todayGoal) * 100, 100));
 
   const dailySummary = [
-    { label: "Focus", value: focusMin, unit: "min", color: "#22c55e", pct: Math.round((focusMin / 120) * 100) },
-    { label: "Fatigue", value: dist.Fatigue, unit: "min", color: "#f97316", pct: Math.round((dist.Fatigue / Object.values(dist).reduce((a, b) => a + b, 0)) * 100) },
-    { label: "Anxiety", value: dist.Anxiety, unit: "min", color: "#ef4444", pct: Math.round((dist.Anxiety / Object.values(dist).reduce((a, b) => a + b, 0)) * 100) },
-    { label: "Boredom", value: dist.Boredom, unit: "min", color: "#3b82f6", pct: Math.round((dist.Boredom / Object.values(dist).reduce((a, b) => a + b, 0)) * 100) },
+    { label: "Focus", value: focusMin, unit: "min", color: "#22c55e", pct: trackedTotal > 0 ? Math.round((focusMin / trackedTotal) * 100) : 0 },
+    { label: "Fatigue", value: dist.Fatigue || 0, unit: "min", color: "#f97316", pct: distTotal > 0 ? Math.round(((dist.Fatigue || 0) / distTotal) * 100) : 0 },
+    { label: "Anxiety", value: dist.Anxiety || 0, unit: "min", color: "#ef4444", pct: distTotal > 0 ? Math.round(((dist.Anxiety || 0) / distTotal) * 100) : 0 },
+    { label: "Boredom", value: dist.Boredom || 0, unit: "min", color: "#3b82f6", pct: distTotal > 0 ? Math.round(((dist.Boredom || 0) / distTotal) * 100) : 0 },
   ];
+
+  const dominantDistraction = distTotal > 0
+    ? Object.entries(dist).sort((a, b) => b[1] - a[1])[0][0]
+    : null;
+
+  const notes = [
+    trackedTotal === 0
+      ? { icon: "📷", text: "No detections yet this session — start Live Monitoring to build your report.", color: "#64748b" }
+      : null,
+    dominantDistraction
+      ? { icon: "🎯", text: `${dominantDistraction} has been your most common distraction so far this session (${dist[dominantDistraction]}m).`, color: "#f97316" }
+      : null,
+    focusMin >= todayGoal
+      ? { icon: "🎉", text: `You've hit today's ${todayGoal}-minute focus goal!`, color: "#22c55e" }
+      : trackedTotal > 0
+        ? { icon: "⏱", text: `${Math.max(todayGoal - Math.round(focusMin), 0)} more focused minutes to reach today's goal.`, color: "#3b82f6" }
+        : null,
+  ].filter(Boolean);
 
   return (
     <div className="grid grid-cols-12 gap-4">
       <div className="col-span-12">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-          {[{ label: "Daily Focus", value: `${focusMin}m`, icon: "⏱", color: "#22c55e" }, { label: "Weekly Focus", value: "8.2h", icon: "📊", color: "#3b82f6" }, { label: "Best Day", value: "Wed", icon: "🏆", color: "#f59e0b" }, { label: "Focus Score", value: "74%", icon: "🎯", color: "#a855f7" }].map(s => (
+          {[
+            { label: "Focus Time", value: `${Math.round(focusMin)}m`, icon: "⏱", color: "#22c55e" },
+            { label: "Distraction Time", value: `${Math.round(distTotal)}m`, icon: "😴", color: "#f97316" },
+            { label: "Focus Score", value: `${focusScore}%`, icon: "🎯", color: "#a855f7" },
+            { label: "Goal Progress", value: `${goalPct}%`, icon: "📊", color: "#3b82f6" },
+          ].map(s => (
             <Card key={s.label} className="p-4 text-center">
               <p className="text-2xl mb-1">{s.icon}</p>
               <p className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
@@ -30,8 +56,8 @@ export default function TabReport({ focusMin, points, dist, myRank }) {
           <Card className="p-6">
             <div className="flex items-center justify-between mb-5">
               <div>
-                <h3 className="font-semibold text-slate-900">Daily Summary</h3>
-                <p className="text-xs text-slate-600">Today's focus and distraction split</p>
+                <h3 className="font-semibold text-slate-900">Session Summary</h3>
+                <p className="text-xs text-slate-600">Focus and distraction split so far today</p>
               </div>
               <div className="text-xs px-2.5 py-1 rounded-full border border-slate-300 text-slate-600">{new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
             </div>
@@ -51,48 +77,15 @@ export default function TabReport({ focusMin, points, dist, myRank }) {
           </Card>
 
           <Card className="p-6">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <h3 className="font-semibold text-slate-900">Weekly Summary</h3>
-                <p className="text-xs text-slate-600">Pick a date to see the day details</p>
-              </div>
-              <select value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 outline-none">
-                {WEEKLY.map(d => (<option key={d.date} value={d.date}>{d.date} - {d.day}</option>))}
-              </select>
-            </div>
-            <div className="grid grid-cols-7 gap-2 items-end h-44 mb-5">
-              {WEEKLY.map(d => {
-                const active = d.date === selectedDate;
-                return (
-                  <button key={d.date} onClick={() => setSelectedDate(d.date)} className="flex h-full flex-col items-center justify-end gap-1 text-left">
-                    <span className="text-[10px] text-slate-600">{d.focus}%</span>
-                    <div className="w-full rounded-t-lg transition-all duration-300" style={{ height: `${(d.focus / 100) * 140}px`, background: active ? "linear-gradient(180deg,#a855f7,#7c3aed)" : "linear-gradient(180deg,#22c55e,#16a34a)", boxShadow: active ? "0 0 14px #a855f744" : "0 0 12px #22c55e30", border: active ? "1px solid rgba(255,255,255,0.18)" : "1px solid rgba(255,255,255,0.05)" }} />
-                    <span className="text-[10px] text-slate-600">{d.day}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="rounded-2xl border border-slate-200 p-4" style={{ background: `linear-gradient(135deg,${selectedDay.focus >= 85 ? "#22c55e" : "#3b82f6"}08,rgba(255,255,255,0.5))` }}>
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">{selectedDay.date}</p>
-                  <p className="text-xs text-slate-600">{selectedDay.day}</p>
-                </div>
-                <span className="text-xs px-2.5 py-1 rounded-full" style={{ backgroundColor: "rgba(0,0,0,0.05)", color: selectedDay.focus >= 85 ? "#22c55e" : "#3b82f6" }}>{selectedDay.detail.note}</span>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {REPORT_TYPES.map(type => {
-                  const value = selectedDay.detail[type.key];
-                  return (
-                    <div key={type.key} className="rounded-xl border p-3" style={{ backgroundColor: `${type.color}08`, borderColor: `${type.color}25` }}>
-                      <p className="text-[11px] uppercase tracking-widest" style={{ color: type.color }}>{type.label}</p>
-                      <p className="mt-1 text-2xl font-bold" style={{ color: type.color }}>{value}</p>
-                      <p className="text-[11px] text-slate-600">minutes</p>
-                    </div>
-                  );
-                })}
+            <h3 className="font-semibold text-slate-900 mb-2">Daily Goal</h3>
+            <p className="text-xs text-slate-600 mb-4">{Math.round(focusMin)} / {todayGoal} focused minutes</p>
+            <div className="h-3 rounded-full bg-slate-200 overflow-hidden mb-2">
+              <div className="h-full rounded-full relative transition-all duration-700" style={{ width: `${goalPct}%`, background: "linear-gradient(90deg,#22c55e,#86efac)", boxShadow: "0 0 10px #22c55e40" }}>
+                <div className="absolute inset-0 bg-white/10 animate-pulse" />
               </div>
             </div>
+            <p className="text-2xl font-bold text-green-500">{goalPct}%</p>
+            {focusMin >= todayGoal && <p className="text-xs text-green-500 mt-1">🎉 Goal achieved! +100 bonus pts</p>}
           </Card>
         </div>
 
@@ -101,11 +94,11 @@ export default function TabReport({ focusMin, points, dist, myRank }) {
             <h3 className="font-semibold text-slate-900 mb-4">Daily Report</h3>
             <div className="space-y-2 text-sm">
               {[
-                { label: "Focus Time", value: `${focusMin} min`, color: "#22c55e" },
+                { label: "Focus Time", value: `${Math.round(focusMin)} min`, color: "#22c55e" },
                 { label: "Total Points", value: `${points} pts`, color: "#f59e0b" },
-                { label: "Fatigue Events", value: `${dist.Fatigue} min`, color: "#f97316" },
-                { label: "Anxiety Events", value: `${dist.Anxiety} min`, color: "#ef4444" },
-                { label: "Boredom Events", value: `${dist.Boredom} min`, color: "#3b82f6" },
+                { label: "Fatigue Events", value: `${dist.Fatigue || 0} min`, color: "#f97316" },
+                { label: "Anxiety Events", value: `${dist.Anxiety || 0} min`, color: "#ef4444" },
+                { label: "Boredom Events", value: `${dist.Boredom || 0} min`, color: "#3b82f6" },
                 { label: "Team Rank", value: `#${myRank}`, color: "#a855f7" },
               ].map(r => (
                 <div key={r.label} className="flex justify-between py-2 border-b border-slate-200">
@@ -117,9 +110,9 @@ export default function TabReport({ focusMin, points, dist, myRank }) {
           </Card>
 
           <Card className="p-5">
-            <h3 className="font-semibold text-slate-900 mb-4">💡 Personalized Insights</h3>
+            <h3 className="font-semibold text-slate-900 mb-4">💡 Session Notes</h3>
             <div className="space-y-3">
-              {[{ icon: "📉", text: "Friday had most distractions due to fatigue. You studied 4 hours continuously. Try adding short breaks next Friday.", color: "#f97316" }, { icon: "🌟", text: "Wednesday was your best focus day this week with 91% focus rate!", color: "#22c55e" }, { icon: "🎯", text: "Your Boredom episodes peak after 45-min study blocks. Consider switching topics then.", color: "#3b82f6" }].map((ins, i) => (
+              {notes.map((ins, i) => (
                 <div key={i} className="flex gap-3 p-3 rounded-xl border" style={{ borderColor: `${ins.color}25`, backgroundColor: `${ins.color}08` }}>
                   <span className="text-xl shrink-0">{ins.icon}</span>
                   <p className="text-xs text-slate-700 leading-relaxed">{ins.text}</p>

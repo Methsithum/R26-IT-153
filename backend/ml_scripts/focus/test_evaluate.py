@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 BASE_DIR     = Path(__file__).resolve().parents[2]
 MODELS_PATH  = BASE_DIR / "trained-models" / "focus"
-DATASET_PATH = BASE_DIR / "datasets" / "focus" / "Final_dataset" / "test"
+DATASET_PATH = BASE_DIR / "datasets" / "focus" / "Final_dataset_clean" / "test"
 
 
 IMG_SIZE       = 224

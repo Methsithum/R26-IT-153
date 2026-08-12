@@ -27,7 +27,7 @@ from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 # ══════════════════════════════════════════════════════
 
 BASE_DIR     = Path(__file__).resolve().parents[2]
-DATASET_PATH = BASE_DIR / "datasets" / "focus" / "Final_dataset"
+DATASET_PATH = BASE_DIR / "datasets" / "focus" / "Final_dataset_clean"
 OUTPUT_PATH  = BASE_DIR / "trained-models" / "focus"
 OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
 
@@ -290,12 +290,12 @@ X_te_sc = scaler.transform(X_test)
 # ⑤ TRAIN 3 ALGORITHMS
 # ══════════════════════════════════════════════════════
 
-# CLASSES index: Focused=0, Fatigue=1, Anxiety=2, Boredom=3
+# LabelEncoder sorts alphabetically: Anxiety=0, Boredom=1, Fatigue=2, Focused=3
 CLASS_W = {
-    0: 10.0,   # Focused
-    1: 10.0,   # Fatigue
-    2:  0.2,   # Anxiety  ← low
-    3: 12.0,   # Boredom
+    0: 10.0,   # Anxiety
+    1: 12.0,   # Boredom
+    2: 10.0,   # Fatigue
+    3: 10.0,   # Focused
 }
 
 results = {}
@@ -405,7 +405,7 @@ cm     = confusion_matrix(y_te, y_pred)
 
 fig, ax = plt.subplots(figsize=(8, 6))
 sns.heatmap(cm, annot=True, fmt="d", cmap="Blues",
-            xticklabels=CLASSES, yticklabels=CLASSES, ax=ax)
+            xticklabels=list(le.classes_), yticklabels=list(le.classes_), ax=ax)
 ax.set_title(f"Confusion Matrix — {best_name}",
              fontsize=12, fontweight="bold")
 ax.set_ylabel("Actual")
@@ -420,7 +420,7 @@ for name, r in results.items():
     xu   = X_te_sc if r["scaled"] else X_test
     pred = r["model"].predict(xu)
     rep  = classification_report(y_te, pred,
-                                  target_names=CLASSES, output_dict=True)
+                                  target_names=list(le.classes_), output_dict=True)
     report_dict[name] = {cls: rep[cls]["f1-score"] for cls in CLASSES}
 
 fig, ax = plt.subplots(figsize=(10, 5))
@@ -449,7 +449,7 @@ plt.close()
 
 print(f"\n  📊 Graphs saved: {OUTPUT_PATH}")
 print(f"\n  Classification Report ({best_name}):")
-print(classification_report(y_te, y_pred, target_names=CLASSES))
+print(classification_report(y_te, y_pred, target_names=list(le.classes_)))
 
 # ══════════════════════════════════════════════════════
 # ⑦ SAVE BEST MODEL

@@ -84,12 +84,13 @@ export default function TabDashboard({ state, points, focusMin, streak, TEAM, AC
           <div className="space-y-3">
             {[{ k: "Fatigue", icon: "😴", c: "#f97316" }, { k: "Anxiety", icon: "😰", c: "#ef4444" }, { k: "Boredom", icon: "😑", c: "#3b82f6" }].map(d => {
               const total = Object.values(dist).reduce((a, b) => a + b, 0) || 1;
-              const pct = Math.round((dist[d.k] / total) * 100);
+              const val = dist[d.k] || 0;
+              const pct = Math.round((val / total) * 100);
               return (
                 <div key={d.k}>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-slate-700">{d.icon} {d.k}</span>
-                    <span style={{ color: d.c }}>{dist[d.k]}m ({pct}%)</span>
+                    <span style={{ color: d.c }}>{val}m ({pct}%)</span>
                   </div>
                   <div className="h-1.5 rounded-full bg-slate-300">
                     <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: d.c, boxShadow: `0 0 6px ${d.c}50` }} />

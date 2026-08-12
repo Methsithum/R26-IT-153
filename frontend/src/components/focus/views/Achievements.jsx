@@ -1,8 +1,7 @@
 import React from "react";
 import Card from "../Card";
-import { ACHIEVEMENTS_LIST } from "../focusData";
 
-export default function TabAchievements() {
+export default function TabAchievements({ ACHIEVEMENTS_LIST }) {
   return (
     <div className="grid grid-cols-12 gap-4">
       <div className="col-span-12">
