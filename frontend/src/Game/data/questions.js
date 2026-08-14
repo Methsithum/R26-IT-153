@@ -7,7 +7,8 @@
 // }
 
 import { ASSIGNMENT_STATUS, isMarkReviewDue, needsDeadline } from "./assignments";
-import { getBuildingForInteraction } from "./buildings";
+import { getBuildingForInteraction, getFacultyForSubject } from "./buildings";
+import { pendingExams } from "./exams";
 
 const NORMAL_QUESTION_POOL = [
   {
@@ -27,7 +28,7 @@ const NORMAL_QUESTION_POOL = [
   {
     id: "q-main-activity",
     questionText: "What did you mainly work on today?",
-    answers: ["Assignment", "Lecture", "Internship"],
+    answers: ["Assignment", "Lecture", "Internship", "Personal Project"],
     answerType: "choice",
     category: "activity",
   },
@@ -48,7 +49,7 @@ const NORMAL_QUESTION_POOL = [
   {
     id: "q-mood",
     questionText: "How was your energy level today?",
-    answers: ["Low", "Okay", "Great"],
+    answers: ["Low", "Okay", "Good", "Great"],
     answerType: "choice",
     category: "wellbeing",
   },
@@ -76,7 +77,7 @@ function makeQuestion(base, overrides = {}) {
  * This is what keeps RULE 4-8 true: nothing is asked just because a
  * building exists, and nothing already-collected gets asked again.
  */
-function generateSpecialQuestions(assignments, today = new Date()) {
+function generateSpecialQuestions(assignments, exams = [], today = new Date()) {
   const special = [];
 
   for (const assignment of assignments) {
@@ -115,12 +116,32 @@ function generateSpecialQuestions(assignments, today = new Date()) {
             // structured numeric interaction if the answer is "Yes".
             requiresSpecialInteraction: false,
             interactionType: "marks",
-            targetLocation: getBuildingForInteraction("marks").id,
+            targetLocation: getFacultyForSubject(assignment.subject),
             context: { assignmentId: assignment.id, field: "mark-check" },
           }
         )
       );
     }
+  }
+
+  const stillPending = pendingExams(exams);
+  if (stillPending.length > 0) {
+    special.push(
+      makeQuestion(
+        {
+          id: `q-exam-dates-${stillPending.map((e) => e.id).join("-")}`,
+          questionText: "You have exam dates that still need to be confirmed.",
+          answerType: "date",
+          category: "exam",
+        },
+        {
+          requiresSpecialInteraction: true,
+          interactionType: "examDate",
+          targetLocation: "exam-hall",
+          context: { field: "examDates" },
+        }
+      )
+    );
   }
 
   return special;
@@ -131,13 +152,23 @@ function generateSpecialQuestions(assignments, today = new Date()) {
  * interleaved with any special-interaction questions currently due.
  * Zero special questions is a perfectly valid, expected result.
  */
-export function generateDailyQuestions({ assignments, questionCount = 4, today = new Date() }) {
-  const shuffledNormal = [...NORMAL_QUESTION_POOL]
-    .sort(() => Math.random() - 0.5)
+export function generateDailyQuestions({
+  assignments,
+  exams = [],
+  questionCount = 4,
+  today = new Date(),
+  preferredCategories = [],
+}) {
+  // Bias toward categories implied by the student's Daily Activity
+  // Selection, without ever excluding the rest of the pool.
+  const shuffled = [...NORMAL_QUESTION_POOL].sort(() => Math.random() - 0.5);
+  const preferred = shuffled.filter((q) => preferredCategories.includes(q.category));
+  const rest = shuffled.filter((q) => !preferredCategories.includes(q.category));
+  const shuffledNormal = [...preferred, ...rest]
     .slice(0, questionCount)
     .map((q) => makeQuestion(q));
 
-  const specials = generateSpecialQuestions(assignments, today);
+  const specials = generateSpecialQuestions(assignments, exams, today);
 
   // Interleave: normal, normal, [special if any], normal...
   const queue = [];

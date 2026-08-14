@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useRunnerStore } from "../state/runnerStore";
 
-const ROAD_WIDTH = 7.2;
+const ROAD_WIDTH = 8.8; // wide enough for 4 lanes at LANES pitch (2.2 apart)
 const SPAN = 140; // total length of the following ground strip
 
 export default function Road() {
@@ -23,8 +23,8 @@ export default function Road() {
         <meshStandardMaterial color="#4a4d52" />
       </mesh>
 
-      {/* lane dividers */}
-      {[-1.1, 1.1].map((x) => (
+      {/* lane dividers — midpoints between the 4 lane centers */}
+      {[-2.2, 0, 2.2].map((x) => (
         <group key={x}>
           {Array.from({ length: Math.floor(SPAN / 4) }).map((_, i) => (
             <mesh

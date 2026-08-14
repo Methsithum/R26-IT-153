@@ -1,7 +1,9 @@
 import { create } from "zustand";
 import { generateDailyQuestions, shouldEscalateToMarkEntry } from "../data/questions";
 import { initialAssignments, ASSIGNMENT_STATUS } from "../data/assignments";
+import { initialExams, EXAM_STATUS } from "../data/exams";
 import { getBuildingById } from "../data/buildings";
+import { useJournalHistoryStore } from "./journalHistoryStore";
 import { useRunnerStore } from "./runnerStore";
 import {
   createEmptyJournalDay,
@@ -51,6 +53,8 @@ export const useGameStore = create((set, get) => ({
   speed: 12,
 
   assignments: initialAssignments,
+  exams: initialExams,
+  selectedActivities: [],
   journalDay: createEmptyJournalDay(initialDay),
 
   questionQueue: [],
@@ -66,11 +70,20 @@ export const useGameStore = create((set, get) => ({
   dailyCompleted: false,
 
   // --- lifecycle ---
-  startDailyGame: () => {
-    const { assignments, day } = get();
-    const queue = generateDailyQuestions({ assignments, questionCount: 4 });
+  // `activities` is the set of category ids the student picked on the Daily
+  // Activity Selection screen (e.g. ["academic", "wellbeing"]) — it biases
+  // which normal questions surface first without excluding the rest.
+  startDailyGame: (activities = []) => {
+    const { assignments, exams, day } = get();
+    const queue = generateDailyQuestions({
+      assignments,
+      exams,
+      questionCount: 4,
+      preferredCategories: activities,
+    });
     set({
       phase: PHASES.RUNNING,
+      selectedActivities: activities,
       questionQueue: queue,
       questionIndex: 0,
       activeQuestion: null,
@@ -166,8 +179,9 @@ export const useGameStore = create((set, get) => ({
   // Called by the (future) mini-game via SpecialInteractionRouter with
   // { completed: true, value }
   completeSpecialInteraction: (result) => {
-    const { activeQuestion, journalDay, assignments } = get();
+    const { activeQuestion, journalDay, assignments, exams } = get();
     let updatedAssignments = assignments;
+    let updatedExams = exams;
 
     if (activeQuestion?.context?.assignmentId) {
       updatedAssignments = assignments.map((a) => {
@@ -187,9 +201,20 @@ export const useGameStore = create((set, get) => ({
       });
     }
 
+    // Exam Calendar Sort resolves every pending exam in one interaction:
+    // result.value is { [examId]: dateString }.
+    if (activeQuestion?.context?.field === "examDates" && result.value) {
+      updatedExams = exams.map((e) =>
+        result.value[e.id]
+          ? { ...e, date: result.value[e.id], status: EXAM_STATUS.DATE_RECORDED }
+          : e
+      );
+    }
+
     set({
       phase: PHASES.SPECIAL_INTERACTION_COMPLETED,
       assignments: updatedAssignments,
+      exams: updatedExams,
       journalDay: recordInteraction(journalDay, activeQuestion, result),
       xp: get().xp + XP_RULES.INTERACTION,
       score: get().score + 300,
@@ -213,13 +238,23 @@ export const useGameStore = create((set, get) => ({
   },
 
   finishDailyGame: () => {
-    const { journalDay, xp, score } = get();
+    const { journalDay, xp, score, day, level } = get();
+    const finalXp = xp + XP_RULES.DAILY_COMPLETE;
+    const completedDay = completeJournalDay(journalDay, finalXp, score);
     set({
       phase: PHASES.DAILY_COMPLETION,
       dailyCompleted: true,
-      journalDay: completeJournalDay(journalDay, xp, score),
-      xp: xp + XP_RULES.DAILY_COMPLETE,
+      journalDay: completedDay,
+      xp: finalXp,
       objectiveText: "Daily journal complete",
+    });
+    useJournalHistoryStore.getState().addEntry({
+      day,
+      journalDay: completedDay,
+      xp: finalXp,
+      score,
+      level,
+      completedAt: completedDay.completedAt,
     });
   },
 

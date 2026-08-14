@@ -1,4 +1,5 @@
 import { BUILDINGS } from "../data/buildings";
+import { LANES } from "../state/runnerStore";
 
 export const CHUNK_LENGTH = 40;
 export const LOOKAHEAD_CHUNKS = 6;
@@ -46,7 +47,7 @@ export function generateChunk(index) {
   const obstacles = [];
   // Keep the first few chunks clear so the player has time to learn controls.
   if (index > 2 && rand() > 0.35) {
-    const lane = Math.floor(rand() * 3); // 0 left, 1 center, 2 right
+    const lane = Math.floor(rand() * LANES.length); // one of the 4 lanes
     const kind = OBSTACLE_KINDS[Math.floor(rand() * OBSTACLE_KINDS.length)];
     obstacles.push({
       id: `obs-${index}`,

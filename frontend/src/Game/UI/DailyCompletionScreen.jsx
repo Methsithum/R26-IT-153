@@ -1,7 +1,9 @@
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import { useGameStore } from "../state/GameStateManager";
 
 export default function DailyCompletionScreen() {
+  const navigate = useNavigate();
   const day = useGameStore((s) => s.day);
   const xp = useGameStore((s) => s.xp);
   const score = useGameStore((s) => s.score);
@@ -32,10 +34,13 @@ export default function DailyCompletionScreen() {
           </div>
         </div>
         <button
-          onClick={() => useGameStore.getState().startNextDay()}
+          onClick={() => {
+            useGameStore.getState().startNextDay();
+            navigate("/");
+          }}
           className="rounded-xl bg-emerald-400 hover:bg-emerald-300 transition-colors text-slate-900 font-semibold px-6 py-3"
         >
-          Continue to Day {day + 1}
+          Return to Journal
         </button>
       </motion.div>
     </div>

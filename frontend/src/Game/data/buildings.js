@@ -76,3 +76,12 @@ export function getBuildingForInteraction(interactionType) {
     BUILDINGS.find((b) => b.id === "library")
   );
 }
+
+// Subject-aware routing for mark-entry interactions, so different subjects
+// naturally surface different faculty buildings (and therefore different
+// mini-game skins — see MiniGames/pickVariant).
+const SCIENCE_SUBJECTS = ["Databases", "Operating Systems", "Web Development", "Mathematics"];
+
+export function getFacultyForSubject(subject) {
+  return SCIENCE_SUBJECTS.includes(subject) ? "faculty-science" : "faculty-arts";
+}

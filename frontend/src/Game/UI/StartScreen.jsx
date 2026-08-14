@@ -1,7 +1,9 @@
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import { useGameStore } from "../state/GameStateManager";
 
 export default function StartScreen() {
+  const navigate = useNavigate();
   const day = useGameStore((s) => s.day);
 
   return (
@@ -15,7 +17,7 @@ export default function StartScreen() {
         <h1 className="text-3xl font-bold text-slate-50 mb-1">University Campus Run</h1>
         <p className="text-slate-400 text-sm mb-6">Day {day} — run, answer today's check-ins, and keep your journal up to date.</p>
         <button
-          onClick={() => useGameStore.getState().startDailyGame()}
+          onClick={() => navigate("/journal/activities")}
           className="rounded-xl bg-amber-400 hover:bg-amber-300 transition-colors text-slate-900 font-semibold px-6 py-3"
         >
           Start Today's Run

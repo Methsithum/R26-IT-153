@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { useRunnerStore } from "../state/runnerStore";
+import { useRunnerStore, LANES } from "../state/runnerStore";
 import { PHASES, useGameStore } from "../state/GameStateManager";
 import QuestionBoard from "./QuestionBoard";
 import AnswerLane from "./AnswerLane";
@@ -8,12 +8,18 @@ import AnswerLane from "./AnswerLane";
 const BOARD_DISTANCE_AHEAD = 34; // how far ahead the board spawns when triggered
 const LANE_GAP = 16; // distance from board to the answer gates
 const SPAWN_GAP = 60; // minimum run distance between questions
+const LANE_COUNT = LANES.length;
 
+// Map an answer set onto all LANE_COUNT lanes without ever dropping an
+// answer. Every question has at most LANE_COUNT choices, so each answer
+// gets its own lane; if there are fewer answers than lanes, the leftover
+// lanes repeat the last answer rather than leaving a dead gate.
 function laneMapping(answers) {
-  if (!answers) return [null, null, null];
-  if (answers.length >= 3) return [answers[0], answers[1], answers[2]];
-  if (answers.length === 2) return [answers[0], answers[0], answers[1]];
-  return [answers[0], answers[0], answers[0]];
+  if (!answers || answers.length === 0) return Array(LANE_COUNT).fill(null);
+  return Array.from(
+    { length: LANE_COUNT },
+    (_, i) => answers[Math.min(i, answers.length - 1)]
+  );
 }
 
 export default function QuestionSystem() {

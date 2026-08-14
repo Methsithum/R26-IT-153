@@ -4,15 +4,17 @@ import { create } from "zustand";
 // so per-frame position updates don't thrash the wider React tree.
 // Components that need live position should select narrowly.
 
-// World X offsets for [left, center, right] as seen on screen. The follow
-// camera looks down +Z, which flips screen-right to world -X, so "left"
-// maps to a positive world X offset here.
-export const LANES = [2.2, 0, -2.2];
-export const LANE_NAMES = ["left", "center", "right"];
+// World X offsets for 4 lanes, as seen on screen. The follow camera looks
+// down +Z, which flips screen-right to world -X, so "leftmost" maps to the
+// largest positive world X offset here. 4 lanes so every question can map
+// one lane to each of its (up to 4) answer choices without collapsing any.
+export const LANES = [3.3, 1.1, -1.1, -3.3];
+export const LANE_NAMES = ["far-left", "left", "right", "far-right"];
+const LAST_LANE = LANES.length - 1;
 
 export const useRunnerStore = create((set, get) => ({
-  laneIndex: 1, // 0 left, 1 center, 2 right
-  targetX: 0,
+  laneIndex: 1, // 0 far-left .. 3 far-right; starts in an inner lane
+  targetX: LANES[1],
   posX: 0,
   posY: 0,
   posZ: 0,
@@ -26,7 +28,7 @@ export const useRunnerStore = create((set, get) => ({
     set({ laneIndex: idx, targetX: LANES[idx] });
   },
   moveRight: () => {
-    const idx = Math.min(2, get().laneIndex + 1);
+    const idx = Math.min(LAST_LANE, get().laneIndex + 1);
     set({ laneIndex: idx, targetX: LANES[idx] });
   },
   jump: () => {
@@ -44,5 +46,5 @@ export const useRunnerStore = create((set, get) => ({
   setDistance: (d) => set({ distance: d }),
   setRunning: (v) => set({ isRunning: v }),
 
-  resetToCenter: () => set({ laneIndex: 1, targetX: 0 }),
+  resetToCenter: () => set({ laneIndex: 1, targetX: LANES[1] }),
 }));
