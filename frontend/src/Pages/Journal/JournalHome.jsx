@@ -65,9 +65,9 @@ function BookFlip({ pageKey, direction, children, className = "" }) {
   );
 }
 
-function OpenJournalContent() {
+function OpenJournalContent({ selectTab }) {
   const day = useGameStore((s) => s.day);
-  const navigate = useNavigate();
+  const dailyCompleted = useGameStore((s) => s.dailyCompleted);
 
   return (
     <div className="flex flex-col h-full justify-between">
@@ -77,8 +77,10 @@ function OpenJournalContent() {
         </div>
         <h2 className="text-2xl font-bold text-stone-800 mb-4">Welcome back, Alex!</h2>
         <p className="text-sm text-stone-600 leading-relaxed max-w-sm">
-          Complete today's campus run to log your journal entry. Your check-ins,
-          deadlines and marks are collected as you play — nothing to fill in by hand.
+          {dailyCompleted
+            ? "Today's entry is complete. Come back tomorrow to continue your streak."
+            : "Today's journal entry is still incomplete. Complete your campus run to log it."}{" "}
+          Your check-ins, deadlines and marks are collected as you play — nothing to fill in by hand.
         </p>
       </div>
       <div className="mt-6 flex justify-center">
@@ -88,14 +90,16 @@ function OpenJournalContent() {
           className="bg-amber-50 border border-amber-800/10 shadow-lg px-6 py-5 rounded-sm text-center max-w-xs"
         >
           <div className="text-xs text-stone-500 mb-3">
-            Start today's game to log your journal entry.
+            {dailyCompleted
+              ? "Check the roadmap to see when the next day unlocks."
+              : "Start today's game to log your journal entry."}
           </div>
           <button
-            onClick={() => navigate("/journal/activities")}
+            onClick={() => selectTab("roadmap")}
             className="rounded-lg bg-amber-700 hover:bg-amber-600 transition-colors text-amber-50
                        font-semibold px-5 py-2.5 text-sm shadow"
           >
-            Start Game (Day {day})
+            {dailyCompleted ? "View Roadmap" : `Start Game (Day ${day})`}
           </button>
         </motion.div>
       </div>
@@ -119,25 +123,30 @@ const EXAM_BADGES = {
 
 const ROADMAP_ICONS = ["🏛️", "📚", "🏫", "🔬"];
 
+// Candy-Crush-style progression: only Day 1..currentDay are reachable.
+// currentDay is the one playable node; everything beyond it is locked
+// until the current day's run is completed (GameStateManager.startNextDay
+// only then advances `day`).
 const NODE_STYLE = {
   completed: { fill: "#2f9e63", stroke: "#1d6b42", label: "#ffffff" },
-  missed: { fill: "#c9a26a", stroke: "#8f7350", label: "#5b4630" },
   current: { fill: "#b45309", stroke: "#7c3a06", label: "#ffffff" },
-  upcoming: { fill: "#efe4c8", stroke: "#a8895a", label: "#5b4630" },
   locked: { fill: "#d8d2c4", stroke: "#a8895a", label: "#8a7457" },
 };
 
 const NODE_SPACING = 92;
+const LOOKAHEAD_LOCKED_DAYS = 3; // how many locked days are teased beyond today
 
-function RoadmapContent() {
+function RoadmapContent({ onViewDay }) {
+  const navigate = useNavigate();
   const currentDay = useGameStore((s) => s.day);
+  const dailyCompleted = useGameStore((s) => s.dailyCompleted);
   const entries = useJournalHistoryStore((s) => s.entries);
   const completedDays = new Set(entries.map((e) => e.day));
   const scrollRef = useRef(null);
 
   // Always starts at Day 1 — the path grows with progress and scrolls
   // rather than compressing older days out of view.
-  const endDay = currentDay + 3;
+  const endDay = currentDay + LOOKAHEAD_LOCKED_DAYS;
   const days = [];
   for (let d = 1; d <= endDay; d++) days.push(d);
 
@@ -151,10 +160,19 @@ function RoadmapContent() {
   const pathD = positions.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
 
   function nodeState(d) {
-    if (d < currentDay) return completedDays.has(d) ? "completed" : "missed";
-    if (d === currentDay) return "current";
-    if (d <= currentDay + 3) return "upcoming";
+    if (d < currentDay) return "completed";
+    if (d === currentDay) return dailyCompleted ? "completed" : "current";
     return "locked";
+  }
+
+  function handleNodeClick(d, state) {
+    if (state === "locked") return;
+    if (state === "current") {
+      navigate("/journal/activities");
+      return;
+    }
+    // completed — reopen that day's journal entry
+    if (completedDays.has(d)) onViewDay?.(d);
   }
 
   // Bring "Today" into view whenever the roadmap opens or progresses.
@@ -168,7 +186,9 @@ function RoadmapContent() {
   return (
     <div>
       <h2 className="text-xl font-bold mb-1">Game Roadmap</h2>
-      <p className="text-xs text-stone-500 mb-4">Your campus journey, from Day 1 onward.</p>
+      <p className="text-xs text-stone-500 mb-4">
+        Complete Day {currentDay} to unlock Day {currentDay + 1}.
+      </p>
       <div ref={scrollRef} className="w-full overflow-x-auto pb-2">
         <svg width={W} height={H} className="select-none block">
           <path
@@ -184,15 +204,23 @@ function RoadmapContent() {
             const state = nodeState(d);
             const style = NODE_STYLE[state];
             const r = state === "current" ? 19 : 15;
+            const clickable = state !== "locked";
             return (
-              <g key={d}>
+              <g
+                key={d}
+                onClick={() => handleNodeClick(d, state)}
+                style={{ cursor: clickable ? "pointer" : "not-allowed" }}
+              >
                 {i % 3 === 0 && (
                   <text x={x} y={y - 30} fontSize={17} textAnchor="middle">
                     {ROADMAP_ICONS[(i / 3) % ROADMAP_ICONS.length]}
                   </text>
                 )}
                 {state === "current" && (
-                  <circle cx={x} cy={y} r={r + 7} fill="none" stroke="#b45309" strokeWidth={2} opacity={0.35} />
+                  <circle cx={x} cy={y} r={r + 7} fill="none" stroke="#b45309" strokeWidth={2} opacity={0.35}>
+                    <animate attributeName="r" values={`${r + 4};${r + 11};${r + 4}`} dur="1.8s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="0.45;0.05;0.45" dur="1.8s" repeatCount="indefinite" />
+                  </circle>
                 )}
                 <circle cx={x} cy={y} r={r} fill={style.fill} stroke={style.stroke} strokeWidth={2} />
                 <text
@@ -206,7 +234,7 @@ function RoadmapContent() {
                   {state === "completed" ? "✓" : state === "locked" ? "🔒" : d}
                 </text>
                 <text x={x} y={y + r + 15} fontSize={9.5} textAnchor="middle" fill="#8a7457">
-                  {state === "current" ? "Today" : `Day ${d}`}
+                  {state === "current" ? "Play Today" : `Day ${d}`}
                 </text>
               </g>
             );
@@ -214,19 +242,33 @@ function RoadmapContent() {
         </svg>
       </div>
       <div className="flex flex-wrap gap-4 mt-2 text-[11px] text-stone-500">
-        <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#2f9e63] mr-1" />Completed</span>
-        <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#b45309] mr-1" />Today</span>
-        <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#efe4c8] border border-[#a8895a] mr-1" />Upcoming</span>
+        <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#2f9e63] mr-1" />Completed (tap to view)</span>
+        <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#b45309] mr-1" />Today (tap to play)</span>
         <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#d8d2c4] mr-1" />Locked</span>
       </div>
     </div>
   );
 }
 
-function RecentJournalsContent() {
+function RecentJournalsContent({ focusDay }) {
   const entries = useJournalHistoryStore((s) => s.entries);
   const [index, setIndex] = useState(entries.length - 1);
   const [direction, setDirection] = useState(1);
+
+  // Jump to the entry the Roadmap was clicked for. Adjusting state during
+  // render (rather than in an effect) is the React-recommended pattern for
+  // "reset state when a prop changes" — it avoids an extra render pass.
+  const [lastFocusDay, setLastFocusDay] = useState(focusDay);
+  if (focusDay !== lastFocusDay) {
+    setLastFocusDay(focusDay);
+    if (focusDay != null) {
+      const i = entries.findIndex((e) => e.day === focusDay);
+      if (i >= 0) {
+        setIndex(i);
+        setDirection(1);
+      }
+    }
+  }
 
   if (entries.length === 0) {
     return (
@@ -461,6 +503,7 @@ const TAB_CONTENT = {
 export default function JournalHome() {
   const [tab, setTab] = useState("open");
   const [direction, setDirection] = useState(1);
+  const [focusDay, setFocusDay] = useState(null);
   const tabIndexRef = useRef(0);
   const Content = TAB_CONTENT[tab];
 
@@ -469,6 +512,11 @@ export default function JournalHome() {
     setDirection(nextIndex >= tabIndexRef.current ? 1 : -1);
     tabIndexRef.current = nextIndex;
     setTab(id);
+  }
+
+  function viewDay(d) {
+    setFocusDay(d);
+    selectTab("recent");
   }
 
   return (
@@ -489,7 +537,7 @@ export default function JournalHome() {
         {/* right content page with tabs */}
         <BookFlip pageKey={tab} direction={direction} className="flex-1 min-w-0">
           <Page>
-            <Content />
+            <Content selectTab={selectTab} onViewDay={viewDay} focusDay={focusDay} />
           </Page>
         </BookFlip>
 
