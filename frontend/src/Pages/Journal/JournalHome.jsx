@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGameStore } from "../../Game/state/GameStateManager";
@@ -103,6 +103,20 @@ function OpenJournalContent() {
   );
 }
 
+const ASSIGNMENT_BADGES = {
+  NEW: { icon: "🆕", color: "#8fa6c9", label: "New" },
+  DEADLINE_RECORDED: { icon: "📅", color: "#c9a26a", label: "Deadline Set" },
+  IN_PROGRESS: { icon: "✏️", color: "#e0b45c", label: "In Progress" },
+  COMPLETED: { icon: "✅", color: "#2f9e63", label: "Completed" },
+  MARK_PENDING: { icon: "⏳", color: "#b48fc9", label: "Awaiting Mark" },
+  MARK_RECEIVED: { icon: "🏆", color: "#2f9e63", label: "Mark Received" },
+};
+
+const EXAM_BADGES = {
+  PENDING: { icon: "❓", color: "#c98f8f", label: "Date Pending" },
+  DATE_RECORDED: { icon: "📌", color: "#2f9e63", label: "Date Set" },
+};
+
 const ROADMAP_ICONS = ["🏛️", "📚", "🏫", "🔬"];
 
 const NODE_STYLE = {
@@ -113,22 +127,27 @@ const NODE_STYLE = {
   locked: { fill: "#d8d2c4", stroke: "#a8895a", label: "#8a7457" },
 };
 
+const NODE_SPACING = 92;
+
 function RoadmapContent() {
   const currentDay = useGameStore((s) => s.day);
   const entries = useJournalHistoryStore((s) => s.entries);
   const completedDays = new Set(entries.map((e) => e.day));
+  const scrollRef = useRef(null);
 
-  const startDay = Math.max(1, currentDay - 5);
-  const endDay = currentDay + 4;
+  // Always starts at Day 1 — the path grows with progress and scrolls
+  // rather than compressing older days out of view.
+  const endDay = currentDay + 3;
   const days = [];
-  for (let d = startDay; d <= endDay; d++) days.push(d);
+  for (let d = 1; d <= endDay; d++) days.push(d);
 
-  const W = 640;
   const H = 240;
-  const positions = days.map((d, i) => {
-    const t = days.length > 1 ? i / (days.length - 1) : 0;
-    return { d, x: 36 + t * (W - 72), y: H / 2 + Math.sin(i * 1.4) * 66 };
-  });
+  const W = Math.max(360, 40 + (days.length - 1) * NODE_SPACING + 40);
+  const positions = days.map((d, i) => ({
+    d,
+    x: 40 + i * NODE_SPACING,
+    y: H / 2 + Math.sin(i * 1.4) * 66,
+  }));
   const pathD = positions.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
 
   function nodeState(d) {
@@ -138,53 +157,63 @@ function RoadmapContent() {
     return "locked";
   }
 
+  // Bring "Today" into view whenever the roadmap opens or progresses.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const todayX = 40 + (currentDay - 1) * NODE_SPACING;
+    el.scrollTo({ left: Math.max(0, todayX - el.clientWidth / 2), behavior: "auto" });
+  }, [currentDay]);
+
   return (
     <div>
       <h2 className="text-xl font-bold mb-1">Game Roadmap</h2>
-      <p className="text-xs text-stone-500 mb-4">Your campus journey, one day at a time.</p>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto select-none">
-        <path
-          d={pathD}
-          fill="none"
-          stroke="#a8895a"
-          strokeWidth={3}
-          strokeDasharray="2 9"
-          strokeLinecap="round"
-          opacity={0.6}
-        />
-        {positions.map(({ d, x, y }, i) => {
-          const state = nodeState(d);
-          const style = NODE_STYLE[state];
-          const r = state === "current" ? 19 : 15;
-          return (
-            <g key={d}>
-              {i % 3 === 0 && (
-                <text x={x} y={y - 30} fontSize={17} textAnchor="middle">
-                  {ROADMAP_ICONS[(i / 3) % ROADMAP_ICONS.length]}
+      <p className="text-xs text-stone-500 mb-4">Your campus journey, from Day 1 onward.</p>
+      <div ref={scrollRef} className="w-full overflow-x-auto pb-2">
+        <svg width={W} height={H} className="select-none block">
+          <path
+            d={pathD}
+            fill="none"
+            stroke="#a8895a"
+            strokeWidth={3}
+            strokeDasharray="2 9"
+            strokeLinecap="round"
+            opacity={0.6}
+          />
+          {positions.map(({ d, x, y }, i) => {
+            const state = nodeState(d);
+            const style = NODE_STYLE[state];
+            const r = state === "current" ? 19 : 15;
+            return (
+              <g key={d}>
+                {i % 3 === 0 && (
+                  <text x={x} y={y - 30} fontSize={17} textAnchor="middle">
+                    {ROADMAP_ICONS[(i / 3) % ROADMAP_ICONS.length]}
+                  </text>
+                )}
+                {state === "current" && (
+                  <circle cx={x} cy={y} r={r + 7} fill="none" stroke="#b45309" strokeWidth={2} opacity={0.35} />
+                )}
+                <circle cx={x} cy={y} r={r} fill={style.fill} stroke={style.stroke} strokeWidth={2} />
+                <text
+                  x={x}
+                  y={y + 4}
+                  fontSize={12}
+                  textAnchor="middle"
+                  fill={style.label}
+                  fontWeight="bold"
+                >
+                  {state === "completed" ? "✓" : state === "locked" ? "🔒" : d}
                 </text>
-              )}
-              {state === "current" && (
-                <circle cx={x} cy={y} r={r + 7} fill="none" stroke="#b45309" strokeWidth={2} opacity={0.35} />
-              )}
-              <circle cx={x} cy={y} r={r} fill={style.fill} stroke={style.stroke} strokeWidth={2} />
-              <text
-                x={x}
-                y={y + 4}
-                fontSize={12}
-                textAnchor="middle"
-                fill={style.label}
-                fontWeight="bold"
-              >
-                {state === "completed" ? "✓" : state === "locked" ? "🔒" : d}
-              </text>
-              <text x={x} y={y + r + 15} fontSize={9.5} textAnchor="middle" fill="#8a7457">
-                {state === "current" ? "Today" : `Day ${d}`}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-      <div className="flex flex-wrap gap-4 mt-4 text-[11px] text-stone-500">
+                <text x={x} y={y + r + 15} fontSize={9.5} textAnchor="middle" fill="#8a7457">
+                  {state === "current" ? "Today" : `Day ${d}`}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+      <div className="flex flex-wrap gap-4 mt-2 text-[11px] text-stone-500">
         <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#2f9e63] mr-1" />Completed</span>
         <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#b45309] mr-1" />Today</span>
         <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#efe4c8] border border-[#a8895a] mr-1" />Upcoming</span>
@@ -283,39 +312,110 @@ function GameDetailsContent() {
   const streak = useJournalHistoryStore((s) => s.currentStreak());
   const assignments = useGameStore((s) => s.assignments);
   const exams = useGameStore((s) => s.exams);
+  const xpIntoLevel = xp % 500;
 
   return (
     <div>
       <h2 className="text-xl font-bold mb-4">Game Details</h2>
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        {[
-          ["Level", level],
-          ["XP", xp.toLocaleString()],
-          ["Score", score.toLocaleString()],
-          ["Streak", `${streak} day${streak === 1 ? "" : "s"}`],
-        ].map(([label, val]) => (
-          <div key={label} className="rounded-lg bg-amber-50 border border-amber-800/10 px-3 py-2">
-            <div className="text-[10px] uppercase text-stone-500">{label}</div>
-            <div className="text-lg font-bold text-stone-800">{val}</div>
+
+      {/* gamified header: level badge + XP ring progress + streak flame */}
+      <div className="flex items-center gap-4 mb-5">
+        <div className="relative w-16 h-16 shrink-0">
+          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-amber-300 to-amber-700 shadow-lg" />
+          <div className="absolute inset-[3px] rounded-full bg-[#f5ecd9] flex flex-col items-center justify-center">
+            <div className="text-[9px] uppercase text-stone-500 leading-none">Lv</div>
+            <div className="text-xl font-extrabold text-amber-800 leading-none">{level}</div>
           </div>
-        ))}
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center justify-between text-[11px] text-stone-500 mb-1">
+            <span>XP Progress</span>
+            <span>{xpIntoLevel} / 500</span>
+          </div>
+          <div className="w-full h-3 rounded-full bg-stone-300/70 overflow-hidden shadow-inner">
+            <motion.div
+              className="h-full bg-gradient-to-r from-amber-400 to-amber-600"
+              initial={{ width: 0 }}
+              animate={{ width: `${(xpIntoLevel / 500) * 100}%` }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+            />
+          </div>
+        </div>
+        <div className="flex flex-col items-center rounded-lg bg-orange-50 border border-orange-800/10 px-3 py-1.5">
+          <div className="text-lg leading-none">🔥</div>
+          <div className="text-sm font-extrabold text-orange-700 leading-tight">{streak}</div>
+          <div className="text-[9px] uppercase text-stone-500 leading-none">streak</div>
+        </div>
       </div>
-      <div className="text-sm font-semibold text-stone-700 mb-2">Assignments</div>
-      <ul className="text-sm text-stone-600 space-y-1 mb-4">
-        {assignments.map((a) => (
-          <li key={a.id}>
-            • {a.title} — <span className="italic">{a.status.replace(/_/g, " ").toLowerCase()}</span>
-          </li>
-        ))}
-      </ul>
-      <div className="text-sm font-semibold text-stone-700 mb-2">Exams</div>
-      <ul className="text-sm text-stone-600 space-y-1">
-        {exams.map((e) => (
-          <li key={e.id}>
-            • {e.subject} — {e.date ?? "date pending"}
-          </li>
-        ))}
-      </ul>
+
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-800/10 px-3 py-2">
+          <span className="text-lg">⭐</span>
+          <div>
+            <div className="text-[10px] uppercase text-stone-500">Total XP</div>
+            <div className="text-base font-bold text-stone-800">{xp.toLocaleString()}</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-800/10 px-3 py-2">
+          <span className="text-lg">🪙</span>
+          <div>
+            <div className="text-[10px] uppercase text-stone-500">Score</div>
+            <div className="text-base font-bold text-stone-800">{score.toLocaleString()}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="text-sm font-semibold text-stone-700 mb-2">Assignment Quests</div>
+      <div className="space-y-2 mb-4">
+        {assignments.map((a) => {
+          const badge = ASSIGNMENT_BADGES[a.status] ?? ASSIGNMENT_BADGES.NEW;
+          return (
+            <div
+              key={a.id}
+              className="flex items-center gap-3 rounded-lg bg-amber-50/70 border-l-4 px-3 py-2"
+              style={{ borderColor: badge.color }}
+            >
+              <span className="text-lg">{badge.icon}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-stone-800 truncate">{a.title}</div>
+                <div className="text-[10px] text-stone-500">{a.subject}</div>
+              </div>
+              <span
+                className="text-[10px] font-semibold px-2 py-1 rounded-full shrink-0"
+                style={{ backgroundColor: `${badge.color}22`, color: badge.color }}
+              >
+                {badge.label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="text-sm font-semibold text-stone-700 mb-2">Exam Quests</div>
+      <div className="space-y-2">
+        {exams.map((e) => {
+          const badge = EXAM_BADGES[e.status] ?? EXAM_BADGES.PENDING;
+          return (
+            <div
+              key={e.id}
+              className="flex items-center gap-3 rounded-lg bg-amber-50/70 border-l-4 px-3 py-2"
+              style={{ borderColor: badge.color }}
+            >
+              <span className="text-lg">{badge.icon}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-stone-800 truncate">{e.subject}</div>
+                <div className="text-[10px] text-stone-500">{e.date ?? "No date set"}</div>
+              </div>
+              <span
+                className="text-[10px] font-semibold px-2 py-1 rounded-full shrink-0"
+                style={{ backgroundColor: `${badge.color}22`, color: badge.color }}
+              >
+                {badge.label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
