@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGameStore } from "../../Game/state/GameStateManager";
@@ -23,6 +23,44 @@ function Page({ children }) {
       }}
     >
       {children}
+    </div>
+  );
+}
+
+// Simulates turning a physical page: the outgoing page rotates away and the
+// incoming page rotates in around a vertical spine, with a moving shadow
+// standing in for the fold. `direction` flips which edge is the spine (1 =
+// turning forward, page hinges on the left; -1 = turning back, hinges right).
+function BookFlip({ pageKey, direction, children, className = "" }) {
+  return (
+    <div style={{ perspective: 1800 }} className={className}>
+      <AnimatePresence mode="wait" initial={false} custom={direction}>
+        <motion.div
+          key={pageKey}
+          custom={direction}
+          initial={(dir) => ({ rotateY: dir >= 0 ? 78 : -78, opacity: 0.4 })}
+          animate={{ rotateY: 0, opacity: 1 }}
+          exit={(dir) => ({ rotateY: dir >= 0 ? -78 : 78, opacity: 0.4 })}
+          transition={{ duration: 0.5, ease: [0.45, 0, 0.2, 1] }}
+          style={{
+            transformOrigin: direction >= 0 ? "left center" : "right center",
+            transformStyle: "preserve-3d",
+            position: "relative",
+          }}
+          className="w-full h-full"
+        >
+          <div
+            className="absolute inset-0 pointer-events-none rounded-r-sm"
+            style={{
+              background:
+                direction >= 0
+                  ? "linear-gradient(90deg, rgba(0,0,0,0.18), transparent 22%)"
+                  : "linear-gradient(270deg, rgba(0,0,0,0.18), transparent 22%)",
+            }}
+          />
+          {children}
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }
@@ -65,28 +103,93 @@ function OpenJournalContent() {
   );
 }
 
+const ROADMAP_ICONS = ["🏛️", "📚", "🏫", "🔬"];
+
+const NODE_STYLE = {
+  completed: { fill: "#2f9e63", stroke: "#1d6b42", label: "#ffffff" },
+  missed: { fill: "#c9a26a", stroke: "#8f7350", label: "#5b4630" },
+  current: { fill: "#b45309", stroke: "#7c3a06", label: "#ffffff" },
+  upcoming: { fill: "#efe4c8", stroke: "#a8895a", label: "#5b4630" },
+  locked: { fill: "#d8d2c4", stroke: "#a8895a", label: "#8a7457" },
+};
+
 function RoadmapContent() {
-  const steps = [
-    "Book-Style Journal",
-    "Daily Activity Selection",
-    "3D University Runner",
-    "Answer Lanes",
-    "Contextual Mini-Game",
-    "Journal Entry Update",
-  ];
+  const currentDay = useGameStore((s) => s.day);
+  const entries = useJournalHistoryStore((s) => s.entries);
+  const completedDays = new Set(entries.map((e) => e.day));
+
+  const startDay = Math.max(1, currentDay - 5);
+  const endDay = currentDay + 4;
+  const days = [];
+  for (let d = startDay; d <= endDay; d++) days.push(d);
+
+  const W = 640;
+  const H = 240;
+  const positions = days.map((d, i) => {
+    const t = days.length > 1 ? i / (days.length - 1) : 0;
+    return { d, x: 36 + t * (W - 72), y: H / 2 + Math.sin(i * 1.4) * 66 };
+  });
+  const pathD = positions.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+
+  function nodeState(d) {
+    if (d < currentDay) return completedDays.has(d) ? "completed" : "missed";
+    if (d === currentDay) return "current";
+    if (d <= currentDay + 3) return "upcoming";
+    return "locked";
+  }
+
   return (
     <div>
-      <h2 className="text-xl font-bold mb-4">Game Roadmap</h2>
-      <ol className="space-y-3">
-        {steps.map((step, i) => (
-          <li key={step} className="flex items-center gap-3 text-sm text-stone-700">
-            <span className="w-6 h-6 flex items-center justify-center rounded-full bg-amber-700 text-amber-50 text-xs font-bold">
-              {i + 1}
-            </span>
-            {step}
-          </li>
-        ))}
-      </ol>
+      <h2 className="text-xl font-bold mb-1">Game Roadmap</h2>
+      <p className="text-xs text-stone-500 mb-4">Your campus journey, one day at a time.</p>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto select-none">
+        <path
+          d={pathD}
+          fill="none"
+          stroke="#a8895a"
+          strokeWidth={3}
+          strokeDasharray="2 9"
+          strokeLinecap="round"
+          opacity={0.6}
+        />
+        {positions.map(({ d, x, y }, i) => {
+          const state = nodeState(d);
+          const style = NODE_STYLE[state];
+          const r = state === "current" ? 19 : 15;
+          return (
+            <g key={d}>
+              {i % 3 === 0 && (
+                <text x={x} y={y - 30} fontSize={17} textAnchor="middle">
+                  {ROADMAP_ICONS[(i / 3) % ROADMAP_ICONS.length]}
+                </text>
+              )}
+              {state === "current" && (
+                <circle cx={x} cy={y} r={r + 7} fill="none" stroke="#b45309" strokeWidth={2} opacity={0.35} />
+              )}
+              <circle cx={x} cy={y} r={r} fill={style.fill} stroke={style.stroke} strokeWidth={2} />
+              <text
+                x={x}
+                y={y + 4}
+                fontSize={12}
+                textAnchor="middle"
+                fill={style.label}
+                fontWeight="bold"
+              >
+                {state === "completed" ? "✓" : state === "locked" ? "🔒" : d}
+              </text>
+              <text x={x} y={y + r + 15} fontSize={9.5} textAnchor="middle" fill="#8a7457">
+                {state === "current" ? "Today" : `Day ${d}`}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      <div className="flex flex-wrap gap-4 mt-4 text-[11px] text-stone-500">
+        <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#2f9e63] mr-1" />Completed</span>
+        <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#b45309] mr-1" />Today</span>
+        <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#efe4c8] border border-[#a8895a] mr-1" />Upcoming</span>
+        <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#d8d2c4] mr-1" />Locked</span>
+      </div>
     </div>
   );
 }
@@ -94,6 +197,7 @@ function RoadmapContent() {
 function RecentJournalsContent() {
   const entries = useJournalHistoryStore((s) => s.entries);
   const [index, setIndex] = useState(entries.length - 1);
+  const [direction, setDirection] = useState(1);
 
   if (entries.length === 0) {
     return (
@@ -106,12 +210,17 @@ function RecentJournalsContent() {
   const clamped = Math.min(Math.max(index, 0), entries.length - 1);
   const entry = entries[clamped];
 
+  function go(next) {
+    setDirection(next > clamped ? 1 : -1);
+    setIndex(next);
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-4">
         <button
           disabled={clamped === 0}
-          onClick={() => setIndex(clamped - 1)}
+          onClick={() => go(clamped - 1)}
           className="text-stone-500 disabled:opacity-30 hover:text-stone-800 px-2 text-lg"
         >
           ‹
@@ -119,55 +228,58 @@ function RecentJournalsContent() {
         <h2 className="text-lg font-bold">Day {entry.day}</h2>
         <button
           disabled={clamped === entries.length - 1}
-          onClick={() => setIndex(clamped + 1)}
+          onClick={() => go(clamped + 1)}
           className="text-stone-500 disabled:opacity-30 hover:text-stone-800 px-2 text-lg"
         >
           ›
         </button>
       </div>
-      <div className="text-xs text-stone-500 mb-4">
-        {entry.completedAt && new Date(entry.completedAt).toLocaleString()}
-      </div>
-      <div className="flex gap-6 mb-4">
+
+      <BookFlip pageKey={entry.day} direction={direction} className="flex-1 relative">
         <div>
-          <div className="text-[10px] uppercase text-stone-500">XP</div>
-          <div className="text-lg font-bold text-amber-700">{entry.xp}</div>
-        </div>
-        <div>
-          <div className="text-[10px] uppercase text-stone-500">Score</div>
-          <div className="text-lg font-bold text-stone-700">{entry.score}</div>
-        </div>
-      </div>
-      <div className="text-sm font-semibold text-stone-700 mb-2">Check-ins</div>
-      <ul className="text-sm text-stone-600 space-y-1 mb-3">
-        {entry.journalDay.responses.map((r, i) => (
-          <li key={i}>
-            • {r.category}: <span className="font-medium">{String(r.answer)}</span>
-          </li>
-        ))}
-      </ul>
-      {entry.journalDay.interactionsCompleted.length > 0 && (
-        <>
-          <div className="text-sm font-semibold text-stone-700 mb-2">Records updated</div>
-          <ul className="text-sm text-stone-600 space-y-1">
-            {entry.journalDay.interactionsCompleted.map((r, i) => (
+          <div className="text-xs text-stone-500 mb-4">
+            {entry.completedAt && new Date(entry.completedAt).toLocaleString()}
+          </div>
+          <div className="flex gap-6 mb-4">
+            <div>
+              <div className="text-[10px] uppercase text-stone-500">XP</div>
+              <div className="text-lg font-bold text-amber-700">{entry.xp}</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase text-stone-500">Score</div>
+              <div className="text-lg font-bold text-stone-700">{entry.score}</div>
+            </div>
+          </div>
+          <div className="text-sm font-semibold text-stone-700 mb-2">Check-ins</div>
+          <ul className="text-sm text-stone-600 space-y-1 mb-3">
+            {entry.journalDay.responses.map((r, i) => (
               <li key={i}>
-                • {r.interactionType}: <span className="font-medium">{String(r.value)}</span>
+                • {r.category}: <span className="font-medium">{String(r.answer)}</span>
               </li>
             ))}
           </ul>
-        </>
-      )}
+          {entry.journalDay.interactionsCompleted.length > 0 && (
+            <>
+              <div className="text-sm font-semibold text-stone-700 mb-2">Records updated</div>
+              <ul className="text-sm text-stone-600 space-y-1">
+                {entry.journalDay.interactionsCompleted.map((r, i) => (
+                  <li key={i}>
+                    • {r.interactionType}: <span className="font-medium">{String(r.value)}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      </BookFlip>
     </div>
   );
 }
 
 function GameDetailsContent() {
-  const { xp, level, score } = useGameStore((s) => ({
-    xp: s.xp,
-    level: s.level,
-    score: s.score,
-  }));
+  const xp = useGameStore((s) => s.xp);
+  const level = useGameStore((s) => s.level);
+  const score = useGameStore((s) => s.score);
   const streak = useJournalHistoryStore((s) => s.currentStreak());
   const assignments = useGameStore((s) => s.assignments);
   const exams = useGameStore((s) => s.exams);
@@ -209,7 +321,8 @@ function GameDetailsContent() {
 }
 
 function CharacterStatsContent() {
-  const { xp, level } = useGameStore((s) => ({ xp: s.xp, level: s.level }));
+  const xp = useGameStore((s) => s.xp);
+  const level = useGameStore((s) => s.level);
   const xpIntoLevel = xp % 500;
   return (
     <div>
@@ -247,7 +360,16 @@ const TAB_CONTENT = {
 
 export default function JournalHome() {
   const [tab, setTab] = useState("open");
+  const [direction, setDirection] = useState(1);
+  const tabIndexRef = useRef(0);
   const Content = TAB_CONTENT[tab];
+
+  function selectTab(id) {
+    const nextIndex = TABS.findIndex((t) => t.id === id);
+    setDirection(nextIndex >= tabIndexRef.current ? 1 : -1);
+    tabIndexRef.current = nextIndex;
+    setTab(id);
+  }
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-[#5b3a24] to-[#3a2415] flex items-center justify-center p-4 sm:p-8">
@@ -265,27 +387,18 @@ export default function JournalHome() {
         </div>
 
         {/* right content page with tabs */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={tab}
-            initial={{ opacity: 0, x: 12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -12 }}
-            transition={{ duration: 0.2 }}
-            className="flex-1 min-w-0"
-          >
-            <Page>
-              <Content />
-            </Page>
-          </motion.div>
-        </AnimatePresence>
+        <BookFlip pageKey={tab} direction={direction} className="flex-1 min-w-0">
+          <Page>
+            <Content />
+          </Page>
+        </BookFlip>
 
         {/* tab rail */}
         <div className="hidden md:flex flex-col gap-2 bg-[#3a2415] p-3">
           {TABS.map((t) => (
             <button
               key={t.id}
-              onClick={() => setTab(t.id)}
+              onClick={() => selectTab(t.id)}
               className={`text-[11px] font-semibold px-3 py-2 rounded-md whitespace-nowrap transition-colors ${
                 tab === t.id
                   ? "bg-amber-100 text-amber-900"
@@ -302,7 +415,7 @@ export default function JournalHome() {
           {TABS.map((t) => (
             <button
               key={t.id}
-              onClick={() => setTab(t.id)}
+              onClick={() => selectTab(t.id)}
               className={`flex-1 text-[10px] font-semibold px-2 py-2 whitespace-nowrap ${
                 tab === t.id ? "bg-amber-100 text-amber-900" : "text-amber-100/80"
               }`}
