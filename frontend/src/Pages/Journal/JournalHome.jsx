@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGameStore } from "../../Game/state/GameStateManager";
 import { useJournalHistoryStore } from "../../Game/state/journalHistoryStore";
+import { composeJournalNarrative } from "../../Game/data/journalNarrative";
 
 const TABS = [
   { id: "open", label: "Open Journal" },
@@ -308,12 +309,31 @@ function RecentJournalsContent({ focusDay }) {
 
       <BookFlip pageKey={entry.day} direction={direction} className="flex-1 relative">
         <div>
-          <div className="text-xs text-stone-500 mb-4">
-            {entry.completedAt && new Date(entry.completedAt).toLocaleString()}
+          <div className="text-xs text-stone-500 mb-4 italic">
+            {entry.completedAt &&
+              new Date(entry.completedAt).toLocaleDateString(undefined, {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
           </div>
-          <div className="flex gap-6 mb-4">
+
+          {/* the actual diary text — a flowing first-person paragraph rather
+              than a raw data dump. Swaps to a real backend `journal_entry`
+              string once that's wired up, no layout change needed. */}
+          <p
+            className="text-[15px] leading-7 text-stone-700 mb-5 first-letter:text-3xl
+                       first-letter:font-bold first-letter:text-amber-700 first-letter:mr-1
+                       first-letter:float-left"
+            style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+          >
+            {composeJournalNarrative(entry) || "No entry was recorded for this day."}
+          </p>
+
+          <div className="flex gap-6 pt-3 border-t border-stone-300/60">
             <div>
-              <div className="text-[10px] uppercase text-stone-500">XP</div>
+              <div className="text-[10px] uppercase text-stone-500">XP earned</div>
               <div className="text-lg font-bold text-amber-700">{entry.xp}</div>
             </div>
             <div>
@@ -321,26 +341,6 @@ function RecentJournalsContent({ focusDay }) {
               <div className="text-lg font-bold text-stone-700">{entry.score}</div>
             </div>
           </div>
-          <div className="text-sm font-semibold text-stone-700 mb-2">Check-ins</div>
-          <ul className="text-sm text-stone-600 space-y-1 mb-3">
-            {entry.journalDay.responses.map((r, i) => (
-              <li key={i}>
-                • {r.category}: <span className="font-medium">{String(r.answer)}</span>
-              </li>
-            ))}
-          </ul>
-          {entry.journalDay.interactionsCompleted.length > 0 && (
-            <>
-              <div className="text-sm font-semibold text-stone-700 mb-2">Records updated</div>
-              <ul className="text-sm text-stone-600 space-y-1">
-                {entry.journalDay.interactionsCompleted.map((r, i) => (
-                  <li key={i}>
-                    • {r.interactionType}: <span className="font-medium">{String(r.value)}</span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
         </div>
       </BookFlip>
     </div>

@@ -10,7 +10,7 @@ import { ASSIGNMENT_STATUS, isMarkReviewDue, needsDeadline } from "./assignments
 import { getBuildingForInteraction, getFacultyForSubject } from "./buildings";
 import { pendingExams } from "./exams";
 
-const NORMAL_QUESTION_POOL = [
+export const NORMAL_QUESTION_POOL = [
   {
     id: "q-lecture",
     questionText: "Did you attend a lecture today?",
