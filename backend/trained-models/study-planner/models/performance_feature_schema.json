@@ -1,0 +1,40 @@
+{
+  "numeric_columns": [
+    "Age",
+    "Attendance (%)",
+    "Midterm_Score",
+    "Assignments_Avg",
+    "Quizzes_Avg",
+    "Participation_Score",
+    "Projects_Score",
+    "Study_Hours_per_Week",
+    "Stress_Level (1-10)",
+    "Sleep_Hours_per_Night"
+  ],
+  "categorical_columns": [
+    "Gender",
+    "Department",
+    "Extracurricular_Activities",
+    "Internet_Access_at_Home",
+    "Parent_Education_Level",
+    "Family_Income_Level"
+  ],
+  "feature_columns": [
+    "Age",
+    "Attendance (%)",
+    "Midterm_Score",
+    "Assignments_Avg",
+    "Quizzes_Avg",
+    "Participation_Score",
+    "Projects_Score",
+    "Study_Hours_per_Week",
+    "Stress_Level (1-10)",
+    "Sleep_Hours_per_Night",
+    "Gender",
+    "Department",
+    "Extracurricular_Activities",
+    "Internet_Access_at_Home",
+    "Parent_Education_Level",
+    "Family_Income_Level"
+  ]
+}

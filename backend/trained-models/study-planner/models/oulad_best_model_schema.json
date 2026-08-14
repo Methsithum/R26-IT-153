@@ -1,0 +1,58 @@
+{
+  "numeric_columns": [
+    "num_of_prev_attempts",
+    "studied_credits",
+    "num_assessments_submitted",
+    "avg_score",
+    "avg_days_late",
+    "num_late_submissions",
+    "avg_assessment_weight",
+    "total_clicks",
+    "num_active_days",
+    "num_active_weeks",
+    "first_active_date",
+    "last_active_date",
+    "avg_weekly_clicks",
+    "engagement_span_days",
+    "date_registration"
+  ],
+  "categorical_columns": [
+    "gender",
+    "region",
+    "highest_education",
+    "imd_band",
+    "age_band",
+    "disability"
+  ],
+  "feature_columns": [
+    "num_of_prev_attempts",
+    "studied_credits",
+    "num_assessments_submitted",
+    "avg_score",
+    "avg_days_late",
+    "num_late_submissions",
+    "avg_assessment_weight",
+    "total_clicks",
+    "num_active_days",
+    "num_active_weeks",
+    "first_active_date",
+    "last_active_date",
+    "avg_weekly_clicks",
+    "engagement_span_days",
+    "date_registration",
+    "gender",
+    "region",
+    "highest_education",
+    "imd_band",
+    "age_band",
+    "disability"
+  ],
+  "selected_model": "xgboost",
+  "test_metrics": {
+    "accuracy": 0.9444,
+    "precision": 0.9795,
+    "recall": 0.9138,
+    "f1": 0.9455,
+    "roc_auc": 0.9842
+  }
+}

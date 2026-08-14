@@ -1,0 +1,48 @@
+{
+  "numeric_columns": [
+    "Age",
+    "Attendance (%)",
+    "Midterm_Score",
+    "Assignments_Avg",
+    "Quizzes_Avg",
+    "Participation_Score",
+    "Projects_Score",
+    "Study_Hours_per_Week",
+    "Stress_Level (1-10)",
+    "Sleep_Hours_per_Night"
+  ],
+  "categorical_columns": [
+    "Gender",
+    "Department",
+    "Extracurricular_Activities",
+    "Internet_Access_at_Home",
+    "Parent_Education_Level",
+    "Family_Income_Level"
+  ],
+  "feature_columns": [
+    "Age",
+    "Attendance (%)",
+    "Midterm_Score",
+    "Assignments_Avg",
+    "Quizzes_Avg",
+    "Participation_Score",
+    "Projects_Score",
+    "Study_Hours_per_Week",
+    "Stress_Level (1-10)",
+    "Sleep_Hours_per_Night",
+    "Gender",
+    "Department",
+    "Extracurricular_Activities",
+    "Internet_Access_at_Home",
+    "Parent_Education_Level",
+    "Family_Income_Level"
+  ],
+  "selected_model": "logistic_regression",
+  "test_metrics": {
+    "accuracy": 0.8013,
+    "precision": 0.7302,
+    "recall": 0.8137,
+    "f1": 0.7697,
+    "roc_auc": 0.8889
+  }
+}
