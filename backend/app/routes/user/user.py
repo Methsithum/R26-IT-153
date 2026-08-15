@@ -7,6 +7,29 @@ from app.models.journal.reflection import ReflectionModel
 
 router = APIRouter(prefix="/users", tags=["users"])
 
+
+def _to_response(doc: dict) -> UserResponse:
+    return UserResponse(
+        id=str(doc.get("id") or doc.get("_id")),
+        email=doc["email"],
+        name=doc["name"],
+        total_xp=doc.get("total_xp", 0),
+        current_streak=doc.get("current_streak", 0),
+        longest_streak=doc.get("longest_streak", 0),
+        badges=doc.get("badges", []),
+    )
+
+
+@router.post("/ensure", response_model=UserResponse)
+async def ensure_user(user_data: UserCreate):
+    existing = await UserModel.find_by_email(user_data.email)
+    if existing:
+        return _to_response(existing)
+    doc = await UserModel.create(user_data.email, user_data.name)
+    doc["id"] = str(doc["_id"])
+    return _to_response(doc)
+
+
 @router.post("/", response_model=UserResponse)
 async def create_user(user_data: UserCreate):
     existing = await UserModel.find_by_email(user_data.email)

@@ -4,30 +4,37 @@ import { motion } from "framer-motion";
 import { useGameStore } from "../../Game/state/GameStateManager";
 
 const ACTIVITIES = [
-  { id: "lectures", label: "University Lectures", category: "attendance", icon: "🎓" },
-  { id: "assignments", label: "Assignment Work", category: "academic", icon: "📝" },
-  { id: "exam-prep", label: "Exam Preparation", category: "academic", icon: "📚" },
-  { id: "internship", label: "Internship / Work", category: "activity", icon: "💼" },
-  { id: "extracurricular", label: "Extracurricular Activities", category: "wellbeing", icon: "🎨" },
-  { id: "personal", label: "Personal Projects", category: "activity", icon: "🛠️" },
-  { id: "other", label: "Other University Activities", category: null, icon: "📌" },
+  { id: "academic_study", label: "University Lectures", icon: "🎓" },
+  { id: "assignment_work", label: "Assignment Work", icon: "📝" },
+  { id: "exam_preparation", label: "Exam Preparation", icon: "📚" },
+  { id: "internship", label: "Internship / Work", icon: "💼" },
+  { id: "club_participation", label: "Extracurricular Activities", icon: "🎨" },
+  { id: "project_development", label: "Personal Projects", icon: "🛠️" },
+  { id: "other", label: "Other University Activities", icon: "📌" },
 ];
 
 export default function DailyActivitySelection() {
   const navigate = useNavigate();
   const day = useGameStore((s) => s.day);
   const [selected, setSelected] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
   function toggle(id) {
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   }
 
-  function handleContinue() {
-    const categories = ACTIVITIES.filter((a) => selected.includes(a.id) && a.category).map(
-      (a) => a.category
-    );
-    useGameStore.getState().startDailyGame(categories);
-    navigate("/journal/game");
+  async function handleContinue() {
+    if (selected.length === 0 || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await useGameStore.getState().startDailyGame(selected);
+      navigate("/journal/game");
+    } catch (err) {
+      setError(err?.message || "Could not start today's run. Try again.");
+      setBusy(false);
+    }
   }
 
   return (
@@ -64,6 +71,8 @@ export default function DailyActivitySelection() {
           })}
         </div>
 
+        {error && <p className="text-sm text-red-700 mb-3">{error}</p>}
+
         <div className="flex items-center justify-between">
           <button
             onClick={() => navigate("/")}
@@ -73,10 +82,11 @@ export default function DailyActivitySelection() {
           </button>
           <button
             onClick={handleContinue}
-            className="rounded-lg bg-amber-700 hover:bg-amber-600 transition-colors text-amber-50
+            disabled={selected.length === 0 || busy}
+            className="rounded-lg bg-amber-700 hover:bg-amber-600 disabled:opacity-40 transition-colors text-amber-50
                        font-semibold px-6 py-3 text-sm shadow"
           >
-            Continue to Campus Run →
+            {busy ? "Preparing questions…" : "Continue to Campus Run →"}
           </button>
         </div>
       </motion.div>

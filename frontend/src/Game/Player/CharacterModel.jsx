@@ -43,7 +43,9 @@ export default function CharacterModel({ crouch }) {
 
   return (
     <group scale={[1, crouch ? 0.6 : 1, 1]} position={[0, crouch ? -0.9 : 0, 0]}>
-      <primitive object={fbx} scale={MODEL_SCALE} rotation={[0, Math.PI, 0]} />
+      {/* Mixamo faces +Z. The runner also travels +Z (camera sits at -Z
+          looking ahead), so no extra yaw — Math.PI here made him moonwalk. */}
+      <primitive object={fbx} scale={MODEL_SCALE} rotation={[0, 0, 0]} />
     </group>
   );
 }

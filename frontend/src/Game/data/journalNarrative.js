@@ -50,6 +50,8 @@ function interactionSentence(r) {
 }
 
 export function composeJournalNarrative(entry) {
+  if (entry?.journalEntry) return entry.journalEntry;
+
   const { responses = [], interactionsCompleted = [] } = entry.journalDay ?? {};
   const sentences = [];
 

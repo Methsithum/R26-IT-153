@@ -18,7 +18,14 @@ class AnswerRequest(BaseModel):
 
 class NextQuestionResponse(BaseModel):
     session_id: str
+    question_id: Optional[str] = None
     question: Optional[str] = None
     options: Optional[List[str]] = None
+    category: Optional[str] = None
+    answer_type: Optional[str] = None
+    requires_special_interaction: bool = False
+    interaction_type: Optional[str] = None
+    target_location: Optional[str] = None
+    context_field: Optional[str] = None
     completed: bool = False
     journal_entry: Optional[str] = None

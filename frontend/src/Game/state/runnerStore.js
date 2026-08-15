@@ -47,4 +47,17 @@ export const useRunnerStore = create((set, get) => ({
   setRunning: (v) => set({ isRunning: v }),
 
   resetToCenter: () => set({ laneIndex: 1, targetX: LANES[1] }),
+
+  resetRun: () =>
+    set({
+      laneIndex: 1,
+      targetX: LANES[1],
+      posX: LANES[1],
+      posY: 0,
+      posZ: 0,
+      isJumping: false,
+      isSliding: false,
+      isRunning: true,
+      distance: 0,
+    }),
 }));

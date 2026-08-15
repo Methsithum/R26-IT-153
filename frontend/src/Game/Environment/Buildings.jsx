@@ -7,9 +7,10 @@ const ROAD_HALF_WIDTH = 3.6;
 // cinematic (see TransitionManager), not physical contact with these props.
 export default function BuildingLandmark({ building }) {
   const x = building.side * (ROAD_HALF_WIDTH + 6);
-  // Text faces +Z by default but this camera looks down +Z, so the
-  // road-facing rotation needs the extra half-turn vs. a naive -90/90 split.
-  const rotationY = building.side > 0 ? Math.PI / 2 : -Math.PI / 2;
+  // Nameplates sit on the road-facing wall. Drei Text faces +Z by default;
+  // yaw so it looks toward the avenue (negative X on the left bank, positive
+  // X on the right) instead of showing the mirrored back of the glyphs.
+  const rotationY = building.side > 0 ? -Math.PI / 2 : Math.PI / 2;
 
   return (
     <group position={[x, 0, building.z]}>

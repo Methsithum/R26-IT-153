@@ -3,6 +3,9 @@ import { generateDailyQuestions, shouldEscalateToMarkEntry } from "../data/quest
 import { initialAssignments, ASSIGNMENT_STATUS } from "../data/assignments";
 import { initialExams, EXAM_STATUS } from "../data/exams";
 import { getBuildingById } from "../data/buildings";
+import { mapBackendQuestion, serializeAnswer } from "../data/backendQuestion";
+import { ensureGuestUser } from "../../services/userApi";
+import { startDailySession, submitDailyAnswer } from "../../services/journalApi";
 import { useJournalHistoryStore } from "./journalHistoryStore";
 import { useRunnerStore } from "./runnerStore";
 import {
@@ -11,10 +14,6 @@ import {
   recordInteraction,
   completeJournalDay,
 } from "../data/journal";
-
-// ---- Central game state machine -------------------------------------
-// Every screen/behaviour of the runner is driven off `phase`. Nothing
-// should be inferred from ad-hoc booleans scattered across components.
 
 export const PHASES = {
   GAME_START: "GAME_START",
@@ -41,21 +40,25 @@ const XP_RULES = {
   DAILY_COMPLETE: 100,
 };
 
-const initialDay = 4; // matches the reference "DAY 04"
+const initialDay = 4;
 
 export const useGameStore = create((set, get) => ({
-  // --- meta / progression ---
   phase: PHASES.GAME_START,
   day: initialDay,
   level: 15,
   xp: 1240,
   score: 8450,
   speed: 12,
+  playerName: "Alex",
 
   assignments: initialAssignments,
   exams: initialExams,
   selectedActivities: [],
   journalDay: createEmptyJournalDay(initialDay),
+
+  sessionId: null,
+  sessionCompleted: false,
+  backendJournalEntry: null,
 
   questionQueue: [],
   questionIndex: 0,
@@ -69,36 +72,93 @@ export const useGameStore = create((set, get) => ({
 
   dailyCompleted: false,
 
-  // --- lifecycle ---
-  // `activities` is the set of category ids the student picked on the Daily
-  // Activity Selection screen (e.g. ["academic", "wellbeing"]) — it biases
-  // which normal questions surface first without excluding the rest.
-  startDailyGame: (activities = []) => {
+  applyUserProgress: (user) => {
+    if (!user) return;
+    const xp = user.total_xp ?? get().xp;
+    set({
+      playerName: user.name || get().playerName,
+      xp,
+      level: Math.max(1, Math.floor(xp / 500) + 1),
+    });
+  },
+
+  startDailyGame: async (activities = []) => {
     const { assignments, exams, day } = get();
-    const queue = generateDailyQuestions({
+    useRunnerStore.getState().resetRun();
+
+    const localQueue = generateDailyQuestions({
       assignments,
       exams,
       questionCount: 4,
       preferredCategories: activities,
     });
+
+    let queue = localQueue;
+    let sessionId = null;
+
+    try {
+      const user = await ensureGuestUser(get().playerName);
+      get().applyUserProgress(user);
+      const res = await startDailySession({
+        userId: user.id,
+        selectedActivities: activities,
+      });
+      const first = mapBackendQuestion(res);
+      if (first && res.session_id) {
+        queue = [first];
+        sessionId = res.session_id;
+      }
+    } catch {
+      // Backend unreachable — keep the local tagged pool so the run still works.
+    }
+
     set({
       phase: PHASES.RUNNING,
       selectedActivities: activities,
+      sessionId,
+      sessionCompleted: false,
+      backendJournalEntry: null,
       questionQueue: queue,
       questionIndex: 0,
       activeQuestion: null,
+      pendingAnswer: null,
       journalDay: createEmptyJournalDay(day),
+      dailyCompleted: false,
       objectiveText: "Continue your campus run",
       xp: get().xp + XP_RULES.GAME_START,
     });
   },
 
-  // Called by the environment/spawner once the player is far enough to
-  // trigger the next queued question.
+  ingestBackendAnswer: async (answerValue) => {
+    const { sessionId, questionQueue, assignments, exams, selectedActivities } = get();
+    if (!sessionId) return;
+
+    try {
+      const res = await submitDailyAnswer(sessionId, serializeAnswer(answerValue));
+      if (res.completed) {
+        set({ sessionCompleted: true, backendJournalEntry: res.journal_entry || null });
+        return;
+      }
+      const next = mapBackendQuestion(res);
+      if (next) {
+        set({ questionQueue: [...get().questionQueue, next] });
+      }
+    } catch {
+      const asked = new Set(questionQueue.map((q) => q.id));
+      const extra = generateDailyQuestions({
+        assignments,
+        exams,
+        questionCount: 2,
+        preferredCategories: selectedActivities,
+      }).find((q) => !asked.has(q.id));
+      if (extra) set({ questionQueue: [...get().questionQueue, extra] });
+    }
+  },
+
   spawnNextQuestion: () => {
-    const { questionQueue, questionIndex } = get();
+    const { questionQueue, questionIndex, sessionCompleted } = get();
     const next = questionQueue[questionIndex];
-    if (!next) {
+    if (!next || sessionCompleted) {
       get().finishDailyGame();
       return;
     }
@@ -111,8 +171,6 @@ export const useGameStore = create((set, get) => ({
 
   questionBoardReached: () => set({ phase: PHASES.ANSWER_SELECTION }),
 
-  // For "info-only" boards (already known to require a special interaction,
-  // e.g. "when is your deadline?") — no lane answer to pick, just run through.
   passInfoBoard: () => {
     const { activeQuestion } = get();
     if (!activeQuestion) return;
@@ -128,8 +186,7 @@ export const useGameStore = create((set, get) => ({
     }, 400);
   },
 
-  // Player passed through an answer lane.
-  confirmAnswer: (answerValue) => {
+  confirmAnswer: async (answerValue) => {
     const { activeQuestion, journalDay } = get();
     if (!activeQuestion) return;
 
@@ -141,7 +198,12 @@ export const useGameStore = create((set, get) => ({
       score: get().score + 120,
     });
 
-    // brief pause for feedback pop, then evaluate data requirement
+    const escalates = shouldEscalateToMarkEntry(activeQuestion, answerValue);
+    const needsInteraction = activeQuestion.requiresSpecialInteraction || escalates;
+    if (!needsInteraction) {
+      await get().ingestBackendAnswer(answerValue);
+    }
+
     setTimeout(() => get().evaluateDataRequirement(), 900);
   },
 
@@ -169,16 +231,13 @@ export const useGameStore = create((set, get) => ({
     }, 400);
   },
 
-  // --- building transition flow ---
   buildingTransitionComplete: () => set({ phase: PHASES.ENTERING_BUILDING }),
 
   buildingEntered: () => set({ phase: PHASES.SPECIAL_INTERACTION_READY }),
 
   startSpecialInteraction: () => set({ phase: PHASES.SPECIAL_INTERACTION_ACTIVE }),
 
-  // Called by the (future) mini-game via SpecialInteractionRouter with
-  // { completed: true, value }
-  completeSpecialInteraction: (result) => {
+  completeSpecialInteraction: async (result) => {
     const { activeQuestion, journalDay, assignments, exams } = get();
     let updatedAssignments = assignments;
     let updatedExams = exams;
@@ -201,8 +260,6 @@ export const useGameStore = create((set, get) => ({
       });
     }
 
-    // Exam Calendar Sort resolves every pending exam in one interaction:
-    // result.value is { [examId]: dateString }.
     if (activeQuestion?.context?.field === "examDates" && result.value) {
       updatedExams = exams.map((e) =>
         result.value[e.id]
@@ -220,6 +277,7 @@ export const useGameStore = create((set, get) => ({
       score: get().score + 300,
     });
 
+    await get().ingestBackendAnswer(result.value);
     setTimeout(() => set({ phase: PHASES.RETURNING_TO_CAMPUS }), 700);
   },
 
@@ -228,17 +286,16 @@ export const useGameStore = create((set, get) => ({
     setTimeout(() => get().advanceQuestionQueue(), 300);
   },
 
-  // --- shared progression step ---
   advanceQuestionQueue: () => {
     const nextIndex = get().questionIndex + 1;
     set({ questionIndex: nextIndex, activeQuestion: null, pendingAnswer: null, phase: PHASES.RUNNING });
-    if (nextIndex >= get().questionQueue.length) {
+    if (get().sessionCompleted || nextIndex >= get().questionQueue.length) {
       setTimeout(() => get().finishDailyGame(), 1200);
     }
   },
 
   finishDailyGame: () => {
-    const { journalDay, xp, score, day, level } = get();
+    const { journalDay, xp, score, day, level, backendJournalEntry } = get();
     const finalXp = xp + XP_RULES.DAILY_COMPLETE;
     const completedDay = completeJournalDay(journalDay, finalXp, score);
     set({
@@ -251,6 +308,7 @@ export const useGameStore = create((set, get) => ({
     useJournalHistoryStore.getState().addEntry({
       day,
       journalDay: completedDay,
+      journalEntry: backendJournalEntry,
       xp: finalXp,
       score,
       level,
@@ -264,6 +322,12 @@ export const useGameStore = create((set, get) => ({
       day: nextDay,
       dailyCompleted: false,
       phase: PHASES.GAME_START,
+      sessionId: null,
+      sessionCompleted: false,
+      backendJournalEntry: null,
+      questionQueue: [],
+      questionIndex: 0,
+      activeQuestion: null,
     });
   },
 
@@ -276,11 +340,10 @@ export const useGameStore = create((set, get) => ({
 
   setSpeed: (speed) => set({ speed }),
 
-  // Progress fraction for the daily HUD bar.
   dailyProgress: () => {
-    const { questionQueue, questionIndex, dailyCompleted } = get();
-    if (dailyCompleted) return 1;
+    const { questionQueue, questionIndex, dailyCompleted, sessionCompleted } = get();
+    if (dailyCompleted || sessionCompleted) return 1;
     if (questionQueue.length === 0) return 0;
-    return Math.min(1, questionIndex / questionQueue.length);
+    return Math.min(1, questionIndex / Math.max(questionQueue.length, 1));
   },
 }));

@@ -1,8 +1,9 @@
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, Suspense } from "react";
 import { useFrame } from "@react-three/fiber";
 import { RigidBody, CapsuleCollider } from "@react-three/rapier";
-import { useRunnerStore, LANES } from "../state/runnerStore";
+import { useRunnerStore } from "../state/runnerStore";
 import { PHASES, useGameStore } from "../state/GameStateManager";
+import CharacterModel from "./CharacterModel";
 
 const JUMP_HEIGHT = 2.6;
 const JUMP_DURATION = 0.62;
@@ -10,16 +11,8 @@ const SLIDE_DURATION = 0.55;
 const GROUND_Y = 0.95;
 
 /**
- * Stylised low-poly human character built from primitives.
- *
- * A Mixamo FBX ("public/models/remy-running.fbx") with a real running
- * animation was evaluated for this slot (see Player/CharacterModel.jsx).
- * It works, but at ~28MB it blocks the main thread for several seconds
- * while FBXLoader parses it synchronously — unacceptable for a runner
- * that's supposed to stay responsive from the first frame. Swap it back
- * in once the asset is compressed/converted to a lean GLB (Draco/meshopt,
- * a few hundred KB): wrap <CharacterModel /> in <Suspense fallback={this}>
- * inside the RigidBody below.
+ * Capsule fallback shown while the Mixamo Remy FBX parses.
+ * CharacterModel (remy-running.fbx) is the live runner once loaded.
  */
 function CharacterMesh({ runPhase, crouch }) {
   const leftArm = useRef();
@@ -168,7 +161,9 @@ export default function Player() {
     >
       <CapsuleCollider args={[0.45, 0.32]} />
       <group ref={groupRef}>
-        <CharacterMesh runPhase={runPhase} crouch={isSliding} />
+        <Suspense fallback={<CharacterMesh runPhase={runPhase} crouch={isSliding} />}>
+          <CharacterModel crouch={isSliding} />
+        </Suspense>
       </group>
     </RigidBody>
   );

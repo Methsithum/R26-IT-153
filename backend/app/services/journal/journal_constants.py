@@ -3,6 +3,7 @@ from typing import Final
 ALLOWED_ACTIVITIES: Final[set[str]] = {
     "academic_study",
     "assignment_work",
+    "exam_preparation",
     "project_development",
     "internship",
     "sports",

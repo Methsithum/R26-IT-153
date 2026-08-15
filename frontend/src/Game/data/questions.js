@@ -10,18 +10,34 @@ import { ASSIGNMENT_STATUS, isMarkReviewDue, needsDeadline } from "./assignments
 import { getBuildingForInteraction, getFacultyForSubject } from "./buildings";
 import { pendingExams } from "./exams";
 
+export const ACTIVITY_TO_CATEGORY = {
+  academic_study: "attendance",
+  assignment_work: "academic",
+  exam_preparation: "academic",
+  project_development: "activity",
+  internship: "activity",
+  club_participation: "wellbeing",
+  event_participation: "wellbeing",
+  sports: "wellbeing",
+  other: "wellbeing",
+  attendance: "attendance",
+  academic: "academic",
+  wellbeing: "wellbeing",
+  activity: "activity",
+};
+
 export const NORMAL_QUESTION_POOL = [
   {
     id: "q-lecture",
     questionText: "Did you attend a lecture today?",
-    answers: ["Yes", "No"],
+    answers: ["Yes, all of them", "Yes, some of them", "No, I self-studied", "No, I skipped"],
     answerType: "choice",
     category: "attendance",
   },
   {
     id: "q-assignment-work",
     questionText: "Did you work on an assignment today?",
-    answers: ["Yes", "No"],
+    answers: ["Yes, made good progress", "Yes, a little", "Planned only", "Not today"],
     answerType: "choice",
     category: "academic",
   },
@@ -35,14 +51,14 @@ export const NORMAL_QUESTION_POOL = [
   {
     id: "q-extracurricular",
     questionText: "Did you take part in an extracurricular activity?",
-    answers: ["Yes", "No"],
+    answers: ["Yes, a club", "Yes, sport", "Yes, an event", "Not today"],
     answerType: "choice",
     category: "wellbeing",
   },
   {
     id: "q-exam-study",
     questionText: "Did you study for an examination today?",
-    answers: ["Yes", "No"],
+    answers: ["Yes, a full session", "Yes, a short review", "Only planned it", "Not today"],
     answerType: "choice",
     category: "academic",
   },
@@ -159,11 +175,10 @@ export function generateDailyQuestions({
   today = new Date(),
   preferredCategories = [],
 }) {
-  // Bias toward categories implied by the student's Daily Activity
-  // Selection, without ever excluding the rest of the pool.
+  const preferredKeys = preferredCategories.map((k) => ACTIVITY_TO_CATEGORY[k] || k);
   const shuffled = [...NORMAL_QUESTION_POOL].sort(() => Math.random() - 0.5);
-  const preferred = shuffled.filter((q) => preferredCategories.includes(q.category));
-  const rest = shuffled.filter((q) => !preferredCategories.includes(q.category));
+  const preferred = shuffled.filter((q) => preferredKeys.includes(q.category));
+  const rest = shuffled.filter((q) => !preferredKeys.includes(q.category));
   const shuffledNormal = [...preferred, ...rest]
     .slice(0, questionCount)
     .map((q) => makeQuestion(q));

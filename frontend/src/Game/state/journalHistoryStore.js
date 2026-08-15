@@ -17,6 +17,33 @@ export const useJournalHistoryStore = create(
           ),
         })),
 
+      hydrateFromSessions: (sessions = []) => {
+        const completed = (sessions || [])
+          .filter((s) => s && s.completed)
+          .sort((a, b) => new Date(a.date) - new Date(b.date));
+        if (completed.length === 0) return;
+        set({
+          entries: completed.map((s, i) => ({
+            day: i + 1,
+            journalEntry: s.journal_entry,
+            journalDay: {
+              day: i + 1,
+              responses: (s.qa_history || []).map((qa) => ({
+                questionId: qa.question_id,
+                category: "academic",
+                answer: qa.answer,
+                source: "backend",
+              })),
+              interactionsCompleted: [],
+            },
+            xp: 0,
+            score: 0,
+            level: 1,
+            completedAt: s.date,
+          })),
+        });
+      },
+
       currentStreak: () => {
         const days = get().entries.map((e) => e.day).sort((a, b) => b - a);
         if (days.length === 0) return 0;

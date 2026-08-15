@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useGameStore } from "../../Game/state/GameStateManager";
 import { useJournalHistoryStore } from "../../Game/state/journalHistoryStore";
 import { composeJournalNarrative } from "../../Game/data/journalNarrative";
+import { ensureGuestUser, getUserSessions } from "../../services/userApi";
 
 const TABS = [
   { id: "open", label: "Open Journal" },
@@ -78,6 +79,7 @@ function BookFlip({ pageKey, direction, children, className = "" }) {
 function OpenJournalContent({ selectTab }) {
   const day = useGameStore((s) => s.day);
   const dailyCompleted = useGameStore((s) => s.dailyCompleted);
+  const playerName = useGameStore((s) => s.playerName);
 
   return (
     <div className="flex flex-col h-full justify-between">
@@ -85,7 +87,7 @@ function OpenJournalContent({ selectTab }) {
         <div className="text-[11px] uppercase tracking-[0.25em] text-stone-500 mb-2">
           {new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
         </div>
-        <h2 className="text-3xl sm:text-4xl font-bold text-stone-800 mb-5">Welcome back, Alex!</h2>
+        <h2 className="text-3xl sm:text-4xl font-bold text-stone-800 mb-5">Welcome back, {playerName}!</h2>
         <p className="text-base text-stone-600 leading-relaxed max-w-2xl">
           {dailyCompleted
             ? "Today's entry is complete. Come back tomorrow to continue your streak."
@@ -474,10 +476,11 @@ function GameDetailsContent() {
 function CharacterStatsContent() {
   const xp = useGameStore((s) => s.xp);
   const level = useGameStore((s) => s.level);
+  const playerName = useGameStore((s) => s.playerName);
   const xpIntoLevel = xp % 500;
   return (
     <div>
-      <h2 className="text-xl font-bold mb-1">Alex</h2>
+      <h2 className="text-xl font-bold mb-1">{playerName}</h2>
       <div className="text-sm text-stone-500 mb-4">Level {level} Student</div>
       <div className="w-full h-3 rounded-full bg-stone-300 overflow-hidden mb-1">
         <div
@@ -515,6 +518,25 @@ export default function JournalHome() {
   const [focusDay, setFocusDay] = useState(null);
   const tabIndexRef = useRef(0);
   const Content = TAB_CONTENT[tab];
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const user = await ensureGuestUser();
+        if (cancelled) return;
+        useGameStore.getState().applyUserProgress(user);
+        const sessions = await getUserSessions(user.id);
+        if (cancelled) return;
+        useJournalHistoryStore.getState().hydrateFromSessions(sessions);
+      } catch {
+        // Offline / backend down — local journal still works.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function selectTab(id) {
     const nextIndex = TABS.findIndex((t) => t.id === id);

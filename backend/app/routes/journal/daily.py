@@ -3,68 +3,126 @@ from app.schemas.journal.daily import StartDailyRequest, AnswerRequest, NextQues
 from app.models.journal.daily_session import DailySessionModel
 from app.models.journal.task import TaskModel
 from app.models.user.user import UserModel
-from app.services.journal.llm_service import generate_initial_question, process_answer_and_get_next, generate_daily_journal
+from app.services.journal.llm_service import generate_daily_journal
+from app.services.journal.question_picker import pick_next_question
 from app.services.journal.gamification import update_streak_and_xp
 from app.services.journal.journal_service import build_session_context
 from app.services.journal.journal_constants import filter_allowed_activities, is_valid_task_stage
 from app.services.journal.alerts import generate_proactive_alerts, format_alerts_for_journal
 from app.services.journal.learning_patterns import aggregate_learning_patterns
 import logging
-from app.config.settings import settings
 from datetime import datetime, timezone
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Optional
 
 router = APIRouter(prefix="/daily", tags=["daily"])
 logger = logging.getLogger(__name__)
 
 
 def _calculate_max_questions(num_activities: int) -> int:
-    """Calculate dynamic max questions based on number of activities.
-    Formula: 8 + (num_activities * 2)
-    """
     return 8 + (num_activities * 2)
 
 
-def _build_fallback_initial_question(
-    selected_activities: List[str],
-    tasks_data: List[Dict]
-) -> Tuple[str, List[str]]:
-    # Prefer a deadline-focused question when there are near due tasks.
-    now_utc = datetime.utcnow().replace(tzinfo=timezone.utc)
-    for task in tasks_data:
-        deadline = task.get("deadline")
-        if not deadline:
-            continue
-        try:
-            deadline_dt = deadline if isinstance(deadline, datetime) else datetime.fromisoformat(str(deadline).replace("Z", "+00:00"))
-            if deadline_dt.tzinfo is None:
-                deadline_dt = deadline_dt.replace(tzinfo=timezone.utc)
-            days_left = (deadline_dt - now_utc).days
-            if days_left <= 3:
-                title = task.get("title", "your upcoming task")
-                return (
-                    f"How is your progress on '{title}' before the deadline?",
-                    ["Not started", "In progress", "Almost done", "Completed"]
-                )
-        except Exception:
-            continue
-
-    if "academic_study" in selected_activities:
-        return (
-            "How effective was your study session today?",
-            ["Very focused", "Mostly focused", "Some distractions", "Need a better plan"]
-        )
-
-    if "assignments" in selected_activities:
-        return (
-            "What is your current assignment progress status?",
-            ["Planning", "Drafting", "Revising", "Submitted"]
-        )
-
-    return (
-        "What was your biggest academic win today?",
-        ["Finished a tough topic", "Completed tasks on time", "Improved understanding", "Stayed consistent"]
+def _pack_question(session_id: str, question: Optional[Dict[str, Any]], **extra) -> NextQuestionResponse:
+    if not question:
+        return NextQuestionResponse(session_id=session_id, completed=extra.get("completed", False), **{k: v for k, v in extra.items() if k != "completed"})
+    return NextQuestionResponse(
+        session_id=session_id,
+        question_id=question.get("id"),
+        question=question.get("question"),
+        options=question.get("options"),
+        category=question.get("category"),
+        answer_type=question.get("answer_type"),
+        requires_special_interaction=bool(question.get("requires_special_interaction")),
+        interaction_type=question.get("interaction_type"),
+        target_location=question.get("target_location"),
+        context_field=question.get("context_field"),
+        completed=extra.get("completed", False),
+        journal_entry=extra.get("journal_entry"),
     )
+
+
+def _pending_fields(question: Optional[Dict[str, Any]]) -> dict:
+    if not question:
+        return {
+            "pending_question_id": None,
+            "pending_question": None,
+            "pending_options": None,
+            "pending_meta": None,
+        }
+    return {
+        "pending_question_id": question.get("id"),
+        "pending_question": question.get("question"),
+        "pending_options": question.get("options"),
+        "pending_meta": {
+            "category": question.get("category"),
+            "answer_type": question.get("answer_type"),
+            "requires_special_interaction": question.get("requires_special_interaction"),
+            "interaction_type": question.get("interaction_type"),
+            "target_location": question.get("target_location"),
+            "context_field": question.get("context_field"),
+        },
+    }
+
+
+async def _apply_task_updates(user_id: str, updates: List[Dict]) -> None:
+    for update in updates or []:
+        if not is_valid_task_stage(update.get("progress_stage")):
+            continue
+        if update.get("task_id"):
+            await TaskModel.update(update["task_id"], {"progress_stage": update.get("progress_stage")})
+        else:
+            await TaskModel.create({
+                "user_id": user_id,
+                "title": update.get("title", "Untitled"),
+                "task_type": update.get("task_type", "assignment"),
+                "progress_stage": update.get("progress_stage"),
+                "deadline": update.get("deadline"),
+            })
+
+
+async def _complete_session(session_id: str, session: dict, qa_list: list, task_updates: list, update_data: dict) -> str:
+    context = await build_session_context(session)
+    user = await UserModel.find_by_id(session["user_id"])
+    try:
+        journal = await generate_daily_journal(
+            user["name"],
+            session["selected_activities"],
+            session.get("study_duration_minutes") or 0,
+            session.get("subject_focus") or "",
+            qa_list,
+            task_updates,
+            context,
+        )
+    except Exception:
+        logger.exception("Failed to generate journal entry; using a local summary")
+        bits = [f"{q.get('question')} — {q.get('answer')}" for q in qa_list]
+        journal = "Today I logged my campus run. " + " ".join(bits[:4])
+    alerts = generate_proactive_alerts(
+        context.get("at_risk_tasks", []),
+        context.get("derived", {}),
+    )
+    if alerts:
+        journal += format_alerts_for_journal(alerts)
+
+    update_data["completed"] = True
+    update_data["journal_entry"] = journal
+    update_data.update(_pending_fields(None))
+    await DailySessionModel.update(session_id, update_data)
+
+    try:
+        await aggregate_learning_patterns(session["user_id"])
+    except Exception as e:
+        logger.warning(f"Failed to update learning patterns: {e}")
+
+    await update_streak_and_xp(
+        session["user_id"],
+        session["date"],
+        questions_count=len(qa_list),
+        engagement=session.get("engagement"),
+        has_at_risk=bool(context.get("at_risk_tasks")),
+    )
+    return journal
+
 
 @router.post("/start", response_model=NextQuestionResponse)
 async def start_daily_session(req: StartDailyRequest):
@@ -77,24 +135,39 @@ async def start_daily_session(req: StartDailyRequest):
         raise HTTPException(400, "No valid activities were provided")
 
     tasks = await TaskModel.find_by_user(req.user_id)
-    tasks_data = [{"title": t["title"], "progress": t.get("progress_stage"), "deadline": t.get("deadline")} for t in tasks]
+    tasks_data = [
+        {"id": t.get("id"), "title": t["title"], "progress": t.get("progress_stage"), "deadline": t.get("deadline")}
+        for t in tasks
+    ]
 
-    try:
-        question, options = await generate_initial_question(
-            user["name"], selected_activities, tasks_data, user["current_streak"]
-        )
-    except Exception:
-        logger.exception("Failed to generate initial question from LLM; using fallback")
-        question, options = _build_fallback_initial_question(selected_activities, tasks_data)
-
-    # normalize incoming date to naive UTC for MongoDB
     date = req.date
     if date and getattr(date, "tzinfo", None) is not None:
         date = date.astimezone(timezone.utc).replace(tzinfo=None)
 
-    # Calculate max questions dynamically based on number of activities
     max_questions = _calculate_max_questions(len(selected_activities))
-    
+    session_context = {
+        "derived": None,
+        "at_risk_tasks": [],
+    }
+
+    try:
+        decision = await pick_next_question(
+            user_name=user["name"],
+            selected_activities=selected_activities,
+            asked_ids=[],
+            qa_history=[],
+            tasks=tasks_data,
+            session_context=session_context,
+            total_questions_asked=0,
+            max_questions=max_questions,
+        )
+        question = decision.get("question")
+    except Exception:
+        logger.exception("Question pick failed on session start")
+        question = None
+    if not question:
+        raise HTTPException(500, "No journal question could be selected")
+
     session_doc = {
         "user_id": req.user_id,
         "date": date,
@@ -105,11 +178,11 @@ async def start_daily_session(req: StartDailyRequest):
         "extra_activity_type": req.extra_activity_type,
         "extra_activity_minutes": req.extra_activity_minutes,
         "subject_focus": req.subject_focus,
-        "pending_question": question,
-        "pending_options": options,
+        "asked_question_ids": [],
         "qa_history": [],
         "completed": False,
-        "journal_entry": None
+        "journal_entry": None,
+        **_pending_fields(question),
     }
     try:
         session = await DailySessionModel.create(session_doc)
@@ -117,12 +190,8 @@ async def start_daily_session(req: StartDailyRequest):
         logger.exception("Failed to create daily session")
         raise HTTPException(500, "Failed to create session")
 
-    return NextQuestionResponse(
-        session_id=str(session["_id"]),
-        question=question,
-        options=options,
-        completed=False
-    )
+    return _pack_question(str(session["_id"]), question)
+
 
 @router.post("/answer", response_model=NextQuestionResponse)
 async def answer_question(req: AnswerRequest):
@@ -130,112 +199,62 @@ async def answer_question(req: AnswerRequest):
     if not session or session.get("completed"):
         raise HTTPException(400, "Invalid or already completed session")
 
-    # Append Q&A to history
+    asked_ids = list(session.get("asked_question_ids") or [])
+    if session.get("pending_question_id"):
+        asked_ids.append(session["pending_question_id"])
+
     qa_pair = {
-        "question": session["pending_question"],
+        "question_id": session.get("pending_question_id"),
+        "question": session.get("pending_question"),
         "answer": req.answer,
-        "timestamp": datetime.utcnow()
+        "timestamp": datetime.utcnow(),
     }
     qa_history = session.get("qa_history", [])
     qa_history.append(qa_pair)
 
-    # Clear pending
     update_data = {
         "qa_history": qa_history,
-        "pending_question": None,
-        "pending_options": None
+        "asked_question_ids": asked_ids,
+        **_pending_fields(None),
     }
 
-    # Get existing tasks for LLM
     tasks = await TaskModel.find_by_user(session["user_id"])
-    tasks_data = [{"id": t["id"], "title": t["title"], "progress_stage": t.get("progress_stage"), "deadline": t.get("deadline")} for t in tasks]
-
+    tasks_data = [
+        {"id": t["id"], "title": t["title"], "progress_stage": t.get("progress_stage"), "deadline": t.get("deadline")}
+        for t in tasks
+    ]
     qa_list = [{"question": q["question"], "answer": q["answer"]} for q in qa_history]
     user = await UserModel.find_by_id(session["user_id"])
-    # build session context (includes derived flags) and pass to LLM decision function
     session_context = await build_session_context(session)
-    # Use dynamic max_questions stored in session
     max_questions = session.get("max_questions", 12)
-    decision = await process_answer_and_get_next(
+
+    decision = await pick_next_question(
         user_name=user["name"],
-        session_qa_history=qa_list,
         selected_activities=session["selected_activities"],
-        current_tasks=tasks_data,
+        asked_ids=asked_ids,
+        qa_history=qa_list,
+        tasks=tasks_data,
+        session_context=session_context,
         total_questions_asked=len(qa_history),
         max_questions=max_questions,
-        session_context=session_context
     )
 
-    # Apply task updates
-    for update in decision.get("task_updates", []):
-        if not is_valid_task_stage(update.get("progress_stage")):
-            continue
-        if "task_id" in update and update["task_id"]:
-            await TaskModel.update(update["task_id"], {"progress_stage": update.get("progress_stage")})
-        else:
-            new_task = {
-                "user_id": session["user_id"],
-                "title": update.get("title", "Untitled"),
-                "task_type": update.get("task_type", "assignment"),
-                "progress_stage": update.get("progress_stage"),
-                "deadline": update.get("deadline")
-            }
-            await TaskModel.create(new_task)
+    await _apply_task_updates(session["user_id"], decision.get("task_updates") or [])
 
-    # Use dynamic max_questions for session completion check
-    max_questions = session.get("max_questions", 12)
-    if decision.get("end_session") or len(qa_history) >= max_questions:
-        # Generate journal with alerts
-        context = await build_session_context(session)
-        journal = await generate_daily_journal(
-            user["name"], session["selected_activities"], session.get("study_duration_minutes") or 0,
-            session.get("subject_focus") or "", qa_list, decision.get("task_updates", []), context
+    if decision.get("end_session") or not decision.get("question") or len(qa_history) >= max_questions:
+        journal = await _complete_session(
+            req.session_id, session, qa_list, decision.get("task_updates") or [], update_data
         )
-        
-        # Generate proactive alerts based on at-risk tasks and derived flags
-        alerts = generate_proactive_alerts(
-            context.get("at_risk_tasks", []),
-            context.get("derived", {})
-        )
-        
-        # Add alerts to journal if any exist
-        if alerts:
-            journal += format_alerts_for_journal(alerts)
-        
-        update_data["completed"] = True
-        update_data["journal_entry"] = journal
-        await DailySessionModel.update(req.session_id, update_data)
-
-        # Update learning patterns
-        try:
-            await aggregate_learning_patterns(session["user_id"])
-        except Exception as e:
-            logger.warning(f"Failed to update learning patterns: {e}")
-
-        # Gamification
-        await update_streak_and_xp(
-            session["user_id"],
-            session["date"],
-            questions_count=len(qa_history),
-            engagement=session.get("engagement"),
-            has_at_risk=bool(context.get("at_risk_tasks"))
-        )
-
         return NextQuestionResponse(
             session_id=req.session_id,
             completed=True,
-            journal_entry=journal
+            journal_entry=journal,
         )
-    else:
-        update_data["pending_question"] = decision["next_question"]
-        update_data["pending_options"] = decision.get("options", [])
-        await DailySessionModel.update(req.session_id, update_data)
-        return NextQuestionResponse(
-            session_id=req.session_id,
-            question=decision["next_question"],
-            options=decision.get("options", []),
-            completed=False
-        )
+
+    next_q = decision["question"]
+    update_data.update(_pending_fields(next_q))
+    await DailySessionModel.update(req.session_id, update_data)
+    return _pack_question(req.session_id, next_q)
 
 
 @router.get("/{session_id}")
