@@ -10,7 +10,11 @@ import { PHASES, useGameStore } from "./state/GameStateManager";
 
 export default function MainGame() {
   const phase = useGameStore((s) => s.phase);
-  usePlayerControls(phase === PHASES.RUNNING || phase === PHASES.ANSWER_SELECTION);
+  usePlayerControls(
+    phase === PHASES.RUNNING ||
+    phase === PHASES.QUESTION_APPROACHING ||
+    phase === PHASES.ANSWER_SELECTION
+  );
 
   return (
     <div className="relative w-full h-screen bg-slate-950 overflow-hidden">

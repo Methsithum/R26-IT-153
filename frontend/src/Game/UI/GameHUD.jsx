@@ -4,6 +4,7 @@ import ObjectivePanel from "./ObjectivePanel";
 import Minimap from "./Minimap";
 import ControlHints from "./ControlHints";
 import CampusClock from "./CampusClock";
+import QuestionBanner from "./QuestionBanner";
 
 export default function GameHUD() {
   return (
@@ -11,6 +12,8 @@ export default function GameHUD() {
       <div className="absolute top-4 left-4">
         <DailyProgress />
       </div>
+
+      <QuestionBanner />
 
       <div className="absolute top-4 right-4">
         <ScoreDisplay />

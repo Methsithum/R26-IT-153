@@ -103,9 +103,9 @@ export const useGameStore = create((set, get) => ({
       return;
     }
     set({
-      phase: PHASES.QUESTION_APPROACHING,
+      phase: next.answers?.length ? PHASES.ANSWER_SELECTION : PHASES.QUESTION_APPROACHING,
       activeQuestion: next,
-      objectiveText: "Continue your campus run",
+      objectiveText: next.answers?.length ? "Pick a lane to answer" : "Continue your campus run",
     });
   },
 

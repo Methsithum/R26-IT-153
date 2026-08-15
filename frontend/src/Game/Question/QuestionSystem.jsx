@@ -2,18 +2,14 @@ import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useRunnerStore, LANES } from "../state/runnerStore";
 import { PHASES, useGameStore } from "../state/GameStateManager";
-import QuestionBoard from "./QuestionBoard";
 import AnswerLane from "./AnswerLane";
 
-const BOARD_DISTANCE_AHEAD = 34; // how far ahead the board spawns when triggered
-const LANE_GAP = 16; // distance from board to the answer gates
-const SPAWN_GAP = 60; // minimum run distance between questions
+const LANE_DISTANCE_AHEAD = 28;
+const SPAWN_GAP = 60;
 const LANE_COUNT = LANES.length;
 
-// Map an answer set onto all LANE_COUNT lanes without ever dropping an
-// answer. Every question has at most LANE_COUNT choices, so each answer
-// gets its own lane; if there are fewer answers than lanes, the leftover
-// lanes repeat the last answer rather than leaving a dead gate.
+// Map answers onto all 4 lanes. Extra lanes repeat the last answer so
+// every gate always has a valid choice.
 function laneMapping(answers) {
   if (!answers || answers.length === 0) return Array(LANE_COUNT).fill(null);
   return Array.from(
@@ -26,46 +22,31 @@ export default function QuestionSystem() {
   const phase = useGameStore((s) => s.phase);
   const activeQuestion = useGameStore((s) => s.activeQuestion);
 
-  const spawnGeom = useRef(null); // { boardZ, laneZ }
+  const laneZRef = useRef(null);
   const nextSpawnZ = useRef(SPAWN_GAP);
   const resolvedRef = useRef(false);
-  const passedBoardRef = useRef(false);
 
-  // Capture fixed world-space positions once a question becomes active.
   useEffect(() => {
     if (activeQuestion) {
       const { posZ } = useRunnerStore.getState();
-      const boardZ = posZ + BOARD_DISTANCE_AHEAD;
-      spawnGeom.current = { boardZ, laneZ: boardZ + LANE_GAP };
+      laneZRef.current = posZ + LANE_DISTANCE_AHEAD;
       resolvedRef.current = false;
-      passedBoardRef.current = false;
     } else {
-      spawnGeom.current = null;
+      laneZRef.current = null;
     }
   }, [activeQuestion]);
 
   useFrame(() => {
     const { posZ, laneIndex } = useRunnerStore.getState();
 
-    // Trigger the next question once enough distance has passed and the
-    // runner is free (no question / interaction currently in progress).
     if (phase === PHASES.RUNNING && !activeQuestion && posZ >= nextSpawnZ.current) {
       nextSpawnZ.current = posZ + SPAWN_GAP;
       useGameStore.getState().spawnNextQuestion();
       return;
     }
 
-    if (!activeQuestion || !spawnGeom.current) return;
-    const { boardZ, laneZ } = spawnGeom.current;
-
-    if (phase === PHASES.QUESTION_APPROACHING && !passedBoardRef.current && posZ >= boardZ - 3) {
-      passedBoardRef.current = true;
-      if (activeQuestion.answers) {
-        useGameStore.getState().questionBoardReached();
-      } else {
-        useGameStore.getState().passInfoBoard();
-      }
-    }
+    if (!activeQuestion || laneZRef.current == null) return;
+    const laneZ = laneZRef.current;
 
     if (
       phase === PHASES.ANSWER_SELECTION &&
@@ -77,29 +58,32 @@ export default function QuestionSystem() {
       const value = laneMapping(activeQuestion.answers)[laneIndex];
       useGameStore.getState().confirmAnswer(value);
     }
+
+    if (
+      phase === PHASES.QUESTION_APPROACHING &&
+      !resolvedRef.current &&
+      !activeQuestion.answers &&
+      posZ >= laneZ - 1
+    ) {
+      resolvedRef.current = true;
+      useGameStore.getState().passInfoBoard();
+    }
   });
 
-  if (!activeQuestion || !spawnGeom.current) return null;
-  const { boardZ, laneZ } = spawnGeom.current;
-  const showLanes =
-    activeQuestion.answers &&
-    [PHASES.QUESTION_APPROACHING, PHASES.ANSWER_SELECTION].includes(phase);
+  if (!activeQuestion || laneZRef.current == null || !activeQuestion.answers) return null;
+  if (![PHASES.QUESTION_APPROACHING, PHASES.ANSWER_SELECTION].includes(phase)) return null;
 
   return (
     <group>
-      {[PHASES.QUESTION_APPROACHING, PHASES.ANSWER_SELECTION].includes(phase) && (
-        <QuestionBoard text={activeQuestion.questionText} z={boardZ} />
-      )}
-      {showLanes &&
-        laneMapping(activeQuestion.answers).map((label, i) => (
-          <AnswerLane
-            key={i}
-            label={label}
-            laneIndex={i}
-            z={laneZ}
-            active={phase === PHASES.ANSWER_SELECTION}
-          />
-        ))}
+      {laneMapping(activeQuestion.answers).map((label, i) => (
+        <AnswerLane
+          key={i}
+          label={label}
+          laneIndex={i}
+          z={laneZRef.current}
+          active={phase === PHASES.ANSWER_SELECTION}
+        />
+      ))}
     </group>
   );
 }
