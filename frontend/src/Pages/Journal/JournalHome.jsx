@@ -16,14 +16,23 @@ const TABS = [
 function Page({ children }) {
   return (
     <div
-      className="relative flex-1 min-w-0 rounded-r-sm bg-[#f5ecd9] text-stone-800 p-6 sm:p-8
-                 shadow-inner border-l border-stone-300/50 min-h-[440px]"
+      className="relative flex h-full min-h-0 flex-1 min-w-0 bg-[#f5ecd9] text-stone-800
+                 px-6 py-7 sm:px-10 sm:py-9 lg:px-14 lg:py-10 overflow-hidden"
       style={{
         backgroundImage:
-          "repeating-linear-gradient(#f5ecd9 0 27px, #e4d6b6 27px 28px)",
+          "repeating-linear-gradient(#f5ecd9 0 32px, #e4d6b6 32px 33px)",
       }}
     >
-      {children}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-40"
+        style={{
+          background:
+            "radial-gradient(ellipse at 20% 10%, rgba(255,255,255,0.45), transparent 42%), radial-gradient(ellipse at 80% 90%, rgba(139,90,43,0.08), transparent 46%)",
+        }}
+      />
+      <div className="relative flex h-full min-h-0 w-full flex-col overflow-y-auto pb-16 md:pb-0">
+        {children}
+      </div>
     </div>
   );
 }
@@ -34,7 +43,7 @@ function Page({ children }) {
 // turning forward, page hinges on the left; -1 = turning back, hinges right).
 function BookFlip({ pageKey, direction, children, className = "" }) {
   return (
-    <div style={{ perspective: 1800 }} className={className}>
+    <div style={{ perspective: 1800 }} className={`self-stretch h-full min-h-0 ${className}`}>
       <AnimatePresence mode="wait" initial={false} custom={direction}>
         <motion.div
           key={pageKey}
@@ -48,10 +57,10 @@ function BookFlip({ pageKey, direction, children, className = "" }) {
             transformStyle: "preserve-3d",
             position: "relative",
           }}
-          className="w-full h-full"
+          className="flex h-full min-h-0 w-full"
         >
           <div
-            className="absolute inset-0 pointer-events-none rounded-r-sm"
+            className="absolute inset-0 pointer-events-none"
             style={{
               background:
                 direction >= 0
@@ -73,11 +82,11 @@ function OpenJournalContent({ selectTab }) {
   return (
     <div className="flex flex-col h-full justify-between">
       <div>
-        <div className="text-[11px] uppercase tracking-[0.25em] text-stone-500 mb-1">
+        <div className="text-[11px] uppercase tracking-[0.25em] text-stone-500 mb-2">
           {new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
         </div>
-        <h2 className="text-2xl font-bold text-stone-800 mb-4">Welcome back, Alex!</h2>
-        <p className="text-sm text-stone-600 leading-relaxed max-w-sm">
+        <h2 className="text-3xl sm:text-4xl font-bold text-stone-800 mb-5">Welcome back, Alex!</h2>
+        <p className="text-base text-stone-600 leading-relaxed max-w-2xl">
           {dailyCompleted
             ? "Today's entry is complete. Come back tomorrow to continue your streak."
             : "Today's journal entry is still incomplete. Complete your campus run to log it."}{" "}
@@ -88,7 +97,7 @@ function OpenJournalContent({ selectTab }) {
         <motion.div
           initial={{ rotate: -3, opacity: 0, y: 12 }}
           animate={{ rotate: -2, opacity: 1, y: 0 }}
-          className="bg-amber-50 border border-amber-800/10 shadow-lg px-6 py-5 rounded-sm text-center max-w-xs"
+          className="bg-amber-50 border border-amber-800/10 shadow-lg px-8 py-6 rounded-sm text-center max-w-sm"
         >
           <div className="text-xs text-stone-500 mb-3">
             {dailyCompleted
@@ -520,34 +529,44 @@ export default function JournalHome() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-[#5b3a24] to-[#3a2415] flex items-center justify-center p-4 sm:p-8">
-      <div className="relative w-full max-w-4xl flex rounded-md shadow-2xl overflow-hidden border border-black/20">
+    <div className="relative h-dvh w-full overflow-hidden bg-[#3a2415]">
+      <div className="flex h-full w-full">
         {/* left illustrated page */}
-        <div className="hidden sm:flex w-40 flex-col items-center justify-center gap-3 bg-[#efe4c8] border-r border-stone-300/50 p-4 text-center">
-          <div className="w-16 h-16 rounded-full border-2 border-amber-800/30 flex items-center justify-center text-2xl">
+        <div className="hidden sm:flex w-[17%] max-w-[13.5rem] min-w-[9rem] shrink-0 flex-col items-center justify-center gap-4 bg-[#efe4c8] p-6 text-center">
+          <div className="w-20 h-20 rounded-full border-2 border-amber-800/30 flex items-center justify-center text-3xl bg-[#f5ecd9]/70 shadow-inner">
             🏛️
           </div>
-          <div className="text-[11px] text-stone-600 leading-relaxed">
+          <div className="text-xs text-stone-600 leading-relaxed tracking-wide">
             Smart Uni Guide
             <br />
             Student Journal
           </div>
         </div>
 
-        {/* right content page with tabs */}
-        <BookFlip pageKey={tab} direction={direction} className="flex-1 min-w-0">
+        {/* book spine / gutter */}
+        <div
+          className="hidden sm:block w-3 shrink-0"
+          style={{
+            background:
+              "linear-gradient(90deg, rgba(58,36,21,0.28), rgba(255,255,255,0.18) 42%, rgba(58,36,21,0.12) 58%, rgba(58,36,21,0.22))",
+            boxShadow: "inset 4px 0 10px rgba(0,0,0,0.12), 4px 0 14px rgba(0,0,0,0.08)",
+          }}
+        />
+
+        {/* main lined page */}
+        <BookFlip pageKey={tab} direction={direction} className="flex-1 min-w-0 min-h-0">
           <Page>
             <Content selectTab={selectTab} onViewDay={viewDay} focusDay={focusDay} />
           </Page>
         </BookFlip>
 
-        {/* tab rail */}
-        <div className="hidden md:flex flex-col gap-2 bg-[#3a2415] p-3">
+        {/* tab rail — bookmark edge of the open journal */}
+        <div className="hidden md:flex flex-col justify-center gap-2.5 bg-[#3a2415] px-3 py-8 shrink-0">
           {TABS.map((t) => (
             <button
               key={t.id}
               onClick={() => selectTab(t.id)}
-              className={`text-[11px] font-semibold px-3 py-2 rounded-md whitespace-nowrap transition-colors ${
+              className={`text-[11px] font-semibold px-3 py-2.5 rounded-md whitespace-nowrap transition-colors shadow-sm ${
                 tab === t.id
                   ? "bg-amber-100 text-amber-900"
                   : "bg-[#6b4a30] text-amber-100/80 hover:bg-[#7c5638]"
@@ -557,21 +576,21 @@ export default function JournalHome() {
             </button>
           ))}
         </div>
+      </div>
 
-        {/* mobile tab bar */}
-        <div className="md:hidden absolute bottom-0 left-0 right-0 flex bg-[#3a2415] overflow-x-auto">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => selectTab(t.id)}
-              className={`flex-1 text-[10px] font-semibold px-2 py-2 whitespace-nowrap ${
-                tab === t.id ? "bg-amber-100 text-amber-900" : "text-amber-100/80"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+      {/* mobile tab bar */}
+      <div className="md:hidden absolute bottom-0 left-0 right-0 flex bg-[#3a2415] overflow-x-auto">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => selectTab(t.id)}
+            className={`flex-1 text-[10px] font-semibold px-2 py-3 whitespace-nowrap ${
+              tab === t.id ? "bg-amber-100 text-amber-900" : "text-amber-100/80"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
     </div>
   );

@@ -8,8 +8,7 @@ function App() {
   return (
     <Router>
 
-      <div>
-
+      <div className="h-full">
         <Routes>
           <Route path="/" element={<JournalHome/>} />
           <Route path="/journal/activities" element={<DailyActivitySelection/>} />
