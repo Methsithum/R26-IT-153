@@ -51,14 +51,14 @@ async def compute_derived_context(session_doc: Dict[str, Any], current_tasks: Li
     overloaded = (study_duration > 0) and (extra_activity_minutes > study_duration)
     
     # Flag 4: Inactive (no productive academic activities)
-    activities = session_doc.get("selected_activities", [])
+    activities = session_doc.get("selected_activities") or []
     academic_activities = {
         "academic_study", "assignment_work", "project_development", "internship"
     }
     inactive = not any(a in academic_activities for a in activities)
     
     # Flag 5: Low engagement level
-    engagement = session_doc.get("engagement", "").lower()
+    engagement = (session_doc.get("engagement") or "").lower()
     low_engagement = engagement == "low"
     
     return {
@@ -79,7 +79,7 @@ async def identify_at_risk_tasks(current_tasks: List[Dict]) -> List[Dict]:
     
     for task in current_tasks:
         days_left = _deadline_days(task.get("deadline"))
-        progress_stage = task.get("progress_stage", "").lower()
+        progress_stage = (task.get("progress_stage") or "").lower()
         
         # Check if task is at-risk: deadline soon + not making progress
         is_not_started = progress_stage in ["not_started", "not started", ""]
