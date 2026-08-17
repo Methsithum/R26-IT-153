@@ -6,6 +6,20 @@ from app.services.journal.llm_service import pick_question_id
 from app.services.journal.question_bank import QUESTION_BANK, get_question, pad_options
 
 SHORTLIST_SIZE = 20
+MARK_CHECK_IDS = {"exam-mark-check", "exam-mark-enter", "asg-mark-check", "asg-mark-enter"}
+MARK_STAGES = {
+    "mark_review",
+    "mark_entry",
+    "mark_subject_needed",
+    "exam_mark_review",
+    "exam_mark_entry",
+    "exam_mark_subject_needed",
+}
+
+
+def _exam_label(exam: dict) -> str:
+    kind = str(exam.get("exam_type") or "exam").title()
+    return f"{exam.get('subject')} · {kind}"
 
 
 def _matches_activities(question: dict, selected: List[str]) -> bool:
@@ -31,22 +45,32 @@ def _stage_allowed(
     selected: List[str],
     assignment_subjects: List[str],
     missing_exams: List[Dict],
+    unmarked_exams: Optional[List[Dict]] = None,
+    unmarked_assignments: Optional[List[Dict]] = None,
+    asked_ids: Optional[List[str]] = None,
 ) -> bool:
     stage = question.get("stage") or "daily_checkin"
+    unmarked_exams = unmarked_exams or []
+    unmarked_assignments = unmarked_assignments or []
+    asked = set(asked_ids or [])
     if stage in {"lecture_subjects_needed", "assignment_subjects_needed", "exam_setup_needed"}:
         return False
     if stage == "deadline_needed":
         if "assignment_work" not in selected:
             return False
         return bool(_subjects_needing_deadline(tasks, assignment_subjects))
+    if stage in MARK_STAGES and asked & MARK_CHECK_IDS:
+        return False
+    if stage == "mark_subject_needed":
+        return len(unmarked_assignments) > 1
     if stage in {"mark_review", "mark_entry"}:
-        if "assignment_work" not in selected or not assignment_subjects:
-            return False
-        done = {"completed", "report_completed", "viva_pending"}
-        relevant = [t for t in tasks if t.get("subject") in assignment_subjects]
-        return any((t.get("progress") or t.get("progress_stage") or "") in done for t in relevant)
+        return bool(unmarked_assignments)
     if stage == "exam_date":
         return "exam_preparation" in selected and bool(missing_exams)
+    if stage == "exam_mark_subject_needed":
+        return len(unmarked_exams) > 1
+    if stage in {"exam_mark_review", "exam_mark_entry"}:
+        return bool(unmarked_exams)
     return True
 
 
@@ -56,16 +80,29 @@ def build_shortlist(
     tasks: List[Dict],
     assignment_subjects: Optional[List[str]] = None,
     missing_exams: Optional[List[Dict]] = None,
+    unmarked_exams: Optional[List[Dict]] = None,
+    unmarked_assignments: Optional[List[Dict]] = None,
 ) -> List[dict]:
     asked = set(asked_ids or [])
     assignment_subjects = assignment_subjects or []
     missing_exams = missing_exams or []
+    unmarked_exams = unmarked_exams or []
+    unmarked_assignments = unmarked_assignments or []
     matching = []
     generic = []
     for question in QUESTION_BANK:
         if question["id"] in asked:
             continue
-        if not _stage_allowed(question, tasks, selected_activities, assignment_subjects, missing_exams):
+        if not _stage_allowed(
+            question,
+            tasks,
+            selected_activities,
+            assignment_subjects,
+            missing_exams,
+            unmarked_exams,
+            unmarked_assignments,
+            asked_ids,
+        ):
             continue
         if _matches_activities(question, selected_activities):
             if question.get("activities") == ["*"]:
@@ -96,8 +133,19 @@ def hydrate(
         elif question.get("stage") == "mark_review":
             text = f"Have you received a mark for {subject}?"
     if question.get("stage") == "exam_date" and missing_exams:
-        labels = [f"{e['subject']} · {str(e['exam_type']).title()}" for e in missing_exams]
+        labels = [_exam_label(e) for e in missing_exams]
         text = f"Confirm the missing exam date{'s' if len(labels) > 1 else ''}: {', '.join(labels)}."
+    if question.get("stage") == "exam_mark_subject_needed" and missing_exams:
+        labels = [_exam_label(e) for e in missing_exams]
+        text = f"Which exam result do you want to log? {', '.join(labels)}."
+    if question.get("stage") == "mark_subject_needed" and subject_options:
+        text = f"Which assignment do you want to log a mark for? {', '.join(subject_options)}."
+    if question.get("stage") in {"exam_mark_review", "exam_mark_entry"} and missing_exams:
+        label = _exam_label(missing_exams[0])
+        if question.get("stage") == "exam_mark_entry":
+            text = f"Log the mark you received for {label}."
+        else:
+            text = f"Have you received a mark for {label}?"
     return {
         **question,
         "question": text,
@@ -127,6 +175,67 @@ def _forced_setup_question(
     return None
 
 
+def _forced_mark_followup(
+    asked_ids: List[str],
+    unmarked_exams: List[Dict],
+    unmarked_assignments: List[Dict],
+    pending_mark_exam_id: Optional[str],
+    pending_mark_subject: Optional[str],
+) -> Optional[Dict[str, Any]]:
+    asked = set(asked_ids or [])
+    if asked & MARK_CHECK_IDS:
+        return None
+
+    if unmarked_exams:
+        if len(unmarked_exams) > 1 and not pending_mark_exam_id:
+            if "exam-mark-pick" in asked:
+                return None
+            return {
+                "question": get_question("exam-mark-pick"),
+                "missing_exams": unmarked_exams,
+                "subject": None,
+                "subject_options": [_exam_label(exam) for exam in unmarked_exams],
+            }
+        target = None
+        if pending_mark_exam_id:
+            target = next(
+                (exam for exam in unmarked_exams if str(exam.get("id")) == str(pending_mark_exam_id)),
+                None,
+            )
+        if not target:
+            target = unmarked_exams[0]
+        return {
+            "question": get_question("exam-mark-check"),
+            "missing_exams": [target],
+            "subject": target.get("subject"),
+            "subject_options": None,
+        }
+
+    if unmarked_assignments:
+        subjects = list(
+            dict.fromkeys(task.get("subject") for task in unmarked_assignments if task.get("subject"))
+        )
+        if not subjects:
+            return None
+        if len(subjects) > 1 and not pending_mark_subject:
+            if "asg-mark-pick" in asked:
+                return None
+            return {
+                "question": get_question("asg-mark-pick"),
+                "missing_exams": None,
+                "subject": None,
+                "subject_options": subjects,
+            }
+        subject = pending_mark_subject if pending_mark_subject in subjects else subjects[0]
+        return {
+            "question": get_question("asg-mark-check"),
+            "missing_exams": None,
+            "subject": subject,
+            "subject_options": None,
+        }
+    return None
+
+
 async def pick_next_question(
     *,
     user_name: str,
@@ -144,6 +253,10 @@ async def pick_next_question(
     exam_kinds: Optional[List[str]] = None,
     registered_subjects: Optional[List[str]] = None,
     missing_exams: Optional[List[Dict]] = None,
+    unmarked_exams: Optional[List[Dict]] = None,
+    unmarked_assignments: Optional[List[Dict]] = None,
+    pending_mark_exam_id: Optional[str] = None,
+    pending_mark_subject: Optional[str] = None,
 ) -> Dict[str, Any]:
     today_subjects = today_subjects or []
     lecture_subjects = lecture_subjects or []
@@ -152,6 +265,8 @@ async def pick_next_question(
     exam_kinds = exam_kinds or []
     registered_subjects = registered_subjects or []
     missing_exams = missing_exams or []
+    unmarked_exams = unmarked_exams or []
+    unmarked_assignments = unmarked_assignments or []
     if total_questions_asked >= max_questions:
         return {"end_session": True, "question": None, "task_updates": []}
 
@@ -170,8 +285,33 @@ async def pick_next_question(
             "task_updates": [],
         }
 
+    mark_followup = _forced_mark_followup(
+        asked_ids,
+        unmarked_exams,
+        unmarked_assignments,
+        pending_mark_exam_id,
+        pending_mark_subject,
+    )
+    if mark_followup and mark_followup.get("question"):
+        return {
+            "end_session": False,
+            "question": hydrate(
+                mark_followup["question"],
+                subject=mark_followup.get("subject"),
+                missing_exams=mark_followup.get("missing_exams"),
+                subject_options=mark_followup.get("subject_options"),
+            ),
+            "task_updates": [],
+        }
+
     shortlist = build_shortlist(
-        selected_activities, asked_ids, tasks, assignment_subjects, missing_exams
+        selected_activities,
+        asked_ids,
+        tasks,
+        assignment_subjects,
+        missing_exams,
+        unmarked_exams,
+        unmarked_assignments,
     )
     if not shortlist:
         return {"end_session": True, "question": None, "task_updates": []}
@@ -202,11 +342,27 @@ async def pick_next_question(
         needed = _subjects_needing_deadline(tasks, assignment_subjects)
         subject = needed[0] if needed else (assignment_subjects[0] if assignment_subjects else None)
     elif chosen.get("stage") in {"mark_review", "mark_entry"}:
-        subject = assignment_subjects[0] if assignment_subjects else None
+        subjects = [t.get("subject") for t in unmarked_assignments if t.get("subject")]
+        if pending_mark_subject and pending_mark_subject in subjects:
+            subject = pending_mark_subject
+        else:
+            subject = subjects[0] if subjects else (assignment_subjects[0] if assignment_subjects else None)
     elif chosen.get("stage") == "exam_date":
         exams_for_q = missing_exams
         if missing_exams:
             subject = missing_exams[0].get("subject")
+    elif chosen.get("stage") == "exam_mark_subject_needed":
+        exams_for_q = unmarked_exams
+    elif chosen.get("stage") in {"exam_mark_review", "exam_mark_entry"}:
+        target = None
+        if pending_mark_exam_id:
+            target = next(
+                (exam for exam in unmarked_exams if str(exam.get("id")) == str(pending_mark_exam_id)),
+                None,
+            )
+        exams_for_q = [target] if target else unmarked_exams[:1]
+        if exams_for_q:
+            subject = exams_for_q[0].get("subject")
     elif lecture_subjects and "academic_study" in (chosen.get("activities") or []):
         subject = lecture_subjects[0]
     elif assignment_subjects:
@@ -216,8 +372,21 @@ async def pick_next_question(
     elif today_subjects:
         subject = today_subjects[0]
 
+    subject_options_for_q = registered_subjects
+    if chosen.get("stage") == "mark_subject_needed":
+        subject_options_for_q = list(
+            dict.fromkeys(t.get("subject") for t in unmarked_assignments if t.get("subject"))
+        )
+    elif chosen.get("stage") == "exam_mark_subject_needed":
+        subject_options_for_q = [_exam_label(exam) for exam in (exams_for_q or unmarked_exams)]
+
     return {
         "end_session": False,
-        "question": hydrate(chosen, subject=subject, missing_exams=exams_for_q, subject_options=registered_subjects),
+        "question": hydrate(
+            chosen,
+            subject=subject,
+            missing_exams=exams_for_q,
+            subject_options=subject_options_for_q,
+        ),
         "task_updates": task_updates,
     }

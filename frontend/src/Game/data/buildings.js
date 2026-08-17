@@ -20,7 +20,7 @@ export const BUILDINGS = [
     laneSide: "right",
     type: "faculty",
     color: "#8fa6c9",
-    interactionTypes: ["marks", "academic"],
+    interactionTypes: ["marks", "academic", "markTarget"],
     description: "Subject marks and science-related academic records.",
   },
   {
@@ -30,7 +30,7 @@ export const BUILDINGS = [
     laneSide: "left",
     type: "faculty",
     color: "#c98f8f",
-    interactionTypes: ["marks", "academic"],
+    interactionTypes: ["marks", "academic", "markTarget"],
     description: "Arts faculty coursework and mark records.",
   },
   {
@@ -40,7 +40,7 @@ export const BUILDINGS = [
     laneSide: "left",
     type: "examination",
     color: "#b48fc9",
-    interactionTypes: ["date", "marks", "examDate", "examSetup"],
+    interactionTypes: ["date", "marks", "examDate", "examSetup", "markTarget"],
     description: "Examination dates and results.",
   },
   {

@@ -1,6 +1,11 @@
 import { useState } from "react";
 
 function subjectOf(question) {
+  const exam = question?.context?.missingExams?.[0];
+  if (exam?.subject) {
+    const kind = String(exam.examType || exam.exam_type || "").replace(/^\w/, (c) => c.toUpperCase());
+    return kind ? `${exam.subject} · ${kind}` : exam.subject;
+  }
   return question?.subject || question?.context?.subject || "Today's subject";
 }
 

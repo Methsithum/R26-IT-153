@@ -8,7 +8,7 @@
 
 import { ASSIGNMENT_STATUS, isMarkReviewDue, needsDeadline } from "./assignments";
 import { getBuildingForInteraction, getFacultyForSubject } from "./buildings";
-import { pendingExams } from "./exams";
+import { pendingExams, examsNeedingMark } from "./exams";
 
 export const ACTIVITY_TO_CATEGORY = {
   academic_study: "attendance",
@@ -96,6 +96,7 @@ function makeQuestion(base, overrides = {}) {
 function generateSpecialQuestions(assignments, exams = [], today = new Date()) {
   const special = [];
 
+  const dueMarks = [];
   for (const assignment of assignments) {
     if (needsDeadline(assignment)) {
       special.push(
@@ -118,26 +119,49 @@ function generateSpecialQuestions(assignments, exams = [], today = new Date()) {
     }
 
     if (isMarkReviewDue(assignment, today)) {
-      special.push(
-        makeQuestion(
-          {
-            id: `q-mark-check-${assignment.id}-${assignment.lastMarkCheckDate ?? "first"}`,
-            questionText: `Have you received the mark for "${assignment.title}"?`,
-            answers: ["Yes", "Not yet"],
-            answerType: "choice",
-            category: "assignment",
-          },
-          {
-            // First a simple yes/no lane question — only escalates to the
-            // structured numeric interaction if the answer is "Yes".
-            requiresSpecialInteraction: false,
-            interactionType: "marks",
-            targetLocation: getFacultyForSubject(assignment.subject),
-            context: { assignmentId: assignment.id, field: "mark-check" },
-          }
-        )
-      );
+      dueMarks.push(assignment);
     }
+  }
+
+  if (dueMarks.length > 1) {
+    special.push(
+      makeQuestion(
+        {
+          id: "q-asg-mark-pick",
+          questionText: "Which assignment do you want to log a mark for?",
+          answerType: "choice",
+          category: "assignment",
+        },
+        {
+          requiresSpecialInteraction: true,
+          interactionType: "markTarget",
+          targetLocation: getFacultyForSubject(dueMarks[0].subject),
+          context: {
+            field: "assignmentMarkSubject",
+            subjectOptions: dueMarks.map((item) => item.subject).filter(Boolean),
+          },
+        }
+      )
+    );
+  } else if (dueMarks.length === 1) {
+    const assignment = dueMarks[0];
+    special.push(
+      makeQuestion(
+        {
+          id: `q-mark-check-${assignment.id}-${assignment.lastMarkCheckDate ?? "first"}`,
+          questionText: `Have you received the mark for ${assignment.subject}?`,
+          answers: ["Yes", "Not yet"],
+          answerType: "choice",
+          category: "assignment",
+        },
+        {
+          requiresSpecialInteraction: false,
+          interactionType: "marks",
+          targetLocation: getFacultyForSubject(assignment.subject),
+          context: { assignmentId: assignment.id, field: "mark-check", subject: assignment.subject },
+        }
+      )
+    );
   }
 
   const stillPending = pendingExams(exams);
@@ -155,6 +179,46 @@ function generateSpecialQuestions(assignments, exams = [], today = new Date()) {
           interactionType: "examDate",
           targetLocation: "exam-hall",
           context: { field: "examDates" },
+        }
+      )
+    );
+  }
+
+  const needMarks = examsNeedingMark(exams, today);
+  if (needMarks.length > 1) {
+    special.push(
+      makeQuestion(
+        {
+          id: `q-exam-mark-pick-${needMarks.map((item) => item.id).join("-")}`,
+          questionText: "Which exam result do you want to log?",
+          answerType: "choice",
+          category: "exam",
+        },
+        {
+          requiresSpecialInteraction: true,
+          interactionType: "markTarget",
+          targetLocation: "exam-hall",
+          context: { field: "examMarkSubject", missingExams: needMarks },
+        }
+      )
+    );
+  } else if (needMarks.length === 1) {
+    const exam = needMarks[0];
+    const kind = String(exam.examType || exam.exam_type || "exam").replace(/^\w/, (c) => c.toUpperCase());
+    special.push(
+      makeQuestion(
+        {
+          id: `q-exam-mark-check-${exam.id}`,
+          questionText: `Have you received a mark for ${exam.subject} · ${kind}?`,
+          answers: ["Yes", "Not yet"],
+          answerType: "choice",
+          category: "exam",
+        },
+        {
+          requiresSpecialInteraction: false,
+          interactionType: "marks",
+          targetLocation: "exam-hall",
+          context: { field: "exam-mark-check", missingExams: [exam], subject: exam.subject },
         }
       )
     );
@@ -205,5 +269,6 @@ export function generateDailyQuestions({
  * should now trigger.
  */
 export function shouldEscalateToMarkEntry(question, answerValue) {
-  return question.context?.field === "mark-check" && answerValue === "Yes";
+  const field = question.context?.field;
+  return (field === "mark-check" || field === "exam-mark-check") && answerValue === "Yes";
 }

@@ -31,7 +31,12 @@ function highlightsFromEntry(entry) {
     if (record.interactionType === "date") {
       highlights.push(`Deadline${subject ? ` · ${subject}` : ""}: ${formatDate(record.value)}`);
     } else if (record.interactionType === "marks") {
-      highlights.push(`Mark${subject ? ` · ${subject}` : ""}: ${record.value}%`);
+      const examLabel = record.context?.missingExams?.[0]
+        ? ` · ${record.context.missingExams[0].subject || subject}${record.context.missingExams[0].examType ? ` ${record.context.missingExams[0].examType}` : ""}`
+        : subject
+          ? ` · ${subject}`
+          : "";
+      highlights.push(`Mark${examLabel}: ${record.value}%`);
     } else if (record.interactionType === "examDate" && record.value && typeof record.value === "object") {
       Object.values(record.value).forEach((date) => highlights.push(`Exam date: ${formatDate(date)}`));
     }

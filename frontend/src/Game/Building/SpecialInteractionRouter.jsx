@@ -6,6 +6,7 @@ import GradeSlider from "../MiniGames/GradeSlider";
 import ExamCalendarSort from "../MiniGames/ExamCalendarSort";
 import SubjectPicker from "../MiniGames/SubjectPicker";
 import ExamSetup from "../MiniGames/ExamSetup";
+import MarkTargetPicker from "../MiniGames/MarkTargetPicker";
 
 function MiniGameSlot({ activeQuestion, onComplete }) {
   const props = { question: activeQuestion, onComplete };
@@ -16,6 +17,7 @@ function MiniGameSlot({ activeQuestion, onComplete }) {
   if (type === "date") return <CalendarStamp {...props} />;
   if (type === "marks") return <GradeSlider {...props} />;
   if (type === "examDate") return <ExamCalendarSort {...props} />;
+  if (type === "markTarget") return <MarkTargetPicker {...props} />;
   return <SubjectPicker {...props} />;
 }
 
@@ -64,6 +66,8 @@ export default function SpecialInteractionRouter() {
                   ? "Pick today's subjects"
                   : type === "examSetup"
                     ? "Exam subjects · Mid / Final"
+                    : type === "markTarget"
+                      ? "Pick the subject for this mark"
                     : "Special interaction"}
             </div>
           </div>

@@ -234,6 +234,25 @@ export const useGameStore = create((set, get) => ({
     const needsInteraction = activeQuestion.requiresSpecialInteraction || escalates;
     if (!needsInteraction) {
       await get().ingestBackendAnswer(answerValue);
+      const todayKey = new Date().toISOString().slice(0, 10);
+      if (activeQuestion.context?.field === "exam-mark-check") {
+        const examId = activeQuestion.context?.missingExams?.[0]?.id;
+        set({
+          exams: get().exams.map((exam) =>
+            exam.id === examId ? { ...exam, lastMarkCheckDate: todayKey } : exam
+          ),
+        });
+      }
+      if (activeQuestion.context?.field === "mark-check") {
+        const subject = activeQuestion.context?.subject || activeQuestion.subject;
+        set({
+          assignments: get().assignments.map((item) =>
+            item.id === activeQuestion.context?.assignmentId || item.subject === subject
+              ? { ...item, lastMarkCheckDate: todayKey }
+              : item
+          ),
+        });
+      }
     }
 
     setTimeout(() => get().evaluateDataRequirement(), 900);
@@ -296,6 +315,21 @@ export const useGameStore = create((set, get) => ({
       updatedExams = exams.map((e) =>
         result.value[e.id]
           ? { ...e, date: result.value[e.id], status: EXAM_STATUS.DATE_RECORDED }
+          : e
+      );
+    }
+
+    const examMarkField = activeQuestion?.context?.field;
+    if ((examMarkField === "examMark" || examMarkField === "exam-mark-check") && result.value != null) {
+      const examId = activeQuestion?.context?.missingExams?.[0]?.id;
+      updatedExams = exams.map((e) =>
+        e.id === examId || (!examId && e.subject === activeQuestion?.context?.subject)
+          ? {
+              ...e,
+              mark: result.value,
+              status: EXAM_STATUS.MARK_RECEIVED,
+              lastMarkCheckDate: new Date().toISOString().slice(0, 10),
+            }
           : e
       );
     }

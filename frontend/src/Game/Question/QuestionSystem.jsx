@@ -4,8 +4,8 @@ import { useRunnerStore, LANES } from "../state/runnerStore";
 import { PHASES, useGameStore } from "../state/GameStateManager";
 import AnswerLane from "./AnswerLane";
 
-const LANE_DISTANCE_AHEAD = 28;
-const SPAWN_GAP = 60;
+const LANE_DISTANCE_AHEAD = 62;
+const SPAWN_GAP = 70;
 const LANE_COUNT = LANES.length;
 
 // Map answers onto all 4 lanes. Extra lanes repeat the last answer so

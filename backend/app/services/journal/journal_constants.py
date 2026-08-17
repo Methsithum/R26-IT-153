@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Final
 
 ALLOWED_ACTIVITIES: Final[set[str]] = {
@@ -29,6 +30,23 @@ INTERNSHIP_PROGRESS_STAGES: Final[set[str]] = {
 }
 
 TASK_PROGRESS_STAGES: Final[set[str]] = ASSIGNMENT_PROGRESS_STAGES | INTERNSHIP_PROGRESS_STAGES
+
+MARK_RECEIVED_STAGES: Final[set[str]] = {"completed", "report_completed", "viva_pending"}
+MARK_CHECK_INTERVAL_DAYS: Final[int] = 7
+
+
+def is_mark_check_due(last_check, today=None) -> bool:
+    if not last_check:
+        return True
+    today = today or datetime.utcnow().date()
+    if isinstance(last_check, datetime):
+        last = last_check.date()
+    else:
+        try:
+            last = datetime.fromisoformat(str(last_check)[:10]).date()
+        except Exception:
+            return True
+    return (today - last).days >= MARK_CHECK_INTERVAL_DAYS
 
 
 def normalize_activity(activity: str) -> str:

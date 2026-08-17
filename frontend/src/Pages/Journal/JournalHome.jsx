@@ -144,6 +144,7 @@ const ASSIGNMENT_BADGES = {
 const EXAM_BADGES = {
   PENDING: { icon: "❓", color: "#c98f8f", label: "Date Pending" },
   DATE_RECORDED: { icon: "📌", color: "#2f9e63", label: "Date Set" },
+  MARK_RECEIVED: { icon: "🏆", color: "#2f9e63", label: "Mark Received" },
 };
 
 const ROADMAP_ICONS = ["🏛️", "📚", "🏫", "🔬"];
@@ -496,7 +497,14 @@ function GameDetailsContent() {
         {exams.length === 0 ? (
           <p className="text-sm text-stone-500 italic">No exams recorded yet.</p>
         ) : exams.map((e) => {
-          const badge = EXAM_BADGES[e.status] ?? EXAM_BADGES.PENDING;
+          const status =
+            e.mark != null && e.mark !== ""
+              ? "MARK_RECEIVED"
+              : e.date
+                ? "DATE_RECORDED"
+                : e.status;
+          const badge = EXAM_BADGES[status] ?? EXAM_BADGES.PENDING;
+          const kind = e.exam_type || e.examType;
           return (
             <div
               key={e.id}
@@ -505,8 +513,13 @@ function GameDetailsContent() {
             >
               <span className="text-lg">{badge.icon}</span>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-stone-800 truncate">{e.subject}</div>
-                <div className="text-[10px] text-stone-500">{e.date ?? "No date set"}</div>
+                <div className="text-sm font-medium text-stone-800 truncate">
+                  {e.subject}{kind ? ` · ${String(kind).replace(/^\w/, (c) => c.toUpperCase())}` : ""}
+                </div>
+                <div className="text-[10px] text-stone-500">
+                  {e.date ?? "No date set"}
+                  {e.mark != null && e.mark !== "" ? ` · ${e.mark}%` : ""}
+                </div>
               </div>
               <span
                 className="text-[10px] font-semibold px-2 py-1 rounded-full shrink-0"

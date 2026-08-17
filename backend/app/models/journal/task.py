@@ -1,4 +1,5 @@
 from app.config.database import db
+from app.services.journal.journal_constants import MARK_RECEIVED_STAGES, is_mark_check_due
 from bson import ObjectId
 from datetime import datetime
 
@@ -59,6 +60,7 @@ class TaskModel:
             "progress_stage": "in_progress",
             "deadline": None,
             "mark": None,
+            "last_mark_check": None,
         })
 
     @staticmethod
@@ -77,10 +79,29 @@ class TaskModel:
         })
 
     @staticmethod
+    async def assignments_needing_mark(user_id: str):
+        docs = list(task_collection.find({"user_id": user_id, "task_type": "assignment"}))
+        ready = []
+        for doc in docs:
+            task = TaskModel._serialize(doc)
+            stage = str(task.get("progress_stage") or "").lower()
+            if stage not in MARK_RECEIVED_STAGES:
+                continue
+            if task.get("mark") not in (None, ""):
+                continue
+            if is_mark_check_due(task.get("last_mark_check")):
+                ready.append(task)
+        return ready
+
+    @staticmethod
     async def set_mark(user_id: str, subject: str, mark):
+        today = datetime.utcnow().date().isoformat()
         existing = await TaskModel.find_assignment(user_id, subject)
         if existing:
-            await TaskModel.update(existing["id"], {"mark": mark, "progress_stage": "completed"})
+            await TaskModel.update(
+                existing["id"],
+                {"mark": mark, "progress_stage": "completed", "last_mark_check": today},
+            )
             return
         await TaskModel.create({
             "user_id": user_id,
@@ -89,7 +110,17 @@ class TaskModel:
             "task_type": "assignment",
             "progress_stage": "completed",
             "mark": mark,
+            "last_mark_check": today,
         })
+
+    @staticmethod
+    async def record_mark_check(user_id: str, subject: str):
+        existing = await TaskModel.find_assignment(user_id, subject)
+        if existing:
+            await TaskModel.update(
+                existing["id"],
+                {"last_mark_check": datetime.utcnow().date().isoformat()},
+            )
 
     @staticmethod
     async def update(task_id: str, update_data: dict):

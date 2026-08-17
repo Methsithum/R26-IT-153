@@ -169,7 +169,7 @@ Session context: {json.dumps(session_context or {{}}, default=str)}.
 
 Rules:
 - The paragraph and the bullets must cover the same day.
-- Highlights: 3 to 8 bullets. Each bullet is one fact (focus, attendance, subject, deadline, mark, exam date, activity).
+- Highlights: 3 to 8 bullets. Each bullet is one fact (focus, attendance, subject, deadline, mark, exam date, exam mark, activity).
 - Be specific. Use the student's actual answers, subjects, and dates.
 """
     try:
