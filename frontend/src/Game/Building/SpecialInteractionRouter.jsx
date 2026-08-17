@@ -4,15 +4,19 @@ import { getBuildingById } from "../data/buildings";
 import CalendarStamp from "../MiniGames/CalendarStamp";
 import GradeSlider from "../MiniGames/GradeSlider";
 import ExamCalendarSort from "../MiniGames/ExamCalendarSort";
+import SubjectPicker from "../MiniGames/SubjectPicker";
+import ExamSetup from "../MiniGames/ExamSetup";
 
 function MiniGameSlot({ activeQuestion, onComplete }) {
   const props = { question: activeQuestion, onComplete };
   const type = activeQuestion?.interactionType;
 
+  if (type === "subjectPick") return <SubjectPicker {...props} />;
+  if (type === "examSetup") return <ExamSetup {...props} />;
   if (type === "date") return <CalendarStamp {...props} />;
   if (type === "marks") return <GradeSlider {...props} />;
   if (type === "examDate") return <ExamCalendarSort {...props} />;
-  return <CalendarStamp {...props} />;
+  return <SubjectPicker {...props} />;
 }
 
 export default function SpecialInteractionRouter() {
@@ -54,7 +58,13 @@ export default function SpecialInteractionRouter() {
               {building?.name ?? "Campus building"}
             </div>
             <div className="mt-1 text-sm text-stone-700">
-              {subject ? `${subject} · ${type}` : "Special interaction"}
+              {subject
+                ? `${subject} · ${type}`
+                : type === "subjectPick"
+                  ? "Pick today's subjects"
+                  : type === "examSetup"
+                    ? "Exam subjects · Mid / Final"
+                    : "Special interaction"}
             </div>
           </div>
           <div className="rounded-full bg-white/80 px-3 py-1 text-xs text-stone-500 shadow-sm">

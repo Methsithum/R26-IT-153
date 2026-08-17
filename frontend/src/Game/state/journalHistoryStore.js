@@ -8,6 +8,7 @@ function sessionsToEntries(sessions = []) {
     .map((session, index) => ({
       day: index + 1,
       journalEntry: session.journal_entry || "",
+      highlights: session.journal_highlights || [],
       journalDay: {
         day: index + 1,
         responses: (session.qa_history || []).map((qa) => ({

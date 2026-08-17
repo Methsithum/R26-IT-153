@@ -61,12 +61,16 @@ export const useGameStore = create((set, get) => ({
   exams: [],
   selectedActivities: [],
   todaySubjects: [],
+  lectureSubjects: [],
+  assignmentSubjects: [],
+  examSubjects: [],
   examKinds: [],
   journalDay: createEmptyJournalDay(initialDay),
 
   sessionId: null,
   sessionCompleted: false,
   backendJournalEntry: null,
+  backendJournalHighlights: [],
 
   questionQueue: [],
   questionIndex: 0,
@@ -101,7 +105,13 @@ export const useGameStore = create((set, get) => ({
     });
   },
 
-  startDailyGame: async ({ activities = [], todaySubjects = [], examKinds = [] } = {}) => {
+  startDailyGame: async ({
+    activities = [],
+    lectureSubjects = [],
+    assignmentSubjects = [],
+    examSubjects = [],
+    examKinds = [],
+  } = {}) => {
     const user = readStoredUser();
     if (!user?.id) {
       throw new Error("Please register or sign in before starting today's run.");
@@ -114,7 +124,9 @@ export const useGameStore = create((set, get) => ({
     const res = await startDailySession({
       userId: user.id,
       selectedActivities: activities,
-      todaySubjects,
+      lectureSubjects,
+      assignmentSubjects,
+      examSubjects,
       examKinds,
     });
     const first = mapBackendQuestion(res);
@@ -125,11 +137,15 @@ export const useGameStore = create((set, get) => ({
     set({
       phase: PHASES.RUNNING,
       selectedActivities: activities,
-      todaySubjects,
+      lectureSubjects,
+      assignmentSubjects,
+      examSubjects,
+      todaySubjects: [...new Set([...lectureSubjects, ...assignmentSubjects, ...examSubjects])],
       examKinds,
       sessionId: res.session_id,
       sessionCompleted: false,
       backendJournalEntry: null,
+      backendJournalHighlights: [],
       questionQueue: [first],
       questionIndex: 0,
       activeQuestion: null,
@@ -148,7 +164,11 @@ export const useGameStore = create((set, get) => ({
     try {
       const res = await submitDailyAnswer(sessionId, serializeAnswer(answerValue));
       if (res.completed) {
-        set({ sessionCompleted: true, backendJournalEntry: res.journal_entry || null });
+        set({
+          sessionCompleted: true,
+          backendJournalEntry: res.journal_entry || null,
+          backendJournalHighlights: res.journal_highlights || [],
+        });
         return;
       }
       const next = mapBackendQuestion(res);
@@ -307,7 +327,7 @@ export const useGameStore = create((set, get) => ({
   },
 
   finishDailyGame: () => {
-    const { journalDay, xp, score, day, level, backendJournalEntry } = get();
+    const { journalDay, xp, score, day, level, backendJournalEntry, backendJournalHighlights } = get();
     const finalXp = xp + XP_RULES.DAILY_COMPLETE;
     const completedDay = completeJournalDay(journalDay, finalXp, score);
     set({
@@ -321,6 +341,7 @@ export const useGameStore = create((set, get) => ({
       day,
       journalDay: completedDay,
       journalEntry: backendJournalEntry,
+      highlights: backendJournalHighlights || [],
       xp: finalXp,
       score,
       level,
@@ -334,6 +355,7 @@ export const useGameStore = create((set, get) => ({
       sessionId: null,
       sessionCompleted: false,
       backendJournalEntry: null,
+      backendJournalHighlights: [],
       questionQueue: [],
       questionIndex: 0,
       activeQuestion: null,

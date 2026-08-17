@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGameStore } from "../../Game/state/GameStateManager";
 import { useJournalHistoryStore } from "../../Game/state/journalHistoryStore";
-import { composeJournalNarrative } from "../../Game/data/journalNarrative";
+import { buildJournalPage } from "../../Game/data/journalNarrative";
 import { clearStoredUser } from "../../services/userApi";
 
 const TABS = [
@@ -307,7 +307,7 @@ function RecentJournalsContent({ focusDay }) {
 
   const clamped = Math.min(Math.max(index, 0), entries.length - 1);
   const entry = entries[clamped];
-  const body = composeJournalNarrative(entry) || "No entry was recorded for this day.";
+  const { narrative, highlights } = buildJournalPage(entry);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -364,13 +364,28 @@ function RecentJournalsContent({ focusDay }) {
             })}
         </div>
         <p
-          className="text-[15px] leading-7 text-stone-700 mb-5 first-letter:text-3xl
+          className="text-[15px] leading-7 text-stone-700 mb-6 first-letter:text-3xl
                      first-letter:font-bold first-letter:text-amber-700 first-letter:mr-1
                      first-letter:float-left"
           style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
         >
-          {body}
+          {narrative || "No entry was recorded for this day."}
         </p>
+        {highlights.length > 0 && (
+          <div className="mb-6 rounded-2xl border border-amber-800/10 bg-amber-50/70 px-4 py-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-800/70 mb-2">
+              Today at a glance
+            </div>
+            <ul className="space-y-1.5 text-sm text-stone-700">
+              {highlights.map((item, i) => (
+                <li key={`${item}-${i}`} className="flex gap-2">
+                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-800" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {(entry.xp || entry.score) ? (
           <div className="flex gap-6 pt-3 border-t border-stone-300/60">
             <div>

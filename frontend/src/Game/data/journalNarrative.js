@@ -5,57 +5,83 @@ function formatDate(iso) {
   return parsed.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
 }
 
-function responseClause(response) {
-  const question = response.questionText || response.category || "a check-in";
-  const stem = String(question)
-    .replace(/^Did you /i, "")
-    .replace(/^What (did|was) you(r)? /i, "")
-    .replace(/\?$/, "");
-  return `${stem} (${response.answer})`;
+function isRawDump(text) {
+  const value = (text || "").trim();
+  if (!value) return true;
+  return (
+    value.startsWith("Today's campus run touched on") ||
+    value.startsWith("Today I logged my campus run.")
+  );
 }
 
-function interactionSentence(record) {
-  const subject = record.context?.subject || record.subject;
-  if (record.interactionType === "date") {
-    return `I confirmed the deadline${subject ? ` for ${subject}` : ""} as ${formatDate(record.value)}.`;
+function highlightFromResponse(response) {
+  const question = String(response.questionText || response.category || "Check-in")
+    .replace(/\?$/, "")
+    .trim();
+  const answer = String(response.answer ?? "—").trim();
+  return `${question}: ${answer}`;
+}
+
+function highlightsFromEntry(entry) {
+  const { responses = [], interactionsCompleted = [] } = entry?.journalDay ?? {};
+  const highlights = responses.map(highlightFromResponse);
+
+  for (const record of interactionsCompleted) {
+    const subject = record.context?.subject || record.subject;
+    if (record.interactionType === "date") {
+      highlights.push(`Deadline${subject ? ` · ${subject}` : ""}: ${formatDate(record.value)}`);
+    } else if (record.interactionType === "marks") {
+      highlights.push(`Mark${subject ? ` · ${subject}` : ""}: ${record.value}%`);
+    } else if (record.interactionType === "examDate" && record.value && typeof record.value === "object") {
+      Object.values(record.value).forEach((date) => highlights.push(`Exam date: ${formatDate(date)}`));
+    }
   }
-  if (record.interactionType === "marks") {
-    return `I recorded my mark${subject ? ` for ${subject}` : ""}: ${record.value}%.`;
+
+  if (entry?.xp) highlights.push(`XP earned: ${entry.xp}`);
+  if (entry?.score) highlights.push(`Score: ${entry.score}`);
+  return highlights;
+}
+
+function fallbackNarrative(entry) {
+  const count = entry?.journalDay?.responses?.length || 0;
+  if (count === 0) {
+    return "Today's journal page is waiting for a completed campus run.";
   }
-  if (record.interactionType === "examDate" && record.value && typeof record.value === "object") {
-    const parts = Object.entries(record.value).map(([, date]) => formatDate(date));
-    if (parts.length === 0) return null;
-    return `I set missing exam date${parts.length > 1 ? "s" : ""}: ${parts.join(", ")}.`;
+  return (
+    "Today I showed up for my campus journal and wrote down how the day actually went. " +
+    `I logged ${count} check-in${count === 1 ? "" : "s"} so lectures, study, and anything still outstanding are on the page instead of only in my head.`
+  );
+}
+
+export function buildJournalPage(entry) {
+  const storedHighlights = Array.isArray(entry?.highlights)
+    ? entry.highlights.map((item) => String(item).trim()).filter(Boolean)
+    : [];
+
+  let narrative = (entry?.journalEntry || "").trim();
+  if (narrative.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(narrative);
+      if (parsed.narrative) narrative = String(parsed.narrative).trim();
+      if (Array.isArray(parsed.highlights) && parsed.highlights.length && storedHighlights.length === 0) {
+        storedHighlights.push(...parsed.highlights.map((item) => String(item).trim()).filter(Boolean));
+      }
+    } catch {
+      // keep the original string
+    }
   }
-  if (record.value == null) return null;
-  const value = typeof record.value === "object" ? Object.values(record.value).join(", ") : record.value;
-  return `I updated a campus record: ${value}.`;
+
+  if (isRawDump(narrative)) {
+    narrative = fallbackNarrative(entry);
+  }
+
+  const highlights = storedHighlights.length ? storedHighlights : highlightsFromEntry(entry);
+  return {
+    narrative: narrative || fallbackNarrative(entry),
+    highlights,
+  };
 }
 
 export function composeJournalNarrative(entry) {
-  const written = (entry?.journalEntry || "").trim();
-  if (written) return written;
-
-  const { responses = [], interactionsCompleted = [] } = entry?.journalDay ?? {};
-  const sentences = [];
-
-  if (responses.length > 0) {
-    const clauses = responses.map(responseClause);
-    sentences.push(
-      `Today's campus run touched on ${clauses.length === 1 ? "one thing" : `${clauses.length} things`}: ${clauses.join(", ")}.`
-    );
-  }
-
-  for (const record of interactionsCompleted) {
-    const sentence = interactionSentence(record);
-    if (sentence) sentences.push(sentence);
-  }
-
-  if (sentences.length === 0) return "";
-  if (entry?.xp || entry?.score) {
-    sentences.push(
-      `I finished the day with ${(entry.xp || 0).toLocaleString()} XP and a score of ${(entry.score || 0).toLocaleString()}.`
-    );
-  }
-  return sentences.join(" ");
+  return buildJournalPage(entry).narrative;
 }

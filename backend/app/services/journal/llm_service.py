@@ -121,6 +121,28 @@ Rules:
     }
 
 
+def fallback_daily_journal(
+    qa_history: List[Dict],
+    selected_activities: List[str] | None = None,
+) -> Dict[str, Any]:
+    highlights = []
+    activities = [a.replace("_", " ") for a in (selected_activities or []) if a]
+    if activities:
+        highlights.append("Today's activities: " + ", ".join(activities))
+    for pair in qa_history or []:
+        question = str(pair.get("question") or "Check-in").rstrip("?").strip()
+        answer = str(pair.get("answer") or "—").strip()
+        if question or answer:
+            highlights.append(f"{question}: {answer}")
+    count = len(qa_history or [])
+    narrative = (
+        "Today I showed up for my campus journal and wrote down how the day actually went. "
+        f"I logged {count} check-in{'s' if count != 1 else ''} "
+        "so lectures, study, and anything still outstanding are on the page instead of only in my head."
+    )
+    return {"narrative": narrative, "highlights": highlights}
+
+
 async def generate_daily_journal(
     user_name: str,
     selected_activities: List[str],
@@ -129,22 +151,42 @@ async def generate_daily_journal(
     qa_history: List[Dict],
     task_updates_summary: List[Dict],
     session_context: Dict[str, Any] | None = None,
-) -> str:
+) -> Dict[str, Any]:
     prompt = f"""
-Generate a natural, concise daily journal entry (2-3 sentences) for student {user_name}.
-Activities: {', '.join(selected_activities)}.
-Study duration: {study_duration_minutes} minutes. Focus: {subject_focus}.
-Q&A log: {json.dumps(qa_history, indent=2)}.
-Task updates: {json.dumps(task_updates_summary)}.
-Additional session context: {json.dumps(session_context or {}, default=str, indent=2)}.
-Write in first person, positive tone.
+You are writing a student diary page for {user_name}.
+Return JSON only:
+{{
+  "narrative": "2-4 first-person sentences. Natural diary voice. Weave the answers into a story. Never write lists like academic (Yes) or category (answer). Do not mention XP, score, mini-games, or that this is a video game.",
+  "highlights": ["one short recap bullet per fact from today"]
+}}
+
+Today's activities: {', '.join(selected_activities) or 'unspecified'}.
+Study duration: {study_duration_minutes or 0} minutes.
+Subject focus: {subject_focus or 'unspecified'}.
+Q&A log: {json.dumps(qa_history, indent=2, default=str)}.
+Task updates: {json.dumps(task_updates_summary, default=str)}.
+Session context: {json.dumps(session_context or {{}}, default=str)}.
+
+Rules:
+- The paragraph and the bullets must cover the same day.
+- Highlights: 3 to 8 bullets. Each bullet is one fact (focus, attendance, subject, deadline, mark, exam date, activity).
+- Be specific. Use the student's actual answers, subjects, and dates.
 """
-    resp = await client.chat.completions.create(
-        model=MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.8
-    )
-    return resp.choices[0].message.content.strip()
+    try:
+        resp = await client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.7,
+        )
+        data = json.loads(resp.choices[0].message.content)
+        narrative = str(data.get("narrative") or "").strip()
+        highlights = [str(item).strip() for item in (data.get("highlights") or []) if str(item).strip()]
+        if narrative:
+            return {"narrative": narrative, "highlights": highlights or fallback_daily_journal(qa_history, selected_activities)["highlights"]}
+    except Exception:
+        pass
+    return fallback_daily_journal(qa_history, selected_activities)
 
 async def generate_weekly_summary(user_name: str, week_data: str) -> str:
     prompt = f"Create a weekly academic reflection summary (2-3 paragraphs) for {user_name} based on this data: {week_data}"

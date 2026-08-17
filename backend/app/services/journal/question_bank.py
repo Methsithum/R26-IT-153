@@ -48,6 +48,9 @@ ACADEMIC = ["academic_study", "assignment_work", "exam_preparation", "project_de
 
 QUESTION_BANK: list[dict[str, Any]] = [
     # --- lectures / study ---
+    _q("lecture-subjects", "Which lectures did you attend today?",
+       None, STUDY, answer_type="choice", special=True, interaction_type="subjectPick",
+       target_location="lecture-hall", stage="lecture_subjects_needed", context_field="lectureSubjects"),
     _q("study-attend", "Did you attend a lecture today?",
        ["Yes, all of them", "Yes, some of them", "No, I self-studied", "No, I skipped"],
        STUDY, category="attendance"),
@@ -73,6 +76,9 @@ QUESTION_BANK: list[dict[str, Any]] = [
        ["Yes, in class", "Yes, with a friend", "Not yet", "Nothing was unclear"],
        STUDY, category="academic"),
     # --- assignments ---
+    _q("assignment-subjects", "Which assignment subject(s) did you work on today?",
+       None, ASG, answer_type="choice", special=True, interaction_type="subjectPick",
+       target_location="library", stage="assignment_subjects_needed", context_field="assignmentSubjects"),
     _q("asg-worked", "Did you work on an assignment today?",
        ["Yes, made good progress", "Yes, a little", "Planned only", "Not today"],
        ASG, category="academic"),
@@ -102,6 +108,9 @@ QUESTION_BANK: list[dict[str, Any]] = [
        None, ASG, answer_type="number", special=True, interaction_type="marks",
        target_location="faculty-science", stage="mark_entry", context_field="mark"),
     # --- exams ---
+    _q("exam-setup", "Which exam subject(s) did you prepare, and was it Mid, Final, or both?",
+       None, EXAM, answer_type="choice", special=True, interaction_type="examSetup",
+       target_location="exam-hall", stage="exam_setup_needed", context_field="examSetup"),
     _q("exam-studied", "Did you study for an examination today?",
        ["Yes, a full session", "Yes, a short review", "Only planned it", "Not today"],
        EXAM, category="academic"),

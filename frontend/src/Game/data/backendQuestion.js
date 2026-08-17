@@ -21,6 +21,7 @@ export function mapBackendQuestion(res) {
       field: res.context_field || null,
       subject: res.subject || null,
       missingExams,
+      subjectOptions: res.subject_options || [],
     },
   };
 }

@@ -10,7 +10,7 @@ export const BUILDINGS = [
     laneSide: "right",
     type: "academic",
     color: "#c9a26a",
-    interactionTypes: ["date", "academic"],
+    interactionTypes: ["date", "academic", "subjectPick"],
     description: "Deadlines, schedules and reference records are handled here.",
   },
   {
@@ -40,7 +40,7 @@ export const BUILDINGS = [
     laneSide: "left",
     type: "examination",
     color: "#b48fc9",
-    interactionTypes: ["date", "marks"],
+    interactionTypes: ["date", "marks", "examDate", "examSetup"],
     description: "Examination dates and results.",
   },
   {
@@ -50,7 +50,7 @@ export const BUILDINGS = [
     laneSide: "right",
     type: "academic",
     color: "#8fc9a6",
-    interactionTypes: ["academic"],
+    interactionTypes: ["academic", "subjectPick"],
     description: "Lecture attendance and schedule records.",
   },
   {

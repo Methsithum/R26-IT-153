@@ -7,6 +7,9 @@ class StartDailyRequest(BaseModel):
     date: datetime
     selected_activities: List[str]
     today_subjects: List[str] = []
+    lecture_subjects: List[str] = []
+    assignment_subjects: List[str] = []
+    exam_subjects: List[str] = []
     exam_kinds: List[str] = []
     study_duration_minutes: Optional[int] = None
     subject_focus: Optional[str] = None
@@ -35,6 +38,8 @@ class NextQuestionResponse(BaseModel):
     target_location: Optional[str] = None
     context_field: Optional[str] = None
     subject: Optional[str] = None
+    subject_options: Optional[List[str]] = None
     missing_exams: Optional[List[MissingExam]] = None
     completed: bool = False
     journal_entry: Optional[str] = None
+    journal_highlights: Optional[List[str]] = None

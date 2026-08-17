@@ -4,12 +4,12 @@ from app.models.journal.daily_session import DailySessionModel
 from app.models.journal.task import TaskModel
 from app.models.journal.exam import ExamModel
 from app.models.user.user import UserModel
-from app.services.journal.llm_service import generate_daily_journal
+from app.services.journal.llm_service import fallback_daily_journal, generate_daily_journal
 from app.services.journal.question_picker import pick_next_question
 from app.services.journal.gamification import update_streak_and_xp
 from app.services.journal.journal_service import build_session_context
 from app.services.journal.journal_constants import filter_allowed_activities
-from app.services.journal.alerts import generate_proactive_alerts, format_alerts_for_journal
+from app.services.journal.alerts import generate_proactive_alerts
 from app.services.journal.learning_patterns import aggregate_learning_patterns
 import json
 import logging
@@ -18,6 +18,33 @@ from typing import Any, Dict, List, Optional
 
 router = APIRouter(prefix="/daily", tags=["daily"])
 logger = logging.getLogger(__name__)
+
+
+def _filter_subjects(raw: List[str], allowed: List[str]) -> List[str]:
+    allowed_set = set(allowed or [])
+    seen = []
+    for item in raw or []:
+        if item in allowed_set and item not in seen:
+            seen.append(item)
+    return seen
+
+
+def _subject_groups(source: dict, user_subjects: List[str]) -> dict:
+    lecture = _filter_subjects(source.get("lecture_subjects") or [], user_subjects)
+    assignment = _filter_subjects(source.get("assignment_subjects") or [], user_subjects)
+    exam = _filter_subjects(source.get("exam_subjects") or [], user_subjects)
+    legacy = _filter_subjects(source.get("today_subjects") or [], user_subjects)
+    if not lecture and not assignment and not exam and legacy:
+        lecture = list(legacy)
+        assignment = list(legacy)
+        exam = list(legacy)
+    combined = list(dict.fromkeys([*lecture, *assignment, *exam]))
+    return {
+        "lecture_subjects": lecture,
+        "assignment_subjects": assignment,
+        "exam_subjects": exam,
+        "today_subjects": combined,
+    }
 
 
 def _calculate_max_questions(num_activities: int) -> int:
@@ -39,6 +66,7 @@ def _pack_question(session_id: str, question: Optional[Dict[str, Any]], **extra)
         target_location=question.get("target_location"),
         context_field=question.get("context_field"),
         subject=question.get("subject"),
+        subject_options=question.get("subject_options") or None,
         missing_exams=[
             {
                 "id": str(item.get("id")),
@@ -73,6 +101,7 @@ def _pending_fields(question: Optional[Dict[str, Any]]) -> dict:
             "target_location": question.get("target_location"),
             "context_field": question.get("context_field"),
             "subject": question.get("subject"),
+            "subject_options": question.get("subject_options"),
             "missing_exams": question.get("missing_exams"),
         },
     }
@@ -93,21 +122,69 @@ def _task_rows(tasks: List[Dict]) -> List[Dict]:
     ]
 
 
-async def _record_structured_answer(session: dict, answer: str) -> None:
+def _parse_subject_payload(answer: Any) -> Dict[str, List[str]]:
+    payload = answer
+    if isinstance(answer, str):
+        try:
+            payload = json.loads(answer)
+        except json.JSONDecodeError:
+            payload = [part.strip() for part in answer.split(",") if part.strip()]
+    subjects: List[str] = []
+    kinds: List[str] = []
+    if isinstance(payload, list):
+        subjects = [str(item).strip() for item in payload if str(item).strip()]
+    elif isinstance(payload, dict):
+        raw_subjects = payload.get("subjects") or payload.get("lecture_subjects") or payload.get("assignment_subjects") or []
+        subjects = [str(item).strip() for item in raw_subjects if str(item).strip()]
+        raw_kinds = payload.get("exam_kinds") or payload.get("kinds") or []
+        kinds = [item for item in raw_kinds if item in ("mid", "final")]
+    return {"subjects": list(dict.fromkeys(subjects)), "exam_kinds": list(dict.fromkeys(kinds))}
+
+
+async def _record_structured_answer(session: dict, answer: str) -> dict:
     meta = session.get("pending_meta") or {}
     field = meta.get("context_field")
-    subject = meta.get("subject") or (session.get("today_subjects") or [None])[0]
     user_id = session["user_id"]
+    updates: dict = {}
+
+    if field in {"lectureSubjects", "assignmentSubjects", "examSetup"}:
+        parsed = _parse_subject_payload(answer)
+        subjects = parsed["subjects"]
+        combined = list(dict.fromkeys([*(session.get("today_subjects") or []), *subjects]))
+        updates["today_subjects"] = combined
+        if subjects:
+            updates["subject_focus"] = subjects[0]
+        if field == "lectureSubjects":
+            updates["lecture_subjects"] = subjects
+        elif field == "assignmentSubjects":
+            updates["assignment_subjects"] = subjects
+            for subject in subjects:
+                await TaskModel.ensure_assignment(user_id, subject)
+        else:
+            kinds = parsed["exam_kinds"] or ["mid", "final"]
+            updates["exam_subjects"] = subjects
+            updates["exam_kinds"] = kinds
+            for subject in subjects:
+                for kind in kinds:
+                    await ExamModel.ensure(user_id, subject, kind)
+        return updates
+
+    subject = meta.get("subject")
+    if not subject:
+        if field in {"deadline", "mark"}:
+            subject = (session.get("assignment_subjects") or session.get("today_subjects") or [None])[0]
+        else:
+            subject = (session.get("today_subjects") or [None])[0]
     if field == "deadline" and subject:
         await TaskModel.set_deadline(user_id, subject, answer)
-        return
+        return updates
     if field == "mark" and subject:
         try:
             mark = float(answer)
         except (TypeError, ValueError):
             mark = answer
         await TaskModel.set_mark(user_id, subject, mark)
-        return
+        return updates
     if field == "examDates":
         try:
             payload = json.loads(answer) if isinstance(answer, str) else answer
@@ -117,13 +194,14 @@ async def _record_structured_answer(session: dict, answer: str) -> None:
             for exam_id, date_value in payload.items():
                 if exam_id and date_value:
                     await ExamModel.set_date(str(exam_id), str(date_value))
+    return updates
 
 
-async def _complete_session(session_id: str, session: dict, qa_list: list, task_updates: list, update_data: dict) -> str:
+async def _complete_session(session_id: str, session: dict, qa_list: list, task_updates: list, update_data: dict) -> dict:
     context = await build_session_context(session)
     user = await UserModel.find_by_id(session["user_id"])
     try:
-        journal = await generate_daily_journal(
+        page = await generate_daily_journal(
             user["name"],
             session["selected_activities"],
             session.get("study_duration_minutes") or 0,
@@ -134,17 +212,20 @@ async def _complete_session(session_id: str, session: dict, qa_list: list, task_
         )
     except Exception:
         logger.exception("Failed to generate journal entry; using a local summary")
-        bits = [f"{q.get('question')} — {q.get('answer')}" for q in qa_list]
-        journal = "Today I logged my campus run. " + " ".join(bits[:4])
+        page = fallback_daily_journal(qa_list, session.get("selected_activities") or [])
+
+    narrative = page.get("narrative") or ""
+    highlights = list(page.get("highlights") or [])
     alerts = generate_proactive_alerts(
         context.get("at_risk_tasks", []),
         context.get("derived", {}),
     )
     if alerts:
-        journal += format_alerts_for_journal(alerts)
+        highlights.extend(alerts)
 
     update_data["completed"] = True
-    update_data["journal_entry"] = journal
+    update_data["journal_entry"] = narrative
+    update_data["journal_highlights"] = highlights
     update_data.update(_pending_fields(None))
     await DailySessionModel.update(session_id, update_data)
 
@@ -160,7 +241,7 @@ async def _complete_session(session_id: str, session: dict, qa_list: list, task_
         engagement=session.get("engagement"),
         has_at_risk=bool(context.get("at_risk_tasks")),
     )
-    return journal
+    return {"narrative": narrative, "highlights": highlights}
 
 
 @router.post("/start", response_model=NextQuestionResponse)
@@ -174,24 +255,28 @@ async def start_daily_session(req: StartDailyRequest):
         raise HTTPException(400, "No valid activities were provided")
 
     user_subjects = user.get("subjects") or []
-    today_subjects = [s for s in (req.today_subjects or []) if s in user_subjects] or list(user_subjects)
+    groups = _subject_groups(req.model_dump(), user_subjects)
+    lecture_subjects = groups["lecture_subjects"]
+    assignment_subjects = groups["assignment_subjects"]
+    exam_subjects = groups["exam_subjects"]
+    today_subjects = groups["today_subjects"]
     exam_kinds = [k for k in (req.exam_kinds or []) if k in ("mid", "final")]
 
     if "assignment_work" in selected_activities:
-        for subject in today_subjects:
+        for subject in assignment_subjects:
             await TaskModel.ensure_assignment(req.user_id, subject)
     if "exam_preparation" in selected_activities:
         kinds = exam_kinds or ["mid", "final"]
-        for subject in today_subjects:
+        for subject in exam_subjects:
             for kind in kinds:
                 await ExamModel.ensure(req.user_id, subject, kind)
 
     tasks = await TaskModel.find_by_user(req.user_id)
     tasks_data = _task_rows(tasks)
     missing_exams = []
-    if "exam_preparation" in selected_activities:
+    if "exam_preparation" in selected_activities and exam_subjects and exam_kinds:
         missing_exams = await ExamModel.missing(
-            req.user_id, today_subjects, exam_kinds or ["mid", "final"]
+            req.user_id, exam_subjects, exam_kinds
         )
 
     date = req.date
@@ -212,6 +297,11 @@ async def start_daily_session(req: StartDailyRequest):
             total_questions_asked=0,
             max_questions=max_questions,
             today_subjects=today_subjects,
+            lecture_subjects=lecture_subjects,
+            assignment_subjects=assignment_subjects,
+            exam_subjects=exam_subjects,
+            exam_kinds=exam_kinds,
+            registered_subjects=user_subjects,
             missing_exams=missing_exams,
         )
         question = decision.get("question")
@@ -226,13 +316,20 @@ async def start_daily_session(req: StartDailyRequest):
         "date": date,
         "selected_activities": selected_activities,
         "today_subjects": today_subjects,
+        "lecture_subjects": lecture_subjects,
+        "assignment_subjects": assignment_subjects,
+        "exam_subjects": exam_subjects,
         "exam_kinds": exam_kinds,
         "max_questions": max_questions,
         "study_duration_minutes": req.study_duration_minutes,
         "engagement": req.engagement,
         "extra_activity_type": req.extra_activity_type,
         "extra_activity_minutes": req.extra_activity_minutes,
-        "subject_focus": (today_subjects[0] if today_subjects else req.subject_focus),
+        "subject_focus": (
+            lecture_subjects[0]
+            if lecture_subjects
+            else (assignment_subjects[0] if assignment_subjects else (exam_subjects[0] if exam_subjects else req.subject_focus))
+        ),
         "asked_question_ids": [],
         "qa_history": [],
         "completed": False,
@@ -267,25 +364,32 @@ async def answer_question(req: AnswerRequest):
     qa_history = session.get("qa_history", [])
     qa_history.append(qa_pair)
 
-    await _record_structured_answer(session, req.answer)
+    session_updates = await _record_structured_answer(session, req.answer)
+    if session_updates:
+        session.update(session_updates)
 
     update_data = {
         "qa_history": qa_history,
         "asked_question_ids": asked_ids,
+        **(session_updates or {}),
         **_pending_fields(None),
     }
 
     today_subjects = session.get("today_subjects") or []
-    exam_kinds = session.get("exam_kinds") or ["mid", "final"]
+    lecture_subjects = session.get("lecture_subjects") or []
+    assignment_subjects = session.get("assignment_subjects") or []
+    exam_subjects = session.get("exam_subjects") or []
+    exam_kinds = [k for k in (session.get("exam_kinds") or []) if k in ("mid", "final")]
     tasks = await TaskModel.find_by_user(session["user_id"])
     tasks_data = _task_rows(tasks)
     missing_exams = []
-    if "exam_preparation" in (session.get("selected_activities") or []):
-        missing_exams = await ExamModel.missing(session["user_id"], today_subjects, exam_kinds)
+    if "exam_preparation" in (session.get("selected_activities") or []) and exam_subjects and exam_kinds:
+        missing_exams = await ExamModel.missing(session["user_id"], exam_subjects, exam_kinds)
     qa_list = [{"question": q["question"], "answer": q["answer"]} for q in qa_history]
     user = await UserModel.find_by_id(session["user_id"])
     session_context = await build_session_context(session)
     max_questions = session.get("max_questions", 12)
+    registered_subjects = (user or {}).get("subjects") or []
 
     decision = await pick_next_question(
         user_name=user["name"],
@@ -297,17 +401,23 @@ async def answer_question(req: AnswerRequest):
         total_questions_asked=len(qa_history),
         max_questions=max_questions,
         today_subjects=today_subjects,
+        lecture_subjects=lecture_subjects,
+        assignment_subjects=assignment_subjects,
+        exam_subjects=exam_subjects,
+        exam_kinds=exam_kinds,
+        registered_subjects=registered_subjects,
         missing_exams=missing_exams,
     )
 
     if decision.get("end_session") or not decision.get("question") or len(qa_history) >= max_questions:
-        journal = await _complete_session(
+        page = await _complete_session(
             req.session_id, session, qa_list, decision.get("task_updates") or [], update_data
         )
         return NextQuestionResponse(
             session_id=req.session_id,
             completed=True,
-            journal_entry=journal,
+            journal_entry=page.get("narrative"),
+            journal_highlights=page.get("highlights") or [],
         )
 
     next_q = decision["question"]
