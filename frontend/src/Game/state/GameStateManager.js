@@ -1,10 +1,10 @@
 import { create } from "zustand";
 import { generateDailyQuestions, shouldEscalateToMarkEntry } from "../data/questions";
-import { initialAssignments, ASSIGNMENT_STATUS } from "../data/assignments";
-import { initialExams, EXAM_STATUS } from "../data/exams";
+import { ASSIGNMENT_STATUS } from "../data/assignments";
+import { EXAM_STATUS } from "../data/exams";
 import { getBuildingById } from "../data/buildings";
 import { mapBackendQuestion, serializeAnswer } from "../data/backendQuestion";
-import { ensureGuestUser } from "../../services/userApi";
+import { readStoredUser } from "../../services/userApi";
 import { startDailySession, submitDailyAnswer } from "../../services/journalApi";
 import { useJournalHistoryStore } from "./journalHistoryStore";
 import { useRunnerStore } from "./runnerStore";
@@ -40,20 +40,28 @@ const XP_RULES = {
   DAILY_COMPLETE: 100,
 };
 
-const initialDay = 4;
+const initialDay = 1;
 
 export const useGameStore = create((set, get) => ({
   phase: PHASES.GAME_START,
   day: initialDay,
-  level: 15,
-  xp: 1240,
-  score: 8450,
+  level: 1,
+  xp: 0,
+  score: 0,
   speed: 12,
-  playerName: "Alex",
+  playerName: "",
+  userId: null,
+  subjects: [],
+  universityName: "",
+  degreeName: "",
+  campusYear: null,
+  semester: null,
 
-  assignments: initialAssignments,
-  exams: initialExams,
+  assignments: [],
+  exams: [],
   selectedActivities: [],
+  todaySubjects: [],
+  examKinds: [],
   journalDay: createEmptyJournalDay(initialDay),
 
   sessionId: null,
@@ -75,50 +83,54 @@ export const useGameStore = create((set, get) => ({
   applyUserProgress: (user) => {
     if (!user) return;
     const xp = user.total_xp ?? get().xp;
+    const day = Math.max(1, user.current_day || 1);
     set({
+      userId: user.id || get().userId,
       playerName: user.name || get().playerName,
+      subjects: user.subjects || [],
+      universityName: user.university_name || get().universityName,
+      degreeName: user.degree_name || get().degreeName,
+      campusYear: user.campus_year ?? get().campusYear,
+      semester: user.semester ?? get().semester,
       xp,
       level: Math.max(1, Math.floor(xp / 500) + 1),
+      day,
+      dailyCompleted: Boolean(user.daily_completed),
+      journalDay:
+        get().journalDay?.day === day ? get().journalDay : createEmptyJournalDay(day),
     });
   },
 
-  startDailyGame: async (activities = []) => {
-    const { assignments, exams, day } = get();
+  startDailyGame: async ({ activities = [], todaySubjects = [], examKinds = [] } = {}) => {
+    const user = readStoredUser();
+    if (!user?.id) {
+      throw new Error("Please register or sign in before starting today's run.");
+    }
+
     useRunnerStore.getState().resetRun();
+    get().applyUserProgress(user);
+    const day = get().day;
 
-    const localQueue = generateDailyQuestions({
-      assignments,
-      exams,
-      questionCount: 4,
-      preferredCategories: activities,
+    const res = await startDailySession({
+      userId: user.id,
+      selectedActivities: activities,
+      todaySubjects,
+      examKinds,
     });
-
-    let queue = localQueue;
-    let sessionId = null;
-
-    try {
-      const user = await ensureGuestUser(get().playerName);
-      get().applyUserProgress(user);
-      const res = await startDailySession({
-        userId: user.id,
-        selectedActivities: activities,
-      });
-      const first = mapBackendQuestion(res);
-      if (first && res.session_id) {
-        queue = [first];
-        sessionId = res.session_id;
-      }
-    } catch {
-      // Backend unreachable — keep the local tagged pool so the run still works.
+    const first = mapBackendQuestion(res);
+    if (!first || !res.session_id) {
+      throw new Error("No journal question could be selected for today.");
     }
 
     set({
       phase: PHASES.RUNNING,
       selectedActivities: activities,
-      sessionId,
+      todaySubjects,
+      examKinds,
+      sessionId: res.session_id,
       sessionCompleted: false,
       backendJournalEntry: null,
-      questionQueue: queue,
+      questionQueue: [first],
       questionIndex: 0,
       activeQuestion: null,
       pendingAnswer: null,
@@ -317,10 +329,7 @@ export const useGameStore = create((set, get) => ({
   },
 
   startNextDay: () => {
-    const nextDay = get().day + 1;
     set({
-      day: nextDay,
-      dailyCompleted: false,
       phase: PHASES.GAME_START,
       sessionId: null,
       sessionCompleted: false,
@@ -328,6 +337,7 @@ export const useGameStore = create((set, get) => ({
       questionQueue: [],
       questionIndex: 0,
       activeQuestion: null,
+      pendingAnswer: null,
     });
   },
 

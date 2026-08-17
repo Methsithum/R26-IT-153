@@ -16,6 +16,11 @@ export default function MainGame() {
     phase === PHASES.ANSWER_SELECTION
   );
 
+  const insideBuilding =
+    phase === PHASES.SPECIAL_INTERACTION_READY ||
+    phase === PHASES.SPECIAL_INTERACTION_ACTIVE ||
+    phase === PHASES.SPECIAL_INTERACTION_COMPLETED;
+
   return (
     <div className="relative w-full h-screen bg-slate-950 overflow-hidden">
       <Canvas shadows camera={{ fov: 55, near: 0.1, far: 300 }}>
@@ -24,7 +29,7 @@ export default function MainGame() {
         </Suspense>
       </Canvas>
 
-      <GameHUD />
+      {!insideBuilding && <GameHUD />}
       <SpecialInteractionRouter />
 
       {phase === PHASES.GAME_START && <StartScreen />}

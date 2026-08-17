@@ -16,20 +16,42 @@ export function storeUser(user) {
   return user;
 }
 
-export async function ensureGuestUser(name = "Alex") {
-  const existing = readStoredUser();
-  if (existing?.id) {
-    try {
-      const { data } = await api.get(`/users/${existing.id}`);
-      return storeUser(data);
-    } catch {
-      // stale id — fall through and recreate
-    }
-  }
+export function clearStoredUser() {
+  localStorage.removeItem(STORAGE_KEY);
+}
 
-  const stamp = existing?.email || `alex.${Date.now()}@smartuniguide.app`;
-  const { data } = await api.post("/users/ensure", { email: stamp, name });
+export function apiErrorMessage(err, fallback = "Something went wrong") {
+  const detail = err?.response?.data?.detail;
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    return detail.map((item) => item.msg || item.message || String(item)).join(" · ");
+  }
+  return err?.message || fallback;
+}
+
+export async function registerUser(payload) {
+  const { data } = await api.post("/users/register", payload);
   return storeUser(data);
+}
+
+export async function loginUser(email, password) {
+  const { data } = await api.post("/users/login", { email, password });
+  return storeUser(data);
+}
+
+export async function refreshStoredUser() {
+  const existing = readStoredUser();
+  if (!existing?.id) return null;
+  try {
+    const { data } = await api.get(`/users/${existing.id}`);
+    return storeUser(data);
+  } catch (err) {
+    if (err?.response?.status === 404) {
+      clearStoredUser();
+      return null;
+    }
+    throw err;
+  }
 }
 
 export async function getUserSessions(userId) {

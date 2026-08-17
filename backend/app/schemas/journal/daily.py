@@ -6,6 +6,8 @@ class StartDailyRequest(BaseModel):
     user_id: str
     date: datetime
     selected_activities: List[str]
+    today_subjects: List[str] = []
+    exam_kinds: List[str] = []
     study_duration_minutes: Optional[int] = None
     subject_focus: Optional[str] = None
     engagement: Optional[str] = None
@@ -15,6 +17,11 @@ class StartDailyRequest(BaseModel):
 class AnswerRequest(BaseModel):
     session_id: str
     answer: str
+
+class MissingExam(BaseModel):
+    id: str
+    subject: str
+    exam_type: str
 
 class NextQuestionResponse(BaseModel):
     session_id: str
@@ -27,5 +34,7 @@ class NextQuestionResponse(BaseModel):
     interaction_type: Optional[str] = None
     target_location: Optional[str] = None
     context_field: Optional[str] = None
+    subject: Optional[str] = None
+    missing_exams: Optional[List[MissingExam]] = None
     completed: bool = False
     journal_entry: Optional[str] = None

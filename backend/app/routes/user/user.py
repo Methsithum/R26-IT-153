@@ -1,57 +1,91 @@
 from fastapi import APIRouter, HTTPException
-from app.schemas.user.user import UserCreate, UserResponse
+from datetime import datetime, timezone
+from app.schemas.user.user import UserCreate, UserLogin, UserResponse
 from app.models.user.user import UserModel
 from app.models.journal.daily_session import DailySessionModel
 from app.models.journal.task import TaskModel
 from app.models.journal.reflection import ReflectionModel
+from app.models.journal.exam import ExamModel
+from app.services.auth import verify_password
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-def _to_response(doc: dict) -> UserResponse:
+def _session_date_key(value) -> str | None:
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    return str(value)[:10]
+
+
+def _progress_from_sessions(sessions: list[dict]) -> tuple[int, bool]:
+    completed = [s for s in (sessions or []) if s and s.get("completed")]
+    completed.sort(key=lambda s: str(s.get("date") or ""))
+    today = datetime.now(timezone.utc).date().isoformat()
+    today_done = any(_session_date_key(s.get("date")) == today for s in completed)
+    if today_done:
+        return max(1, len(completed)), True
+    return len(completed) + 1, False
+
+
+def _to_response(doc: dict, sessions: list[dict] | None = None) -> UserResponse:
+    current_day, daily_completed = _progress_from_sessions(sessions or [])
     return UserResponse(
         id=str(doc.get("id") or doc.get("_id")),
         email=doc["email"],
         name=doc["name"],
+        age=doc.get("age"),
+        university_name=doc.get("university_name"),
+        degree_name=doc.get("degree_name"),
+        campus_year=doc.get("campus_year"),
+        semester=doc.get("semester"),
+        subjects=doc.get("subjects") or [],
         total_xp=doc.get("total_xp", 0),
         current_streak=doc.get("current_streak", 0),
         longest_streak=doc.get("longest_streak", 0),
-        badges=doc.get("badges", []),
+        badges=doc.get("badges") or [],
+        current_day=current_day,
+        daily_completed=daily_completed,
     )
 
 
-@router.post("/ensure", response_model=UserResponse)
-async def ensure_user(user_data: UserCreate):
+@router.post("/register", response_model=UserResponse)
+async def register_user(user_data: UserCreate):
     existing = await UserModel.find_by_email(user_data.email)
     if existing:
-        return _to_response(existing)
-    doc = await UserModel.create(user_data.email, user_data.name)
+        raise HTTPException(400, "An account with this email already exists")
+    subjects = [s.strip() for s in user_data.subjects if s and s.strip()]
+    if not subjects:
+        raise HTTPException(400, "Add at least one registered subject")
+    doc = await UserModel.create({**user_data.model_dump(), "subjects": subjects})
     doc["id"] = str(doc["_id"])
-    return _to_response(doc)
+    return _to_response(doc, [])
+
+
+@router.post("/login", response_model=UserResponse)
+async def login_user(payload: UserLogin):
+    user = await UserModel.find_by_email(payload.email)
+    if not user or not user.get("password_hash"):
+        raise HTTPException(401, "Invalid email or password")
+    if not verify_password(payload.password, user["password_hash"]):
+        raise HTTPException(401, "Invalid email or password")
+    sessions = await DailySessionModel.find_user_sessions(user["id"])
+    return _to_response(user, sessions)
 
 
 @router.post("/", response_model=UserResponse)
 async def create_user(user_data: UserCreate):
-    existing = await UserModel.find_by_email(user_data.email)
-    if existing:
-        raise HTTPException(400, "Email already exists")
-    doc = await UserModel.create(user_data.email, user_data.name)
-    return UserResponse(
-        id=str(doc["_id"]), email=doc["email"], name=doc["name"],
-        total_xp=doc["total_xp"], current_streak=doc["current_streak"],
-        longest_streak=doc["longest_streak"], badges=doc["badges"]
-    )
+    return await register_user(user_data)
+
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(user_id: str):
     user = await UserModel.find_by_id(user_id)
     if not user:
         raise HTTPException(404, "User not found")
-    return UserResponse(
-        id=user["id"], email=user["email"], name=user["name"],
-        total_xp=user["total_xp"], current_streak=user["current_streak"],
-        longest_streak=user["longest_streak"], badges=user["badges"]
-    )
+    sessions = await DailySessionModel.find_user_sessions(user_id)
+    return _to_response(user, sessions)
 
 
 @router.get("/{user_id}/sessions")
@@ -72,6 +106,15 @@ async def get_user_tasks(user_id: str):
     return {"user_id": user_id, "tasks": tasks}
 
 
+@router.get("/{user_id}/exams")
+async def get_user_exams(user_id: str):
+    user = await UserModel.find_by_id(user_id)
+    if not user:
+        raise HTTPException(404, "User not found")
+    exams = await ExamModel.find_by_user(user_id)
+    return {"user_id": user_id, "exams": exams}
+
+
 @router.get("/{user_id}/reflections")
 async def get_user_reflections(user_id: str):
     user = await UserModel.find_by_id(user_id)
@@ -89,6 +132,7 @@ async def get_user_gamification(user_id: str):
         raise HTTPException(404, "User not found")
     sessions = await DailySessionModel.find_user_sessions(user_id)
     completed_sessions = [session for session in sessions if session and session.get("completed")]
+    current_day, daily_completed = _progress_from_sessions(sessions)
     return {
         "user_id": user_id,
         "total_xp": user.get("total_xp", 0),
@@ -97,4 +141,7 @@ async def get_user_gamification(user_id: str):
         "badges": user.get("badges", []),
         "total_sessions": len(sessions),
         "completed_sessions": len(completed_sessions),
+        "current_day": current_day,
+        "daily_completed": daily_completed,
+        "subjects": user.get("subjects") or [],
     }

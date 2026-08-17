@@ -1,71 +1,18 @@
-import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PHASES, useGameStore } from "../state/GameStateManager";
 import { getBuildingById } from "../data/buildings";
-import { pickVariantIndex } from "../MiniGames/variant";
 import CalendarStamp from "../MiniGames/CalendarStamp";
-import DeadlineAbacus from "../MiniGames/DeadlineAbacus";
 import GradeSlider from "../MiniGames/GradeSlider";
-import MarksDartboard from "../MiniGames/MarksDartboard";
-import SubjectBalanceScale from "../MiniGames/SubjectBalanceScale";
 import ExamCalendarSort from "../MiniGames/ExamCalendarSort";
 
-// Renders the mini-game "skin" for the active special interaction as a
-// literal JSX tag per branch (never a component reference computed at
-// render time — React components must stay static across renders). A
-// stable id (assignment/exam id) is hashed to an index so the same record
-// always reopens the same mini-game, while different records naturally
-// spread across every skin.
 function MiniGameSlot({ activeQuestion, onComplete }) {
-  const { interactionType, context } = activeQuestion ?? {};
   const props = { question: activeQuestion, onComplete };
+  const type = activeQuestion?.interactionType;
 
-  if (interactionType === "date") {
-    const idx = pickVariantIndex(context?.assignmentId ?? "deadline", 2);
-    return idx === 0 ? <CalendarStamp {...props} /> : <DeadlineAbacus {...props} />;
-  }
-  if (interactionType === "marks") {
-    const idx = pickVariantIndex(context?.assignmentId ?? "marks", 3);
-    if (idx === 0) return <GradeSlider {...props} />;
-    if (idx === 1) return <MarksDartboard {...props} />;
-    return <SubjectBalanceScale {...props} />;
-  }
-  if (interactionType === "examDate") {
-    return <ExamCalendarSort {...props} />;
-  }
-  return <GenericInteraction {...props} />;
-}
-
-// Generic fallback used only for interaction types with no dedicated
-// mini-game yet.
-function GenericInteraction({ question, onComplete }) {
-  const [value, setValue] = useState("");
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        onComplete(value || new Date().toISOString().slice(0, 10));
-      }}
-      className="flex flex-col gap-3"
-    >
-      <div className="text-sm text-slate-100">{question?.questionText}</div>
-      <input
-        autoFocus
-        type="text"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        className="rounded-lg bg-slate-800 border border-slate-600 px-3 py-2 text-slate-100 outline-none
-                   focus:border-sky-400"
-        placeholder="Enter a value"
-      />
-      <button
-        type="submit"
-        className="rounded-lg bg-sky-500 hover:bg-sky-400 transition-colors text-slate-900 font-semibold py-2"
-      >
-        Confirm
-      </button>
-    </form>
-  );
+  if (type === "date") return <CalendarStamp {...props} />;
+  if (type === "marks") return <GradeSlider {...props} />;
+  if (type === "examDate") return <ExamCalendarSort {...props} />;
+  return <CalendarStamp {...props} />;
 }
 
 export default function SpecialInteractionRouter() {
@@ -78,7 +25,8 @@ export default function SpecialInteractionRouter() {
   if (!active && !completed) return null;
 
   const building = getBuildingById(targetBuildingId);
-  const interactionType = activeQuestion?.interactionType ?? "academic";
+  const subject = activeQuestion?.subject || activeQuestion?.context?.subject;
+  const type = activeQuestion?.interactionType ?? "academic";
 
   function handleComplete(value) {
     useGameStore.getState().completeSpecialInteraction({ completed: true, value });
@@ -87,25 +35,47 @@ export default function SpecialInteractionRouter() {
   return (
     <AnimatePresence>
       <motion.div
-        key="interaction-panel"
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 24 }}
-        className="pointer-events-auto absolute left-1/2 bottom-10 -translate-x-1/2 w-[min(92vw,440px)]
-                   rounded-2xl border border-sky-300/30 bg-slate-900/85 backdrop-blur-md p-5 shadow-2xl"
+        key="building-room"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="pointer-events-auto absolute inset-0 z-40 flex flex-col bg-[#f7f1e6]"
       >
-        {completed ? (
-          <div className="text-center text-emerald-300 font-semibold py-4">
-            Saved to your journal ✓
-          </div>
-        ) : (
-          <>
-            <div className="text-[10px] uppercase tracking-wide text-slate-500 mb-2">
-              {building?.name ?? "Campus Building"} · {interactionType} interaction
+        <div
+          className="pointer-events-none absolute inset-0 opacity-70"
+          style={{
+            background:
+              "radial-gradient(ellipse at 20% 0%, rgba(255,255,255,0.85), transparent 42%), radial-gradient(ellipse at 80% 100%, rgba(146,64,14,0.08), transparent 46%)",
+          }}
+        />
+        <header className="relative flex items-center justify-between border-b border-stone-300/70 px-5 py-4 sm:px-8">
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-stone-500">
+              {building?.name ?? "Campus building"}
             </div>
-            <MiniGameSlot activeQuestion={activeQuestion} onComplete={handleComplete} />
-          </>
-        )}
+            <div className="mt-1 text-sm text-stone-700">
+              {subject ? `${subject} · ${type}` : "Special interaction"}
+            </div>
+          </div>
+          <div className="rounded-full bg-white/80 px-3 py-1 text-xs text-stone-500 shadow-sm">
+            Inside the building
+          </div>
+        </header>
+
+        <div className="relative flex min-h-0 flex-1 p-4 sm:p-8">
+          {completed ? (
+            <div className="flex h-full w-full items-center justify-center">
+              <div className="rounded-3xl border border-emerald-200 bg-white px-10 py-8 text-center shadow-sm">
+                <div className="text-emerald-700 text-lg font-semibold">Saved to your journal</div>
+                {subject && <div className="mt-2 text-sm text-stone-500">{subject}</div>}
+              </div>
+            </div>
+          ) : (
+            <div className="mx-auto h-full w-full max-w-5xl">
+              <MiniGameSlot activeQuestion={activeQuestion} onComplete={handleComplete} />
+            </div>
+          )}
+        </div>
       </motion.div>
     </AnimatePresence>
   );

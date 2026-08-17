@@ -1,18 +1,104 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import JournalHome from './Pages/Journal/JournalHome';
-import DailyActivitySelection from './Pages/Journal/DailyActivitySelection';
-import GamePage from './Pages/Journal/GamePage';
+import { useEffect } from "react";
+import { BrowserRouter as Router, Navigate, Route, Routes } from "react-router-dom";
+import JournalHome from "./Pages/Journal/JournalHome";
+import DailyActivitySelection from "./Pages/Journal/DailyActivitySelection";
+import GamePage from "./Pages/Journal/GamePage";
+import Register from "./Pages/Auth/Register";
+import Login from "./Pages/Auth/Login";
+import { getUserSessions, readStoredUser, refreshStoredUser } from "./services/userApi";
+import { useGameStore } from "./Game/state/GameStateManager";
+import { useJournalHistoryStore } from "./Game/state/journalHistoryStore";
 
+function RequireAuth({ children }) {
+  const user = readStoredUser();
+  if (!user?.id) return <Navigate to="/register" replace />;
+  return children;
+}
+
+function RedirectIfAuthed({ children }) {
+  const user = readStoredUser();
+  if (user?.id) return <Navigate to="/" replace />;
+  return children;
+}
+
+function HydrateUser({ children }) {
+  useEffect(() => {
+    const local = readStoredUser();
+    if (local) useGameStore.getState().applyUserProgress(local);
+    let cancelled = false;
+    (async () => {
+      try {
+        const user = await refreshStoredUser();
+        if (cancelled) return;
+        if (!user) {
+          window.location.assign("/register");
+          return;
+        }
+        useGameStore.getState().applyUserProgress(user);
+        const sessions = await getUserSessions(user.id);
+        if (!cancelled) useJournalHistoryStore.getState().hydrateFromSessions(sessions, user.id);
+      } catch {
+        // Offline — local stored progress still applies.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return children;
+}
 
 function App() {
   return (
     <Router>
-
       <div className="h-full">
         <Routes>
-          <Route path="/" element={<JournalHome/>} />
-          <Route path="/journal/activities" element={<DailyActivitySelection/>} />
-          <Route path="/journal/game" element={<GamePage/>} />
+          <Route
+            path="/register"
+            element={
+              <RedirectIfAuthed>
+                <Register />
+              </RedirectIfAuthed>
+            }
+          />
+          <Route
+            path="/login"
+            element={
+              <RedirectIfAuthed>
+                <Login />
+              </RedirectIfAuthed>
+            }
+          />
+          <Route
+            path="/"
+            element={
+              <RequireAuth>
+                <HydrateUser>
+                  <JournalHome />
+                </HydrateUser>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/journal/activities"
+            element={
+              <RequireAuth>
+                <HydrateUser>
+                  <DailyActivitySelection />
+                </HydrateUser>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/journal/game"
+            element={
+              <RequireAuth>
+                <HydrateUser>
+                  <GamePage />
+                </HydrateUser>
+              </RequireAuth>
+            }
+          />
         </Routes>
       </div>
     </Router>

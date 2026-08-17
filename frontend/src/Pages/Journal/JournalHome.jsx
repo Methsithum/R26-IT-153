@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useGameStore } from "../../Game/state/GameStateManager";
 import { useJournalHistoryStore } from "../../Game/state/journalHistoryStore";
 import { composeJournalNarrative } from "../../Game/data/journalNarrative";
-import { ensureGuestUser, getUserSessions } from "../../services/userApi";
+import { clearStoredUser } from "../../services/userApi";
 
 const TABS = [
   { id: "open", label: "Open Journal" },
@@ -80,6 +80,7 @@ function OpenJournalContent({ selectTab }) {
   const day = useGameStore((s) => s.day);
   const dailyCompleted = useGameStore((s) => s.dailyCompleted);
   const playerName = useGameStore((s) => s.playerName);
+  const subjects = useGameStore((s) => s.subjects);
 
   return (
     <div className="flex flex-col h-full justify-between">
@@ -87,13 +88,25 @@ function OpenJournalContent({ selectTab }) {
         <div className="text-[11px] uppercase tracking-[0.25em] text-stone-500 mb-2">
           {new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
         </div>
-        <h2 className="text-3xl sm:text-4xl font-bold text-stone-800 mb-5">Welcome back, {playerName}!</h2>
+        <h2 className="text-3xl sm:text-4xl font-bold text-stone-800 mb-5">Welcome back, {playerName || "student"}!</h2>
         <p className="text-base text-stone-600 leading-relaxed max-w-2xl">
           {dailyCompleted
             ? "Today's entry is complete. Come back tomorrow to continue your streak."
             : "Today's journal entry is still incomplete. Complete your campus run to log it."}{" "}
           Your check-ins, deadlines and marks are collected as you play — nothing to fill in by hand.
         </p>
+        {subjects.length > 0 && (
+          <div className="mt-5 flex flex-wrap gap-2">
+            {subjects.map((subject) => (
+              <span
+                key={subject}
+                className="rounded-full bg-amber-50 border border-amber-800/10 px-3 py-1 text-xs text-amber-900"
+              >
+                {subject}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
       <div className="mt-6 flex justify-center">
         <motion.div
@@ -264,96 +277,113 @@ function RoadmapContent({ onViewDay }) {
 
 function RecentJournalsContent({ focusDay }) {
   const entries = useJournalHistoryStore((s) => s.entries);
-  const [index, setIndex] = useState(entries.length - 1);
-  const [direction, setDirection] = useState(1);
+  const [index, setIndex] = useState(0);
 
-  // Jump to the entry the Roadmap was clicked for. Adjusting state during
-  // render (rather than in an effect) is the React-recommended pattern for
-  // "reset state when a prop changes" — it avoids an extra render pass.
-  const [lastFocusDay, setLastFocusDay] = useState(focusDay);
-  if (focusDay !== lastFocusDay) {
-    setLastFocusDay(focusDay);
+  useEffect(() => {
+    if (entries.length === 0) {
+      setIndex(0);
+      return;
+    }
     if (focusDay != null) {
-      const i = entries.findIndex((e) => e.day === focusDay);
-      if (i >= 0) {
-        setIndex(i);
-        setDirection(1);
+      const focused = entries.findIndex((entry) => entry.day === focusDay);
+      if (focused >= 0) {
+        setIndex(focused);
+        return;
       }
     }
-  }
+    setIndex(entries.length - 1);
+  }, [entries, focusDay]);
 
   if (entries.length === 0) {
     return (
-      <div className="text-sm text-stone-500 italic">
-        No completed days yet — finish a campus run to start your journal history.
+      <div className="flex h-full flex-col justify-center max-w-lg">
+        <h2 className="text-2xl font-bold text-stone-800 mb-2">Recent Journals</h2>
+        <p className="text-sm text-stone-600 leading-relaxed">
+          No journal pages yet. Finish a campus run and every day’s entry will appear here — Day 1, Day 2, and so on — so you can read them again anytime.
+        </p>
       </div>
     );
   }
 
   const clamped = Math.min(Math.max(index, 0), entries.length - 1);
   const entry = entries[clamped];
-
-  function go(next) {
-    setDirection(next > clamped ? 1 : -1);
-    setIndex(next);
-  }
+  const body = composeJournalNarrative(entry) || "No entry was recorded for this day.";
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between mb-4">
-        <button
-          disabled={clamped === 0}
-          onClick={() => go(clamped - 1)}
-          className="text-stone-500 disabled:opacity-30 hover:text-stone-800 px-2 text-lg"
-        >
-          ‹
-        </button>
-        <h2 className="text-lg font-bold">Day {entry.day}</h2>
-        <button
-          disabled={clamped === entries.length - 1}
-          onClick={() => go(clamped + 1)}
-          className="text-stone-500 disabled:opacity-30 hover:text-stone-800 px-2 text-lg"
-        >
-          ›
-        </button>
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.25em] text-stone-500">Your journal</div>
+          <h2 className="text-2xl font-bold text-stone-800">Day {entry.day}</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={clamped === 0}
+            onClick={() => setIndex(clamped - 1)}
+            className="rounded-full border border-stone-300 px-3 py-1 text-stone-600 disabled:opacity-30 hover:bg-amber-50"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            disabled={clamped === entries.length - 1}
+            onClick={() => setIndex(clamped + 1)}
+            className="rounded-full border border-stone-300 px-3 py-1 text-stone-600 disabled:opacity-30 hover:bg-amber-50"
+          >
+            ›
+          </button>
+        </div>
       </div>
 
-      <BookFlip pageKey={entry.day} direction={direction} className="flex-1 relative">
-        <div>
-          <div className="text-xs text-stone-500 mb-4 italic">
-            {entry.completedAt &&
-              new Date(entry.completedAt).toLocaleDateString(undefined, {
-                weekday: "long",
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
-          </div>
-
-          {/* the actual diary text — a flowing first-person paragraph rather
-              than a raw data dump. Swaps to a real backend `journal_entry`
-              string once that's wired up, no layout change needed. */}
-          <p
-            className="text-[15px] leading-7 text-stone-700 mb-5 first-letter:text-3xl
-                       first-letter:font-bold first-letter:text-amber-700 first-letter:mr-1
-                       first-letter:float-left"
-            style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+      <div className="mb-4 flex flex-wrap gap-2">
+        {entries.map((item, i) => (
+          <button
+            key={item.day}
+            type="button"
+            onClick={() => setIndex(i)}
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+              i === clamped
+                ? "bg-amber-800 text-amber-50"
+                : "bg-amber-50 text-amber-900 border border-amber-800/10 hover:bg-amber-100"
+            }`}
           >
-            {composeJournalNarrative(entry) || "No entry was recorded for this day."}
-          </p>
+            Day {item.day}
+          </button>
+        ))}
+      </div>
 
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <div className="text-xs text-stone-500 mb-4 italic">
+          {entry.completedAt &&
+            new Date(entry.completedAt).toLocaleDateString(undefined, {
+              weekday: "long",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}
+        </div>
+        <p
+          className="text-[15px] leading-7 text-stone-700 mb-5 first-letter:text-3xl
+                     first-letter:font-bold first-letter:text-amber-700 first-letter:mr-1
+                     first-letter:float-left"
+          style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+        >
+          {body}
+        </p>
+        {(entry.xp || entry.score) ? (
           <div className="flex gap-6 pt-3 border-t border-stone-300/60">
             <div>
               <div className="text-[10px] uppercase text-stone-500">XP earned</div>
-              <div className="text-lg font-bold text-amber-700">{entry.xp}</div>
+              <div className="text-lg font-bold text-amber-700">{entry.xp || 0}</div>
             </div>
             <div>
               <div className="text-[10px] uppercase text-stone-500">Score</div>
-              <div className="text-lg font-bold text-stone-700">{entry.score}</div>
+              <div className="text-lg font-bold text-stone-700">{entry.score || 0}</div>
             </div>
           </div>
-        </div>
-      </BookFlip>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -420,7 +450,9 @@ function GameDetailsContent() {
 
       <div className="text-sm font-semibold text-stone-700 mb-2">Assignment Quests</div>
       <div className="space-y-2 mb-4">
-        {assignments.map((a) => {
+        {assignments.length === 0 ? (
+          <p className="text-sm text-stone-500 italic">No assignments recorded yet.</p>
+        ) : assignments.map((a) => {
           const badge = ASSIGNMENT_BADGES[a.status] ?? ASSIGNMENT_BADGES.NEW;
           return (
             <div
@@ -446,7 +478,9 @@ function GameDetailsContent() {
 
       <div className="text-sm font-semibold text-stone-700 mb-2">Exam Quests</div>
       <div className="space-y-2">
-        {exams.map((e) => {
+        {exams.length === 0 ? (
+          <p className="text-sm text-stone-500 italic">No exams recorded yet.</p>
+        ) : exams.map((e) => {
           const badge = EXAM_BADGES[e.status] ?? EXAM_BADGES.PENDING;
           return (
             <div
@@ -477,11 +511,38 @@ function CharacterStatsContent() {
   const xp = useGameStore((s) => s.xp);
   const level = useGameStore((s) => s.level);
   const playerName = useGameStore((s) => s.playerName);
+  const subjects = useGameStore((s) => s.subjects);
+  const universityName = useGameStore((s) => s.universityName);
+  const degreeName = useGameStore((s) => s.degreeName);
+  const campusYear = useGameStore((s) => s.campusYear);
+  const semester = useGameStore((s) => s.semester);
   const xpIntoLevel = xp % 500;
   return (
     <div>
-      <h2 className="text-xl font-bold mb-1">{playerName}</h2>
-      <div className="text-sm text-stone-500 mb-4">Level {level} Student</div>
+      <h2 className="text-xl font-bold mb-1">{playerName || "Student"}</h2>
+      <div className="text-sm text-stone-500 mb-4">
+        Level {level} Student
+        {universityName ? ` · ${universityName}` : ""}
+      </div>
+      {(degreeName || campusYear || semester) && (
+        <p className="text-sm text-stone-600 mb-4">
+          {[degreeName, campusYear ? `Year ${campusYear}` : null, semester ? `Semester ${semester}` : null]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      )}
+      {subjects.length > 0 && (
+        <div className="mb-6 flex flex-wrap gap-2">
+          {subjects.map((subject) => (
+            <span
+              key={subject}
+              className="rounded-full bg-amber-50 border border-amber-800/10 px-3 py-1 text-xs text-amber-900"
+            >
+              {subject}
+            </span>
+          ))}
+        </div>
+      )}
       <div className="w-full h-3 rounded-full bg-stone-300 overflow-hidden mb-1">
         <div
           className="h-full bg-amber-600"
@@ -519,25 +580,6 @@ export default function JournalHome() {
   const tabIndexRef = useRef(0);
   const Content = TAB_CONTENT[tab];
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const user = await ensureGuestUser();
-        if (cancelled) return;
-        useGameStore.getState().applyUserProgress(user);
-        const sessions = await getUserSessions(user.id);
-        if (cancelled) return;
-        useJournalHistoryStore.getState().hydrateFromSessions(sessions);
-      } catch {
-        // Offline / backend down — local journal still works.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   function selectTab(id) {
     const nextIndex = TABS.findIndex((t) => t.id === id);
     setDirection(nextIndex >= tabIndexRef.current ? 1 : -1);
@@ -563,6 +605,17 @@ export default function JournalHome() {
             <br />
             Student Journal
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              clearStoredUser();
+              useJournalHistoryStore.getState().reset();
+              window.location.assign("/login");
+            }}
+            className="mt-2 text-[11px] text-stone-500 underline-offset-2 hover:text-stone-800 hover:underline"
+          >
+            Sign out
+          </button>
         </div>
 
         {/* book spine / gutter */}

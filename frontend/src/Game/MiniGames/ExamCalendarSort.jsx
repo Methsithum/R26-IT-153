@@ -1,86 +1,151 @@
-import { useMemo, useState } from "react";
-import { useGameStore } from "../state/GameStateManager";
-import { pendingExams } from "../data/exams";
+import { useEffect, useMemo, useState } from "react";
 
-function formatDate(d) {
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function daysInMonth(monthIndex, year) {
+  return new Date(year, monthIndex + 1, 0).getDate();
 }
 
-function candidateDates(seedOffset) {
+function examLabel(exam) {
+  const kind = String(exam.examType || exam.exam_type || "").replace(/^\w/, (c) => c.toUpperCase());
+  return `${exam.subject} · ${kind || "Exam"}`;
+}
+
+export default function ExamCalendarSort({ question, onComplete }) {
+  const missing = useMemo(
+    () => question?.context?.missingExams || question?.missingExams || [],
+    [question]
+  );
   const today = new Date();
-  return Array.from({ length: 3 }, (_, i) => {
-    const d = new Date(today);
-    d.setDate(d.getDate() + seedOffset + i * 7 + 3);
-    return d;
-  });
-}
-
-// Exam Date Calendar Sort: drag/click each exam's date card into the
-// "confirmed" box. Resolves every still-pending exam in one interaction.
-export default function ExamCalendarSort({ onComplete }) {
-  const exams = useGameStore((s) => s.exams);
-  const pending = useMemo(() => pendingExams(exams), [exams]);
+  const [monthIndex, setMonthIndex] = useState(today.getMonth());
+  const [year, setYear] = useState(today.getFullYear());
+  const [activeId, setActiveId] = useState(missing[0]?.id || null);
   const [assigned, setAssigned] = useState({});
 
-  const allAssigned = pending.length > 0 && pending.every((e) => assigned[e.id]);
+  useEffect(() => {
+    if (!activeId && missing[0]?.id) setActiveId(missing[0].id);
+  }, [missing, activeId]);
 
-  function confirm() {
-    const value = {};
-    for (const exam of pending) {
-      if (assigned[exam.id]) value[exam.id] = assigned[exam.id];
-    }
-    onComplete(value);
+  const total = daysInMonth(monthIndex, year);
+  const firstWeekday = new Date(year, monthIndex, 1).getDay();
+  const allAssigned = missing.length > 0 && missing.every((exam) => assigned[exam.id]);
+  const activeExam = missing.find((exam) => exam.id === activeId) || missing[0];
+
+  function shiftMonth(delta) {
+    const next = new Date(year, monthIndex + delta, 1);
+    setYear(next.getFullYear());
+    setMonthIndex(next.getMonth());
+  }
+
+  function stampDay(dayNumber) {
+    if (!activeExam) return;
+    const iso = `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(dayNumber).padStart(2, "0")}`;
+    const nextAssigned = { ...assigned, [activeExam.id]: iso };
+    setAssigned(nextAssigned);
+    const upcoming = missing.find((exam) => exam.id !== activeExam.id && !nextAssigned[exam.id]);
+    if (upcoming) setActiveId(upcoming.id);
+  }
+
+  if (missing.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center text-stone-500">
+        All exam dates for your subjects are already recorded.
+      </div>
+    );
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="text-xs uppercase tracking-wide text-sky-300/80">Exam Date Calendar Sort</div>
-      <div className="text-sm text-slate-100">Drag the exams to their dates.</div>
-
-      <div className="flex flex-col gap-3 max-h-64 overflow-y-auto pr-1">
-        {pending.map((exam, i) => (
-          <div key={exam.id} className="rounded-lg border border-slate-700 bg-slate-800/60 p-2">
-            <div className="text-xs font-semibold text-slate-200 mb-2">{exam.subject}</div>
-            <div className="flex gap-2 flex-wrap">
-              {candidateDates(i * 5).map((d) => {
-                const iso = d.toISOString().slice(0, 10);
-                const selected = assigned[exam.id] === iso;
-                return (
-                  <button
-                    key={iso}
-                    type="button"
-                    onClick={() => setAssigned((a) => ({ ...a, [exam.id]: iso }))}
-                    className={`rounded-md px-2 py-1 text-[11px] transition-colors ${
-                      selected
-                        ? "bg-amber-400 text-slate-900 font-bold"
-                        : "bg-slate-700 text-slate-300 hover:bg-slate-600"
-                    }`}
-                  >
-                    {formatDate(d)}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="mb-5">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">
+          Exam Hall
+        </div>
+        <h2 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900">Missing exam dates</h2>
+        <p className="mt-2 max-w-2xl text-sm text-stone-600">
+          {question?.questionText ?? "Stamp only the dates that are still missing. This is a real calendar — no generated dates."}
+        </p>
       </div>
 
-      <div className="rounded-lg border border-dashed border-emerald-400/40 bg-emerald-500/5 p-2 text-center text-[11px] text-emerald-300">
-        Confirmed box:{" "}
-        {pending
-          .filter((e) => assigned[e.id])
-          .map((e) => `${e.subject}: ${assigned[e.id]}`)
-          .join(" · ") || "empty"}
+      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(220px,0.9fr)_1.4fr]">
+        <div className="flex flex-col gap-2 overflow-y-auto">
+          {missing.map((exam) => {
+            const active = exam.id === activeExam?.id;
+            const date = assigned[exam.id];
+            return (
+              <button
+                key={exam.id}
+                type="button"
+                onClick={() => setActiveId(exam.id)}
+                className={`rounded-2xl border px-4 py-3 text-left transition-colors ${
+                  active
+                    ? "border-amber-800 bg-amber-800 text-amber-50"
+                    : "border-stone-200 bg-white text-stone-800 hover:bg-stone-50"
+                }`}
+              >
+                <div className="text-sm font-semibold">{examLabel(exam)}</div>
+                <div className={`mt-1 text-xs ${active ? "text-amber-100/80" : "text-stone-500"}`}>
+                  {date || "Date missing — tap a day on the calendar"}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex min-h-0 flex-col rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <button type="button" onClick={() => shiftMonth(-1)} className="rounded-full px-3 py-1 text-stone-500 hover:bg-stone-100">
+              ‹
+            </button>
+            <div className="text-lg font-semibold text-stone-800">
+              {MONTHS[monthIndex]} {year}
+            </div>
+            <button type="button" onClick={() => shiftMonth(1)} className="rounded-full px-3 py-1 text-stone-500 hover:bg-stone-100">
+              ›
+            </button>
+          </div>
+
+          <div className="grid flex-1 grid-cols-7 gap-1.5 text-center">
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+              <div key={d} className="pb-1 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
+                {d}
+              </div>
+            ))}
+            {Array.from({ length: firstWeekday }).map((_, i) => (
+              <div key={`pad-${i}`} />
+            ))}
+            {Array.from({ length: total }).map((_, i) => {
+              const d = i + 1;
+              const iso = `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+              const selected = Object.values(assigned).includes(iso);
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => stampDay(d)}
+                  className={`aspect-square rounded-2xl text-sm transition-colors ${
+                    selected
+                      ? "bg-amber-800 text-amber-50 font-bold"
+                      : "text-stone-700 hover:bg-stone-100"
+                  }`}
+                >
+                  {d}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       <button
         type="button"
         disabled={!allAssigned}
-        onClick={confirm}
-        className="rounded-lg bg-sky-500 hover:bg-sky-400 disabled:opacity-40 disabled:cursor-not-allowed
-                   transition-colors text-slate-900 font-semibold py-2"
+        onClick={() => onComplete(assigned)}
+        className="mt-5 rounded-2xl bg-amber-800 py-3.5 text-sm font-semibold text-amber-50 transition-colors hover:bg-amber-700 disabled:opacity-40"
       >
-        Confirm All Dates
+        {allAssigned ? "Confirm exam dates" : "Stamp every missing paper first"}
       </button>
     </div>
   );

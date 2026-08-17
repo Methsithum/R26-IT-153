@@ -1,6 +1,11 @@
 export function mapBackendQuestion(res) {
   if (!res?.question) return null;
   const options = Array.isArray(res.options) && res.options.length > 0 ? res.options : null;
+  const missingExams = (res.missing_exams || []).map((exam) => ({
+    id: exam.id,
+    subject: exam.subject,
+    examType: exam.exam_type,
+  }));
   return {
     id: res.question_id || `q-${Date.now()}`,
     questionText: res.question,
@@ -10,8 +15,13 @@ export function mapBackendQuestion(res) {
     requiresSpecialInteraction: Boolean(res.requires_special_interaction),
     interactionType: res.interaction_type || null,
     targetLocation: res.target_location || null,
+    subject: res.subject || null,
     status: "pending",
-    context: res.context_field ? { field: res.context_field } : {},
+    context: {
+      field: res.context_field || null,
+      subject: res.subject || null,
+      missingExams,
+    },
   };
 }
 

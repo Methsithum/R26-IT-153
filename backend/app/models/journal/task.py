@@ -40,6 +40,58 @@ class TaskModel:
         return [TaskModel._serialize(d) for d in docs]
 
     @staticmethod
+    async def find_assignment(user_id: str, subject: str):
+        doc = task_collection.find_one(
+            {"user_id": user_id, "subject": subject, "task_type": "assignment"}
+        )
+        return TaskModel._serialize(doc)
+
+    @staticmethod
+    async def ensure_assignment(user_id: str, subject: str):
+        existing = await TaskModel.find_assignment(user_id, subject)
+        if existing:
+            return existing
+        return await TaskModel.create({
+            "user_id": user_id,
+            "title": f"{subject} assignment",
+            "subject": subject,
+            "task_type": "assignment",
+            "progress_stage": "in_progress",
+            "deadline": None,
+            "mark": None,
+        })
+
+    @staticmethod
+    async def set_deadline(user_id: str, subject: str, deadline: str):
+        existing = await TaskModel.find_assignment(user_id, subject)
+        if existing:
+            await TaskModel.update(existing["id"], {"deadline": deadline})
+            return
+        await TaskModel.create({
+            "user_id": user_id,
+            "title": f"{subject} assignment",
+            "subject": subject,
+            "task_type": "assignment",
+            "progress_stage": "in_progress",
+            "deadline": deadline,
+        })
+
+    @staticmethod
+    async def set_mark(user_id: str, subject: str, mark):
+        existing = await TaskModel.find_assignment(user_id, subject)
+        if existing:
+            await TaskModel.update(existing["id"], {"mark": mark, "progress_stage": "completed"})
+            return
+        await TaskModel.create({
+            "user_id": user_id,
+            "title": f"{subject} assignment",
+            "subject": subject,
+            "task_type": "assignment",
+            "progress_stage": "completed",
+            "mark": mark,
+        })
+
+    @staticmethod
     async def update(task_id: str, update_data: dict):
         update_data["updated_at"] = datetime.utcnow()
         task_collection.update_one({"_id": ObjectId(task_id)}, {"$set": update_data})
