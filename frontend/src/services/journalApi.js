@@ -1,8 +1,9 @@
 import api from "./apiClient";
+import { localTodayIso } from "./localDate";
 
 export async function startDailySession({
   userId,
-  date = new Date().toISOString(),
+  date = `${localTodayIso()}T00:00:00`,
   selectedActivities,
   lectureSubjects = [],
   assignmentSubjects = [],

@@ -7,6 +7,17 @@ from app.services.journal.question_bank import QUESTION_BANK, get_question, pad_
 
 SHORTLIST_SIZE = 20
 MARK_CHECK_IDS = {"exam-mark-check", "exam-mark-enter", "asg-mark-check", "asg-mark-enter"}
+DEADLINE_CHECK_IDS = {"asg-deadline-check", "asg-deadline"}
+EXAM_DATE_CHECK_IDS = {"exam-dates-check", "exam-dates"}
+FORCED_ONLY_STAGES = {
+    "lecture_subjects_needed",
+    "assignment_subjects_needed",
+    "exam_setup_needed",
+    "deadline_needed",
+    "deadline_check",
+    "exam_date",
+    "exam_date_check",
+}
 MARK_STAGES = {
     "mark_review",
     "mark_entry",
@@ -53,20 +64,14 @@ def _stage_allowed(
     unmarked_exams = unmarked_exams or []
     unmarked_assignments = unmarked_assignments or []
     asked = set(asked_ids or [])
-    if stage in {"lecture_subjects_needed", "assignment_subjects_needed", "exam_setup_needed"}:
+    if stage in FORCED_ONLY_STAGES:
         return False
-    if stage == "deadline_needed":
-        if "assignment_work" not in selected:
-            return False
-        return bool(_subjects_needing_deadline(tasks, assignment_subjects))
     if stage in MARK_STAGES and asked & MARK_CHECK_IDS:
         return False
     if stage == "mark_subject_needed":
         return len(unmarked_assignments) > 1
     if stage in {"mark_review", "mark_entry"}:
         return bool(unmarked_assignments)
-    if stage == "exam_date":
-        return "exam_preparation" in selected and bool(missing_exams)
     if stage == "exam_mark_subject_needed":
         return len(unmarked_exams) > 1
     if stage in {"exam_mark_review", "exam_mark_entry"}:
@@ -126,12 +131,20 @@ def hydrate(
     if subject:
         if "{subject}" in text:
             text = text.replace("{subject}", subject)
+        elif question.get("stage") == "deadline_check":
+            text = f"Has the deadline for {subject} been given?"
         elif question.get("stage") == "deadline_needed":
             text = f"When is the deadline for {subject}?"
         elif question.get("stage") == "mark_entry":
             text = f"Log the mark you received for {subject}."
         elif question.get("stage") == "mark_review":
             text = f"Have you received a mark for {subject}?"
+    if question.get("stage") == "exam_date_check" and missing_exams:
+        labels = [_exam_label(e) for e in missing_exams]
+        if len(labels) == 1:
+            text = f"Have {labels[0]} dates been released?"
+        else:
+            text = f"Have exam dates been released for {', '.join(labels)}?"
     if question.get("stage") == "exam_date" and missing_exams:
         labels = [_exam_label(e) for e in missing_exams]
         text = f"Confirm the missing exam date{'s' if len(labels) > 1 else ''}: {', '.join(labels)}."
@@ -172,6 +185,33 @@ def _forced_setup_question(
         return get_question("assignment-subjects")
     if "exam_preparation" in selected and (not exam_subjects or not exam_kinds):
         return get_question("exam-setup")
+    return None
+
+
+def _forced_date_followup(
+    selected: List[str],
+    asked_ids: List[str],
+    tasks: List[Dict],
+    assignment_subjects: List[str],
+    missing_exams: List[Dict],
+) -> Optional[Dict[str, Any]]:
+    asked = set(asked_ids or [])
+    if "assignment_work" in selected and not (asked & DEADLINE_CHECK_IDS):
+        needed = _subjects_needing_deadline(tasks, assignment_subjects)
+        if needed:
+            return {
+                "question": get_question("asg-deadline-check"),
+                "subject": needed[0],
+                "missing_exams": None,
+                "subject_options": None,
+            }
+    if "exam_preparation" in selected and missing_exams and not (asked & EXAM_DATE_CHECK_IDS):
+        return {
+            "question": get_question("exam-dates-check"),
+            "subject": missing_exams[0].get("subject"),
+            "missing_exams": missing_exams,
+            "subject_options": None,
+        }
     return None
 
 
@@ -267,8 +307,6 @@ async def pick_next_question(
     missing_exams = missing_exams or []
     unmarked_exams = unmarked_exams or []
     unmarked_assignments = unmarked_assignments or []
-    if total_questions_asked >= max_questions:
-        return {"end_session": True, "question": None, "task_updates": []}
 
     forced = _forced_setup_question(
         selected_activities,
@@ -282,6 +320,25 @@ async def pick_next_question(
         return {
             "end_session": False,
             "question": hydrate(forced, subject_options=registered_subjects),
+            "task_updates": [],
+        }
+
+    date_followup = _forced_date_followup(
+        selected_activities,
+        asked_ids,
+        tasks,
+        assignment_subjects,
+        missing_exams,
+    )
+    if date_followup and date_followup.get("question"):
+        return {
+            "end_session": False,
+            "question": hydrate(
+                date_followup["question"],
+                subject=date_followup.get("subject"),
+                missing_exams=date_followup.get("missing_exams"),
+                subject_options=date_followup.get("subject_options"),
+            ),
             "task_updates": [],
         }
 
@@ -303,6 +360,9 @@ async def pick_next_question(
             ),
             "task_updates": [],
         }
+
+    if total_questions_asked >= max_questions:
+        return {"end_session": True, "question": None, "task_updates": []}
 
     shortlist = build_shortlist(
         selected_activities,

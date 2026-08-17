@@ -102,16 +102,17 @@ function generateSpecialQuestions(assignments, exams = [], today = new Date()) {
       special.push(
         makeQuestion(
           {
-            id: `q-deadline-${assignment.id}`,
-            questionText: `When is the deadline for "${assignment.title}"?`,
-            answerType: "date",
+            id: `q-deadline-check-${assignment.id}`,
+            questionText: `Has the deadline for ${assignment.subject} been given?`,
+            answers: ["Yes", "Not yet", "Only a tentative date", "I need to check"],
+            answerType: "choice",
             category: "assignment",
           },
           {
-            requiresSpecialInteraction: true,
+            requiresSpecialInteraction: false,
             interactionType: "date",
             targetLocation: getBuildingForInteraction("date").id,
-            context: { assignmentId: assignment.id, field: "deadline" },
+            context: { assignmentId: assignment.id, field: "deadline-check", subject: assignment.subject },
           }
         )
       );
@@ -166,19 +167,27 @@ function generateSpecialQuestions(assignments, exams = [], today = new Date()) {
 
   const stillPending = pendingExams(exams);
   if (stillPending.length > 0) {
+    const labels = stillPending.map((exam) => {
+      const kind = String(exam.examType || exam.exam_type || "exam").replace(/^\w/, (c) => c.toUpperCase());
+      return `${exam.subject} · ${kind}`;
+    });
     special.push(
       makeQuestion(
         {
-          id: `q-exam-dates-${stillPending.map((e) => e.id).join("-")}`,
-          questionText: "You have exam dates that still need to be confirmed.",
-          answerType: "date",
+          id: `q-exam-dates-check-${stillPending.map((e) => e.id).join("-")}`,
+          questionText:
+            labels.length === 1
+              ? `Have ${labels[0]} dates been released?`
+              : `Have exam dates been released for ${labels.join(", ")}?`,
+          answers: ["Yes", "Not yet", "Only some of them", "I need to check"],
+          answerType: "choice",
           category: "exam",
         },
         {
-          requiresSpecialInteraction: true,
+          requiresSpecialInteraction: false,
           interactionType: "examDate",
           targetLocation: "exam-hall",
-          context: { field: "examDates" },
+          context: { field: "exam-dates-check", missingExams: stillPending },
         }
       )
     );
@@ -264,11 +273,18 @@ export function generateDailyQuestions({
 }
 
 /**
- * Given a mark-check question's answer, decide whether the numeric
- * special interaction (entering a building to key in the actual mark)
- * should now trigger.
+ * Yes on a date/mark gate should open the building mini-game.
+ * "Not yet" leaves the saved date/mark null and asks again another day.
  */
-export function shouldEscalateToMarkEntry(question, answerValue) {
-  const field = question.context?.field;
-  return (field === "mark-check" || field === "exam-mark-check") && answerValue === "Yes";
+export function shouldEscalateToSpecialEntry(question, answerValue) {
+  const field = question?.context?.field;
+  return (
+    answerValue === "Yes" &&
+    (field === "mark-check" ||
+      field === "exam-mark-check" ||
+      field === "deadline-check" ||
+      field === "exam-dates-check")
+  );
 }
+
+export const shouldEscalateToMarkEntry = shouldEscalateToSpecialEntry;

@@ -1,5 +1,6 @@
 from app.config.database import db
 from app.services.journal.journal_constants import is_mark_check_due
+from app.services.time_utils import local_today_iso
 from bson import ObjectId
 from datetime import datetime
 
@@ -74,7 +75,7 @@ class ExamModel:
         if exam_types:
             query["exam_type"] = {"$in": exam_types}
         docs = list(exam_collection.find(query))
-        today = datetime.utcnow().date().isoformat()
+        today = local_today_iso()
         ready = []
         for doc in docs:
             exam = ExamModel._serialize(doc)
@@ -92,7 +93,7 @@ class ExamModel:
 
     @staticmethod
     async def set_mark(exam_id: str, mark):
-        today = datetime.utcnow().date().isoformat()
+        today = local_today_iso()
         exam_collection.update_one(
             {"_id": ObjectId(exam_id)},
             {"$set": {"mark": mark, "last_mark_check": today, "updated_at": datetime.utcnow()}},
@@ -104,7 +105,7 @@ class ExamModel:
             {"_id": ObjectId(exam_id)},
             {
                 "$set": {
-                    "last_mark_check": datetime.utcnow().date().isoformat(),
+                    "last_mark_check": local_today_iso(),
                     "updated_at": datetime.utcnow(),
                 }
             },

@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Final
 
+from app.services.time_utils import local_today
+
 ALLOWED_ACTIVITIES: Final[set[str]] = {
     "academic_study",
     "assignment_work",
@@ -38,7 +40,7 @@ MARK_CHECK_INTERVAL_DAYS: Final[int] = 7
 def is_mark_check_due(last_check, today=None) -> bool:
     if not last_check:
         return True
-    today = today or datetime.utcnow().date()
+    today = today or local_today()
     if isinstance(last_check, datetime):
         last = last_check.date()
     else:

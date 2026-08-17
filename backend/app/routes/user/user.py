@@ -1,5 +1,4 @@
 from fastapi import APIRouter, HTTPException
-from datetime import datetime, timezone
 from app.schemas.user.user import UserCreate, UserLogin, UserResponse
 from app.models.user.user import UserModel
 from app.models.journal.daily_session import DailySessionModel
@@ -7,22 +6,20 @@ from app.models.journal.task import TaskModel
 from app.models.journal.reflection import ReflectionModel
 from app.models.journal.exam import ExamModel
 from app.services.auth import verify_password
+from app.services.time_utils import local_today_iso, to_local_date
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
 def _session_date_key(value) -> str | None:
-    if not value:
-        return None
-    if isinstance(value, datetime):
-        return value.date().isoformat()
-    return str(value)[:10]
+    day = to_local_date(value)
+    return day.isoformat() if day else None
 
 
 def _progress_from_sessions(sessions: list[dict]) -> tuple[int, bool]:
     completed = [s for s in (sessions or []) if s and s.get("completed")]
     completed.sort(key=lambda s: str(s.get("date") or ""))
-    today = datetime.now(timezone.utc).date().isoformat()
+    today = local_today_iso()
     today_done = any(_session_date_key(s.get("date")) == today for s in completed)
     if today_done:
         return max(1, len(completed)), True

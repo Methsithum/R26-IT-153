@@ -65,7 +65,9 @@ export default function ExamCalendarSort({ question, onComplete }) {
         </div>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900">Missing exam dates</h2>
         <p className="mt-2 max-w-2xl text-sm text-stone-600">
-          {question?.questionText ?? "Stamp only the dates that are still missing. This is a real calendar — no generated dates."}
+          {question?.context?.field === "exam-dates-check"
+            ? "Stamp only the dates that have been released. This is a real calendar — no generated dates."
+            : question?.questionText ?? "Stamp only the dates that are still missing. This is a real calendar — no generated dates."}
         </p>
       </div>
 

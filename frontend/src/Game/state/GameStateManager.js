@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { generateDailyQuestions, shouldEscalateToMarkEntry } from "../data/questions";
+import { generateDailyQuestions, shouldEscalateToSpecialEntry } from "../data/questions";
+import { localTodayIso } from "../../services/localDate";
 import { ASSIGNMENT_STATUS } from "../data/assignments";
 import { EXAM_STATUS } from "../data/exams";
 import { getBuildingById } from "../data/buildings";
@@ -230,11 +231,11 @@ export const useGameStore = create((set, get) => ({
       score: get().score + 120,
     });
 
-    const escalates = shouldEscalateToMarkEntry(activeQuestion, answerValue);
+    const escalates = shouldEscalateToSpecialEntry(activeQuestion, answerValue);
     const needsInteraction = activeQuestion.requiresSpecialInteraction || escalates;
     if (!needsInteraction) {
       await get().ingestBackendAnswer(answerValue);
-      const todayKey = new Date().toISOString().slice(0, 10);
+      const todayKey = localTodayIso();
       if (activeQuestion.context?.field === "exam-mark-check") {
         const examId = activeQuestion.context?.missingExams?.[0]?.id;
         set({
@@ -262,7 +263,7 @@ export const useGameStore = create((set, get) => ({
     const { activeQuestion, pendingAnswer } = get();
     set({ phase: PHASES.CHECKING_DATA_REQUIREMENT });
 
-    const escalates = shouldEscalateToMarkEntry(activeQuestion, pendingAnswer);
+    const escalates = shouldEscalateToSpecialEntry(activeQuestion, pendingAnswer);
     const needsInteraction = activeQuestion.requiresSpecialInteraction || escalates;
 
     setTimeout(() => {
@@ -292,45 +293,52 @@ export const useGameStore = create((set, get) => ({
     const { activeQuestion, journalDay, assignments, exams } = get();
     let updatedAssignments = assignments;
     let updatedExams = exams;
+    const field = activeQuestion?.context?.field;
+    const todayKey = localTodayIso();
+    const deadlineFields = field === "deadline" || field === "deadline-check";
+    const subject = activeQuestion?.context?.subject || activeQuestion?.subject;
+    const assignmentId = activeQuestion?.context?.assignmentId;
 
-    if (activeQuestion?.context?.assignmentId) {
-      updatedAssignments = assignments.map((a) => {
-        if (a.id !== activeQuestion.context.assignmentId) return a;
-        if (activeQuestion.context.field === "deadline") {
-          return { ...a, deadline: result.value, status: ASSIGNMENT_STATUS.DEADLINE_RECORDED };
-        }
-        if (activeQuestion.interactionType === "marks") {
-          return {
-            ...a,
-            mark: result.value,
-            status: ASSIGNMENT_STATUS.MARK_RECEIVED,
-            lastMarkCheckDate: new Date().toISOString().slice(0, 10),
-          };
-        }
-        return a;
+    if (deadlineFields && result.value) {
+      updatedAssignments = assignments.map((item) => {
+        const matches = assignmentId ? item.id === assignmentId : item.subject === subject;
+        return matches
+          ? { ...item, deadline: result.value, status: ASSIGNMENT_STATUS.DEADLINE_RECORDED }
+          : item;
+      });
+    } else if (activeQuestion?.interactionType === "marks" && (assignmentId || (field === "mark-check" && subject))) {
+      updatedAssignments = assignments.map((item) => {
+        const matches = assignmentId ? item.id === assignmentId : item.subject === subject;
+        return matches
+          ? {
+              ...item,
+              mark: result.value,
+              status: ASSIGNMENT_STATUS.MARK_RECEIVED,
+              lastMarkCheckDate: todayKey,
+            }
+          : item;
       });
     }
 
-    if (activeQuestion?.context?.field === "examDates" && result.value) {
-      updatedExams = exams.map((e) =>
-        result.value[e.id]
-          ? { ...e, date: result.value[e.id], status: EXAM_STATUS.DATE_RECORDED }
-          : e
+    if ((field === "examDates" || field === "exam-dates-check") && result.value) {
+      updatedExams = exams.map((item) =>
+        result.value[item.id]
+          ? { ...item, date: result.value[item.id], status: EXAM_STATUS.DATE_RECORDED }
+          : item
       );
     }
 
-    const examMarkField = activeQuestion?.context?.field;
-    if ((examMarkField === "examMark" || examMarkField === "exam-mark-check") && result.value != null) {
+    if ((field === "examMark" || field === "exam-mark-check") && result.value != null) {
       const examId = activeQuestion?.context?.missingExams?.[0]?.id;
-      updatedExams = exams.map((e) =>
-        e.id === examId || (!examId && e.subject === activeQuestion?.context?.subject)
+      updatedExams = exams.map((item) =>
+        item.id === examId || (!examId && item.subject === subject)
           ? {
-              ...e,
+              ...item,
               mark: result.value,
               status: EXAM_STATUS.MARK_RECEIVED,
-              lastMarkCheckDate: new Date().toISOString().slice(0, 10),
+              lastMarkCheckDate: todayKey,
             }
-          : e
+          : item
       );
     }
 

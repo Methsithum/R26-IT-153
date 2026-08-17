@@ -1,5 +1,6 @@
 from app.config.database import db
 from app.services.journal.journal_constants import MARK_RECEIVED_STAGES, is_mark_check_due
+from app.services.time_utils import local_today_iso
 from bson import ObjectId
 from datetime import datetime
 
@@ -95,7 +96,7 @@ class TaskModel:
 
     @staticmethod
     async def set_mark(user_id: str, subject: str, mark):
-        today = datetime.utcnow().date().isoformat()
+        today = local_today_iso()
         existing = await TaskModel.find_assignment(user_id, subject)
         if existing:
             await TaskModel.update(
@@ -119,7 +120,7 @@ class TaskModel:
         if existing:
             await TaskModel.update(
                 existing["id"],
-                {"last_mark_check": datetime.utcnow().date().isoformat()},
+                {"last_mark_check": local_today_iso()},
             )
 
     @staticmethod

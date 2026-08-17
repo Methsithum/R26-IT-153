@@ -13,11 +13,15 @@ from app.services.journal.alerts import generate_proactive_alerts
 from app.services.journal.learning_patterns import aggregate_learning_patterns
 import json
 import logging
-from datetime import datetime, timezone
+import re
+from datetime import datetime
 from typing import Any, Dict, List, Optional
+
+from app.services.time_utils import calendar_datetime
 
 router = APIRouter(prefix="/daily", tags=["daily"])
 logger = logging.getLogger(__name__)
+_ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}")
 
 
 def _filter_subjects(raw: List[str], allowed: List[str]) -> List[str]:
@@ -141,6 +145,15 @@ def _first_token(answer: Any) -> str:
     return str(payload or "").strip()
 
 
+def _iso_date(answer: Any) -> Optional[str]:
+    if answer is None or isinstance(answer, (dict, list)):
+        return None
+    text = str(answer).strip()
+    if _ISO_DATE.match(text):
+        return text[:10]
+    return None
+
+
 def _parse_mark(answer: Any):
     payload = answer
     if isinstance(answer, str):
@@ -224,12 +237,14 @@ async def _record_structured_answer(session: dict, answer: str) -> dict:
 
     subject = meta.get("subject") or session.get("pending_mark_subject")
     if not subject:
-        if field in {"deadline", "mark", "mark-check"}:
+        if field in {"deadline", "deadline-check", "mark", "mark-check"}:
             subject = (session.get("assignment_subjects") or session.get("today_subjects") or [None])[0]
         else:
             subject = (session.get("today_subjects") or [None])[0]
-    if field == "deadline" and subject:
-        await TaskModel.set_deadline(user_id, subject, answer)
+    if field in {"deadline", "deadline-check"} and subject:
+        iso = _iso_date(answer)
+        if iso:
+            await TaskModel.set_deadline(user_id, subject, iso)
         return updates
     if field in {"mark", "mark-check"} and subject:
         parsed = _parse_mark(answer)
@@ -238,15 +253,16 @@ async def _record_structured_answer(session: dict, answer: str) -> dict:
         elif field == "mark-check":
             await TaskModel.record_mark_check(user_id, subject)
         return updates
-    if field == "examDates":
+    if field in {"examDates", "exam-dates-check"}:
         try:
             payload = json.loads(answer) if isinstance(answer, str) else answer
         except json.JSONDecodeError:
             payload = {}
         if isinstance(payload, dict):
             for exam_id, date_value in payload.items():
-                if exam_id and date_value:
-                    await ExamModel.set_date(str(exam_id), str(date_value))
+                iso = _iso_date(date_value)
+                if exam_id and iso:
+                    await ExamModel.set_date(str(exam_id), iso)
         return updates
     if field in {"examMark", "exam-mark-check"}:
         exams_meta = meta.get("missing_exams") or []
@@ -353,9 +369,7 @@ async def start_daily_session(req: StartDailyRequest):
     unmarked_exams = await ExamModel.missing_marks(req.user_id)
     unmarked_assignments = await TaskModel.assignments_needing_mark(req.user_id)
 
-    date = req.date
-    if date and getattr(date, "tzinfo", None) is not None:
-        date = date.astimezone(timezone.utc).replace(tzinfo=None)
+    date = calendar_datetime(req.date)
 
     max_questions = _calculate_max_questions(len(selected_activities))
     session_context = {"derived": None, "at_risk_tasks": []}

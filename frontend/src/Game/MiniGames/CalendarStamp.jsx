@@ -46,7 +46,9 @@ export default function CalendarStamp({ question, onComplete }) {
         </div>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900">{subject}</h2>
         <p className="mt-2 max-w-xl text-sm text-stone-600">
-          {question?.questionText ?? "Stamp the assignment deadline on the real calendar."}
+          {question?.context?.field === "deadline-check"
+            ? `Stamp the deadline for ${subject} on the real calendar.`
+            : question?.questionText ?? "Stamp the assignment deadline on the real calendar."}
         </p>
       </div>
 
