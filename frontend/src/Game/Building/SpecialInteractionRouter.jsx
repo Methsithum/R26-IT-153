@@ -21,6 +21,16 @@ function MiniGameSlot({ activeQuestion, onComplete }) {
   return <SubjectPicker {...props} />;
 }
 
+function purposeLabel(subject, type) {
+  if (subject) return subject;
+  if (type === "subjectPick") return "Today's subjects";
+  if (type === "examSetup") return "Exam subjects · Mid / Final";
+  if (type === "markTarget") return "Pick a subject";
+  if (type === "date" || type === "examDate") return "Calendar";
+  if (type === "marks") return "Marks";
+  return "Inside";
+}
+
 export default function SpecialInteractionRouter() {
   const phase = useGameStore((s) => s.phase);
   const activeQuestion = useGameStore((s) => s.activeQuestion);
@@ -45,49 +55,49 @@ export default function SpecialInteractionRouter() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="pointer-events-auto absolute inset-0 z-40 flex flex-col bg-[#f7f1e6]"
+        className="pointer-events-none absolute inset-0 z-40 flex flex-col"
       >
         <div
-          className="pointer-events-none absolute inset-0 opacity-70"
+          className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "radial-gradient(ellipse at 20% 0%, rgba(255,255,255,0.85), transparent 42%), radial-gradient(ellipse at 80% 100%, rgba(146,64,14,0.08), transparent 46%)",
+              "radial-gradient(ellipse at 50% 18%, rgba(255,248,235,0.18), transparent 46%), linear-gradient(to top, rgba(28,18,8,0.28), transparent 42%)",
           }}
         />
-        <header className="relative flex items-center justify-between border-b border-stone-300/70 px-5 py-4 sm:px-8">
-          <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-stone-500">
+
+        <header className="pointer-events-none relative z-10 flex items-start justify-between px-5 pt-5 sm:px-8">
+          <div className="rounded-2xl border border-white/50 bg-white/70 px-4 py-3 shadow-lg backdrop-blur-md">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">
               {building?.name ?? "Campus building"}
             </div>
-            <div className="mt-1 text-sm text-stone-700">
-              {subject
-                ? `${subject} · ${type}`
-                : type === "subjectPick"
-                  ? "Pick today's subjects"
-                  : type === "examSetup"
-                    ? "Exam subjects · Mid / Final"
-                    : type === "markTarget"
-                      ? "Pick the subject for this mark"
-                    : "Special interaction"}
-            </div>
+            <div className="mt-1 text-sm text-stone-700">{purposeLabel(subject, type)}</div>
           </div>
-          <div className="rounded-full bg-white/80 px-3 py-1 text-xs text-stone-500 shadow-sm">
-            Inside the building
+          <div className="rounded-full border border-white/50 bg-white/70 px-3 py-1 text-xs text-stone-600 shadow-sm backdrop-blur-md">
+            Stepped inside
           </div>
         </header>
 
-        <div className="relative flex min-h-0 flex-1 p-4 sm:p-8">
+        <div className="relative z-10 flex min-h-0 flex-1 items-end justify-center p-4 sm:p-7">
           {completed ? (
-            <div className="flex h-full w-full items-center justify-center">
-              <div className="rounded-3xl border border-emerald-200 bg-white px-10 py-8 text-center shadow-sm">
-                <div className="text-emerald-700 text-lg font-semibold">Saved to your journal</div>
-                {subject && <div className="mt-2 text-sm text-stone-500">{subject}</div>}
-              </div>
-            </div>
+            <motion.div
+              initial={{ y: 18, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              className="pointer-events-auto mb-6 rounded-3xl border border-emerald-200/80 bg-white/90 px-10 py-8 text-center shadow-xl backdrop-blur-md"
+            >
+              <div className="text-lg font-semibold text-emerald-700">Saved to your journal</div>
+              {subject && <div className="mt-2 text-sm text-stone-500">{subject}</div>}
+            </motion.div>
           ) : (
-            <div className="mx-auto h-full min-h-0 w-full max-w-5xl overflow-hidden">
-              <MiniGameSlot activeQuestion={activeQuestion} onComplete={handleComplete} />
-            </div>
+            <motion.div
+              initial={{ y: 24, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.35 }}
+              className="pointer-events-auto h-[min(78vh,720px)] w-full max-w-4xl overflow-hidden rounded-[28px] border border-white/60 bg-white/88 shadow-[0_24px_80px_rgba(40,24,8,0.28)] backdrop-blur-md"
+            >
+              <div className="h-full min-h-0 p-5 sm:p-7">
+                <MiniGameSlot activeQuestion={activeQuestion} onComplete={handleComplete} />
+              </div>
+            </motion.div>
           )}
         </div>
       </motion.div>

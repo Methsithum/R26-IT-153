@@ -17,9 +17,12 @@ export default function MainGame() {
   );
 
   const insideBuilding =
+    phase === PHASES.TRANSITION_TO_BUILDING ||
+    phase === PHASES.ENTERING_BUILDING ||
     phase === PHASES.SPECIAL_INTERACTION_READY ||
     phase === PHASES.SPECIAL_INTERACTION_ACTIVE ||
-    phase === PHASES.SPECIAL_INTERACTION_COMPLETED;
+    phase === PHASES.SPECIAL_INTERACTION_COMPLETED ||
+    phase === PHASES.RETURNING_TO_CAMPUS;
 
   return (
     <div className="relative w-full h-screen bg-slate-950 overflow-hidden">
