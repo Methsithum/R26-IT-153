@@ -63,6 +63,7 @@ export default function InteriorExploreHUD() {
   const building = getBuildingById(useGameStore((s) => s.targetBuildingId));
   const type = useGameStore((s) => s.activeQuestion?.interactionType);
   const near = useRunnerStore((s) => s.nearMission);
+  const lookLocked = useRunnerStore((s) => s.lookLocked);
   const entering = phase === PHASES.ENTERING_BUILDING || phase === PHASES.TRANSITION_TO_BUILDING;
   const exploring = phase === PHASES.SPECIAL_INTERACTION_READY;
 
@@ -99,8 +100,10 @@ export default function InteriorExploreHUD() {
       {exploring && (
         <>
           <WalkStick />
-          <div className="absolute bottom-6 right-5 rounded-xl border border-white/30 bg-slate-950/55 px-3 py-2 text-[11px] text-slate-100 backdrop-blur-md sm:right-8">
-            Drag to look around · WASD or stick to walk
+          <div className="absolute bottom-6 right-5 max-w-[220px] rounded-xl border border-white/30 bg-slate-950/55 px-3 py-2 text-[11px] leading-snug text-slate-100 backdrop-blur-md sm:right-8">
+            {lookLocked
+              ? "Move the mouse to look · WASD walks · Esc frees cursor"
+              : "Click the room, then move the mouse to look · WASD or stick walks"}
           </div>
         </>
       )}

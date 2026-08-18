@@ -40,7 +40,8 @@ export const useRunnerStore = create((set, get) => ({
   exploreInputZ: 0,
   facingYaw: 0,
   lookYaw: 0,
-  lookPitch: 0.42,
+  lookPitch: 0.32,
+  lookLocked: false,
   doorOpen: 0,
   enterProgress: 0,
   nearMission: false,
@@ -91,9 +92,10 @@ export const useRunnerStore = create((set, get) => ({
   setExploreInput: (x, z) => set({ exploreInputX: x, exploreInputZ: z }),
   setFacingYaw: (facingYaw) => set({ facingYaw }),
   setLook: (lookYaw, lookPitch) => set({ lookYaw, lookPitch }),
-  addLookDelta: (dx, dy) => {
-    const yaw = get().lookYaw - dx * 0.005;
-    const pitch = Math.min(1.12, Math.max(0.1, get().lookPitch + dy * 0.0042));
+  setLookLocked: (lookLocked) => set({ lookLocked }),
+  addLookDelta: (dx, dy, sens = 0.0026) => {
+    const yaw = get().lookYaw - dx * sens;
+    const pitch = Math.min(0.72, Math.max(0.12, get().lookPitch + dy * sens * 0.72));
     set({ lookYaw: yaw, lookPitch: pitch });
   },
   setDoorOpen: (doorOpen) => set({ doorOpen }),
@@ -128,7 +130,8 @@ export const useRunnerStore = create((set, get) => ({
       enterProgress: 0,
       facingYaw: 0,
       lookYaw: 0,
-      lookPitch: 0.42,
+      lookPitch: 0.32,
+      lookLocked: false,
     });
   },
 
@@ -165,7 +168,8 @@ export const useRunnerStore = create((set, get) => ({
       exploreInputZ: 0,
       facingYaw: 0,
       lookYaw: 0,
-      lookPitch: 0.42,
+      lookPitch: 0.32,
+      lookLocked: false,
       doorOpen: 0,
       enterProgress: 0,
       nearMission: false,

@@ -9,12 +9,43 @@ import {
   interiorWorld,
   DOOR_LOCAL_Z,
   GROUND_Y,
+  CAM_INNER,
 } from "../Environment/BuildingInterior";
 import BuildingInterior from "../Environment/BuildingInterior";
 
 const TO_BUILDING_DURATION = 1.7;
 const ENTER_DURATION = 2.05;
 const RETURN_DURATION = 1.6;
+const FOLLOW_DIST = 2.45;
+
+function followCameraTarget(runner, ix, iz, dist = FOLLOW_DIST) {
+  const yaw = runner.lookYaw;
+  const pitch = runner.lookPitch;
+  const cp = Math.cos(pitch);
+  let scale = 1;
+  const ox0 = Math.sin(yaw) * dist * cp;
+  const oz0 = Math.cos(yaw) * dist * cp;
+  const oy = Math.min(3.8, runner.posY + dist * Math.sin(pitch) + 0.42);
+
+  const minX = ix + CAM_INNER.minX;
+  const maxX = ix + CAM_INNER.maxX;
+  const minZ = iz + CAM_INNER.minZ;
+  const maxZ = iz + CAM_INNER.maxZ;
+
+  for (let i = 0; i < 10; i++) {
+    const x = runner.posX + ox0 * scale;
+    const z = runner.posZ + oz0 * scale;
+    if (x >= minX && x <= maxX && z >= minZ && z <= maxZ) {
+      return new THREE.Vector3(x, Math.max(1.35, oy), z);
+    }
+    scale *= 0.78;
+  }
+  return new THREE.Vector3(
+    Math.min(maxX, Math.max(minX, runner.posX + ox0 * scale)),
+    Math.max(1.35, oy),
+    Math.min(maxZ, Math.max(minZ, runner.posZ + oz0 * scale))
+  );
+}
 
 export default function TransitionManager() {
   const { camera } = useThree();
@@ -52,7 +83,8 @@ export default function TransitionManager() {
         runner.setEnterProgress(0);
         runner.setExploreInput(0, 0);
         runner.setNearMission(false);
-        runner.setLook(0, 0.42);
+        runner.setLook(0, 0.32);
+        runner.setLookLocked(false);
       }
 
       if (phase === PHASES.RETURNING_TO_CAMPUS) {
@@ -81,11 +113,11 @@ export default function TransitionManager() {
       runner.setEnterProgress(t);
       runner.setDoorOpen(Math.min(1, t / 0.28));
 
-      const behind = new THREE.Vector3(runner.posX, runner.posY + 2.55, runner.posZ + 4.1);
-      camPos.current.lerp(behind, Math.min(1, dt * 4.2));
+      const behind = followCameraTarget(runner, ix, iz, 2.35);
+      camPos.current.lerp(behind, Math.min(1, dt * 5.5));
       camLook.current.lerp(
-        new THREE.Vector3(runner.posX, runner.posY + 1.35, runner.posZ - 2.2),
-        Math.min(1, dt * 5)
+        new THREE.Vector3(runner.posX, runner.posY + 1.25, runner.posZ),
+        Math.min(1, dt * 6)
       );
       camera.position.copy(camPos.current);
       camera.lookAt(camLook.current);
@@ -101,26 +133,11 @@ export default function TransitionManager() {
       phase === PHASES.SPECIAL_INTERACTION_ACTIVE ||
       phase === PHASES.SPECIAL_INTERACTION_COMPLETED
     ) {
-      const dist = 4.85;
-      const yaw = runner.lookYaw;
-      const pitch = runner.lookPitch;
-      const cp = Math.cos(pitch);
-      const ox = Math.sin(yaw) * dist * cp;
-      const oy = dist * Math.sin(pitch) + 0.55;
-      const oz = Math.cos(yaw) * dist * cp;
-      const target = new THREE.Vector3(runner.posX + ox, runner.posY + oy, runner.posZ + oz);
-      const minX = ix - 7.15;
-      const maxX = ix + 7.15;
-      const minZ = iz - 5.35;
-      const maxZ = iz + 6.45;
-      target.x = Math.min(maxX, Math.max(minX, target.x));
-      target.z = Math.min(maxZ, Math.max(minZ, target.z));
-      target.y = Math.max(1.15, target.y);
-
-      camPos.current.lerp(target, Math.min(1, dt * 7.5));
+      const target = followCameraTarget(runner, ix, iz);
+      camPos.current.lerp(target, Math.min(1, dt * 14));
       camLook.current.lerp(
-        new THREE.Vector3(runner.posX, runner.posY + 1.25, runner.posZ),
-        Math.min(1, dt * 8)
+        new THREE.Vector3(runner.posX, runner.posY + 1.22, runner.posZ),
+        Math.min(1, dt * 16)
       );
       camera.position.copy(camPos.current);
       camera.lookAt(camLook.current);

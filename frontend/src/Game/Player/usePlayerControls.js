@@ -3,7 +3,10 @@ import { useRunnerStore } from "../state/runnerStore";
 import { useGameStore } from "../state/GameStateManager";
 
 const SWIPE_MIN = 42;
-const LOOK_MOVE_MIN = 8;
+
+function canvasEl() {
+  return document.querySelector("canvas");
+}
 
 export default function usePlayerControls({ run = false, explore = false } = {}) {
   useEffect(() => {
@@ -15,8 +18,7 @@ export default function usePlayerControls({ run = false, explore = false } = {})
     let lastX = 0;
     let lastY = 0;
     let tracking = false;
-    let looking = false;
-    let lookMoved = 0;
+    let touchLooking = false;
 
     function syncExplore() {
       if (!explore) return;
@@ -75,60 +77,69 @@ export default function usePlayerControls({ run = false, explore = false } = {})
       syncExplore();
     }
 
-    function point(e) {
-      if (e.changedTouches?.[0]) return e.changedTouches[0];
-      if (e.touches?.[0]) return e.touches[0];
-      return e;
-    }
-
     function isStick(e) {
       return Boolean(e.target?.closest?.("[data-explore-stick]"));
     }
 
+    function onMouseMove(e) {
+      if (!explore) return;
+      if (!document.pointerLockElement) return;
+      if (e.movementX === 0 && e.movementY === 0) return;
+      useRunnerStore.getState().addLookDelta(e.movementX, e.movementY, 0.0022);
+    }
+
+    function onPointerLockChange() {
+      const locked = document.pointerLockElement === canvasEl();
+      useRunnerStore.getState().setLookLocked(locked);
+    }
+
+    function onClick(e) {
+      if (!explore || isStick(e)) return;
+      if (e.pointerType === "touch") return;
+      if (document.pointerLockElement) return;
+      canvasEl()?.requestPointerLock?.();
+    }
+
     function onPointerDown(e) {
       if (explore && isStick(e)) return;
-      const p = point(e);
-      startX = p.clientX;
-      startY = p.clientY;
-      lastX = p.clientX;
-      lastY = p.clientY;
+      if (explore && e.pointerType !== "touch") {
+        return;
+      }
+      if (explore && e.pointerType === "touch") {
+        lastX = e.clientX;
+        lastY = e.clientY;
+        tracking = true;
+        touchLooking = true;
+        return;
+      }
+      startX = e.clientX;
+      startY = e.clientY;
       tracking = true;
-      looking = explore;
-      lookMoved = 0;
-      if (looking) document.body.style.cursor = "grabbing";
+      touchLooking = false;
     }
 
     function onPointerMove(e) {
-      if (!tracking) return;
-      const p = point(e);
-      if (looking) {
-        const dx = p.clientX - lastX;
-        const dy = p.clientY - lastY;
-        lastX = p.clientX;
-        lastY = p.clientY;
-        lookMoved += Math.hypot(dx, dy);
-        if (dx !== 0 || dy !== 0) {
-          useRunnerStore.getState().addLookDelta(dx, dy);
-        }
-        e.preventDefault();
+      if (!tracking || !touchLooking) return;
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      if (dx !== 0 || dy !== 0) {
+        useRunnerStore.getState().addLookDelta(dx, dy, 0.0048);
       }
+      e.preventDefault();
     }
 
     function onPointerUp(e) {
-      if (!tracking) return;
-      tracking = false;
-      if (looking) document.body.style.cursor = "";
-      const wasLooking = looking;
-      looking = false;
-      const p = point(e);
-      const dx = p.clientX - startX;
-      const dy = p.clientY - startY;
-
-      if (wasLooking) {
-        if (lookMoved < LOOK_MOVE_MIN) useGameStore.getState().tryStartMission();
+      if (explore) {
+        tracking = false;
+        touchLooking = false;
         return;
       }
-
+      if (!tracking) return;
+      tracking = false;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
       if (Math.hypot(dx, dy) < SWIPE_MIN) return;
       const runner = useRunnerStore.getState();
       if (Math.abs(dx) > Math.abs(dy)) {
@@ -143,19 +154,26 @@ export default function usePlayerControls({ run = false, explore = false } = {})
 
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("click", onClick);
+    window.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("pointerlockchange", onPointerLockChange);
     window.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("pointermove", onPointerMove, { passive: false });
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", onPointerUp);
     return () => {
-      document.body.style.cursor = "";
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("click", onClick);
+      window.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("pointerlockchange", onPointerLockChange);
       window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", onPointerUp);
       useRunnerStore.getState().setExploreInput(0, 0);
+      useRunnerStore.getState().setLookLocked(false);
+      if (document.pointerLockElement) document.exitPointerLock();
     };
   }, [run, explore]);
 }

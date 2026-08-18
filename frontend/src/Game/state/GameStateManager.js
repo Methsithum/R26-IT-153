@@ -367,7 +367,11 @@ export const useGameStore = create((set, get) => ({
       objectiveText: "Walk to the glowing desk",
     }),
 
-  startSpecialInteraction: () => set({ phase: PHASES.SPECIAL_INTERACTION_ACTIVE }),
+  startSpecialInteraction: () => {
+    if (document.pointerLockElement) document.exitPointerLock();
+    useRunnerStore.getState().setLookLocked(false);
+    set({ phase: PHASES.SPECIAL_INTERACTION_ACTIVE });
+  },
 
   tryStartMission: () => {
     const { phase } = get();

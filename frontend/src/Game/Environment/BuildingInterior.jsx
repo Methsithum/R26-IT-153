@@ -6,8 +6,10 @@ import { useRunnerStore } from "../state/runnerStore";
 const INTERIOR_X = -55;
 export const GROUND_Y = 0.95;
 export const ROOM_BOUNDS = { minX: -6.2, maxX: 6.2, minZ: -4.8, maxZ: 5.5 };
+/** Camera must stay inside these local offsets so it never sits outside the walls. */
+export const CAM_INNER = { minX: -6.45, maxX: 6.45, minZ: -5.4, maxZ: 5.12 };
 export const DOOR_LOCAL_Z = 7.35;
-export const INSIDE_SPAWN_Z = 3.55;
+export const INSIDE_SPAWN_Z = 3.4;
 
 export function interiorAnchor(entryZ) {
   return [INTERIOR_X, 0, entryZ];

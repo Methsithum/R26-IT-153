@@ -99,7 +99,7 @@ export default function Player() {
     } else if (entering) {
       const t = Math.min(1, store.enterProgress);
       const ease = 1 - Math.pow(1 - t, 3);
-      const localZ = DOOR_LOCAL_Z + (INSIDE_SPAWN_Z - DOOR_LOCAL_Z) * ease;
+      const localZ = 5.05 + (INSIDE_SPAWN_Z - 5.05) * ease;
       const [wx, wy, wz] = interiorWorld(transitionEntryZ, 0, localZ);
       nextX = wx;
       nextY = wy;
