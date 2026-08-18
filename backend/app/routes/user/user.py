@@ -37,6 +37,7 @@ def _to_response(doc: dict, sessions: list[dict] | None = None) -> UserResponse:
         degree_name=doc.get("degree_name"),
         campus_year=doc.get("campus_year"),
         semester=doc.get("semester"),
+        gpa=doc.get("gpa"),
         subjects=doc.get("subjects") or [],
         total_xp=doc.get("total_xp", 0),
         current_streak=doc.get("current_streak", 0),

@@ -17,6 +17,7 @@ export default function Register() {
     degree_name: "",
     campus_year: 1,
     semester: 1,
+    gpa: "",
     password: "",
     confirmPassword: "",
   });
@@ -25,8 +26,18 @@ export default function Register() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const needsGpa = !(Number(form.campus_year) === 1 && Number(form.semester) === 1);
+
   function setField(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function setYearOrSemester(key, value) {
+    setForm((prev) => {
+      const next = { ...prev, [key]: value };
+      const firstSemester = Number(next.campus_year) === 1 && Number(next.semester) === 1;
+      return firstSemester ? { ...next, gpa: "" } : next;
+    });
   }
 
   function addSubject(raw = draft) {
@@ -56,6 +67,11 @@ export default function Register() {
       setError("Add the subjects you are registered for this semester.");
       return;
     }
+    const gpaValue = needsGpa ? Number(form.gpa) : null;
+    if (needsGpa && (form.gpa === "" || Number.isNaN(gpaValue) || gpaValue < 0 || gpaValue > 4)) {
+      setError("Enter your current GPA between 0.00 and 4.00.");
+      return;
+    }
 
     setBusy(true);
     try {
@@ -67,6 +83,7 @@ export default function Register() {
         degree_name: form.degree_name.trim(),
         campus_year: Number(form.campus_year),
         semester: Number(form.semester),
+        gpa: gpaValue,
         subjects,
         password: form.password,
       });
@@ -148,7 +165,7 @@ export default function Register() {
               <button
                 key={year}
                 type="button"
-                onClick={() => setField("campus_year", year)}
+                onClick={() => setYearOrSemester("campus_year", year)}
                 className={`rounded-full px-3 py-1.5 text-sm ${
                   form.campus_year === year
                     ? "bg-amber-800 text-amber-50"
@@ -166,7 +183,7 @@ export default function Register() {
               <button
                 key={sem}
                 type="button"
-                onClick={() => setField("semester", sem)}
+                onClick={() => setYearOrSemester("semester", sem)}
                 className={`flex-1 rounded-xl px-3 py-2 text-sm ${
                   form.semester === sem
                     ? "bg-amber-800 text-amber-50"
@@ -178,6 +195,25 @@ export default function Register() {
             ))}
           </div>
         </Field>
+
+        {needsGpa && (
+          <div className="sm:col-span-2">
+            <Field label="Student GPA">
+              <input
+                required
+                type="number"
+                min={0}
+                max={4}
+                step={0.01}
+                className={inputClass}
+                value={form.gpa}
+                onChange={(e) => setField("gpa", e.target.value)}
+                placeholder="e.g. 3.45"
+              />
+              <p className="mt-1 text-xs text-stone-500">Current cumulative GPA, from 0.00 to 4.00.</p>
+            </Field>
+          </div>
+        )}
 
         <div className="sm:col-span-2">
           <Field label="Currently registered subjects">

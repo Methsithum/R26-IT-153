@@ -57,6 +57,7 @@ export const useGameStore = create((set, get) => ({
   degreeName: "",
   campusYear: null,
   semester: null,
+  gpa: null,
 
   assignments: [],
   exams: [],
@@ -97,6 +98,7 @@ export const useGameStore = create((set, get) => ({
       degreeName: user.degree_name || get().degreeName,
       campusYear: user.campus_year ?? get().campusYear,
       semester: user.semester ?? get().semester,
+      gpa: user.gpa ?? null,
       xp,
       level: Math.max(1, Math.floor(xp / 500) + 1),
       day,

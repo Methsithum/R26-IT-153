@@ -544,6 +544,7 @@ function CharacterStatsContent() {
   const degreeName = useGameStore((s) => s.degreeName);
   const campusYear = useGameStore((s) => s.campusYear);
   const semester = useGameStore((s) => s.semester);
+  const gpa = useGameStore((s) => s.gpa);
   const xpIntoLevel = xp % 500;
   return (
     <div>
@@ -552,9 +553,14 @@ function CharacterStatsContent() {
         Level {level} Student
         {universityName ? ` · ${universityName}` : ""}
       </div>
-      {(degreeName || campusYear || semester) && (
+      {(degreeName || campusYear || semester || gpa != null) && (
         <p className="text-sm text-stone-600 mb-4">
-          {[degreeName, campusYear ? `Year ${campusYear}` : null, semester ? `Semester ${semester}` : null]
+          {[
+            degreeName,
+            campusYear ? `Year ${campusYear}` : null,
+            semester ? `Semester ${semester}` : null,
+            gpa != null ? `GPA ${Number(gpa).toFixed(2)}` : null,
+          ]
             .filter(Boolean)
             .join(" · ")}
         </p>

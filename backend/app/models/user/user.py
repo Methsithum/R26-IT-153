@@ -29,6 +29,7 @@ class UserModel:
             "degree_name": data.get("degree_name"),
             "campus_year": data.get("campus_year"),
             "semester": data.get("semester"),
+            "gpa": data.get("gpa") if "gpa" in data else None,
             "subjects": [s.strip() for s in (data.get("subjects") or []) if str(s).strip()],
             "total_xp": 0,
             "current_streak": 0,
@@ -57,6 +58,11 @@ class UserModel:
         if doc:
             doc["id"] = str(doc["_id"])
         return doc
+
+    @staticmethod
+    def ensure_gpa_field():
+        """Older accounts were created before GPA existed. Keep the field present as null."""
+        user_collection.update_many({"gpa": {"$exists": False}}, {"$set": {"gpa": None}})
 
     @staticmethod
     async def update(user_id: str, update_data: dict):
