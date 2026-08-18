@@ -7,7 +7,7 @@ import StudentCharacter from "./StudentCharacter";
 import {
   GROUND_Y,
   ROOM_BOUNDS,
-  DOOR_LOCAL_Z,
+  APPROACH_Z,
   INSIDE_SPAWN_Z,
   interiorAnchor,
   interiorWorld,
@@ -87,7 +87,7 @@ export default function Player() {
     let pose = "idle";
 
     if (atDoor) {
-      const [wx, wy, wz] = interiorWorld(transitionEntryZ, 0, DOOR_LOCAL_Z);
+      const [wx, wy, wz] = interiorWorld(transitionEntryZ, 0, APPROACH_Z);
       nextX = wx;
       nextY = wy;
       nextZ = wz;
@@ -97,14 +97,14 @@ export default function Player() {
     } else if (entering) {
       const t = Math.min(1, store.enterProgress);
       const ease = 1 - Math.pow(1 - t, 3);
-      const localZ = DOOR_LOCAL_Z + (INSIDE_SPAWN_Z - DOOR_LOCAL_Z) * ease;
+      const localZ = APPROACH_Z + (INSIDE_SPAWN_Z - APPROACH_Z) * ease;
       const [wx, wy, wz] = interiorWorld(transitionEntryZ, 0, localZ);
       nextX = wx;
       nextY = wy;
       nextZ = wz;
       store.setFacingYaw(Math.PI);
-      pose = "walk";
-      gaitPhase.current += dt * 8;
+      pose = t > 0.02 ? "walk" : "idle";
+      gaitPhase.current += dt * (t > 0.02 ? 8 : 2.2);
     } else if (exploring) {
       const ix = store.exploreInputX;
       const iz = store.exploreInputZ;

@@ -14,6 +14,7 @@ const HALF_D = ROOM_D / 2;
 export const ROOM_BOUNDS = { minX: -12.4, maxX: 12.4, minZ: -11.2, maxZ: 10.6 };
 export const CAM_INNER = { minX: -12.7, maxX: 12.7, minZ: -11.6, maxZ: 11.0 };
 export const DOOR_LOCAL_Z = HALF_D + 1.15;
+export const APPROACH_Z = DOOR_LOCAL_Z + 2.6;
 export const INSIDE_SPAWN_Z = 8.4;
 export const ENTER_START_Z = 10.2;
 
