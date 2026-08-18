@@ -73,7 +73,7 @@ export default function SpecialInteractionRouter() {
             <div className="mt-1 text-sm text-stone-700">{purposeLabel(subject, type)}</div>
           </div>
           <div className="rounded-full border border-white/50 bg-white/70 px-3 py-1 text-xs text-stone-600 shadow-sm backdrop-blur-md">
-            Stepped inside
+            At the desk
           </div>
         </header>
 

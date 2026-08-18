@@ -1,5 +1,6 @@
 import { BUILDINGS } from "../data/buildings";
 import { LANES } from "../state/runnerStore";
+import { CLEARANCE_BY_KIND } from "./props";
 
 export const CHUNK_LENGTH = 40;
 export const LOOKAHEAD_CHUNKS = 6;
@@ -17,6 +18,7 @@ function seededRandom(seed) {
 }
 
 const OBSTACLE_KINDS = ["bench", "barrier", "sign", "construction"];
+const PICKUP_KINDS = ["coffee", "notes"];
 
 // Deterministic building placement, shared by chunk generation and the
 // minimap so both agree on where each landmark sits.
@@ -40,21 +42,51 @@ export function getBuildingsInRange(fromZ, toZ) {
   return found;
 }
 
+function pickUnusedLane(rand, used) {
+  const free = [];
+  for (let i = 0; i < LANES.length; i++) {
+    if (!used.has(i)) free.push(i);
+  }
+  if (!free.length) return null;
+  return free[Math.floor(rand() * free.length)];
+}
+
 export function generateChunk(index) {
   const rand = seededRandom(index * 9973 + 17);
   const z = index * CHUNK_LENGTH;
 
   const obstacles = [];
+  const pickups = [];
+  const usedLanes = new Set();
+
   // Keep the first few chunks clear so the player has time to learn controls.
-  if (index > 2 && rand() > 0.35) {
-    const lane = Math.floor(rand() * LANES.length); // one of the 4 lanes
-    const kind = OBSTACLE_KINDS[Math.floor(rand() * OBSTACLE_KINDS.length)];
-    obstacles.push({
-      id: `obs-${index}`,
-      lane,
-      kind,
-      z: z + CHUNK_LENGTH * (0.35 + rand() * 0.4),
-    });
+  if (index > 2) {
+    const count = rand() > 0.22 ? (rand() > 0.62 ? 2 : 1) : 0;
+    for (let i = 0; i < count; i++) {
+      const lane = pickUnusedLane(rand, usedLanes);
+      if (lane == null) break;
+      usedLanes.add(lane);
+      const kind = OBSTACLE_KINDS[Math.floor(rand() * OBSTACLE_KINDS.length)];
+      obstacles.push({
+        id: `obs-${index}-${i}`,
+        lane,
+        kind,
+        clearance: CLEARANCE_BY_KIND[kind],
+        z: z + CHUNK_LENGTH * (0.28 + rand() * 0.5 + i * 0.08),
+      });
+    }
+
+    if (rand() > 0.42) {
+      const lane = pickUnusedLane(rand, usedLanes);
+      if (lane != null) {
+        pickups.push({
+          id: `pick-${index}`,
+          lane,
+          kind: PICKUP_KINDS[Math.floor(rand() * PICKUP_KINDS.length)],
+          z: z + CHUNK_LENGTH * (0.2 + rand() * 0.6),
+        });
+      }
+    }
   }
 
   const decorations = [];
@@ -72,5 +104,5 @@ export function generateChunk(index) {
 
   const building = buildingForChunkIndex(index);
 
-  return { index, z, obstacles, decorations, building };
+  return { index, z, obstacles, pickups, decorations, building };
 }

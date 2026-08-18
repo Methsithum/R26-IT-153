@@ -5,16 +5,21 @@ import GameHUD from "./UI/GameHUD";
 import StartScreen from "./UI/StartScreen";
 import DailyCompletionScreen from "./UI/DailyCompletionScreen";
 import SpecialInteractionRouter from "./Building/SpecialInteractionRouter";
+import InteriorExploreHUD from "./UI/InteriorExploreHUD";
 import usePlayerControls from "./Player/usePlayerControls";
 import { PHASES, useGameStore } from "./state/GameStateManager";
 
 export default function MainGame() {
   const phase = useGameStore((s) => s.phase);
-  usePlayerControls(
-    phase === PHASES.RUNNING ||
-    phase === PHASES.QUESTION_APPROACHING ||
-    phase === PHASES.ANSWER_SELECTION
-  );
+  usePlayerControls({
+    run:
+      phase === PHASES.RUNNING ||
+      phase === PHASES.QUESTION_APPROACHING ||
+      phase === PHASES.ANSWER_SELECTION ||
+      phase === PHASES.ANSWER_CONFIRMED ||
+      phase === PHASES.RUNNING_RESUMED,
+    explore: phase === PHASES.SPECIAL_INTERACTION_READY,
+  });
 
   const insideBuilding =
     phase === PHASES.TRANSITION_TO_BUILDING ||
@@ -33,6 +38,7 @@ export default function MainGame() {
       </Canvas>
 
       {!insideBuilding && <GameHUD />}
+      <InteriorExploreHUD />
       <SpecialInteractionRouter />
 
       {phase === PHASES.GAME_START && <StartScreen />}

@@ -4,6 +4,7 @@ import { useRunnerStore } from "../state/runnerStore";
 import { CHUNK_LENGTH, LOOKAHEAD_CHUNKS, BEHIND_CHUNKS, generateChunk } from "./chunkGenerator";
 import Road from "./Road";
 import Obstacle from "./Obstacles";
+import Pickup from "./Pickups";
 import Decoration from "./Decorations";
 import BuildingLandmark from "./Buildings";
 
@@ -37,6 +38,9 @@ export default function CampusEnvironment() {
         <group key={chunk.index}>
           {chunk.obstacles.map((o) => (
             <Obstacle key={o.id} obstacle={o} />
+          ))}
+          {(chunk.pickups || []).map((p) => (
+            <Pickup key={p.id} pickup={p} />
           ))}
           {chunk.decorations.map((d) => (
             <Decoration key={d.id} decoration={d} />

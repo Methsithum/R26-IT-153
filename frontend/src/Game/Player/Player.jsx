@@ -1,170 +1,267 @@
-import { useRef, useMemo, Suspense } from "react";
+import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { RigidBody, CapsuleCollider } from "@react-three/rapier";
 import { useRunnerStore } from "../state/runnerStore";
 import { PHASES, useGameStore } from "../state/GameStateManager";
-import CharacterModel from "./CharacterModel";
+import StudentCharacter from "./StudentCharacter";
+import {
+  GROUND_Y,
+  ROOM_BOUNDS,
+  DOOR_LOCAL_Z,
+  INSIDE_SPAWN_Z,
+  interiorAnchor,
+  interiorWorld,
+  missionLocalOffset,
+} from "../Environment/BuildingInterior";
 
-const JUMP_HEIGHT = 2.6;
-const JUMP_DURATION = 0.62;
-const SLIDE_DURATION = 0.55;
-const GROUND_Y = 0.95;
+const JUMP_HEIGHT = 3.35;
+const JUMP_DURATION = 0.7;
+const SLIDE_DURATION = 0.62;
+const SLIDE_Y = 0.42;
+const LANE_SNAP = 12;
+const WALK_SPEED = 3.35;
+const INTERACT_RANGE = 1.85;
 
-/**
- * Capsule fallback shown while the Mixamo Remy FBX parses.
- * CharacterModel (remy-running.fbx) is the live runner once loaded.
- */
-function CharacterMesh({ runPhase, crouch }) {
-  const leftArm = useRef();
-  const rightArm = useRef();
-  const leftLeg = useRef();
-  const rightLeg = useRef();
-
-  useFrame(() => {
-    const swing = Math.sin(runPhase.current) * 0.9;
-    if (leftArm.current) leftArm.current.rotation.x = -swing;
-    if (rightArm.current) rightArm.current.rotation.x = swing;
-    if (leftLeg.current) leftLeg.current.rotation.x = swing;
-    if (rightLeg.current) rightLeg.current.rotation.x = -swing;
-  });
-
-  return (
-    <group scale={[1, crouch ? 0.55 : 1, 1]} position={[0, crouch ? -0.35 : 0, 0]}>
-      {/* torso */}
-      <mesh castShadow position={[0, 1.05, 0]}>
-        <capsuleGeometry args={[0.28, 0.55, 4, 8]} />
-        <meshStandardMaterial color="#2f5fb3" />
-      </mesh>
-      {/* head */}
-      <mesh castShadow position={[0, 1.68, 0]}>
-        <sphereGeometry args={[0.24, 16, 16]} />
-        <meshStandardMaterial color="#e8b48a" />
-      </mesh>
-      {/* backpack */}
-      <mesh position={[0, 1.1, -0.28]}>
-        <boxGeometry args={[0.32, 0.4, 0.18]} />
-        <meshStandardMaterial color="#5a3d2b" />
-      </mesh>
-      {/* arms */}
-      <group ref={leftArm} position={[-0.38, 1.25, 0]}>
-        <mesh castShadow position={[0, -0.32, 0]}>
-          <capsuleGeometry args={[0.08, 0.5, 4, 8]} />
-          <meshStandardMaterial color="#e8b48a" />
-        </mesh>
-      </group>
-      <group ref={rightArm} position={[0.38, 1.25, 0]}>
-        <mesh castShadow position={[0, -0.32, 0]}>
-          <capsuleGeometry args={[0.08, 0.5, 4, 8]} />
-          <meshStandardMaterial color="#e8b48a" />
-        </mesh>
-      </group>
-      {/* legs */}
-      <group ref={leftLeg} position={[-0.15, 0.68, 0]}>
-        <mesh castShadow position={[0, -0.35, 0]}>
-          <capsuleGeometry args={[0.11, 0.55, 4, 8]} />
-          <meshStandardMaterial color="#22314f" />
-        </mesh>
-      </group>
-      <group ref={rightLeg} position={[0.15, 0.68, 0]}>
-        <mesh castShadow position={[0, -0.35, 0]}>
-          <capsuleGeometry args={[0.11, 0.55, 4, 8]} />
-          <meshStandardMaterial color="#22314f" />
-        </mesh>
-      </group>
-    </group>
-  );
-}
+const CAMPUS_PHASES = new Set([
+  PHASES.RUNNING,
+  PHASES.QUESTION_APPROACHING,
+  PHASES.ANSWER_SELECTION,
+  PHASES.ANSWER_CONFIRMED,
+  PHASES.CHECKING_DATA_REQUIREMENT,
+  PHASES.RUNNING_RESUMED,
+]);
 
 export default function Player() {
   const bodyRef = useRef();
   const groupRef = useRef();
-  const runPhase = useRef(0);
+  const shadowRef = useRef();
+  const gaitPhase = useRef(0);
   const jumpElapsed = useRef(0);
   const slideElapsed = useRef(0);
+  const nearDwell = useRef(0);
+  const poseRef = useRef("idle");
 
   const speed = useGameStore((s) => s.speed);
   const phase = useGameStore((s) => s.phase);
+  const exhausted = useGameStore((s) => s.exhausted);
+  const isSliding = useRunnerStore((s) => s.isSliding);
+  const transitionEntryZ = useGameStore((s) => s.transitionEntryZ);
+  const targetBuildingId = useGameStore((s) => s.targetBuildingId);
 
-  const isFrozen = useMemo(
-    () =>
-      [
-        PHASES.GAME_START,
-        PHASES.TRANSITION_TO_BUILDING,
-        PHASES.ENTERING_BUILDING,
-        PHASES.SPECIAL_INTERACTION_READY,
-        PHASES.SPECIAL_INTERACTION_ACTIVE,
-        PHASES.SPECIAL_INTERACTION_COMPLETED,
-        PHASES.RETURNING_TO_CAMPUS,
-        PHASES.DAILY_COMPLETION,
-        PHASES.GAME_PAUSED,
-      ].includes(phase),
-    [phase]
-  );
+  const exploring = phase === PHASES.SPECIAL_INTERACTION_READY;
+  const entering = phase === PHASES.ENTERING_BUILDING;
+  const atDoor = phase === PHASES.TRANSITION_TO_BUILDING;
+  const inRoom =
+    exploring ||
+    entering ||
+    atDoor ||
+    phase === PHASES.SPECIAL_INTERACTION_ACTIVE ||
+    phase === PHASES.SPECIAL_INTERACTION_COMPLETED;
+
+  const campusRun = useMemo(() => CAMPUS_PHASES.has(phase), [phase]);
 
   useFrame((_, delta) => {
     const store = useRunnerStore.getState();
     const dt = Math.min(delta, 0.05);
+    const now = performance.now();
 
-    // forward auto-run
-    if (!isFrozen) {
-      const nextZ = store.posZ + speed * dt;
-      store.setDistance(store.distance + speed * dt);
-      runPhase.current += dt * (8 + speed * 0.4);
+    if (store.isStumbling && now >= store.stumbleUntil) {
+      store.endStumble();
+    }
+    if (store.shake > 0.01) {
+      store.setShake(store.shake * Math.exp(-dt * 7));
+    } else if (store.shake !== 0) {
+      store.setShake(0);
+    }
 
-      // lane lerp
-      const nextX = store.posX + (store.targetX - store.posX) * Math.min(1, dt * 10);
+    const cruise = exhausted ? 0.58 : Math.min(1.38, 1 + store.distance * 0.0007);
+    if (!store.isStumbling && campusRun) {
+      const nextScale = store.speedScale + (cruise - store.speedScale) * Math.min(1, dt * 1.6);
+      if (Math.abs(nextScale - store.speedScale) > 0.02) {
+        store.setSpeedScale(nextScale);
+      }
+    }
 
-      // jump arc
-      let nextY = GROUND_Y;
-      if (store.isJumping) {
-        jumpElapsed.current += dt;
-        const t = Math.min(1, jumpElapsed.current / JUMP_DURATION);
-        const arc = Math.sin(t * Math.PI);
-        nextY = GROUND_Y + arc * JUMP_HEIGHT;
-        if (t >= 1) {
+    let nextX = store.posX;
+    let nextY = GROUND_Y;
+    let nextZ = store.posZ;
+    let moving = 0;
+    let pose = "idle";
+
+    if (atDoor) {
+      const [wx, wy, wz] = interiorWorld(transitionEntryZ, 0, DOOR_LOCAL_Z);
+      nextX = wx;
+      nextY = wy;
+      nextZ = wz;
+      store.setFacingYaw(Math.PI);
+      pose = "idle";
+      gaitPhase.current += dt * 2.2;
+    } else if (entering) {
+      const t = Math.min(1, store.enterProgress);
+      const ease = 1 - Math.pow(1 - t, 3);
+      const localZ = DOOR_LOCAL_Z + (INSIDE_SPAWN_Z - DOOR_LOCAL_Z) * ease;
+      const [wx, wy, wz] = interiorWorld(transitionEntryZ, 0, localZ);
+      nextX = wx;
+      nextY = wy;
+      nextZ = wz;
+      store.setFacingYaw(Math.PI);
+      pose = "walk";
+      gaitPhase.current += dt * 8;
+    } else if (exploring) {
+      const ix = store.exploreInputX;
+      const iz = store.exploreInputZ;
+      const len = Math.hypot(ix, iz);
+      const yaw = store.lookYaw;
+      const fwdX = -Math.sin(yaw);
+      const fwdZ = -Math.cos(yaw);
+      const rightX = Math.cos(yaw);
+      const rightZ = -Math.sin(yaw);
+      if (len > 0.01) {
+        const nx = (rightX * ix + fwdX * -iz) / len;
+        const nz = (rightZ * ix + fwdZ * -iz) / len;
+        const nlen = Math.hypot(nx, nz) || 1;
+        const vx = nx / nlen;
+        const vz = nz / nlen;
+        const [ax, , az] = interiorAnchor(transitionEntryZ);
+        nextX = Math.min(ax + ROOM_BOUNDS.maxX, Math.max(ax + ROOM_BOUNDS.minX, store.posX + vx * WALK_SPEED * dt));
+        nextZ = Math.min(az + ROOM_BOUNDS.maxZ, Math.max(az + ROOM_BOUNDS.minZ, store.posZ + vz * WALK_SPEED * dt));
+        store.setFacingYaw(Math.atan2(vx, vz));
+        pose = "walk";
+        gaitPhase.current += dt * 8.5;
+      } else {
+        const face = yaw + Math.PI;
+        if (Math.abs(store.facingYaw - face) > 0.03) store.setFacingYaw(face);
+        pose = "idle";
+        gaitPhase.current += dt * 2.2;
+      }
+
+      const [mx, , mz] = missionLocalOffset(targetBuildingId);
+      const [wx, , wz] = interiorWorld(transitionEntryZ, mx, mz);
+      const dist = Math.hypot(nextX - wx, nextZ - wz);
+      const near = dist < INTERACT_RANGE;
+      if (near !== store.nearMission) store.setNearMission(near);
+      if (near) {
+        nearDwell.current += dt;
+        if (nearDwell.current > 0.35) {
+          useGameStore.getState().tryStartMission();
+          nearDwell.current = 0;
+        }
+      } else {
+        nearDwell.current = 0;
+      }
+    } else if (phase === PHASES.SPECIAL_INTERACTION_ACTIVE || phase === PHASES.SPECIAL_INTERACTION_COMPLETED) {
+      pose = "idle";
+      gaitPhase.current += dt * 2.2;
+    } else if (campusRun) {
+      if (now < store.hitStopUntil) {
+        pose = store.isStumbling ? "stumble" : "run";
+      } else {
+        moving = store.speedScale * speed;
+        nextZ = store.posZ + moving * dt;
+        if (store.isStumbling) {
+          const stumbleT = Math.min(1, (now - store.stumbleStartedAt) / 220);
+          nextZ -= (1 - stumbleT) * 5.5 * dt;
+        }
+        store.setDistance(store.distance + Math.max(0, moving) * dt);
+        nextX = store.posX + (store.targetX - store.posX) * Math.min(1, dt * LANE_SNAP);
+
+        if (store.isJumping) {
+          jumpElapsed.current += dt;
+          const t = Math.min(1, jumpElapsed.current / JUMP_DURATION);
+          nextY = GROUND_Y + Math.sin(t * Math.PI) * JUMP_HEIGHT;
+          pose = "jump";
+          if (t >= 1) {
+            jumpElapsed.current = 0;
+            store.endJump();
+            store.pulseShake(0.22);
+          }
+        } else {
           jumpElapsed.current = 0;
-          store.endJump();
         }
-      } else {
-        jumpElapsed.current = 0;
-      }
 
-      if (store.isSliding) {
-        slideElapsed.current += dt;
-        if (slideElapsed.current >= SLIDE_DURATION) {
+        if (store.isSliding && !store.isJumping) {
+          slideElapsed.current += dt;
+          nextY = SLIDE_Y;
+          pose = "slide";
+          if (slideElapsed.current >= SLIDE_DURATION) {
+            slideElapsed.current = 0;
+            store.endSlide();
+          }
+        } else if (!store.isSliding) {
           slideElapsed.current = 0;
-          store.endSlide();
         }
-      } else {
-        slideElapsed.current = 0;
+
+        if (!store.isJumping && !store.isSliding) {
+          pose = store.isStumbling ? "stumble" : "run";
+        }
+        gaitPhase.current += dt * (pose === "run" ? 8 + moving * 0.45 : 6);
+        store.setFacingYaw(0);
+      }
+    }
+
+    poseRef.current = pose;
+    store.setPosition(nextX, nextY, nextZ);
+
+    if (groupRef.current) {
+      const laneLean = campusRun ? (store.targetX - store.posX) * -0.1 : 0;
+      let rotX = 0;
+      let rotZ = laneLean;
+      let posZOff = 0;
+
+      if (pose === "slide") {
+        rotX = 1.12;
+        posZOff = 0.55;
+      } else if (pose === "jump") {
+        rotX = -0.28;
+      } else if (pose === "stumble") {
+        const wobble = Math.sin(((now - store.stumbleStartedAt) / 70) * Math.PI);
+        rotX = 0.22;
+        rotZ = laneLean + wobble * 0.28;
       }
 
-      store.setPosition(nextX, nextY, nextZ);
+      groupRef.current.rotation.x = rotX;
+      groupRef.current.rotation.y = inRoom || exploring || entering || atDoor ? store.facingYaw : laneLean * 0.35;
+      groupRef.current.rotation.z = rotZ;
+      groupRef.current.position.z = posZOff;
 
-      if (groupRef.current) {
-        groupRef.current.rotation.y = (store.targetX - store.posX) * -0.08;
-      }
-      if (bodyRef.current) {
-        bodyRef.current.setNextKinematicTranslation({ x: nextX, y: nextY, z: nextZ });
-      }
+      const blinking = campusRun && now < store.invincibleUntil;
+      groupRef.current.visible = blinking ? Math.floor(now / 70) % 2 === 0 : true;
+    }
+
+    if (shadowRef.current) {
+      const jumpLift = Math.max(0, nextY - GROUND_Y);
+      const scale = Math.max(0.35, 1 - jumpLift * 0.18);
+      shadowRef.current.position.set(nextX, 0.03, nextZ);
+      shadowRef.current.scale.set(scale, scale, 1);
+      shadowRef.current.material.opacity = pose === "jump" ? 0.16 : 0.34;
+    }
+
+    if (bodyRef.current) {
+      bodyRef.current.setNextKinematicTranslation({ x: nextX, y: nextY, z: nextZ });
     }
   });
 
-  const isSliding = useRunnerStore((s) => s.isSliding);
-
   return (
-    <RigidBody
-      ref={bodyRef}
-      type="kinematicPosition"
-      colliders={false}
-      position={[0, GROUND_Y, 0]}
-    >
-      <CapsuleCollider args={[0.45, 0.32]} />
-      <group ref={groupRef}>
-        <Suspense fallback={<CharacterMesh runPhase={runPhase} crouch={isSliding} />}>
-          <CharacterModel crouch={isSliding} />
-        </Suspense>
-      </group>
-    </RigidBody>
+    <>
+      <mesh ref={shadowRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 0]}>
+        <circleGeometry args={[0.55, 20]} />
+        <meshBasicMaterial color="#0b1220" transparent opacity={0.34} depthWrite={false} />
+      </mesh>
+      <RigidBody
+        ref={bodyRef}
+        type="kinematicPosition"
+        colliders={false}
+        position={[0, GROUND_Y, 0]}
+      >
+        <CapsuleCollider
+          key={isSliding ? "slide" : "stand"}
+          args={isSliding ? [0.16, 0.28] : [0.45, 0.32]}
+          position={isSliding ? [0, -0.15, 0.35] : [0, 0, 0]}
+        />
+        <group ref={groupRef}>
+          <StudentCharacter gaitPhase={gaitPhase} poseRef={poseRef} />
+        </group>
+      </RigidBody>
+    </>
   );
 }

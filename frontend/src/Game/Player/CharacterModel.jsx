@@ -2,15 +2,15 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useFBX } from "@react-three/drei";
 import * as THREE from "three";
+import { useRunnerStore } from "../state/runnerStore";
 
 const MODEL_PATH = "/models/remy-running.fbx";
 const MODEL_SCALE = 0.0105;
 
 // Real GLB/FBX character with a baked running animation (Mixamo "Remy").
-// The run cycle plays continuously; jump/slide are layered on top as
-// simple transform changes on the wrapping group (see Player.jsx) rather
-// than separate clips, since only one animation ships with this asset.
-export default function CharacterModel({ crouch }) {
+// The run cycle plays continuously; jump/slide/stumble are layered as
+// group transforms in Player.jsx rather than extra clips.
+export default function CharacterModel() {
   const fbx = useFBX(MODEL_PATH);
   const mixer = useMemo(() => new THREE.AnimationMixer(fbx), [fbx]);
   const actionRef = useRef(null);
@@ -23,9 +23,6 @@ export default function CharacterModel({ crouch }) {
       }
     });
 
-    // Mixamo FBX exports sometimes include an empty "Take 001" stack
-    // alongside the real "mixamo.com" motion clip — prefer whichever
-    // clip actually has the most keyframe tracks.
     const clip = fbx.animations.reduce((a, b) => (b.tracks.length > a.tracks.length ? b : a));
     const action = mixer.clipAction(clip, fbx);
     action.reset().setLoop(THREE.LoopRepeat, Infinity).play();
@@ -38,11 +35,13 @@ export default function CharacterModel({ crouch }) {
   }, [fbx, mixer]);
 
   useFrame((_, delta) => {
-    mixer.update(delta);
+    const { isSliding, isJumping, isStumbling, speedScale } = useRunnerStore.getState();
+    const rate = isStumbling ? 0.35 : isSliding ? 0.45 : isJumping ? 0.55 : 0.85 + speedScale * 0.35;
+    mixer.update(delta * rate);
   });
 
   return (
-    <group scale={[1, crouch ? 0.6 : 1, 1]} position={[0, crouch ? -0.9 : 0, 0]}>
+    <group>
       {/* Mixamo faces +Z. The runner also travels +Z (camera sits at -Z
           looking ahead), so no extra yaw — Math.PI here made him moonwalk. */}
       <primitive object={fbx} scale={MODEL_SCALE} rotation={[0, 0, 0]} />

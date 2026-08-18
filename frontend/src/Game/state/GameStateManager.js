@@ -39,7 +39,15 @@ const XP_RULES = {
   ANSWER: 15,
   INTERACTION: 40,
   DAILY_COMPLETE: 100,
+  HIT_PENALTY: 25,
+  PICKUP: 12,
 };
+
+export const MAX_LIVES = 4;
+
+function pushFloater(list, floater) {
+  return [...list, floater].slice(-8);
+}
 
 const initialDay = 1;
 
@@ -50,6 +58,11 @@ export const useGameStore = create((set, get) => ({
   xp: 0,
   score: 0,
   speed: 12,
+  lives: MAX_LIVES,
+  combo: 0,
+  exhausted: false,
+  hitFlashAt: 0,
+  floatingTexts: [],
   playerName: "",
   userId: null,
   subjects: [],
@@ -157,6 +170,67 @@ export const useGameStore = create((set, get) => ({
       dailyCompleted: false,
       objectiveText: "Continue your campus run",
       xp: get().xp + XP_RULES.GAME_START,
+      lives: MAX_LIVES,
+      combo: 0,
+      exhausted: false,
+      hitFlashAt: 0,
+      floatingTexts: [],
+    });
+  },
+
+  takeHit: () => {
+    const runner = useRunnerStore.getState();
+    const now = performance.now();
+    if (runner.invincibleUntil > now || runner.isStumbling) return;
+
+    const lives = Math.max(0, get().lives - 1);
+    const exhausted = lives === 0;
+    set({
+      lives,
+      exhausted,
+      combo: 0,
+      xp: Math.max(0, get().xp - XP_RULES.HIT_PENALTY),
+      score: Math.max(0, get().score - 80),
+      hitFlashAt: now,
+      floatingTexts: pushFloater(get().floatingTexts, {
+        id: now,
+        kind: "hit",
+        text: exhausted ? "LATE TO CLASS" : "−1 LIFE",
+        sub: `−${XP_RULES.HIT_PENALTY} XP`,
+      }),
+    });
+    runner.beginStumble(now);
+  },
+
+  registerNearMiss: () => {
+    const combo = get().combo + 1;
+    const now = performance.now();
+    const bonus = 15 + combo * 8;
+    set({
+      combo,
+      score: get().score + bonus,
+      floatingTexts: pushFloater(get().floatingTexts, {
+        id: now,
+        kind: "combo",
+        text: combo >= 3 ? `${combo} COMBO` : "NICE!",
+        sub: combo >= 5 ? "CAMPUS RUSH" : `+${bonus}`,
+      }),
+    });
+  },
+
+  collectPickup: () => {
+    const combo = get().combo + 1;
+    const now = performance.now();
+    set({
+      combo,
+      xp: get().xp + XP_RULES.PICKUP,
+      score: get().score + 50,
+      floatingTexts: pushFloater(get().floatingTexts, {
+        id: now,
+        kind: "pickup",
+        text: `+${XP_RULES.PICKUP} XP`,
+        sub: combo >= 2 ? `Combo ×${combo}` : "Collected",
+      }),
     });
   },
 
@@ -287,9 +361,20 @@ export const useGameStore = create((set, get) => ({
 
   buildingTransitionComplete: () => set({ phase: PHASES.ENTERING_BUILDING }),
 
-  buildingEntered: () => set({ phase: PHASES.SPECIAL_INTERACTION_READY }),
+  buildingEntered: () =>
+    set({
+      phase: PHASES.SPECIAL_INTERACTION_READY,
+      objectiveText: "Walk to the glowing desk",
+    }),
 
   startSpecialInteraction: () => set({ phase: PHASES.SPECIAL_INTERACTION_ACTIVE }),
+
+  tryStartMission: () => {
+    const { phase } = get();
+    if (phase !== PHASES.SPECIAL_INTERACTION_READY) return;
+    if (!useRunnerStore.getState().nearMission) return;
+    get().startSpecialInteraction();
+  },
 
   completeSpecialInteraction: async (result) => {
     const { activeQuestion, journalDay, assignments, exams } = get();
@@ -404,6 +489,11 @@ export const useGameStore = create((set, get) => ({
       questionIndex: 0,
       activeQuestion: null,
       pendingAnswer: null,
+      lives: MAX_LIVES,
+      combo: 0,
+      exhausted: false,
+      hitFlashAt: 0,
+      floatingTexts: [],
     });
   },
 

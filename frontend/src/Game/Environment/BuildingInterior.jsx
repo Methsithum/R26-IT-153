@@ -1,9 +1,37 @@
+import { useRef } from "react";
+import { useFrame } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
+import { useRunnerStore } from "../state/runnerStore";
 
 const INTERIOR_X = -55;
+export const GROUND_Y = 0.95;
+export const ROOM_BOUNDS = { minX: -6.2, maxX: 6.2, minZ: -4.8, maxZ: 5.5 };
+export const DOOR_LOCAL_Z = 7.35;
+export const INSIDE_SPAWN_Z = 3.55;
 
 export function interiorAnchor(entryZ) {
   return [INTERIOR_X, 0, entryZ];
+}
+
+export function interiorWorld(entryZ, localX, localZ) {
+  const [ix, , iz] = interiorAnchor(entryZ);
+  return [ix + localX, GROUND_Y, iz + localZ];
+}
+
+export function missionLocalOffset(buildingId) {
+  if (buildingId === "lecture-hall") return [0, 0, 0.5];
+  if (buildingId === "exam-hall") return [0, 0, -1.1];
+  if (buildingId === "library") return [0, 0, -2.6];
+  return [0, 0, -2.8];
+}
+
+export function missionLabel(interactionType) {
+  if (interactionType === "date" || interactionType === "examDate") return "Calendar";
+  if (interactionType === "marks") return "Marks desk";
+  if (interactionType === "subjectPick") return "Subject board";
+  if (interactionType === "examSetup") return "Exam desk";
+  if (interactionType === "markTarget") return "Records desk";
+  return "Front desk";
 }
 
 function Wood({ args, position, color = "#8b5a32", rotation }) {
@@ -142,11 +170,137 @@ function ExamSet() {
       <Desk position={[2.3, 0, -2.4]} width={1.8} />
       <Desk position={[-2.3, 0, 0.2]} width={1.8} />
       <Desk position={[2.3, 0, 0.2]} width={1.8} />
+      <Desk position={[0, 0, -1.1]} width={2.2} />
     </>
   );
 }
 
-export default function BuildingInterior({ entryZ, building }) {
+function DoubleDoors() {
+  const doorOpen = useRunnerStore((s) => s.doorOpen);
+  const angle = doorOpen * 1.45;
+
+  return (
+    <group position={[0, 0, 6.08]}>
+      <group position={[-1.06, 0, 0]} rotation={[0, -angle, 0]}>
+        <mesh castShadow position={[0.52, 1.28, 0]}>
+          <boxGeometry args={[1.04, 2.55, 0.09]} />
+          <meshStandardMaterial color="#6d3f22" roughness={0.55} />
+        </mesh>
+        <mesh position={[0.9, 1.28, 0.05]}>
+          <sphereGeometry args={[0.05, 8, 8]} />
+          <meshStandardMaterial color="#d4b483" metalness={0.7} roughness={0.25} />
+        </mesh>
+      </group>
+      <group position={[1.06, 0, 0]} rotation={[0, angle, 0]}>
+        <mesh castShadow position={[-0.52, 1.28, 0]}>
+          <boxGeometry args={[1.04, 2.55, 0.09]} />
+          <meshStandardMaterial color="#6d3f22" roughness={0.55} />
+        </mesh>
+        <mesh position={[-0.9, 1.28, 0.05]}>
+          <sphereGeometry args={[0.05, 8, 8]} />
+          <meshStandardMaterial color="#d4b483" metalness={0.7} roughness={0.25} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+function EntranceFacade({ name }) {
+  return (
+    <group>
+      <mesh position={[-4.6, 3, 6.1]}>
+        <boxGeometry args={[7, 6.1, 0.3]} />
+        <meshStandardMaterial color="#efe6d6" roughness={0.85} />
+      </mesh>
+      <mesh position={[4.6, 3, 6.1]}>
+        <boxGeometry args={[7, 6.1, 0.3]} />
+        <meshStandardMaterial color="#efe6d6" roughness={0.85} />
+      </mesh>
+      <mesh position={[0, 4.62, 6.12]}>
+        <boxGeometry args={[2.3, 1.15, 0.34]} />
+        <meshStandardMaterial color="#e8dcc8" />
+      </mesh>
+      <mesh position={[-1.45, 1.55, 6.28]}>
+        <cylinderGeometry args={[0.16, 0.18, 3.1, 10]} />
+        <meshStandardMaterial color="#d8c4a4" />
+      </mesh>
+      <mesh position={[1.45, 1.55, 6.28]}>
+        <cylinderGeometry args={[0.16, 0.18, 3.1, 10]} />
+        <meshStandardMaterial color="#d8c4a4" />
+      </mesh>
+      <mesh position={[0, 0.12, 6.95]} receiveShadow>
+        <boxGeometry args={[3.2, 0.24, 1.6]} />
+        <meshStandardMaterial color="#b9a888" />
+      </mesh>
+      <mesh position={[0, 5.15, 6.32]}>
+        <boxGeometry args={[3.4, 0.22, 0.7]} />
+        <meshStandardMaterial color="#c9a26a" />
+      </mesh>
+      <pointLight position={[0, 3.2, 8.2]} intensity={12} distance={14} color="#fff1d6" />
+      <Text position={[0, 5.15, 6.7]} fontSize={0.2} color="#5c4324" anchorX="center" anchorY="middle" maxWidth={3.2}>
+        {name}
+      </Text>
+    </group>
+  );
+}
+
+function FloorGuide({ toZ }) {
+  const marks = [4.2, 2.6, 1.1, -0.3];
+  return (
+    <group>
+      {marks
+        .filter((z) => z > toZ + 0.8)
+        .map((z) => (
+          <mesh key={z} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, z]}>
+            <ringGeometry args={[0.12, 0.22, 3]} />
+            <meshBasicMaterial color="#f5d76e" transparent opacity={0.55} />
+          </mesh>
+        ))}
+    </group>
+  );
+}
+
+function MissionBeacon({ position, label, active }) {
+  const glow = useRef();
+  const ring = useRef();
+  const near = useRunnerStore((s) => s.nearMission);
+
+  useFrame((state) => {
+    const pulse = 0.55 + Math.sin(state.clock.elapsedTime * 3.2) * 0.35;
+    if (glow.current) {
+      glow.current.material.emissiveIntensity = near ? 1.4 : pulse;
+      glow.current.position.y = 1.35 + Math.sin(state.clock.elapsedTime * 2.4) * 0.08;
+    }
+    if (ring.current) {
+      ring.current.scale.setScalar(1 + Math.sin(state.clock.elapsedTime * 2.8) * 0.08);
+    }
+  });
+
+  if (!active) return null;
+
+  return (
+    <group position={position}>
+      <pointLight color="#ffe08a" intensity={near ? 3.2 : 1.6} distance={7} />
+      <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
+        <ringGeometry args={[0.7, 1.05, 28]} />
+        <meshBasicMaterial color="#f5d76e" transparent opacity={0.7} depthWrite={false} />
+      </mesh>
+      <mesh ref={glow} position={[0, 1.35, 0]}>
+        <octahedronGeometry args={[0.18, 0]} />
+        <meshStandardMaterial color="#fff3c4" emissive="#f5d76e" emissiveIntensity={0.9} />
+      </mesh>
+      <mesh position={[0, 0.95, 0.15]}>
+        <boxGeometry args={[0.42, 0.08, 0.32]} />
+        <meshStandardMaterial color="#f4efe4" emissive="#f5d76e" emissiveIntensity={0.25} />
+      </mesh>
+      <Text position={[0, 1.85, 0]} fontSize={0.18} color="#fff6d5" anchorX="center" outlineWidth={0.012} outlineColor="#5c4324">
+        {label}
+      </Text>
+    </group>
+  );
+}
+
+export default function BuildingInterior({ entryZ, building, interactionType, exploring }) {
   const [x, , z] = interiorAnchor(entryZ);
   const name = building?.name ?? "Campus Building";
   const id = building?.id || "";
@@ -160,6 +314,7 @@ export default function BuildingInterior({ entryZ, building }) {
     ) : (
       <FacultySet />
     );
+  const [mx, , mz] = missionLocalOffset(id);
 
   return (
     <group position={[x, 0, z]}>
@@ -187,6 +342,9 @@ export default function BuildingInterior({ entryZ, building }) {
       <WindowPane position={[-4.4, 3.15, -5.9]} />
       <WindowPane position={[4.4, 3.15, -5.9]} />
 
+      <EntranceFacade name={name} />
+      <DoubleDoors />
+
       <mesh position={[0, 0.72, -5.55]}>
         <boxGeometry args={[2.1, 0.08, 0.7]} />
         <meshStandardMaterial color="#d4b483" metalness={0.25} roughness={0.4} />
@@ -196,6 +354,8 @@ export default function BuildingInterior({ entryZ, building }) {
       </Text>
 
       {furniture}
+      <FloorGuide toZ={mz} />
+      <MissionBeacon position={[mx, 0, mz]} label={missionLabel(interactionType)} active={exploring} />
       <RoomLights />
     </group>
   );
