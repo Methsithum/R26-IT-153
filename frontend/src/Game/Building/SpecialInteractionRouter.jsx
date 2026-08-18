@@ -85,7 +85,7 @@ export default function SpecialInteractionRouter() {
               </div>
             </div>
           ) : (
-            <div className="mx-auto h-full w-full max-w-5xl">
+            <div className="mx-auto h-full min-h-0 w-full max-w-5xl overflow-hidden">
               <MiniGameSlot activeQuestion={activeQuestion} onComplete={handleComplete} />
             </div>
           )}

@@ -31,10 +31,20 @@ export default function CalendarStamp({ question, onComplete }) {
     setDay(null);
   }
 
-  function confirm() {
-    if (!day) return;
+  function pickDay(d) {
+    if (stamped) return;
+    if (day === d) {
+      confirm(d);
+      return;
+    }
+    setDay(d);
+  }
+
+  function confirm(selectedDay = day) {
+    if (!selectedDay || stamped) return;
+    setDay(selectedDay);
     setStamped(true);
-    const iso = `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const iso = `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(selectedDay).padStart(2, "0")}`;
     setTimeout(() => onComplete(iso), 280);
   }
 
@@ -52,8 +62,8 @@ export default function CalendarStamp({ question, onComplete }) {
         </p>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-7">
-        <div className="mb-4 flex items-center justify-between">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-7">
+        <div className="mb-4 flex shrink-0 items-center justify-between">
           <button type="button" onClick={() => shiftMonth(-1)} className="rounded-full px-3 py-1 text-stone-500 hover:bg-stone-100">
             ‹
           </button>
@@ -65,7 +75,8 @@ export default function CalendarStamp({ question, onComplete }) {
           </button>
         </div>
 
-        <div className="grid flex-1 grid-cols-7 gap-1.5 text-center">
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto grid max-w-md grid-cols-7 gap-1.5 text-center">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
             <div key={d} className="pb-1 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
               {d}
@@ -83,8 +94,8 @@ export default function CalendarStamp({ question, onComplete }) {
               <button
                 key={d}
                 type="button"
-                onClick={() => setDay(d)}
-                className={`aspect-square rounded-2xl text-sm transition-colors ${
+                onClick={() => pickDay(d)}
+                className={`h-10 rounded-2xl text-sm transition-colors sm:h-11 ${
                   selected
                     ? "bg-amber-800 text-amber-50 font-bold shadow-sm"
                     : isToday
@@ -96,15 +107,16 @@ export default function CalendarStamp({ question, onComplete }) {
               </button>
             );
           })}
+          </div>
         </div>
 
         <button
           type="button"
-          disabled={!day}
-          onClick={confirm}
-          className="mt-5 rounded-2xl bg-amber-800 py-3.5 text-sm font-semibold text-amber-50 transition-colors hover:bg-amber-700 disabled:opacity-40"
+          disabled={!day || stamped}
+          onClick={() => confirm()}
+          className="mt-4 shrink-0 rounded-2xl bg-amber-800 py-3.5 text-sm font-semibold text-amber-50 transition-colors hover:bg-amber-700 disabled:opacity-40"
         >
-          {stamped ? "Stamped ✓" : day ? `Stamp ${subject} · ${MONTHS[monthIndex]} ${day}` : "Pick a date to stamp"}
+          {stamped ? "Stamped ✓" : day ? `Confirm stamp · ${MONTHS[monthIndex]} ${day}` : "Pick a date, then confirm"}
         </button>
       </div>
     </div>

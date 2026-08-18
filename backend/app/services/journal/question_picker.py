@@ -7,7 +7,6 @@ from app.services.journal.question_bank import QUESTION_BANK, get_question, pad_
 
 SHORTLIST_SIZE = 20
 MARK_CHECK_IDS = {"exam-mark-check", "exam-mark-enter", "asg-mark-check", "asg-mark-enter"}
-DEADLINE_CHECK_IDS = {"asg-deadline-check", "asg-deadline"}
 EXAM_DATE_CHECK_IDS = {"exam-dates-check", "exam-dates"}
 FORCED_ONLY_STAGES = {
     "lecture_subjects_needed",
@@ -41,11 +40,21 @@ def _matches_activities(question: dict, selected: List[str]) -> bool:
 
 
 def _subjects_needing_deadline(tasks: List[Dict], today_subjects: List[str]) -> List[str]:
-    by_subject = {t.get("subject"): t for t in tasks if t.get("subject")}
-    needed = []
+    assignment_tasks = [
+        task
+        for task in tasks
+        if task.get("subject") and (task.get("task_type") or "assignment") == "assignment"
+    ]
+    by_subject = {task.get("subject"): task for task in assignment_tasks}
+    needed: List[str] = []
     for subject in today_subjects:
         task = by_subject.get(subject)
         if not task or not task.get("deadline"):
+            if subject not in needed:
+                needed.append(subject)
+    for task in assignment_tasks:
+        subject = task.get("subject")
+        if subject and not task.get("deadline") and subject not in needed:
             needed.append(subject)
     return needed
 
@@ -194,10 +203,16 @@ def _forced_date_followup(
     tasks: List[Dict],
     assignment_subjects: List[str],
     missing_exams: List[Dict],
+    asked_deadline_subjects: Optional[List[str]] = None,
 ) -> Optional[Dict[str, Any]]:
     asked = set(asked_ids or [])
-    if "assignment_work" in selected and not (asked & DEADLINE_CHECK_IDS):
-        needed = _subjects_needing_deadline(tasks, assignment_subjects)
+    already_checked = set(asked_deadline_subjects or [])
+    if "assignment_work" in selected:
+        needed = [
+            subject
+            for subject in _subjects_needing_deadline(tasks, assignment_subjects)
+            if subject not in already_checked
+        ]
         if needed:
             return {
                 "question": get_question("asg-deadline-check"),
@@ -297,6 +312,7 @@ async def pick_next_question(
     unmarked_assignments: Optional[List[Dict]] = None,
     pending_mark_exam_id: Optional[str] = None,
     pending_mark_subject: Optional[str] = None,
+    asked_deadline_subjects: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     today_subjects = today_subjects or []
     lecture_subjects = lecture_subjects or []
@@ -307,6 +323,7 @@ async def pick_next_question(
     missing_exams = missing_exams or []
     unmarked_exams = unmarked_exams or []
     unmarked_assignments = unmarked_assignments or []
+    asked_deadline_subjects = asked_deadline_subjects or []
 
     forced = _forced_setup_question(
         selected_activities,
@@ -329,6 +346,7 @@ async def pick_next_question(
         tasks,
         assignment_subjects,
         missing_exams,
+        asked_deadline_subjects,
     )
     if date_followup and date_followup.get("question"):
         return {

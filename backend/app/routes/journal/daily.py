@@ -121,6 +121,7 @@ def _task_rows(tasks: List[Dict]) -> List[Dict]:
             "progress_stage": t.get("progress_stage"),
             "deadline": t.get("deadline"),
             "mark": t.get("mark"),
+            "task_type": t.get("task_type"),
         }
         for t in tasks
     ]
@@ -245,6 +246,10 @@ async def _record_structured_answer(session: dict, answer: str) -> dict:
         iso = _iso_date(answer)
         if iso:
             await TaskModel.set_deadline(user_id, subject, iso)
+        checked = list(session.get("asked_deadline_subjects") or [])
+        if subject not in checked:
+            checked.append(subject)
+        updates["asked_deadline_subjects"] = checked
         return updates
     if field in {"mark", "mark-check"} and subject:
         parsed = _parse_mark(answer)
@@ -421,6 +426,7 @@ async def start_daily_session(req: StartDailyRequest):
             else (assignment_subjects[0] if assignment_subjects else (exam_subjects[0] if exam_subjects else req.subject_focus))
         ),
         "asked_question_ids": [],
+        "asked_deadline_subjects": [],
         "qa_history": [],
         "completed": False,
         "journal_entry": None,
@@ -503,9 +509,10 @@ async def answer_question(req: AnswerRequest):
         unmarked_assignments=unmarked_assignments,
         pending_mark_exam_id=session.get("pending_mark_exam_id"),
         pending_mark_subject=session.get("pending_mark_subject"),
+        asked_deadline_subjects=session.get("asked_deadline_subjects") or [],
     )
 
-    if decision.get("end_session") or not decision.get("question") or len(qa_history) >= max_questions:
+    if decision.get("end_session") or not decision.get("question"):
         page = await _complete_session(
             req.session_id, session, qa_list, decision.get("task_updates") or [], update_data
         )
