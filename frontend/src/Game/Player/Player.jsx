@@ -14,20 +14,19 @@ import {
   missionLocalOffset,
 } from "../Environment/BuildingInterior";
 
-const JUMP_HEIGHT = 3.35;
+const JUMP_HEIGHT = 2.35;
 const JUMP_DURATION = 0.7;
 const SLIDE_DURATION = 0.62;
-const SLIDE_Y = 0.42;
+const SLIDE_Y = 0.12;
 const LANE_SNAP = 12;
 const WALK_SPEED = 3.35;
-const INTERACT_RANGE = 1.85;
+const INTERACT_RANGE = 2.15;
 
 const CAMPUS_PHASES = new Set([
   PHASES.RUNNING,
   PHASES.QUESTION_APPROACHING,
   PHASES.ANSWER_SELECTION,
   PHASES.ANSWER_CONFIRMED,
-  PHASES.CHECKING_DATA_REQUIREMENT,
   PHASES.RUNNING_RESUMED,
 ]);
 
@@ -38,7 +37,6 @@ export default function Player() {
   const gaitPhase = useRef(0);
   const jumpElapsed = useRef(0);
   const slideElapsed = useRef(0);
-  const nearDwell = useRef(0);
   const poseRef = useRef("idle");
 
   const speed = useGameStore((s) => s.speed);
@@ -99,7 +97,7 @@ export default function Player() {
     } else if (entering) {
       const t = Math.min(1, store.enterProgress);
       const ease = 1 - Math.pow(1 - t, 3);
-      const localZ = 5.05 + (INSIDE_SPAWN_Z - 5.05) * ease;
+      const localZ = DOOR_LOCAL_Z + (INSIDE_SPAWN_Z - DOOR_LOCAL_Z) * ease;
       const [wx, wy, wz] = interiorWorld(transitionEntryZ, 0, localZ);
       nextX = wx;
       nextY = wy;
@@ -140,15 +138,6 @@ export default function Player() {
       const dist = Math.hypot(nextX - wx, nextZ - wz);
       const near = dist < INTERACT_RANGE;
       if (near !== store.nearMission) store.setNearMission(near);
-      if (near) {
-        nearDwell.current += dt;
-        if (nearDwell.current > 0.35) {
-          useGameStore.getState().tryStartMission();
-          nearDwell.current = 0;
-        }
-      } else {
-        nearDwell.current = 0;
-      }
     } else if (phase === PHASES.SPECIAL_INTERACTION_ACTIVE || phase === PHASES.SPECIAL_INTERACTION_COMPLETED) {
       pose = "idle";
       gaitPhase.current += dt * 2.2;
@@ -255,8 +244,8 @@ export default function Player() {
       >
         <CapsuleCollider
           key={isSliding ? "slide" : "stand"}
-          args={isSliding ? [0.16, 0.28] : [0.45, 0.32]}
-          position={isSliding ? [0, -0.15, 0.35] : [0, 0, 0]}
+          args={isSliding ? [0.16, 0.26] : [0.42, 0.28]}
+          position={isSliding ? [0, 0.38, 0.28] : [0, 0.88, 0]}
         />
         <group ref={groupRef}>
           <StudentCharacter gaitPhase={gaitPhase} poseRef={poseRef} />

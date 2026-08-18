@@ -68,7 +68,7 @@ export default function Pickup({ pickup }) {
     }
 
     const dz = pickup.z - runner.posZ;
-    if (runner.laneIndex === pickup.lane && Math.abs(dz) < COLLECT_DEPTH && runner.posY < 2.4) {
+    if (runner.laneIndex === pickup.lane && Math.abs(dz) < COLLECT_DEPTH && runner.posY < 1.6) {
       runner.markResolved(pickup.id);
       useGameStore.getState().collectPickup();
       if (group.current) group.current.visible = false;

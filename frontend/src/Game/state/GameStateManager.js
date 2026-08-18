@@ -286,12 +286,7 @@ export const useGameStore = create((set, get) => ({
     set({ phase: PHASES.CHECKING_DATA_REQUIREMENT });
     setTimeout(() => {
       const targetLocation = activeQuestion.targetLocation ?? getBuildingById("library")?.id;
-      const building = getBuildingById(targetLocation);
-      set({
-        phase: PHASES.TRANSITION_TO_BUILDING,
-        targetBuildingId: targetLocation,
-        objectiveText: building ? `Head to the ${building.name}` : "Head to the building",
-      });
+      get().beginBuildingVisit(targetLocation);
     }, 400);
   },
 
@@ -346,17 +341,24 @@ export const useGameStore = create((set, get) => ({
       if (needsInteraction) {
         const targetLocation =
           activeQuestion.targetLocation ?? getBuildingById("library")?.id;
-        const building = getBuildingById(targetLocation);
-        set({
-          phase: PHASES.TRANSITION_TO_BUILDING,
-          targetBuildingId: targetLocation,
-          transitionEntryZ: useRunnerStore.getState().posZ,
-          objectiveText: building ? `Head to the ${building.name}` : "Head to the building",
-        });
+        get().beginBuildingVisit(targetLocation);
       } else {
         get().advanceQuestionQueue();
       }
     }, 400);
+  },
+
+  beginBuildingVisit: (targetLocation) => {
+    const runner = useRunnerStore.getState();
+    const pauseZ = runner.posZ;
+    runner.snapshotCampus();
+    const building = getBuildingById(targetLocation);
+    set({
+      phase: PHASES.TRANSITION_TO_BUILDING,
+      targetBuildingId: targetLocation,
+      transitionEntryZ: pauseZ,
+      objectiveText: building ? `Head to the ${building.name}` : "Head to the building",
+    });
   },
 
   buildingTransitionComplete: () => set({ phase: PHASES.ENTERING_BUILDING }),

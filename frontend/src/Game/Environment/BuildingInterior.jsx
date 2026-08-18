@@ -4,12 +4,18 @@ import { Text } from "@react-three/drei";
 import { useRunnerStore } from "../state/runnerStore";
 
 const INTERIOR_X = -55;
-export const GROUND_Y = 0.95;
-export const ROOM_BOUNDS = { minX: -6.2, maxX: 6.2, minZ: -4.8, maxZ: 5.5 };
-/** Camera must stay inside these local offsets so it never sits outside the walls. */
-export const CAM_INNER = { minX: -6.45, maxX: 6.45, minZ: -5.4, maxZ: 5.12 };
-export const DOOR_LOCAL_Z = 7.35;
-export const INSIDE_SPAWN_Z = 3.4;
+export const GROUND_Y = 0;
+export const ROOM_W = 28;
+export const ROOM_D = 26;
+export const WALL_H = 6.8;
+const HALF_W = ROOM_W / 2;
+const HALF_D = ROOM_D / 2;
+
+export const ROOM_BOUNDS = { minX: -12.4, maxX: 12.4, minZ: -11.2, maxZ: 10.6 };
+export const CAM_INNER = { minX: -12.7, maxX: 12.7, minZ: -11.6, maxZ: 11.0 };
+export const DOOR_LOCAL_Z = HALF_D + 1.15;
+export const INSIDE_SPAWN_Z = 8.4;
+export const ENTER_START_Z = 10.2;
 
 export function interiorAnchor(entryZ) {
   return [INTERIOR_X, 0, entryZ];
@@ -21,10 +27,10 @@ export function interiorWorld(entryZ, localX, localZ) {
 }
 
 export function missionLocalOffset(buildingId) {
-  if (buildingId === "lecture-hall") return [0, 0, 0.5];
-  if (buildingId === "exam-hall") return [0, 0, -1.1];
-  if (buildingId === "library") return [0, 0, -2.6];
-  return [0, 0, -2.8];
+  if (buildingId === "lecture-hall") return [0, 0, -7.2];
+  if (buildingId === "exam-hall") return [0, 0, -6.8];
+  if (buildingId === "library") return [0, 0, -8.4];
+  return [0, 0, -8.2];
 }
 
 export function missionLabel(interactionType) {
@@ -106,10 +112,11 @@ function Desk({ position, width = 2.6 }) {
 function RoomLights() {
   return (
     <>
-      <pointLight position={[0, 5.2, 0]} intensity={18} distance={18} color="#fff4dc" />
-      <pointLight position={[-3.2, 4.6, -2]} intensity={8} distance={12} color="#ffe9c4" />
-      {[-3.4, 0, 3.4].map((lx) => (
-        <mesh key={lx} position={[lx, 5.55, -1]}>
+      <pointLight position={[0, 5.8, 0]} intensity={22} distance={28} color="#fff4dc" />
+      <pointLight position={[-7, 5.2, -6]} intensity={10} distance={16} color="#ffe9c4" />
+      <pointLight position={[7, 5.2, 4]} intensity={10} distance={16} color="#ffe9c4" />
+      {[-8, -2.5, 2.5, 8].map((lx) => (
+        <mesh key={lx} position={[lx, 6.35, -2]}>
           <sphereGeometry args={[0.16, 10, 10]} />
           <meshStandardMaterial color="#fff6d8" emissive="#ffe7a8" emissiveIntensity={1.2} />
         </mesh>
@@ -119,13 +126,18 @@ function RoomLights() {
 }
 
 function LibrarySet() {
+  const shelfXs = [-11.2, -9.4, -7.6, 7.6, 9.4, 11.2];
+  const shelfZs = [-10.4, -7.6, -4.8];
   return (
     <>
-      <Bookshelf position={[-5.4, 0, -4.6]} />
-      <Bookshelf position={[-3.6, 0, -4.6]} />
-      <Bookshelf position={[3.6, 0, -4.6]} />
-      <Bookshelf position={[5.4, 0, -4.6]} />
-      <Desk position={[0, 0, -2.6]} width={3.2} />
+      {shelfXs.map((x) =>
+        shelfZs.map((z) => <Bookshelf key={`${x}-${z}`} position={[x, 0, z]} />)
+      )}
+      <Desk position={[-4.2, 0, -2.2]} width={2.8} />
+      <Desk position={[4.2, 0, -2.2]} width={2.8} />
+      <Desk position={[0, 0, -8.4]} width={3.4} />
+      <Bookshelf position={[-2.2, 0, -10.6]} />
+      <Bookshelf position={[2.2, 0, -10.6]} />
     </>
   );
 }
@@ -133,17 +145,18 @@ function LibrarySet() {
 function LectureSet() {
   return (
     <>
-      <mesh position={[0, 2.55, -5.72]}>
-        <planeGeometry args={[5.4, 2.3]} />
+      <mesh position={[0, 2.7, -12.55]}>
+        <planeGeometry args={[8.4, 2.6]} />
         <meshStandardMaterial color="#f7f4ec" roughness={0.35} />
       </mesh>
-      <mesh position={[0, 2.55, -5.78]}>
-        <boxGeometry args={[5.7, 2.55, 0.08]} />
+      <mesh position={[0, 2.7, -12.62]}>
+        <boxGeometry args={[8.8, 2.85, 0.08]} />
         <meshStandardMaterial color="#d6cbb6" />
       </mesh>
-      <Desk position={[-2.1, 0, -1.6]} width={2.1} />
-      <Desk position={[2.1, 0, -1.6]} width={2.1} />
-      <Desk position={[0, 0, 0.5]} width={2.4} />
+      {[-6, -2, 2, 6].map((x) =>
+        [-1.2, 2.2, 5.6].map((z) => <Desk key={`${x}-${z}`} position={[x, 0, z]} width={2.2} />)
+      )}
+      <Desk position={[0, 0, -7.2]} width={3.2} />
     </>
   );
 }
@@ -151,14 +164,21 @@ function LectureSet() {
 function FacultySet() {
   return (
     <>
-      <Desk position={[0, 0, -2.8]} width={3} />
-      <Wood args={[1.4, 1.6, 0.4]} position={[4.8, 0.8, -4.4]} color="#7a4e28" />
-      <mesh position={[-4.7, 1.15, -4.5]}>
-        <cylinderGeometry args={[0.22, 0.28, 0.5, 10]} />
+      <Desk position={[0, 0, -8.2]} width={3.6} />
+      <Desk position={[-6.5, 0, -3]} width={2.4} />
+      <Desk position={[6.5, 0, -3]} width={2.4} />
+      <Desk position={[-6.5, 0, 3.6]} width={2.4} />
+      <Desk position={[6.5, 0, 3.6]} width={2.4} />
+      <Wood args={[1.6, 1.8, 0.45]} position={[11.2, 0.9, -10.2]} color="#7a4e28" />
+      <Wood args={[1.6, 1.8, 0.45]} position={[9.4, 0.9, -10.2]} color="#7a4e28" />
+      <Wood args={[1.6, 1.8, 0.45]} position={[-11.2, 0.9, 8.8]} color="#7a4e28" />
+      <Wood args={[1.6, 1.8, 0.45]} position={[-9.4, 0.9, 8.8]} color="#7a4e28" />
+      <mesh position={[-10.8, 1.15, -10]}>
+        <cylinderGeometry args={[0.28, 0.34, 0.55, 10]} />
         <meshStandardMaterial color="#3f6212" />
       </mesh>
-      <mesh position={[-4.7, 1.55, -4.5]}>
-        <sphereGeometry args={[0.38, 10, 10]} />
+      <mesh position={[-10.8, 1.6, -10]}>
+        <sphereGeometry args={[0.46, 10, 10]} />
         <meshStandardMaterial color="#4d7c0f" />
       </mesh>
     </>
@@ -168,11 +188,10 @@ function FacultySet() {
 function ExamSet() {
   return (
     <>
-      <Desk position={[-2.3, 0, -2.4]} width={1.8} />
-      <Desk position={[2.3, 0, -2.4]} width={1.8} />
-      <Desk position={[-2.3, 0, 0.2]} width={1.8} />
-      <Desk position={[2.3, 0, 0.2]} width={1.8} />
-      <Desk position={[0, 0, -1.1]} width={2.2} />
+      {[-7.2, -2.4, 2.4, 7.2].map((x) =>
+        [-3.4, 0.4, 4.2].map((z) => <Desk key={`${x}-${z}`} position={[x, 0, z]} width={1.9} />)
+      )}
+      <Desk position={[0, 0, -6.8]} width={2.6} />
     </>
   );
 }
@@ -182,7 +201,7 @@ function DoubleDoors() {
   const angle = doorOpen * 1.45;
 
   return (
-    <group position={[0, 0, 6.08]}>
+    <group position={[0, 0, HALF_D - 0.12]}>
       <group position={[-1.06, 0, 0]} rotation={[0, -angle, 0]}>
         <mesh castShadow position={[0.52, 1.28, 0]}>
           <boxGeometry args={[1.04, 2.55, 0.09]} />
@@ -208,38 +227,40 @@ function DoubleDoors() {
 }
 
 function EntranceFacade({ name }) {
+  const z = HALF_D - 0.08;
+  const sideW = (ROOM_W - 2.2) / 2;
   return (
     <group>
-      <mesh position={[-4.6, 3, 6.1]}>
-        <boxGeometry args={[7, 6.1, 0.3]} />
+      <mesh position={[-(1.1 + sideW / 2), WALL_H / 2, z]}>
+        <boxGeometry args={[sideW, WALL_H, 0.3]} />
         <meshStandardMaterial color="#efe6d6" roughness={0.85} />
       </mesh>
-      <mesh position={[4.6, 3, 6.1]}>
-        <boxGeometry args={[7, 6.1, 0.3]} />
+      <mesh position={[1.1 + sideW / 2, WALL_H / 2, z]}>
+        <boxGeometry args={[sideW, WALL_H, 0.3]} />
         <meshStandardMaterial color="#efe6d6" roughness={0.85} />
       </mesh>
-      <mesh position={[0, 4.62, 6.12]}>
-        <boxGeometry args={[2.3, 1.15, 0.34]} />
+      <mesh position={[0, 4.85, z + 0.02]}>
+        <boxGeometry args={[2.3, 2.1, 0.34]} />
         <meshStandardMaterial color="#e8dcc8" />
       </mesh>
-      <mesh position={[-1.45, 1.55, 6.28]}>
+      <mesh position={[-1.45, 1.55, z + 0.18]}>
         <cylinderGeometry args={[0.16, 0.18, 3.1, 10]} />
         <meshStandardMaterial color="#d8c4a4" />
       </mesh>
-      <mesh position={[1.45, 1.55, 6.28]}>
+      <mesh position={[1.45, 1.55, z + 0.18]}>
         <cylinderGeometry args={[0.16, 0.18, 3.1, 10]} />
         <meshStandardMaterial color="#d8c4a4" />
       </mesh>
-      <mesh position={[0, 0.12, 6.95]} receiveShadow>
+      <mesh position={[0, 0.12, z + 0.85]} receiveShadow>
         <boxGeometry args={[3.2, 0.24, 1.6]} />
         <meshStandardMaterial color="#b9a888" />
       </mesh>
-      <mesh position={[0, 5.15, 6.32]}>
-        <boxGeometry args={[3.4, 0.22, 0.7]} />
+      <mesh position={[0, 5.55, z + 0.22]}>
+        <boxGeometry args={[3.6, 0.22, 0.7]} />
         <meshStandardMaterial color="#c9a26a" />
       </mesh>
-      <pointLight position={[0, 3.2, 8.2]} intensity={12} distance={14} color="#fff1d6" />
-      <Text position={[0, 5.15, 6.7]} fontSize={0.2} color="#5c4324" anchorX="center" anchorY="middle" maxWidth={3.2}>
+      <pointLight position={[0, 3.2, z + 2.1]} intensity={14} distance={16} color="#fff1d6" />
+      <Text position={[0, 5.55, z + 0.6]} fontSize={0.22} color="#5c4324" anchorX="center" anchorY="middle" maxWidth={4}>
         {name}
       </Text>
     </group>
@@ -247,15 +268,15 @@ function EntranceFacade({ name }) {
 }
 
 function FloorGuide({ toZ }) {
-  const marks = [4.2, 2.6, 1.1, -0.3];
+  const marks = [8.5, 5.5, 2.5, -0.5, -3.5];
   return (
     <group>
       {marks
-        .filter((z) => z > toZ + 0.8)
+        .filter((z) => z > toZ + 1.2)
         .map((z) => (
           <mesh key={z} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, z]}>
-            <ringGeometry args={[0.12, 0.22, 3]} />
-            <meshBasicMaterial color="#f5d76e" transparent opacity={0.55} />
+            <ringGeometry args={[0.14, 0.26, 3]} />
+            <meshBasicMaterial color="#f5d76e" transparent opacity={0.5} />
           </mesh>
         ))}
     </group>
@@ -282,9 +303,9 @@ function MissionBeacon({ position, label, active }) {
 
   return (
     <group position={position}>
-      <pointLight color="#ffe08a" intensity={near ? 3.2 : 1.6} distance={7} />
+      <pointLight color="#ffe08a" intensity={near ? 3.2 : 1.6} distance={8} />
       <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
-        <ringGeometry args={[0.7, 1.05, 28]} />
+        <ringGeometry args={[0.75, 1.15, 28]} />
         <meshBasicMaterial color="#f5d76e" transparent opacity={0.7} depthWrite={false} />
       </mesh>
       <mesh ref={glow} position={[0, 1.35, 0]}>
@@ -295,7 +316,7 @@ function MissionBeacon({ position, label, active }) {
         <boxGeometry args={[0.42, 0.08, 0.32]} />
         <meshStandardMaterial color="#f4efe4" emissive="#f5d76e" emissiveIntensity={0.25} />
       </mesh>
-      <Text position={[0, 1.85, 0]} fontSize={0.18} color="#fff6d5" anchorX="center" outlineWidth={0.012} outlineColor="#5c4324">
+      <Text position={[0, 1.85, 0]} fontSize={0.2} color="#fff6d5" anchorX="center" outlineWidth={0.012} outlineColor="#5c4324">
         {label}
       </Text>
     </group>
@@ -321,39 +342,33 @@ export default function BuildingInterior({ entryZ, building, interactionType, ex
   return (
     <group position={[x, 0, z]}>
       <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
-        <planeGeometry args={[16, 16]} />
+        <planeGeometry args={[ROOM_W, ROOM_D]} />
         <meshStandardMaterial color="#cbb79a" roughness={0.9} />
       </mesh>
-      <mesh position={[0, 5.85, 0]}>
-        <boxGeometry args={[16, 0.18, 16]} />
+      <mesh position={[0, WALL_H, 0]}>
+        <boxGeometry args={[ROOM_W, 0.18, ROOM_D]} />
         <meshStandardMaterial color="#f3eee4" />
       </mesh>
-      <mesh position={[0, 3, -6.1]}>
-        <boxGeometry args={[16, 6.1, 0.28]} />
+      <mesh position={[0, WALL_H / 2, -HALF_D + 0.1]}>
+        <boxGeometry args={[ROOM_W, WALL_H, 0.28]} />
         <meshStandardMaterial color="#f2eadc" roughness={0.85} />
       </mesh>
-      <mesh position={[-7.85, 3, 0]}>
-        <boxGeometry args={[0.28, 6.1, 16]} />
+      <mesh position={[-HALF_W + 0.1, WALL_H / 2, 0]}>
+        <boxGeometry args={[0.28, WALL_H, ROOM_D]} />
         <meshStandardMaterial color="#efe6d6" />
       </mesh>
-      <mesh position={[7.85, 3, 0]}>
-        <boxGeometry args={[0.28, 6.1, 16]} />
+      <mesh position={[HALF_W - 0.1, WALL_H / 2, 0]}>
+        <boxGeometry args={[0.28, WALL_H, ROOM_D]} />
         <meshStandardMaterial color="#efe6d6" />
       </mesh>
 
-      <WindowPane position={[-4.4, 3.15, -5.9]} />
-      <WindowPane position={[4.4, 3.15, -5.9]} />
+      <WindowPane position={[-8, 3.35, -HALF_D + 0.22]} />
+      <WindowPane position={[-4, 3.35, -HALF_D + 0.22]} />
+      <WindowPane position={[4, 3.35, -HALF_D + 0.22]} />
+      <WindowPane position={[8, 3.35, -HALF_D + 0.22]} />
 
       <EntranceFacade name={name} />
       <DoubleDoors />
-
-      <mesh position={[0, 0.72, -5.55]}>
-        <boxGeometry args={[2.1, 0.08, 0.7]} />
-        <meshStandardMaterial color="#d4b483" metalness={0.25} roughness={0.4} />
-      </mesh>
-      <Text position={[0, 0.9, -5.2]} fontSize={0.22} color="#6b4f2e" anchorX="center" anchorY="middle" maxWidth={4}>
-        {name}
-      </Text>
 
       {furniture}
       <FloorGuide toZ={mz} />

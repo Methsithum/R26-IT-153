@@ -77,8 +77,8 @@ export default function usePlayerControls({ run = false, explore = false } = {})
       syncExplore();
     }
 
-    function isStick(e) {
-      return Boolean(e.target?.closest?.("[data-explore-stick]"));
+    function isExploreUi(e) {
+      return Boolean(e.target?.closest?.("[data-explore-stick], [data-explore-ui]"));
     }
 
     function onMouseMove(e) {
@@ -94,14 +94,14 @@ export default function usePlayerControls({ run = false, explore = false } = {})
     }
 
     function onClick(e) {
-      if (!explore || isStick(e)) return;
+      if (!explore || isExploreUi(e)) return;
       if (e.pointerType === "touch") return;
       if (document.pointerLockElement) return;
       canvasEl()?.requestPointerLock?.();
     }
 
     function onPointerDown(e) {
-      if (explore && isStick(e)) return;
+      if (explore && isExploreUi(e)) return;
       if (explore && e.pointerType !== "touch") {
         return;
       }

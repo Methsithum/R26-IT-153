@@ -104,6 +104,7 @@ export const useRunnerStore = create((set, get) => ({
 
   snapshotCampus: () => {
     const s = get();
+    if (Math.abs(s.posX) > 12) return;
     set({
       campusSnapshot: {
         laneIndex: s.laneIndex,
@@ -111,6 +112,7 @@ export const useRunnerStore = create((set, get) => ({
         posX: s.posX,
         posY: s.posY,
         posZ: s.posZ,
+        distance: s.distance,
       },
     });
   },
@@ -121,8 +123,11 @@ export const useRunnerStore = create((set, get) => ({
       laneIndex: snap.laneIndex,
       targetX: snap.targetX,
       posX: snap.posX,
-      posY: snap.posY,
+      posY: 0,
       posZ: snap.posZ,
+      distance: snap.distance ?? get().distance,
+      isJumping: false,
+      isSliding: false,
       exploreInputX: 0,
       exploreInputZ: 0,
       nearMission: false,

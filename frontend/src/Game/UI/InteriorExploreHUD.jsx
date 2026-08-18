@@ -90,9 +90,24 @@ export default function InteriorExploreHUD() {
             initial={{ opacity: 0, y: 12, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8 }}
-            className="absolute bottom-28 left-1/2 -translate-x-1/2 rounded-full border border-amber-200/80 bg-amber-400 px-6 py-2.5 text-sm font-black uppercase tracking-[0.22em] text-slate-950 shadow-lg"
+            className="absolute bottom-28 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2"
           >
-            Press E · Opening
+            <button
+              type="button"
+              data-explore-ui
+              className="pointer-events-auto rounded-full border border-amber-200/80 bg-amber-400 px-8 py-3 text-sm font-black uppercase tracking-[0.22em] text-slate-950 shadow-lg"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                useGameStore.getState().tryStartMission();
+              }}
+            >
+              Enter
+            </button>
+            <div className="rounded-full bg-slate-950/55 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/80 backdrop-blur-md">
+              Press Enter or E
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

@@ -8,6 +8,7 @@ import {
   interiorAnchor,
   interiorWorld,
   DOOR_LOCAL_Z,
+  ENTER_START_Z,
   GROUND_Y,
   CAM_INNER,
 } from "../Environment/BuildingInterior";
@@ -16,7 +17,7 @@ import BuildingInterior from "../Environment/BuildingInterior";
 const TO_BUILDING_DURATION = 1.7;
 const ENTER_DURATION = 2.05;
 const RETURN_DURATION = 1.6;
-const FOLLOW_DIST = 2.45;
+const FOLLOW_DIST = 3.35;
 
 function followCameraTarget(runner, ix, iz, dist = FOLLOW_DIST) {
   const yaw = runner.lookYaw;
@@ -25,7 +26,7 @@ function followCameraTarget(runner, ix, iz, dist = FOLLOW_DIST) {
   let scale = 1;
   const ox0 = Math.sin(yaw) * dist * cp;
   const oz0 = Math.cos(yaw) * dist * cp;
-  const oy = Math.min(3.8, runner.posY + dist * Math.sin(pitch) + 0.42);
+  const oy = Math.min(3.4, runner.posY + dist * Math.sin(pitch) + 1.05);
 
   const minX = ix + CAM_INNER.minX;
   const maxX = ix + CAM_INNER.maxX;
@@ -36,13 +37,13 @@ function followCameraTarget(runner, ix, iz, dist = FOLLOW_DIST) {
     const x = runner.posX + ox0 * scale;
     const z = runner.posZ + oz0 * scale;
     if (x >= minX && x <= maxX && z >= minZ && z <= maxZ) {
-      return new THREE.Vector3(x, Math.max(1.35, oy), z);
+      return new THREE.Vector3(x, Math.max(1.15, oy), z);
     }
     scale *= 0.78;
   }
   return new THREE.Vector3(
     Math.min(maxX, Math.max(minX, runner.posX + ox0 * scale)),
-    Math.max(1.35, oy),
+    Math.max(1.15, oy),
     Math.min(maxZ, Math.max(minZ, runner.posZ + oz0 * scale))
   );
 }
@@ -71,11 +72,10 @@ export default function TransitionManager() {
       firedRef.current = false;
       fromPos.current.copy(camera.position);
       camPos.current.copy(camera.position);
-      camLook.current.set(ix, 1.6, iz + 5.4);
+      camLook.current.set(ix, 1.15, iz + ENTER_START_Z);
 
       if (phase === PHASES.TRANSITION_TO_BUILDING) {
         const runner = useRunnerStore.getState();
-        runner.snapshotCampus();
         const [wx, wy, wz] = interiorWorld(transitionEntryZ, 0, DOOR_LOCAL_Z);
         runner.setPosition(wx, wy, wz);
         runner.setFacingYaw(Math.PI);
@@ -99,9 +99,9 @@ export default function TransitionManager() {
     if (phase === PHASES.TRANSITION_TO_BUILDING) {
       const t = Math.min(1, elapsed.current / TO_BUILDING_DURATION);
       const ease = 1 - Math.pow(1 - t, 3);
-      const entrance = new THREE.Vector3(ix, 2.9, iz + DOOR_LOCAL_Z + 4.2);
+      const entrance = new THREE.Vector3(ix, 2.4, iz + DOOR_LOCAL_Z + 3.6);
       camera.position.lerpVectors(fromPos.current, entrance, ease);
-      camera.lookAt(ix, 1.6, iz + 5.4);
+      camera.lookAt(ix, 1.3, iz + ENTER_START_Z);
       if (t >= 1 && !firedRef.current) {
         firedRef.current = true;
         useGameStore.getState().buildingTransitionComplete();
@@ -113,10 +113,10 @@ export default function TransitionManager() {
       runner.setEnterProgress(t);
       runner.setDoorOpen(Math.min(1, t / 0.28));
 
-      const behind = followCameraTarget(runner, ix, iz, 2.35);
+      const behind = followCameraTarget(runner, ix, iz, 3.2);
       camPos.current.lerp(behind, Math.min(1, dt * 5.5));
       camLook.current.lerp(
-        new THREE.Vector3(runner.posX, runner.posY + 1.25, runner.posZ),
+        new THREE.Vector3(runner.posX, runner.posY + 1.15, runner.posZ),
         Math.min(1, dt * 6)
       );
       camera.position.copy(camPos.current);
@@ -136,7 +136,7 @@ export default function TransitionManager() {
       const target = followCameraTarget(runner, ix, iz);
       camPos.current.lerp(target, Math.min(1, dt * 14));
       camLook.current.lerp(
-        new THREE.Vector3(runner.posX, runner.posY + 1.22, runner.posZ),
+        new THREE.Vector3(runner.posX, runner.posY + 1.15, runner.posZ),
         Math.min(1, dt * 16)
       );
       camera.position.copy(camPos.current);
