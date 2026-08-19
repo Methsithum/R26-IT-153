@@ -1,0 +1,196 @@
+
+==========================================================================================
+1. LOAD AND JOIN DATA
+==========================================================================================
+assessments: (206, 6), studentAssessment: (173912, 5), studentInfo: (32593, 12), studentRegistration: (32593, 5), courses: (22, 3)
+assessments: dropped 11 rows with date == '?' (Exam-type rows)
+studentAssessment: dropped 173 rows with score == '?'
+After studentAssessment + assessments (inner): (170874, 10)
+After + studentInfo (left): (170874, 16)
+After + studentRegistration (left): (170874, 17)
+After + courses (left): (170874, 18)
+
+==========================================================================================
+1b. ENGINEER ENGAGEMENT FEATURES FROM studentVle.csv (chunked)
+==========================================================================================
+  processed 2,500,000 raw rows so far... (1.6s elapsed)
+  processed 5,000,000 raw rows so far... (3.0s elapsed)
+  processed 7,500,000 raw rows so far... (4.2s elapsed)
+  processed 10,000,000 raw rows so far... (5.7s elapsed)
+Finished chunked read of studentVle.csv: 10,655,280 raw rows in 6.4s
+Aggregated weekly_clicks table shape: (627031, 5)
+Per-student-module engagement feature table shape: (29228, 7)
+Merged engagement features into task-level table.
+
+==========================================================================================
+2. ENGINEER LEAKAGE-FREE prior_avg_score
+==========================================================================================
+prior_avg_score engineered. Rows that needed the cohort/overall-mean fallback: 25819
+
+==========================================================================================
+3. DROP UNWANTED / LEAKAGE COLUMNS
+==========================================================================================
+Dropping columns: ['id_assessment', 'id_student', 'score', 'date_submitted', 'is_banked', 'final_result', 'disability', 'highest_education', 'age_band']
+
+==========================================================================================
+4. FINAL FEATURE SET
+==========================================================================================
+Model input features (13): ['date', 'weight', 'assessment_type', 'num_of_prev_attempts', 'studied_credits', 'module_presentation_length', 'date_registration', 'prior_avg_score', 'code_module', 'avg_weekly_clicks', 'clicks_trend', 'active_weeks_ratio', 'has_vle_activity']
+
+==========================================================================================
+5. ENGINEER RULE-BASED Priority_Label
+==========================================================================================
+Priority_Label class distribution:
+Priority_Label
+Low       111742
+Medium     57898
+High        1234
+Name: count, dtype: int64
+Priority_Label
+Low       0.654
+Medium    0.339
+High      0.007
+Name: proportion, dtype: float64
+
+==========================================================================================
+6. PREPROCESSING
+==========================================================================================
+Saved final leakage-free dataset: ['date', 'weight', 'num_of_prev_attempts', 'studied_credits', 'module_presentation_length', 'date_registration', 'prior_avg_score', 'avg_weekly_clicks', 'clicks_trend', 'active_weeks_ratio', 'has_vle_activity', 'assessment_type_enc', 'code_module_enc', 'Priority_Label']
+
+Null counts in model features before imputation:
+date                          0
+weight                        0
+num_of_prev_attempts          0
+studied_credits               0
+module_presentation_length    0
+date_registration             7
+prior_avg_score               0
+avg_weekly_clicks             0
+clicks_trend                  0
+active_weeks_ratio            0
+has_vle_activity              0
+assessment_type_enc           0
+code_module_enc               0
+dtype: int64
+Imputed missing date_registration with median = -53.0
+
+Train shape: (136699, 13), Test shape: (34175, 13)
+
+Training class distribution:
+Priority_Label
+Low       0.654
+Medium    0.339
+High      0.007
+Name: proportion, dtype: float64
+Smallest class is 0.7% of training data (< 15%) -> applying SMOTE to training set only.
+After SMOTE, training shape: (268182, 13)
+Priority_Label
+Low       0.333
+Medium    0.333
+High      0.333
+Name: proportion, dtype: float64
+
+==========================================================================================
+7. LOGISTIC REGRESSION (primary model)
+==========================================================================================
+Accuracy: 0.9918
+Weighted F1: 0.9918
+Macro F1: 0.9732
+
+Classification report:
+              precision    recall  f1-score   support
+
+         Low       1.00      0.99      0.99     22348
+      Medium       0.98      0.99      0.99     11580
+        High       0.88      1.00      0.94       247
+
+    accuracy                           0.99     34175
+   macro avg       0.95      0.99      0.97     34175
+weighted avg       0.99      0.99      0.99     34175
+
+
+Confusion matrix:
+             pred_Low  pred_Medium  pred_High
+true_Low        22161          187          0
+true_Medium        61        11486         33
+true_High           0            0        247
+
+Macro ROC-AUC (OvR): 0.9999
+Per-class ROC-AUC: {'Low': 0.9998720478752138, 'Medium': 0.9997869941574645, 'High': 0.9999800721126998}
+
+Logistic Regression coefficients per class:
+             date     weight  ...  assessment_type_enc  code_module_enc
+High   -12.718572  12.858370  ...             0.254563        -0.419106
+Low     15.325456 -15.075604  ...            -0.412623         0.418480
+Medium  -2.606884   2.217234  ...             0.158060         0.000626
+
+[3 rows x 13 columns]
+
+5-fold stratified CV weighted F1: mean=0.9950, std=0.0004
+
+==========================================================================================
+8. TRAIN AND COMPARE ADDITIONAL MODELS
+==========================================================================================
+Logistic Regression: Accuracy=0.9918, Weighted F1=0.9918, High Precision=0.8821, High Recall=1.0000, High F1=0.9374
+Random Forest: Accuracy=0.9684, Weighted F1=0.9687, High Precision=0.9060, High Recall=0.9757, High F1=0.9396
+Gradient Boosting: Accuracy=0.9983, Weighted F1=0.9983, High Precision=0.9759, High Recall=0.9838, High F1=0.9798
+XGBoost: Accuracy=0.9989, Weighted F1=0.9989, High Precision=0.9644, High Recall=0.9879, High F1=0.9760
+Decision Tree: Accuracy=0.9797, Weighted F1=0.9798, High Precision=0.9524, High Recall=0.9717, High F1=0.9619
+SVM RBF: Accuracy=0.9921, Weighted F1=0.9921, High Precision=0.9077, High Recall=0.9555, High F1=0.9310
+KNN: Accuracy=0.9462, Weighted F1=0.9465, High Precision=0.8189, High Recall=0.8785, High F1=0.8477
+Naive Bayes: Accuracy=0.3299, Weighted F1=0.4266, High Precision=0.0110, High Recall=0.9879, High F1=0.0217
+
+Model comparison table (sorted by Weighted F1):
+                 Model  Accuracy  ...  High-Priority Recall  High-Priority F1
+0              XGBoost  0.998888  ...              0.987854          0.976000
+1    Gradient Boosting  0.998332  ...              0.983806          0.979839
+2              SVM RBF  0.992070  ...              0.955466          0.930966
+3  Logistic Regression  0.991778  ...              1.000000          0.937381
+4        Decision Tree  0.979722  ...              0.971660          0.961924
+5        Random Forest  0.968427  ...              0.975709          0.939571
+6                  KNN  0.946189  ...              0.878543          0.847656
+7          Naive Bayes  0.329890  ...              0.987854          0.021702
+
+[8 rows x 6 columns]
+
+==========================================================================================
+9. SAVE VISUAL OUTPUTS
+==========================================================================================
+Saved PNG outputs to C:\Users\Chethana Methsithum\Desktop\Smart-Uni-Guide\backend\ml_scripts\study-planner\outputs
+
+==========================================================================================
+11. SAVE BEST MODEL, SCALER, AND ENCODERS
+==========================================================================================
+Best model by Weighted F1: XGBoost (Weighted F1 = 0.9989)
+Saved priority_model.joblib, scaler.joblib, label_encoders.joblib to C:\Users\Chethana Methsithum\Desktop\Smart-Uni-Guide\backend\trained-models\stuyd-planner
+Best model is XGBoost - also saved xgb_label_encoder.joblib (numeric<->label mapping).
+
+==========================================================================================
+12. FINAL SUMMARY
+==========================================================================================
+Model comparison (sorted by Weighted F1):
+              Model  Accuracy  Weighted F1  High-Priority Precision  High-Priority Recall  High-Priority F1
+            XGBoost  0.998888     0.998890                 0.964427              0.987854          0.976000
+  Gradient Boosting  0.998332     0.998333                 0.975904              0.983806          0.979839
+            SVM RBF  0.992070     0.992096                 0.907692              0.955466          0.930966
+Logistic Regression  0.991778     0.991814                 0.882143              1.000000          0.937381
+      Decision Tree  0.979722     0.979791                 0.952381              0.971660          0.961924
+      Random Forest  0.968427     0.968665                 0.906015              0.975709          0.939571
+                KNN  0.946189     0.946515                 0.818868              0.878543          0.847656
+        Naive Bayes  0.329890     0.426584                 0.010972              0.987854          0.021702
+
+Summary:
+- Best overall model (Weighted F1): XGBoost "
+  (Accuracy=0.9989, Weighted F1=0.9989).
+- Best High-Priority Recall: Logistic Regression "
+  (Recall=1.0000).
+- Logistic Regression (primary/baseline model): Accuracy=0.9918, Weighted F1=0.9918, "
+  Macro ROC-AUC=0.9999, 5-fold CV weighted F1=0.9950 (+/- 0.0004).
+- Tree-based ensembles (Random Forest / Gradient Boosting / XGBoost) typically outperform the linear
+  Logistic Regression baseline here because Priority_Label is a nonlinear combination (via bucket
+  thresholds) of prior_avg_score, weight, and deadline timing - a relationship tree splits capture
+  more directly than a linear decision boundary, at some cost to interpretability.
+- Saved artifacts: trained-models\stuyd-planner\priority_model.joblib, "
+  scaler.joblib, label_encoders.joblib (+ xgb_label_encoder.joblib if XGBoost won).
+
+Done.
