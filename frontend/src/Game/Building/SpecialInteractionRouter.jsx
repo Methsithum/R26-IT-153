@@ -95,7 +95,7 @@ export default function SpecialInteractionRouter() {
               initial={{ y: 24, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ duration: 0.35 }}
-              className="pointer-events-auto h-[min(78vh,720px)] w-full max-w-4xl overflow-hidden rounded-[28px] border border-white/60 bg-white/88 shadow-[0_24px_80px_rgba(40,24,8,0.28)] backdrop-blur-md"
+              className="pointer-events-auto h-[min(88vh,820px)] w-full max-w-4xl overflow-hidden rounded-[28px] border border-white/60 bg-white/88 shadow-[0_24px_80px_rgba(40,24,8,0.28)] backdrop-blur-md"
             >
               <div className="h-full min-h-0 p-5 sm:p-7">
                 <MiniGameSlot activeQuestion={activeQuestion} onComplete={handleComplete} />

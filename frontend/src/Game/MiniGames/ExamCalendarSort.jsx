@@ -71,8 +71,8 @@ export default function ExamCalendarSort({ question, onComplete }) {
         </p>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(220px,0.9fr)_1.4fr]">
-        <div className="flex flex-col gap-2 overflow-y-auto">
+      <div className="grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-[minmax(220px,0.9fr)_1.4fr]">
+        <div className="flex min-h-0 flex-col gap-2 overflow-y-auto">
           {missing.map((exam) => {
             const active = exam.id === activeExam?.id;
             const date = assigned[exam.id];
@@ -96,8 +96,8 @@ export default function ExamCalendarSort({ question, onComplete }) {
           })}
         </div>
 
-        <div className="flex min-h-0 flex-col rounded-3xl border border-stone-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
+        <div className="flex min-h-0 flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="mb-3 flex shrink-0 items-center justify-between">
             <button type="button" onClick={() => shiftMonth(-1)} className="rounded-full px-3 py-1 text-stone-500 hover:bg-stone-100">
               ‹
             </button>
@@ -109,34 +109,36 @@ export default function ExamCalendarSort({ question, onComplete }) {
             </button>
           </div>
 
-          <div className="grid flex-1 grid-cols-7 gap-1.5 text-center">
-            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-              <div key={d} className="pb-1 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
-                {d}
-              </div>
-            ))}
-            {Array.from({ length: firstWeekday }).map((_, i) => (
-              <div key={`pad-${i}`} />
-            ))}
-            {Array.from({ length: total }).map((_, i) => {
-              const d = i + 1;
-              const iso = `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-              const selected = Object.values(assigned).includes(iso);
-              return (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => stampDay(d)}
-                  className={`aspect-square rounded-2xl text-sm transition-colors ${
-                    selected
-                      ? "bg-amber-800 text-amber-50 font-bold"
-                      : "text-stone-700 hover:bg-stone-100"
-                  }`}
-                >
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="grid grid-cols-7 gap-1 text-center sm:gap-1.5">
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+                <div key={d} className="pb-1 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
                   {d}
-                </button>
-              );
-            })}
+                </div>
+              ))}
+              {Array.from({ length: firstWeekday }).map((_, i) => (
+                <div key={`pad-${i}`} />
+              ))}
+              {Array.from({ length: total }).map((_, i) => {
+                const d = i + 1;
+                const iso = `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+                const selected = Object.values(assigned).includes(iso);
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => stampDay(d)}
+                    className={`h-9 rounded-xl text-sm transition-colors sm:h-10 ${
+                      selected
+                        ? "bg-amber-800 text-amber-50 font-bold"
+                        : "text-stone-700 hover:bg-stone-100"
+                    }`}
+                  >
+                    {d}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -145,7 +147,7 @@ export default function ExamCalendarSort({ question, onComplete }) {
         type="button"
         disabled={!allAssigned}
         onClick={() => onComplete(assigned)}
-        className="mt-5 rounded-2xl bg-amber-800 py-3.5 text-sm font-semibold text-amber-50 transition-colors hover:bg-amber-700 disabled:opacity-40"
+        className="mt-4 shrink-0 rounded-2xl bg-amber-800 py-3.5 text-sm font-semibold text-amber-50 transition-colors hover:bg-amber-700 disabled:opacity-40"
       >
         {allAssigned ? "Confirm exam dates" : "Stamp every missing paper first"}
       </button>
