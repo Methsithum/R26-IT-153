@@ -8,7 +8,7 @@ from app.services.journal.llm_service import fallback_daily_journal, generate_da
 from app.services.journal.question_picker import pick_next_question
 from app.services.journal.gamification import _calculate_xp, update_streak_and_xp
 from app.services.journal.journal_service import build_session_context
-from app.services.journal.journal_constants import filter_allowed_activities
+from app.services.journal.journal_constants import ASSIGNMENT_STATUS_ANSWERS, filter_allowed_activities
 from app.services.journal.alerts import generate_proactive_alerts
 from app.services.journal.learning_patterns import aggregate_learning_patterns
 import json
@@ -146,6 +146,31 @@ def _first_token(answer: Any) -> str:
     return str(payload or "").strip()
 
 
+def _assignment_progress_stage(answer: Any) -> Optional[str]:
+    text = str(answer or "").strip().lower().replace("_", " ").replace("-", " ")
+    text = " ".join(text.split())
+    return ASSIGNMENT_STATUS_ANSWERS.get(text)
+
+
+async def _drop_stray_assignment_tasks(user_id: str, session: dict) -> None:
+    """Remove empty assignment rows created from exam/lecture subjects today."""
+    assignment_subjects = {item for item in (session.get("assignment_subjects") or []) if item}
+    today = local_today_iso()
+    for task in await TaskModel.find_by_user(user_id):
+        if str(task.get("task_type") or "") != "assignment":
+            continue
+        subject = task.get("subject")
+        if not subject or subject in assignment_subjects:
+            continue
+        if task.get("deadline") or task.get("mark") not in (None, ""):
+            continue
+        if (task.get("progress_stage") or "in_progress") != "in_progress":
+            continue
+        if _session_date_key(task.get("created_at")) != today:
+            continue
+        await TaskModel.delete(task["id"])
+
+
 def _iso_date(answer: Any) -> Optional[str]:
     if answer is None or isinstance(answer, (dict, list)):
         return None
@@ -236,10 +261,23 @@ async def _record_structured_answer(session: dict, answer: str) -> dict:
             updates["pending_mark_subject"] = subject
         return updates
 
+    if field == "assignmentProgress" or session.get("pending_question_id") == "asg-status":
+        stage = _assignment_progress_stage(answer)
+        if stage:
+            subjects = list(dict.fromkeys(session.get("assignment_subjects") or []))
+            meta_subject = meta.get("subject")
+            if meta_subject and meta_subject in subjects:
+                subjects = list(dict.fromkeys([meta_subject, *subjects]))
+            for subject in subjects:
+                if subject:
+                    await TaskModel.set_progress(user_id, subject, stage)
+        await _drop_stray_assignment_tasks(user_id, session)
+        return updates
+
     subject = meta.get("subject") or session.get("pending_mark_subject")
     if not subject:
         if field in {"deadline", "deadline-check", "mark", "mark-check"}:
-            subject = (session.get("assignment_subjects") or session.get("today_subjects") or [None])[0]
+            subject = (session.get("assignment_subjects") or [None])[0]
         else:
             subject = (session.get("today_subjects") or [None])[0]
     if field in {"deadline", "deadline-check"} and subject:
@@ -480,6 +518,7 @@ def _progress_from_sessions(sessions: list[dict]) -> tuple[int, bool]:
 
 
 async def _complete_session(session_id: str, session: dict, qa_list: list, task_updates: list, update_data: dict) -> dict:
+    await _drop_stray_assignment_tasks(session["user_id"], session)
     context = await build_session_context(session)
     user = await UserModel.find_by_id(session["user_id"])
     try:

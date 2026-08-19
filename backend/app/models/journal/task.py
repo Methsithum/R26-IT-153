@@ -65,6 +65,17 @@ class TaskModel:
         })
 
     @staticmethod
+    async def set_progress(user_id: str, subject: str, progress_stage: str):
+        existing = await TaskModel.find_assignment(user_id, subject)
+        if not existing:
+            return None
+        if existing.get("mark") not in (None, "") and progress_stage != "completed":
+            return existing
+        await TaskModel.update(existing["id"], {"progress_stage": progress_stage})
+        existing["progress_stage"] = progress_stage
+        return existing
+
+    @staticmethod
     async def set_deadline(user_id: str, subject: str, deadline: str):
         existing = await TaskModel.find_assignment(user_id, subject)
         if existing:

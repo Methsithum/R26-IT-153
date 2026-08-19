@@ -84,7 +84,7 @@ QUESTION_BANK: list[dict[str, Any]] = [
        ASG, category="academic"),
     _q("asg-status", "What is the current status of your assignment work?",
        ["Not started", "In progress", "Almost done", "Submitted"],
-       ASG, category="academic"),
+       ASG, category="academic", context_field="assignmentProgress"),
     _q("asg-blockers", "What is slowing your assignment down right now?",
        ["Unclear requirements", "Time", "A technical issue", "Nothing major"],
        ASG, category="academic"),

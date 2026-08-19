@@ -23,6 +23,15 @@ ASSIGNMENT_PROGRESS_STAGES: Final[set[str]] = {
     "completed",
 }
 
+# Lane answers from asg-status → stored task progress.
+# Submitted is report_completed so the work is no longer at-risk, but a mark can still be logged later.
+ASSIGNMENT_STATUS_ANSWERS: Final[dict[str, str]] = {
+    "not started": "not_started",
+    "in progress": "in_progress",
+    "almost done": "in_progress",
+    "submitted": "report_completed",
+}
+
 INTERNSHIP_PROGRESS_STAGES: Final[set[str]] = {
     "not_applied",
     "application_pending",
