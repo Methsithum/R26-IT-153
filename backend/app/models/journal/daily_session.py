@@ -44,3 +44,10 @@ class DailySessionModel:
     async def find_recent_user_sessions(user_id: str, limit: int = 10):
         docs = list(session_collection.find({"user_id": user_id}).sort("date", -1).limit(limit))
         return [DailySessionModel._serialize(d) for d in docs]
+
+    @staticmethod
+    async def delete(session_id: str):
+        try:
+            session_collection.delete_one({"_id": ObjectId(session_id)})
+        except Exception:
+            return

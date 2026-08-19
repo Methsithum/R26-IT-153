@@ -5,8 +5,8 @@ import { ASSIGNMENT_STATUS } from "../data/assignments";
 import { EXAM_STATUS } from "../data/exams";
 import { getBuildingById } from "../data/buildings";
 import { mapBackendQuestion, serializeAnswer } from "../data/backendQuestion";
-import { readStoredUser } from "../../services/userApi";
-import { startDailySession, submitDailyAnswer } from "../../services/journalApi";
+import { readStoredUser, storeUser } from "../../services/userApi";
+import { startDailySession, submitDailyAnswer, deleteTodayJournal } from "../../services/journalApi";
 import { useJournalHistoryStore } from "./journalHistoryStore";
 import { useRunnerStore } from "./runnerStore";
 import {
@@ -33,6 +33,44 @@ export const PHASES = {
   DAILY_COMPLETION: "DAILY_COMPLETION",
   GAME_PAUSED: "GAME_PAUSED",
 };
+
+function mapBackendTasks(tasks = []) {
+  return (tasks || [])
+    .filter((task) => task && (task.task_type === "assignment" || task.subject))
+    .map((task) => ({
+      id: task.id,
+      title: task.title || `${task.subject} assignment`,
+      subject: task.subject,
+      status:
+        task.mark != null && task.mark !== ""
+          ? ASSIGNMENT_STATUS.MARK_RECEIVED
+          : task.deadline
+            ? ASSIGNMENT_STATUS.DEADLINE_RECORDED
+            : ASSIGNMENT_STATUS.NEW,
+      deadline: task.deadline || null,
+      mark: task.mark ?? null,
+      lastMarkCheckDate: task.last_mark_check || null,
+      markCheckFrequencyDays: 7,
+    }));
+}
+
+function mapBackendExams(exams = []) {
+  return (exams || []).map((exam) => ({
+    id: exam.id,
+    subject: exam.subject,
+    examType: exam.exam_type,
+    status:
+      exam.mark != null && exam.mark !== ""
+        ? EXAM_STATUS.MARK_RECEIVED
+        : exam.date
+          ? EXAM_STATUS.DATE_RECORDED
+          : EXAM_STATUS.PENDING,
+    date: exam.date || null,
+    mark: exam.mark ?? null,
+    lastMarkCheckDate: exam.last_mark_check || null,
+    markCheckFrequencyDays: 7,
+  }));
+}
 
 const XP_RULES = {
   GAME_START: 10,
@@ -501,6 +539,44 @@ export const useGameStore = create((set, get) => ({
       hitFlashAt: 0,
       floatingTexts: [],
     });
+  },
+
+  discardTodayJournal: async () => {
+    const user = readStoredUser();
+    if (!user?.id) {
+      throw new Error("Please sign in to delete today's journal.");
+    }
+    const data = await deleteTodayJournal(user.id);
+    storeUser(data);
+    get().applyUserProgress(data);
+    useJournalHistoryStore.getState().hydrateFromSessions(data.sessions || [], data.id);
+    useRunnerStore.getState().resetRun();
+    const day = Math.max(1, data.current_day || get().day);
+    set({
+      phase: PHASES.GAME_START,
+      sessionId: null,
+      sessionCompleted: false,
+      backendJournalEntry: null,
+      backendJournalHighlights: [],
+      questionQueue: [],
+      questionIndex: 0,
+      activeQuestion: null,
+      pendingAnswer: null,
+      dailyCompleted: false,
+      journalDay: createEmptyJournalDay(day),
+      day,
+      xp: data.total_xp ?? get().xp,
+      level: Math.max(1, Math.floor((data.total_xp ?? get().xp) / 500) + 1),
+      assignments: mapBackendTasks(data.tasks),
+      exams: mapBackendExams(data.exams),
+      lives: MAX_LIVES,
+      combo: 0,
+      exhausted: false,
+      hitFlashAt: 0,
+      floatingTexts: [],
+      objectiveText: "Start today's campus run",
+    });
+    return data;
   },
 
   dismissControlHints: () => set({ showControlHints: false }),

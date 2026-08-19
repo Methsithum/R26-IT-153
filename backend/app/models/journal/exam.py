@@ -110,3 +110,15 @@ class ExamModel:
                 }
             },
         )
+
+    @staticmethod
+    async def update(exam_id: str, update_data: dict):
+        update_data["updated_at"] = datetime.utcnow()
+        exam_collection.update_one({"_id": ObjectId(exam_id)}, {"$set": update_data})
+
+    @staticmethod
+    async def delete(exam_id: str):
+        try:
+            exam_collection.delete_one({"_id": ObjectId(exam_id)})
+        except Exception:
+            return

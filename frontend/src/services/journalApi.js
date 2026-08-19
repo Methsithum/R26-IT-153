@@ -29,3 +29,8 @@ export async function submitDailyAnswer(sessionId, answer) {
   });
   return data;
 }
+
+export async function deleteTodayJournal(userId) {
+  const { data } = await api.delete(`/daily/today/${userId}`);
+  return data;
+}

@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useGameStore } from "../state/GameStateManager";
+import DiscardTodayButton from "../../Pages/Journal/DiscardTodayButton";
 
 export default function DailyCompletionScreen() {
   const navigate = useNavigate();
@@ -42,6 +43,7 @@ export default function DailyCompletionScreen() {
         >
           Return to Journal
         </button>
+        <DiscardTodayButton className="mt-4" />
       </motion.div>
     </div>
   );

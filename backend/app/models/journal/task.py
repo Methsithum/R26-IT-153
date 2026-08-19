@@ -127,3 +127,10 @@ class TaskModel:
     async def update(task_id: str, update_data: dict):
         update_data["updated_at"] = datetime.utcnow()
         task_collection.update_one({"_id": ObjectId(task_id)}, {"$set": update_data})
+
+    @staticmethod
+    async def delete(task_id: str):
+        try:
+            task_collection.delete_one({"_id": ObjectId(task_id)})
+        except Exception:
+            return

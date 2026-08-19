@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGameStore } from "../../Game/state/GameStateManager";
 import { useJournalHistoryStore } from "../../Game/state/journalHistoryStore";
 import { buildJournalPage } from "../../Game/data/journalNarrative";
 import { clearStoredUser } from "../../services/userApi";
+import DiscardTodayButton from "./DiscardTodayButton";
 
 const TABS = [
   { id: "open", label: "Open Journal" },
@@ -278,6 +279,8 @@ function RoadmapContent({ onViewDay }) {
 
 function RecentJournalsContent({ focusDay }) {
   const entries = useJournalHistoryStore((s) => s.entries);
+  const day = useGameStore((s) => s.day);
+  const dailyCompleted = useGameStore((s) => s.dailyCompleted);
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
@@ -399,6 +402,14 @@ function RecentJournalsContent({ focusDay }) {
             </div>
           </div>
         ) : null}
+        {dailyCompleted && entry.day === day && (
+          <div className="mt-6 border-t border-stone-300/60 pt-4">
+            <p className="mb-3 text-sm text-stone-600">
+              Saved the wrong answers in a hurry? Delete today’s page and play Day {day} again.
+            </p>
+            <DiscardTodayButton />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -608,6 +619,8 @@ const TAB_CONTENT = {
 };
 
 export default function JournalHome() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [tab, setTab] = useState("open");
   const [direction, setDirection] = useState(1);
   const [focusDay, setFocusDay] = useState(null);
@@ -620,6 +633,13 @@ export default function JournalHome() {
     tabIndexRef.current = nextIndex;
     setTab(id);
   }
+
+  useEffect(() => {
+    const openTab = location.state?.openTab;
+    if (!openTab || !TAB_CONTENT[openTab]) return;
+    selectTab(openTab);
+    navigate(".", { replace: true, state: {} });
+  }, [location.state, navigate]);
 
   function viewDay(d) {
     setFocusDay(d);

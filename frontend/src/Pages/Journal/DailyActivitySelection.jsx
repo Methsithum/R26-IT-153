@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useGameStore } from "../../Game/state/GameStateManager";
+import DiscardTodayButton from "./DiscardTodayButton";
 
 const ACTIVITIES = [
   { id: "academic_study", label: "University Lectures", icon: "🎓" },
@@ -50,14 +51,17 @@ export default function DailyActivitySelection() {
           <div className="mt-2">
             <h1 className="text-2xl font-bold mb-2">Today’s journal is already saved</h1>
             <p className="text-sm text-stone-600 mb-6">
-              Come back tomorrow for the next campus day. Refreshing will keep you on Day {day}.
+              Come back tomorrow for the next campus day. If today’s answers were wrong, delete this journal and play Day {day} again.
             </p>
-            <button
-              onClick={() => navigate("/")}
-              className="rounded-lg bg-amber-700 hover:bg-amber-600 text-amber-50 font-semibold px-6 py-3 text-sm"
-            >
-              Return to Journal
-            </button>
+            <div className="flex flex-col items-start gap-3">
+              <button
+                onClick={() => navigate("/")}
+                className="rounded-lg bg-amber-700 hover:bg-amber-600 text-amber-50 font-semibold px-6 py-3 text-sm"
+              >
+                Return to Journal
+              </button>
+              <DiscardTodayButton />
+            </div>
           </div>
         ) : (
           <>

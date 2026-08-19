@@ -6,7 +6,7 @@ from app.models.journal.exam import ExamModel
 from app.models.user.user import UserModel
 from app.services.journal.llm_service import fallback_daily_journal, generate_daily_journal
 from app.services.journal.question_picker import pick_next_question
-from app.services.journal.gamification import update_streak_and_xp
+from app.services.journal.gamification import _calculate_xp, update_streak_and_xp
 from app.services.journal.journal_service import build_session_context
 from app.services.journal.journal_constants import filter_allowed_activities
 from app.services.journal.alerts import generate_proactive_alerts
@@ -14,10 +14,10 @@ from app.services.journal.learning_patterns import aggregate_learning_patterns
 import json
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, time
 from typing import Any, Dict, List, Optional
 
-from app.services.time_utils import calendar_datetime
+from app.services.time_utils import calendar_datetime, local_today_iso, to_local_date
 
 router = APIRouter(prefix="/daily", tags=["daily"])
 logger = logging.getLogger(__name__)
@@ -290,6 +290,195 @@ async def _record_structured_answer(session: dict, answer: str) -> dict:
     return updates
 
 
+def _session_date_key(value) -> Optional[str]:
+    day = to_local_date(value)
+    return day.isoformat() if day else None
+
+
+def _record_snapshot(tasks: List[Dict], exams: List[Dict]) -> dict:
+    return {
+        "tasks": [
+            {
+                "id": t.get("id"),
+                "deadline": t.get("deadline"),
+                "mark": t.get("mark"),
+                "last_mark_check": t.get("last_mark_check"),
+                "progress_stage": t.get("progress_stage"),
+            }
+            for t in (tasks or [])
+            if t.get("id")
+        ],
+        "exams": [
+            {
+                "id": e.get("id"),
+                "date": e.get("date"),
+                "mark": e.get("mark"),
+                "last_mark_check": e.get("last_mark_check"),
+            }
+            for e in (exams or [])
+            if e.get("id")
+        ],
+    }
+
+
+def _json_object(value: Any) -> Optional[dict]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        text = value.strip()
+        if not text.startswith("{"):
+            return None
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            return None
+        return parsed if isinstance(parsed, dict) else None
+    return None
+
+
+async def _clear_todays_structured_writes(user_id: str, sessions: List[dict]) -> None:
+    """Undo exam/assignment writes from today's sessions when no start snapshot exists."""
+    today = local_today_iso()
+    exam_date_ids: set[str] = set()
+    exam_mark_ids: set[str] = set()
+    iso_answers: set[str] = set()
+    numeric_marks: set[float] = set()
+
+    for session in sessions:
+        for qa in session.get("qa_history") or []:
+            answer = qa.get("answer")
+            payload = _json_object(answer)
+            if payload:
+                for key, value in payload.items():
+                    iso = _iso_date(value)
+                    if iso:
+                        exam_date_ids.add(str(key))
+                        iso_answers.add(iso)
+                        continue
+                    parsed = _parse_mark(value)
+                    if parsed is not None and not isinstance(parsed, dict):
+                        exam_mark_ids.add(str(key))
+                        numeric_marks.add(float(parsed))
+                continue
+            iso = _iso_date(answer)
+            if iso:
+                iso_answers.add(iso)
+                continue
+            parsed = _parse_mark(answer)
+            if parsed is not None and not isinstance(parsed, dict):
+                numeric_marks.add(float(parsed))
+
+    for exam in await ExamModel.find_by_user(user_id):
+        eid = str(exam.get("id") or "")
+        created_today = _session_date_key(exam.get("created_at")) == today
+        updated_today = _session_date_key(exam.get("updated_at")) == today
+        updates: dict = {}
+        if created_today or eid in exam_date_ids or (updated_today and exam.get("date") in iso_answers):
+            updates["date"] = None
+        mark_value = exam.get("mark")
+        try:
+            mark_num = float(mark_value) if mark_value not in (None, "") else None
+        except (TypeError, ValueError):
+            mark_num = None
+        if created_today or eid in exam_mark_ids or (updated_today and mark_num in numeric_marks):
+            updates["mark"] = None
+            updates["last_mark_check"] = None
+        if updates:
+            await ExamModel.update(eid, updates)
+
+    for task in await TaskModel.find_by_user(user_id):
+        if str(task.get("task_type") or "") not in {"assignment", ""}:
+            continue
+        tid = task.get("id")
+        created_today = _session_date_key(task.get("created_at")) == today
+        updated_today = _session_date_key(task.get("updated_at")) == today
+        updates: dict = {}
+        if created_today or (task.get("deadline") in iso_answers):
+            updates["deadline"] = None
+        mark_value = task.get("mark")
+        try:
+            mark_num = float(mark_value) if mark_value not in (None, "") else None
+        except (TypeError, ValueError):
+            mark_num = None
+        if created_today or (updated_today and mark_num in numeric_marks):
+            updates["mark"] = None
+            updates["last_mark_check"] = None
+            if created_today:
+                updates["progress_stage"] = "in_progress"
+        if tid and updates:
+            await TaskModel.update(tid, updates)
+
+
+async def _restore_record_snapshot(user_id: str, snapshot: dict) -> None:
+    snap_tasks = {item["id"]: item for item in (snapshot.get("tasks") or []) if item.get("id")}
+    snap_exams = {item["id"]: item for item in (snapshot.get("exams") or []) if item.get("id")}
+    for task in await TaskModel.find_by_user(user_id):
+        tid = task.get("id")
+        if tid not in snap_tasks:
+            await TaskModel.delete(tid)
+            continue
+        prev = snap_tasks[tid]
+        await TaskModel.update(
+            tid,
+            {
+                "deadline": prev.get("deadline"),
+                "mark": prev.get("mark"),
+                "last_mark_check": prev.get("last_mark_check"),
+                "progress_stage": prev.get("progress_stage") or task.get("progress_stage"),
+            },
+        )
+    for exam in await ExamModel.find_by_user(user_id):
+        eid = exam.get("id")
+        if eid not in snap_exams:
+            await ExamModel.delete(eid)
+            continue
+        prev = snap_exams[eid]
+        await ExamModel.update(
+            eid,
+            {
+                "date": prev.get("date"),
+                "mark": prev.get("mark"),
+                "last_mark_check": prev.get("last_mark_check"),
+            },
+        )
+
+
+async def _revert_gamification(user: dict, xp_to_remove: int, remaining_sessions: list) -> None:
+    completed = [s for s in remaining_sessions if s and s.get("completed")]
+    days = sorted({d for s in completed if (d := to_local_date(s.get("date")))})
+    streak = 0
+    last_date = None
+    if days:
+        streak = 1
+        last_date = datetime.combine(days[-1], time.min)
+        for i in range(len(days) - 1, 0, -1):
+            if (days[i] - days[i - 1]).days == 1:
+                streak += 1
+            else:
+                break
+    total_xp = max(0, int(user.get("total_xp") or 0) - max(0, xp_to_remove))
+    longest = max(int(user.get("longest_streak") or 0), streak)
+    await UserModel.update(
+        user["id"],
+        {
+            "total_xp": total_xp,
+            "current_streak": streak,
+            "longest_streak": longest,
+            "last_journal_date": last_date,
+        },
+    )
+
+
+def _progress_from_sessions(sessions: list[dict]) -> tuple[int, bool]:
+    completed = [s for s in (sessions or []) if s and s.get("completed")]
+    completed.sort(key=lambda s: str(s.get("date") or ""))
+    today = local_today_iso()
+    today_done = any(_session_date_key(s.get("date")) == today for s in completed)
+    if today_done:
+        return max(1, len(completed)), True
+    return len(completed) + 1, False
+
+
 async def _complete_session(session_id: str, session: dict, qa_list: list, task_updates: list, update_data: dict) -> dict:
     context = await build_session_context(session)
     user = await UserModel.find_by_id(session["user_id"])
@@ -327,13 +516,14 @@ async def _complete_session(session_id: str, session: dict, qa_list: list, task_
     except Exception as e:
         logger.warning(f"Failed to update learning patterns: {e}")
 
-    await update_streak_and_xp(
+    xp_earned, _ = await update_streak_and_xp(
         session["user_id"],
         session["date"],
         questions_count=len(qa_list),
         engagement=session.get("engagement"),
         has_at_risk=bool(context.get("at_risk_tasks")),
     )
+    await DailySessionModel.update(session_id, {"xp_earned": xp_earned})
     return {"narrative": narrative, "highlights": highlights}
 
 
@@ -365,6 +555,7 @@ async def start_daily_session(req: StartDailyRequest):
                 await ExamModel.ensure(req.user_id, subject, kind)
 
     tasks = await TaskModel.find_by_user(req.user_id)
+    exams = await ExamModel.find_by_user(req.user_id)
     tasks_data = _task_rows(tasks)
     missing_exams = []
     if "exam_preparation" in selected_activities and exam_subjects and exam_kinds:
@@ -430,6 +621,7 @@ async def start_daily_session(req: StartDailyRequest):
         "qa_history": [],
         "completed": False,
         "journal_entry": None,
+        "record_snapshot": _record_snapshot(tasks, exams),
         **_pending_fields(question),
     }
     try:
@@ -527,6 +719,69 @@ async def answer_question(req: AnswerRequest):
     update_data.update(_pending_fields(next_q))
     await DailySessionModel.update(req.session_id, update_data)
     return _pack_question(req.session_id, next_q)
+
+
+@router.delete("/today/{user_id}")
+async def delete_today_journal(user_id: str):
+    user = await UserModel.find_by_id(user_id)
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    sessions = await DailySessionModel.find_user_sessions(user_id)
+    today = local_today_iso()
+    todays = [s for s in sessions if s and _session_date_key(s.get("date")) == today]
+    if not todays:
+        raise HTTPException(404, "No journal was saved for today")
+
+    snapshot = None
+    xp_to_remove = 0
+    for session in todays:
+        if snapshot is None and session.get("record_snapshot"):
+            snapshot = session.get("record_snapshot")
+        if not session.get("completed"):
+            continue
+        if session.get("xp_earned") is not None:
+            xp_to_remove += int(session.get("xp_earned") or 0)
+        else:
+            xp_to_remove += _calculate_xp(
+                len(session.get("qa_history") or []),
+                session.get("engagement"),
+                False,
+            )
+
+    if snapshot:
+        await _restore_record_snapshot(user_id, snapshot)
+    else:
+        await _clear_todays_structured_writes(user_id, todays)
+
+    for session in todays:
+        await DailySessionModel.delete(session["id"])
+
+    remaining = await DailySessionModel.find_user_sessions(user_id)
+    await _revert_gamification(user, xp_to_remove, remaining)
+    user = await UserModel.find_by_id(user_id)
+    current_day, daily_completed = _progress_from_sessions(remaining)
+    return {
+        "id": str(user.get("id") or user_id),
+        "email": user.get("email"),
+        "name": user.get("name"),
+        "age": user.get("age"),
+        "university_name": user.get("university_name"),
+        "degree_name": user.get("degree_name"),
+        "campus_year": user.get("campus_year"),
+        "semester": user.get("semester"),
+        "gpa": user.get("gpa"),
+        "subjects": user.get("subjects") or [],
+        "total_xp": user.get("total_xp", 0),
+        "current_streak": user.get("current_streak", 0),
+        "longest_streak": user.get("longest_streak", 0),
+        "badges": user.get("badges") or [],
+        "current_day": current_day,
+        "daily_completed": daily_completed,
+        "sessions": remaining,
+        "tasks": await TaskModel.find_by_user(user_id),
+        "exams": await ExamModel.find_by_user(user_id),
+    }
 
 
 @router.get("/{session_id}")
