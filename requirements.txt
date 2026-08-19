@@ -1,0 +1,12 @@
+mediapipe
+opencv-python
+xgboost
+scikit-learn
+imbalanced-learn
+pandas
+numpy
+matplotlib
+seaborn
+tqdm
+joblib
+notebook

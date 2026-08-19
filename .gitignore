@@ -1,2 +1,4 @@
 backend/datasets/focus/DAiSEE/DataSet/Test.txt
 /backend/datasets
+config.bat
+node_modules
