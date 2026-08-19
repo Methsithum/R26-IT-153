@@ -20,13 +20,14 @@ const SLIDE_DURATION = 0.62;
 const SLIDE_Y = 0.12;
 const LANE_SNAP = 12;
 const WALK_SPEED = 3.35;
-const INTERACT_RANGE = 2.15;
+const INTERACT_RANGE = 2.4;
 
 const CAMPUS_PHASES = new Set([
   PHASES.RUNNING,
   PHASES.QUESTION_APPROACHING,
   PHASES.ANSWER_SELECTION,
   PHASES.ANSWER_CONFIRMED,
+  PHASES.CHECKING_DATA_REQUIREMENT,
   PHASES.RUNNING_RESUMED,
 ]);
 
@@ -44,7 +45,7 @@ export default function Player() {
   const exhausted = useGameStore((s) => s.exhausted);
   const isSliding = useRunnerStore((s) => s.isSliding);
   const transitionEntryZ = useGameStore((s) => s.transitionEntryZ);
-  const targetBuildingId = useGameStore((s) => s.targetBuildingId);
+  const activeQuestion = useGameStore((s) => s.activeQuestion);
 
   const exploring = phase === PHASES.SPECIAL_INTERACTION_READY;
   const entering = phase === PHASES.ENTERING_BUILDING;
@@ -133,7 +134,7 @@ export default function Player() {
         gaitPhase.current += dt * 2.2;
       }
 
-      const [mx, , mz] = missionLocalOffset(targetBuildingId);
+      const [mx, , mz] = missionLocalOffset(activeQuestion);
       const [wx, , wz] = interiorWorld(transitionEntryZ, mx, mz);
       const dist = Math.hypot(nextX - wx, nextZ - wz);
       const near = dist < INTERACT_RANGE;

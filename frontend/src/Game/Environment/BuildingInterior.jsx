@@ -1,7 +1,9 @@
-import { useRef } from "react";
-import { useFrame } from "@react-three/fiber";
 import { Text } from "@react-three/drei";
 import { useRunnerStore } from "../state/runnerStore";
+import MissionStations from "./MissionStations";
+import { stationKeyFor, missionLocalOffset } from "./stationMap";
+
+export { missionLocalOffset, missionLabel, stationKeyFor } from "./stationMap";
 
 const INTERIOR_X = -55;
 export const GROUND_Y = 0;
@@ -25,22 +27,6 @@ export function interiorAnchor(entryZ) {
 export function interiorWorld(entryZ, localX, localZ) {
   const [ix, , iz] = interiorAnchor(entryZ);
   return [ix + localX, GROUND_Y, iz + localZ];
-}
-
-export function missionLocalOffset(buildingId) {
-  if (buildingId === "lecture-hall") return [0, 0, -7.2];
-  if (buildingId === "exam-hall") return [0, 0, -6.8];
-  if (buildingId === "library") return [0, 0, -8.4];
-  return [0, 0, -8.2];
-}
-
-export function missionLabel(interactionType) {
-  if (interactionType === "date" || interactionType === "examDate") return "Calendar";
-  if (interactionType === "marks") return "Marks desk";
-  if (interactionType === "subjectPick") return "Subject board";
-  if (interactionType === "examSetup") return "Exam desk";
-  if (interactionType === "markTarget") return "Records desk";
-  return "Front desk";
 }
 
 function Wood({ args, position, color = "#8b5a32", rotation }) {
@@ -127,18 +113,13 @@ function RoomLights() {
 }
 
 function LibrarySet() {
-  const shelfXs = [-11.2, -9.4, -7.6, 7.6, 9.4, 11.2];
-  const shelfZs = [-10.4, -7.6, -4.8];
   return (
     <>
-      {shelfXs.map((x) =>
-        shelfZs.map((z) => <Bookshelf key={`${x}-${z}`} position={[x, 0, z]} />)
+      {[-11.2, 11.2].map((x) =>
+        [-10.4, 8.6].map((z) => <Bookshelf key={`${x}-${z}`} position={[x, 0, z]} />)
       )}
-      <Desk position={[-4.2, 0, -2.2]} width={2.8} />
-      <Desk position={[4.2, 0, -2.2]} width={2.8} />
-      <Desk position={[0, 0, -8.4]} width={3.4} />
-      <Bookshelf position={[-2.2, 0, -10.6]} />
-      <Bookshelf position={[2.2, 0, -10.6]} />
+      <Bookshelf position={[-11.2, 0, 2]} />
+      <Bookshelf position={[11.2, 0, 2]} />
     </>
   );
 }
@@ -146,18 +127,9 @@ function LibrarySet() {
 function LectureSet() {
   return (
     <>
-      <mesh position={[0, 2.7, -12.55]}>
-        <planeGeometry args={[8.4, 2.6]} />
-        <meshStandardMaterial color="#f7f4ec" roughness={0.35} />
-      </mesh>
-      <mesh position={[0, 2.7, -12.62]}>
-        <boxGeometry args={[8.8, 2.85, 0.08]} />
-        <meshStandardMaterial color="#d6cbb6" />
-      </mesh>
       {[-6, -2, 2, 6].map((x) =>
-        [-1.2, 2.2, 5.6].map((z) => <Desk key={`${x}-${z}`} position={[x, 0, z]} width={2.2} />)
+        [2.4, 6.2].map((z) => <Desk key={`${x}-${z}`} position={[x, 0, z]} width={2.2} />)
       )}
-      <Desk position={[0, 0, -7.2]} width={3.2} />
     </>
   );
 }
@@ -165,20 +137,14 @@ function LectureSet() {
 function FacultySet() {
   return (
     <>
-      <Desk position={[0, 0, -8.2]} width={3.6} />
-      <Desk position={[-6.5, 0, -3]} width={2.4} />
-      <Desk position={[6.5, 0, -3]} width={2.4} />
-      <Desk position={[-6.5, 0, 3.6]} width={2.4} />
-      <Desk position={[6.5, 0, 3.6]} width={2.4} />
       <Wood args={[1.6, 1.8, 0.45]} position={[11.2, 0.9, -10.2]} color="#7a4e28" />
       <Wood args={[1.6, 1.8, 0.45]} position={[9.4, 0.9, -10.2]} color="#7a4e28" />
       <Wood args={[1.6, 1.8, 0.45]} position={[-11.2, 0.9, 8.8]} color="#7a4e28" />
-      <Wood args={[1.6, 1.8, 0.45]} position={[-9.4, 0.9, 8.8]} color="#7a4e28" />
-      <mesh position={[-10.8, 1.15, -10]}>
+      <mesh position={[-11.0, 1.15, 8.6]}>
         <cylinderGeometry args={[0.28, 0.34, 0.55, 10]} />
         <meshStandardMaterial color="#3f6212" />
       </mesh>
-      <mesh position={[-10.8, 1.6, -10]}>
+      <mesh position={[-11.0, 1.6, 8.6]}>
         <sphereGeometry args={[0.46, 10, 10]} />
         <meshStandardMaterial color="#4d7c0f" />
       </mesh>
@@ -189,10 +155,9 @@ function FacultySet() {
 function ExamSet() {
   return (
     <>
-      {[-7.2, -2.4, 2.4, 7.2].map((x) =>
-        [-3.4, 0.4, 4.2].map((z) => <Desk key={`${x}-${z}`} position={[x, 0, z]} width={1.9} />)
+      {[-2.4, 2.4, 7.2].map((x) =>
+        [4.2].map((z) => <Desk key={`${x}-${z}`} position={[x, 0, z]} width={1.9} />)
       )}
-      <Desk position={[0, 0, -6.8]} width={2.6} />
     </>
   );
 }
@@ -268,63 +233,29 @@ function EntranceFacade({ name }) {
   );
 }
 
-function FloorGuide({ toZ }) {
-  const marks = [8.5, 5.5, 2.5, -0.5, -3.5];
+function FloorGuide({ toX, toZ }) {
+  const fromZ = 8.2;
+  const steps = 5;
   return (
     <group>
-      {marks
-        .filter((z) => z > toZ + 1.2)
-        .map((z) => (
-          <mesh key={z} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, z]}>
-            <ringGeometry args={[0.14, 0.26, 3]} />
-            <meshBasicMaterial color="#f5d76e" transparent opacity={0.5} />
+      {Array.from({ length: steps }, (_, i) => {
+        const t = (i + 1) / (steps + 1);
+        return (
+          <mesh
+            key={i}
+            rotation={[-Math.PI / 2, 0, Math.atan2(toX, toZ - fromZ)]}
+            position={[toX * t, 0.03, fromZ + (toZ - fromZ) * t]}
+          >
+            <ringGeometry args={[0.12, 0.22, 3]} />
+            <meshBasicMaterial color="#f5d76e" transparent opacity={0.42} />
           </mesh>
-        ))}
+        );
+      })}
     </group>
   );
 }
 
-function MissionBeacon({ position, label, active }) {
-  const glow = useRef();
-  const ring = useRef();
-  const near = useRunnerStore((s) => s.nearMission);
-
-  useFrame((state) => {
-    const pulse = 0.55 + Math.sin(state.clock.elapsedTime * 3.2) * 0.35;
-    if (glow.current) {
-      glow.current.material.emissiveIntensity = near ? 1.4 : pulse;
-      glow.current.position.y = 1.35 + Math.sin(state.clock.elapsedTime * 2.4) * 0.08;
-    }
-    if (ring.current) {
-      ring.current.scale.setScalar(1 + Math.sin(state.clock.elapsedTime * 2.8) * 0.08);
-    }
-  });
-
-  if (!active) return null;
-
-  return (
-    <group position={position}>
-      <pointLight color="#ffe08a" intensity={near ? 3.2 : 1.6} distance={8} />
-      <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
-        <ringGeometry args={[0.75, 1.15, 28]} />
-        <meshBasicMaterial color="#f5d76e" transparent opacity={0.7} depthWrite={false} />
-      </mesh>
-      <mesh ref={glow} position={[0, 1.35, 0]}>
-        <octahedronGeometry args={[0.18, 0]} />
-        <meshStandardMaterial color="#fff3c4" emissive="#f5d76e" emissiveIntensity={0.9} />
-      </mesh>
-      <mesh position={[0, 0.95, 0.15]}>
-        <boxGeometry args={[0.42, 0.08, 0.32]} />
-        <meshStandardMaterial color="#f4efe4" emissive="#f5d76e" emissiveIntensity={0.25} />
-      </mesh>
-      <Text position={[0, 1.85, 0]} fontSize={0.2} color="#fff6d5" anchorX="center" outlineWidth={0.012} outlineColor="#5c4324">
-        {label}
-      </Text>
-    </group>
-  );
-}
-
-export default function BuildingInterior({ entryZ, building, interactionType, exploring }) {
+export default function BuildingInterior({ entryZ, building, question, exploring }) {
   const [x, , z] = interiorAnchor(entryZ);
   const name = building?.name ?? "Campus Building";
   const id = building?.id || "";
@@ -338,7 +269,8 @@ export default function BuildingInterior({ entryZ, building, interactionType, ex
     ) : (
       <FacultySet />
     );
-  const [mx, , mz] = missionLocalOffset(id);
+  const activeKey = stationKeyFor(question);
+  const [mx, , mz] = missionLocalOffset(question);
 
   return (
     <group position={[x, 0, z]}>
@@ -372,8 +304,8 @@ export default function BuildingInterior({ entryZ, building, interactionType, ex
       <DoubleDoors />
 
       {furniture}
-      <FloorGuide toZ={mz} />
-      <MissionBeacon position={[mx, 0, mz]} label={missionLabel(interactionType)} active={exploring} />
+      <MissionStations activeKey={activeKey} exploring={exploring} />
+      {exploring && <FloorGuide toX={mx} toZ={mz} />}
       <RoomLights />
     </group>
   );

@@ -60,7 +60,7 @@ export default function TransitionManager() {
   const phase = useGameStore((s) => s.phase);
   const targetBuildingId = useGameStore((s) => s.targetBuildingId);
   const transitionEntryZ = useGameStore((s) => s.transitionEntryZ);
-  const interactionType = useGameStore((s) => s.activeQuestion?.interactionType);
+  const activeQuestion = useGameStore((s) => s.activeQuestion);
 
   const elapsed = useRef(0);
   const firedRef = useRef(false);
@@ -186,7 +186,7 @@ export default function TransitionManager() {
     <BuildingInterior
       entryZ={transitionEntryZ}
       building={building}
-      interactionType={interactionType}
+      question={activeQuestion}
       exploring={phase === PHASES.SPECIAL_INTERACTION_READY}
     />
   );

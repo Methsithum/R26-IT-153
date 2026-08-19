@@ -61,7 +61,7 @@ function WalkStick() {
 export default function InteriorExploreHUD() {
   const phase = useGameStore((s) => s.phase);
   const building = getBuildingById(useGameStore((s) => s.targetBuildingId));
-  const type = useGameStore((s) => s.activeQuestion?.interactionType);
+  const question = useGameStore((s) => s.activeQuestion);
   const near = useRunnerStore((s) => s.nearMission);
   const lookLocked = useRunnerStore((s) => s.lookLocked);
   const entering = phase === PHASES.ENTERING_BUILDING || phase === PHASES.TRANSITION_TO_BUILDING;
@@ -69,7 +69,7 @@ export default function InteriorExploreHUD() {
 
   if (!entering && !exploring) return null;
 
-  const label = missionLabel(type);
+  const label = missionLabel(question);
 
   return (
     <div className="pointer-events-none absolute inset-0 z-30 select-none">

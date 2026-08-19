@@ -17,6 +17,7 @@ export default function MainGame() {
       phase === PHASES.QUESTION_APPROACHING ||
       phase === PHASES.ANSWER_SELECTION ||
       phase === PHASES.ANSWER_CONFIRMED ||
+      phase === PHASES.CHECKING_DATA_REQUIREMENT ||
       phase === PHASES.RUNNING_RESUMED,
     explore: phase === PHASES.SPECIAL_INTERACTION_READY,
   });

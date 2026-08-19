@@ -7,28 +7,32 @@ import ExamCalendarSort from "../MiniGames/ExamCalendarSort";
 import SubjectPicker from "../MiniGames/SubjectPicker";
 import ExamSetup from "../MiniGames/ExamSetup";
 import MarkTargetPicker from "../MiniGames/MarkTargetPicker";
+import MarksDartboard from "../MiniGames/MarksDartboard";
+import DeadlineAbacus from "../MiniGames/DeadlineAbacus";
+import SubjectBalanceScale from "../MiniGames/SubjectBalanceScale";
+import { missionLabel, stationKeyFor } from "../Environment/stationMap";
 
 function MiniGameSlot({ activeQuestion, onComplete }) {
   const props = { question: activeQuestion, onComplete };
   const type = activeQuestion?.interactionType;
+  const station = stationKeyFor(activeQuestion);
 
   if (type === "subjectPick") return <SubjectPicker {...props} />;
   if (type === "examSetup") return <ExamSetup {...props} />;
-  if (type === "date") return <CalendarStamp {...props} />;
-  if (type === "marks") return <GradeSlider {...props} />;
+  if (type === "date") return <DeadlineAbacus {...props} />;
   if (type === "examDate") return <ExamCalendarSort {...props} />;
   if (type === "markTarget") return <MarkTargetPicker {...props} />;
-  return <SubjectPicker {...props} />;
+  if (type === "marks") {
+    if (station === "dartboard") return <MarksDartboard {...props} />;
+    if (station === "scale") return <SubjectBalanceScale {...props} />;
+    return <GradeSlider {...props} />;
+  }
+  return <CalendarStamp {...props} />;
 }
 
-function purposeLabel(subject, type) {
+function purposeLabel(subject, question) {
   if (subject) return subject;
-  if (type === "subjectPick") return "Today's subjects";
-  if (type === "examSetup") return "Exam subjects · Mid / Final";
-  if (type === "markTarget") return "Pick a subject";
-  if (type === "date" || type === "examDate") return "Calendar";
-  if (type === "marks") return "Marks";
-  return "Inside";
+  return missionLabel(question);
 }
 
 export default function SpecialInteractionRouter() {
@@ -42,7 +46,6 @@ export default function SpecialInteractionRouter() {
 
   const building = getBuildingById(targetBuildingId);
   const subject = activeQuestion?.subject || activeQuestion?.context?.subject;
-  const type = activeQuestion?.interactionType ?? "academic";
 
   function handleComplete(value) {
     useGameStore.getState().completeSpecialInteraction({ completed: true, value });
@@ -70,10 +73,10 @@ export default function SpecialInteractionRouter() {
             <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">
               {building?.name ?? "Campus building"}
             </div>
-            <div className="mt-1 text-sm text-stone-700">{purposeLabel(subject, type)}</div>
+            <div className="mt-1 text-sm text-stone-700">{purposeLabel(subject, activeQuestion)}</div>
           </div>
           <div className="rounded-full border border-white/50 bg-white/70 px-3 py-1 text-xs text-stone-600 shadow-sm backdrop-blur-md">
-            At the desk
+            {missionLabel(activeQuestion)}
           </div>
         </header>
 
