@@ -147,34 +147,91 @@ function SliderStation({ active }) {
 
 function DartboardStation({ active }) {
   const rings = [
-    [0.78, "#f4efe4"],
-    [0.62, "#9b2c2c"],
-    [0.48, "#f4efe4"],
-    [0.34, "#9b2c2c"],
-    [0.2, "#f4efe4"],
-    [0.09, "#b45309"],
+    [0.88, "#f4efe4"],
+    [0.74, "#7f1d1d"],
+    [0.60, "#f4efe4"],
+    [0.46, "#7f1d1d"],
+    [0.32, "#f4efe4"],
+    [0.18, "#7f1d1d"],
   ];
   return (
-    <group position={[13.58, 2.35, -5.4]} rotation={[0, -Math.PI / 2, 0]}>
-      <mesh position={[0, 0, -0.04]}>
-        <cylinderGeometry args={[0.92, 0.92, 0.1, 36]} />
-        <meshStandardMaterial color="#5c3a1e" roughness={0.7} />
+    <group position={[13.52, 2.28, -5.4]} rotation={[0, -Math.PI / 2, 0]}>
+      <WallPlaque args={[2.2, 2.55, 0.08]} lit={active} />
+      <mesh position={[0, 0.95, 0.05]}>
+        <boxGeometry args={[2.05, 0.38, 0.04]} />
+        <meshStandardMaterial color="#8b4518" roughness={0.55} />
       </mesh>
+      <Text position={[0, 0.95, 0.08]} fontSize={0.16} color="#f7e7c4" anchorX="center">
+        DARTS
+      </Text>
+
+      <mesh position={[0, -0.08, -0.02]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[1.02, 1.02, 0.1, 48]} />
+        <meshStandardMaterial color="#4a2c14" roughness={0.7} />
+      </mesh>
+      <mesh position={[0, -0.08, 0.04]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.94, 0.94, 0.06, 48]} />
+        <meshStandardMaterial
+          color="#3f2a16"
+          roughness={0.55}
+          emissive={active ? "#f5d76e" : "#000000"}
+          emissiveIntensity={active ? 0.12 : 0}
+        />
+      </mesh>
+
       {rings.map(([r, color], i) => (
-        <mesh key={i} position={[0, 0, 0.02 - i * 0.002]} rotation={[Math.PI / 2, 0, 0]}>
-          <circleGeometry args={[r, 36]} />
-          <meshStandardMaterial
-            color={color}
-            roughness={0.55}
-            emissive={active && i === 0 ? "#f5d76e" : "#000000"}
-            emissiveIntensity={active && i === 0 ? 0.12 : 0}
-          />
+        <mesh key={i} position={[0, -0.08, 0.075 + i * 0.001]}>
+          <circleGeometry args={[r, 48]} />
+          <meshStandardMaterial color={color} roughness={0.5} />
         </mesh>
       ))}
-      <mesh position={[0.12, 0.08, 0.08]} rotation={[0.4, 0.2, 0.8]}>
-        <cylinderGeometry args={[0.018, 0.012, 0.42, 8]} />
-        <meshStandardMaterial color="#d6d3d1" metalness={0.6} roughness={0.3} />
+      <mesh position={[0, -0.08, 0.09]}>
+        <circleGeometry args={[0.09, 32]} />
+        <meshStandardMaterial color="#14532d" roughness={0.4} />
       </mesh>
+      <mesh position={[0, -0.08, 0.095]}>
+        <circleGeometry args={[0.04, 24]} />
+        <meshStandardMaterial color="#b45309" roughness={0.35} metalness={0.15} />
+      </mesh>
+
+      <mesh position={[0, -0.08, 0.1]}>
+        <torusGeometry args={[0.68, 0.028, 10, 48]} />
+        <meshStandardMaterial color="#166534" roughness={0.4} />
+      </mesh>
+      <mesh position={[0, -0.08, 0.1]}>
+        <torusGeometry args={[0.40, 0.026, 10, 48]} />
+        <meshStandardMaterial color="#9b2c2c" roughness={0.4} />
+      </mesh>
+
+      {Array.from({ length: 20 }).map((_, i) => (
+        <mesh
+          key={i}
+          position={[0, -0.08, 0.102]}
+          rotation={[0, 0, (i / 20) * Math.PI]}
+        >
+          <boxGeometry args={[1.76, 0.01, 0.008]} />
+          <meshStandardMaterial color="#d6c4a6" metalness={0.45} roughness={0.3} />
+        </mesh>
+      ))}
+
+      <group position={[0.22, 0.18, 0.18]} rotation={[-0.7, 0.35, 0.15]}>
+        <mesh>
+          <cylinderGeometry args={[0.012, 0.016, 0.42, 8]} />
+          <meshStandardMaterial color="#d6d3d1" metalness={0.7} roughness={0.25} />
+        </mesh>
+        <mesh position={[0, 0.16, 0]}>
+          <cylinderGeometry args={[0.02, 0.02, 0.08, 8]} />
+          <meshStandardMaterial color="#b45309" metalness={0.35} roughness={0.4} />
+        </mesh>
+        <mesh position={[0.03, 0.24, 0]} rotation={[0, 0, 0.4]}>
+          <boxGeometry args={[0.09, 0.12, 0.008]} />
+          <meshStandardMaterial color="#9b2c2c" />
+        </mesh>
+        <mesh position={[-0.03, 0.24, 0]} rotation={[0, 0, -0.4]}>
+          <boxGeometry args={[0.09, 0.12, 0.008]} />
+          <meshStandardMaterial color="#14532d" />
+        </mesh>
+      </group>
     </group>
   );
 }
