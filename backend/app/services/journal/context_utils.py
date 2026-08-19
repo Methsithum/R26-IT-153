@@ -1,25 +1,16 @@
-from datetime import datetime, timezone
-from typing import Dict, List, Any
+from typing import Any, Dict, List
+
+from app.services.time_utils import local_today, to_local_date
+
+_NO_DEADLINE = 10**9
+
 
 def _deadline_days(deadline: Any) -> int:
-    """Calculate days until deadline from now."""
-    if not deadline:
-        return float('inf')
-    
-    try:
-        if isinstance(deadline, str):
-            deadline_dt = datetime.fromisoformat(deadline.replace("Z", "+00:00"))
-        else:
-            deadline_dt = deadline
-        
-        if deadline_dt.tzinfo is None:
-            deadline_dt = deadline_dt.replace(tzinfo=timezone.utc)
-        
-        now = datetime.now(timezone.utc)
-        days_left = (deadline_dt - now).days
-        return days_left
-    except Exception:
-        return float('inf')
+    """Calendar days until deadline in Asia/Colombo. 0 is today, 1 is tomorrow."""
+    due = to_local_date(deadline)
+    if not due:
+        return _NO_DEADLINE
+    return (due - local_today()).days
 
 
 async def compute_derived_context(session_doc: Dict[str, Any], current_tasks: List[Dict]) -> Dict[str, bool]:
@@ -86,10 +77,10 @@ async def identify_at_risk_tasks(current_tasks: List[Dict]) -> List[Dict]:
         is_in_progress = progress_stage in ["in_progress", "in progress"]
         
         if days_left <= 2 and (is_not_started or is_in_progress):
-            urgency = "critical" if days_left <= 1 else "high"
+            urgency = "critical" if days_left <= 0 else "high"
             at_risk.append({
                 "title": task.get("title"),
-                "days_left": max(0, days_left),
+                "days_left": days_left,
                 "progress": progress_stage,
                 "urgency": urgency,
                 "id": task.get("id")

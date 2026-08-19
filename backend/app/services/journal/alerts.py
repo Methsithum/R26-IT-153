@@ -1,4 +1,20 @@
-from typing import Dict, List, Any
+from typing import Any, Dict, List
+
+
+def _deadline_phrase(days_left: Any) -> str:
+    try:
+        days = int(days_left)
+    except (TypeError, ValueError):
+        days = 2
+    if days < 0:
+        n = abs(days)
+        unit = "day" if n == 1 else "days"
+        return f"was due {n} {unit} ago"
+    if days == 0:
+        return "is due TODAY"
+    if days == 1:
+        return "is due tomorrow"
+    return f"is due in {days} days"
 
 
 def generate_proactive_alerts(at_risk_tasks: List[Dict], derived_flags: Dict[str, bool]) -> List[str]:
@@ -7,24 +23,21 @@ def generate_proactive_alerts(at_risk_tasks: List[Dict], derived_flags: Dict[str
     Returns list of alert strings for inclusion in journal entry.
     """
     alerts = []
-    
-    # Alert 1: Critical at-risk tasks (deadline tomorrow)
+
     critical_tasks = [t for t in at_risk_tasks if t.get("urgency") == "critical"]
     if critical_tasks:
         for task in critical_tasks:
             alerts.append(
-                f"🚨 CRITICAL: '{task['title']}' is due TODAY and status is {task['progress']}. "
-                f"This requires immediate attention!"
+                f"🚨 CRITICAL: '{task['title']}' {_deadline_phrase(task.get('days_left'))} "
+                f"and status is {task['progress']}. This requires immediate attention!"
             )
-    
-    # Alert 2: High-urgency tasks (deadline within 2 days)
+
     high_tasks = [t for t in at_risk_tasks if t.get("urgency") == "high"]
     if high_tasks:
         for task in high_tasks:
-            days = task.get("days_left", 2)
             alerts.append(
-                f"⚠️  '{task['title']}' due in {days} day(s) with status: {task['progress']}. "
-                f"Consider starting/resuming work today."
+                f"⚠️  '{task['title']}' {_deadline_phrase(task.get('days_left'))} "
+                f"with status: {task['progress']}. Consider starting/resuming work today."
             )
     
     # Alert 3: Low study time warning
