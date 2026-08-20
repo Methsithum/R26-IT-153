@@ -198,11 +198,12 @@ export default function FocusApp() {
         style={{ position: "fixed", top: 0, left: 0, width: 1, height: 1, opacity: 0, pointerEvents: "none" }} />
       <canvas ref={canvasRef} style={{ display: "none" }} />
 
-      <div className="max-w-7xl mx-auto px-4 py-6">{VIEWS[tab]}</div>
+      {/* Keyed on `tab` so the view's entrance animation replays on every switch. */}
+      <div key={tab} className="max-w-7xl mx-auto px-4 py-6">{VIEWS[tab]}</div>
 
       {showCheckIn && (
-        <div className="fixed bottom-6 right-6 z-50 w-80">
-          <div className="rounded-3xl p-5 border border-slate-200" style={{ background: "rgba(255,255,255,0.95)", backdropFilter: "blur(20px)", boxShadow: "0 0 40px rgba(34,197,94,0.15)" }}>
+        <div className="fixed bottom-6 right-6 z-50 w-80 fu-view">
+          <div className="rounded-3xl p-5 border border-slate-200" style={{ background: "rgba(255,255,255,0.95)", backdropFilter: "blur(20px)", boxShadow: "0 12px 40px -8px rgba(15,23,42,0.18), 0 0 40px rgba(34,197,94,0.15)" }}>
             <div className="flex justify-between items-start mb-3">
               <div>
                 <p className="font-bold text-slate-900">Quick Check-in 📋</p>
