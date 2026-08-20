@@ -1,27 +1,50 @@
 {
-  "best_algorithm": "XGBoost",
-  "test_accuracy": 94.04,
+  "best_algorithm": "SVM",
+  "test_accuracy": 73.2,
+  "test_macro_f1": 64.62,
   "classes": [
     "Focused",
     "Fatigue",
     "Anxiety",
     "Boredom"
   ],
-  "needs_scaling": false,
+  "needs_scaling": true,
   "img_size": 224,
-  "balance_size": 10000,
+  "datasets": [
+    "Student Behavior Detection",
+    "fatigue"
+  ],
+  "split": "subject-disjoint 70/15/15, byte-duplicates removed",
+  "balance": "smote",
+  "train_class_counts": {
+    "Focused": 5378,
+    "Fatigue": 5378,
+    "Anxiety": 5378,
+    "Boredom": 5378
+  },
+  "frames_per_clip": 3,
+  "clip_test_accuracy": 71.83,
+  "clip_test_macro_f1": 69.0,
+  "counts": {
+    "train": 12801,
+    "val": 1509,
+    "test": 1515
+  },
   "all_results": {
     "Random Forest": {
-      "val": 92.27,
-      "test": 92.41
+      "val": 74.02,
+      "test": 77.03,
+      "f1": 62.86
     },
     "XGBoost": {
-      "val": 93.74,
-      "test": 94.04
+      "val": 74.16,
+      "test": 78.02,
+      "f1": 64.49
     },
     "SVM": {
-      "val": 93.65,
-      "test": 94.02
+      "val": 74.82,
+      "test": 73.2,
+      "f1": 64.62
     }
   }
 }
