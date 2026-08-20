@@ -226,7 +226,10 @@ else:
 # ===========================================================================
 # 2. AVOID TARGET LEAKAGE - engineer prior_avg_score
 #    (score, date_submitted, and anything derived from date_submitted, plus
-#    final_result, are NEVER used as model input features - see section 3)
+#    final_result, are NEVER used as model INPUT FEATURES - see section 3.
+#    score/date_submitted ARE still used below, in section 5, but only to
+#    build the ground-truth Priority_Label - not as a feature - see section 5
+#    for why that's the correct, non-leaky way to do supervised learning.)
 # ===========================================================================
 section("2. ENGINEER LEAKAGE-FREE prior_avg_score")
 
@@ -248,7 +251,6 @@ cohort_mean = df.groupby(["code_module", "code_presentation"])["score"].transfor
 overall_mean = df["score"].mean()
 df["prior_avg_score"] = df["prior_avg_score"].fillna(cohort_mean).fillna(overall_mean)
 
-n_first_assessment = df["prior_avg_score"].isna().sum()
 print(f"prior_avg_score engineered. Rows that needed the cohort/overall-mean fallback: "
       f"{(grp.transform(lambda s: s.expanding().mean().shift(1)).isna()).sum()}")
 
@@ -261,14 +263,58 @@ df["days_until_deadline_at_planning"] = df["date"]
 
 
 # ===========================================================================
-# 3. DROP UNWANTED COLUMNS (identifiers, PII, fairness-sensitive, leakage)
+# 5. CREATE THE TARGET LABEL - Priority_Label (outcome-based, not
+#    formula-recoverable from the model's own input features)
+#
+#    Standard supervised learning: the LABEL is allowed to look at the
+#    ground truth (score, submitted_late) because that's what we're teaching
+#    the model to predict in hindsight. What must never happen is score /
+#    date_submitted / submitted_late leaking into the FEATURE matrix X - that
+#    is enforced in section 3, which drops them from df immediately after
+#    this block uses them to build Priority_Label. If Priority_Label were
+#    instead derived only from weight/date/prior_avg_score (i.e. from the
+#    model's own inputs), any model would trivially "recover" the label
+#    arithmetic and score ~99-100%, which would validate the pipeline but
+#    prove nothing about real predictive ability - so we deliberately do not
+#    do that here.
 # ===========================================================================
-section("3. DROP UNWANTED / LEAKAGE COLUMNS")
+section("5. BUILD OUTCOME-BASED Priority_Label (from raw score/date_submitted)")
+
+# submitted_late uses the raw, still-present date_submitted vs. deadline date.
+# This raw column is used ONLY here, for label construction, and is dropped
+# (along with score and date_submitted themselves) in section 3 below - it
+# never reaches the feature matrix X.
+df["submitted_late"] = (df["date_submitted"] > df["date"]).astype(int)
+
+def label_from_outcome(row):
+    # High priority (in hindsight): the task genuinely needed urgent attention.
+    if row["score"] < 50 or row["submitted_late"] == 1 or (row["score"] < 60 and row["weight"] >= 20):
+        return "High"
+    # Low priority: comfortably handled, on time, and not high-stakes.
+    if row["score"] >= 75 and row["submitted_late"] == 0 and row["weight"] < 15:
+        return "Low"
+    # Everything else.
+    return "Medium"
+
+df["Priority_Label"] = df.apply(label_from_outcome, axis=1)
+
+print("Priority_Label class distribution (real, unbalanced - not artificially adjusted):")
+print(df["Priority_Label"].value_counts())
+print(df["Priority_Label"].value_counts(normalize=True).round(3))
+
+
+# ===========================================================================
+# 3. DROP UNWANTED COLUMNS (identifiers, PII, fairness-sensitive, leakage)
+#    score, date_submitted, submitted_late were used ABOVE only to build
+#    Priority_Label - they are dropped here, before the feature matrix is
+#    built, so they never appear as model inputs.
+# ===========================================================================
+section("3. DROP UNWANTED / LEAKAGE COLUMNS (used only for label construction above)")
 
 drop_cols = [
     "id_assessment", "id_student",  # identifiers
-    "score", "date_submitted", "is_banked",  # leakage: only known after completion
-    "days_early_or_late", "submitted_late",  # leakage: derived from date_submitted (if present)
+    "score", "date_submitted", "is_banked",  # leakage: only known after completion (used above for the label only)
+    "days_early_or_late", "submitted_late",  # leakage: derived from date_submitted (used above for the label only)
     "final_result",  # leakage: only known at end of module
     "disability", "highest_education", "age_band",  # fairness-sensitive, dropped from model input
 ]
@@ -291,49 +337,8 @@ feature_cols = [
 ]
 feature_cols = [c for c in feature_cols if c in df_model.columns]
 print(f"Model input features ({len(feature_cols)}): {feature_cols}")
-
-
-# ===========================================================================
-# 5. CREATE THE TARGET LABEL - Priority_Label
-#    Built ONLY from leakage-free features (weight, date, module_presentation_length,
-#    prior_avg_score) - never from score or submission timing.
-# ===========================================================================
-section("5. ENGINEER RULE-BASED Priority_Label")
-
-# --- Urgency component (0-1): high weight + early-in-module deadline -> urgent ---
-# weight is on a 0-100 scale in OULAD.
-weight_norm = (df_model["weight"] / 100.0).clip(0, 1)
-# Fraction of the module already elapsed at the deadline; earlier deadline -> lower elapsed fraction -> more planning lead time needed sooner.
-elapsed_fraction = (df_model["date"] / df_model["module_presentation_length"].replace(0, np.nan)).clip(0, 1)
-elapsed_fraction = elapsed_fraction.fillna(elapsed_fraction.mean())
-deadline_urgency = 1 - elapsed_fraction  # earlier in module -> higher urgency-to-plan
-urgency_component = 0.6 * weight_norm + 0.4 * deadline_urgency
-urgency_component = (urgency_component - urgency_component.min()) / (urgency_component.max() - urgency_component.min())
-
-# --- Performance-gap component (0-1): lower prior_avg_score -> higher priority ---
-perf = df_model["prior_avg_score"]
-performance_gap = 1 - ((perf - perf.min()) / (perf.max() - perf.min()))
-
-# --- Weighted combination (documented weights) ---
-# 50% performance gap, 30% assessment weight, 20% deadline timing.
-priority_score = (
-    0.50 * performance_gap
-    + 0.30 * weight_norm
-    + 0.20 * deadline_urgency
-)
-df_model["priority_score_raw"] = priority_score
-
-def bucket_priority(x):
-    if x >= 0.55:
-        return "High"
-    elif x >= 0.30:
-        return "Medium"
-    return "Low"
-
-df_model["Priority_Label"] = df_model["priority_score_raw"].apply(bucket_priority)
-print("Priority_Label class distribution:")
-print(df_model["Priority_Label"].value_counts())
-print(df_model["Priority_Label"].value_counts(normalize=True).round(3))
+assert "score" not in feature_cols and "date_submitted" not in feature_cols and "submitted_late" not in feature_cols, \
+    "Leakage check failed: outcome columns must not be in the feature set."
 
 
 # ===========================================================================
@@ -529,6 +534,24 @@ print("\nModel comparison table (sorted by Weighted F1):")
 print(comparison_df)
 comparison_df.to_csv(os.path.join(OUTPUTS_DIR, "model_comparison_results.csv"), index=False)
 
+# --- Leakage sanity check: Priority_Label is now built from real outcomes
+# (score/submitted_late), not from the model's own input features, so scores
+# this high are NOT expected. Flag loudly rather than silently reporting them.
+LEAKAGE_SUSPECT_THRESHOLD = 0.97
+suspect_rows = comparison_df[
+    (comparison_df["Accuracy"] > LEAKAGE_SUSPECT_THRESHOLD)
+    | (comparison_df["Weighted F1"] > LEAKAGE_SUSPECT_THRESHOLD)
+]
+if not suspect_rows.empty:
+    print(f"\n*** WARNING: {len(suspect_rows)} model(s) exceeded {LEAKAGE_SUSPECT_THRESHOLD:.0%} "
+          f"Accuracy or Weighted F1: {suspect_rows['Model'].tolist()}. ***")
+    print("*** Since Priority_Label is derived from real outcomes (score/submitted_late) and NOT from ***")
+    print("*** the model's own input features, scores this high are suspicious and may indicate remaining ***")
+    print("*** target leakage. Review feature/label construction (sections 2-5) before trusting these results. ***")
+else:
+    print(f"\nNo model exceeded the {LEAKAGE_SUSPECT_THRESHOLD:.0%} leakage-suspicion threshold on Accuracy or Weighted F1 - "
+          f"scores look consistent with a genuinely non-trivial prediction task.")
+
 
 # ===========================================================================
 # 9. SAVE VISUAL OUTPUTS AS PNG
@@ -634,10 +657,12 @@ Summary:
   (Recall={best_high_recall_row['High-Priority Recall']:.4f}).
 - Logistic Regression (primary/baseline model): Accuracy={lr_acc:.4f}, Weighted F1={lr_f1_weighted:.4f},
   Macro ROC-AUC={roc_auc_macro:.4f}, 5-fold CV weighted F1={cv_scores.mean():.4f} (+/- {cv_scores.std():.4f}).
-- Tree-based ensembles (Random Forest / Gradient Boosting / XGBoost) typically outperform the linear
-  Logistic Regression baseline here because Priority_Label is a nonlinear combination (via bucket
-  thresholds) of prior_avg_score, weight, and deadline timing - a relationship tree splits capture
-  more directly than a linear decision boundary, at some cost to interpretability.
+- Priority_Label is derived from real outcomes (score, submitted_late) that are NOT in the feature
+  set, so this is a genuine generalization task rather than label-formula recovery. Tree-based
+  ensembles typically edge out the linear Logistic Regression baseline here because the true
+  relationship between prior performance/engagement/workload and struggling on a future task is
+  nonlinear and involves feature interactions - splits capture that more directly than a linear
+  decision boundary, at some cost to interpretability.
 - Saved artifacts: {os.path.relpath(os.path.join(MODELS_DIR, 'priority_model.joblib'), BACKEND_DIR)},
   scaler.joblib, label_encoders.joblib (+ xgb_label_encoder.joblib if XGBoost won).
 """)
