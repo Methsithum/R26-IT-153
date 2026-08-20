@@ -6,6 +6,18 @@ export default function TabMonitoring({ state, handleStateSelect, camera, sessio
   const displayVideoRef = useRef(null);
   const { camStatus, stream, probs, confidence, faceDetected, predictError } = camera;
 
+  // Read the headline number off the same probs map that draws the bars, keyed by
+  // the state actually on screen. That keeps "Detected State" and the highlighted
+  // "State Confidence" bar identical by construction -- including after a manual
+  // override, where `state` is the user's pick and `confidence` is still the model's.
+  const displayConfidence = probs[state] ?? confidence;
+
+  // Head turned away => the frontal Haar cascade finds nothing => no prediction runs
+  // at all, and `state` still holds the last reading. This card claims "Detected
+  // State", so while nothing is detected it has to say so instead of that stale value.
+  const showingNoFace = sessionOn && camStatus === "live" && !faceDetected;
+  const shownCfg = showingNoFace ? STATE_CFG.NoFace : STATE_CFG[state];
+
   // Same MediaStream as the hidden capture <video> in FocusApp — a stream can be
   // attached to multiple <video> elements at once, each renders independently.
   useEffect(() => {
@@ -79,11 +91,13 @@ export default function TabMonitoring({ state, handleStateSelect, camera, sessio
       </div>
 
       <div className="col-span-12 md:col-span-5 flex flex-col gap-4">
-        <Card className="p-6 text-center transition-all duration-700" style={{ background: `linear-gradient(135deg,${STATE_CFG[state].color}15,rgba(255,255,255,0.5))`, borderColor: STATE_CFG[state].border, boxShadow: `0 0 40px ${STATE_CFG[state].color}15` }}>
-          <div className="text-6xl mb-3">{STATE_CFG[state].icon}</div>
-          <p className="text-3xl font-bold mb-1" style={{ color: STATE_CFG[state].color }}>{STATE_CFG[state].label}</p>
-          <p className="text-xs text-slate-600 uppercase tracking-widest">Detected State</p>
-          <div className="mt-4 px-4 py-2 rounded-xl inline-block text-xs font-semibold" style={{ backgroundColor: `${STATE_CFG[state].color}15`, color: STATE_CFG[state].color, border: `1px solid ${STATE_CFG[state].color}30` }}>Confidence: {Math.round(confidence * 100)}%</div>
+        <Card className="p-6 text-center transition-all duration-700" style={{ background: `linear-gradient(135deg,${shownCfg.color}15,rgba(255,255,255,0.5))`, borderColor: shownCfg.border, boxShadow: `0 0 40px ${shownCfg.color}15` }}>
+          <div className="text-6xl mb-3">{shownCfg.icon}</div>
+          <p className="text-3xl font-bold mb-1" style={{ color: shownCfg.color }}>{shownCfg.label}</p>
+          <p className="text-xs text-slate-600 uppercase tracking-widest">
+            {showingNoFace ? "Look at the camera to resume detection" : "Detected State"}
+          </p>
+          <div className="mt-4 px-4 py-2 rounded-xl inline-block text-xs font-semibold" style={{ backgroundColor: `${shownCfg.color}15`, color: shownCfg.color, border: `1px solid ${shownCfg.color}30` }}>Confidence: {Math.round(displayConfidence * 100)}%</div>
         </Card>
 
         <Card className="p-5">

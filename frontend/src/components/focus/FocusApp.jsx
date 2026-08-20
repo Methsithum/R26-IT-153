@@ -163,6 +163,14 @@ export default function FocusApp() {
   const camera = useFocusCamera(sessionOn, handleDetection);
   const { captureVideoRef, canvasRef } = camera;
 
+  // The header chip asserts a current state, so it follows the same rule as the
+  // Monitoring card: with the camera live and no face in frame, no prediction is
+  // running and `state` is only the last reading -- say "No face" instead of it.
+  // `state` itself is left alone; it still drives interventions, the tree and scoring.
+  const headerCfg = sessionOn && camera.camStatus === "live" && !camera.faceDetected
+    ? STATE_CFG.NoFace
+    : cfg;
+
   const VIEWS = {
     dashboard: <TabDashboard state={state} points={points} focusMin={focusMin} streak={streak} TEAM={TEAM} ACHIEVEMENTS_LIST={liveAchievements} LEVEL_DATA={LEVEL_DATA} todayGoal={todayGoal} dist={dist} myRank={myRank} />,
     monitoring: <TabMonitoring state={state} handleStateSelect={handleStateSelect} camera={camera} sessionOn={sessionOn} setSessionOn={setSessionOn} dist={dist} points={points} focusMin={focusMin} />,
@@ -182,7 +190,7 @@ export default function FocusApp() {
         <div className="absolute bottom-0 right-1/4 w-64 h-64 rounded-full blur-3xl" style={{ backgroundColor: "#22c55e", opacity: 0.06 }} />
       </div>
 
-      <FocusHeader tab={tab} setTab={setTab} cfg={cfg} points={points} sessionOn={sessionOn} setSessionOn={setSessionOn} setShowCheckIn={setShowCheckIn} />
+      <FocusHeader tab={tab} setTab={setTab} cfg={headerCfg} points={points} sessionOn={sessionOn} setSessionOn={setSessionOn} setShowCheckIn={setShowCheckIn} />
 
       {/* Hidden capture source for useFocusCamera — kept mounted here (not inside the
           Monitoring tab) so the webcam session survives switching tabs. */}

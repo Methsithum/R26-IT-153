@@ -5,6 +5,10 @@ export const STATE_CFG = {
   Fatigue: { color:"#f97316", bg:"#f9731612", border:"#f9731635", icon:"😴", label:"Fatigue"  },
   Anxiety: { color:"#ef4444", bg:"#ef444412", border:"#ef444435", icon:"😰", label:"Anxiety"  },
   Boredom: { color:"#3b82f6", bg:"#3b82f612", border:"#3b82f635", icon:"😑", label:"Boredom"  },
+  // Not a model class (deliberately absent from CLASSES, so it never gets a
+  // probability bar) -- the display stand-in for "the camera is live but there
+  // is no face to read", which otherwise showed the last state as if current.
+  NoFace:  { color:"#94a3b8", bg:"#94a3b812", border:"#94a3b835", icon:"👤", label:"No face" },
 };
 
 export const LEVEL_DATA = [
