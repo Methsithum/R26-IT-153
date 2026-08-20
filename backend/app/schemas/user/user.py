@@ -52,3 +52,4 @@ class UserResponse(BaseModel):
     badges: list[str]
     current_day: int = 1
     daily_completed: bool = False
+    level: int = 1

@@ -1,6 +1,8 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useGameStore } from "../state/GameStateManager";
+import { badgeByLabel, XP_PER_LEVEL, xpIntoLevel } from "../data/progression";
+import LevelRing from "./LevelRing";
 import DiscardTodayButton from "../../Pages/Journal/DiscardTodayButton";
 import { getBuildingById } from "../data/buildings";
 
@@ -21,8 +23,12 @@ export default function DailyCompletionScreen() {
   const xp = useGameStore((s) => s.xp);
   const score = useGameStore((s) => s.score);
   const level = useGameStore((s) => s.level);
+  const runStartLevel = useGameStore((s) => s.runStartLevel);
+  const newBadges = useGameStore((s) => s.newBadges);
+  const currentStreak = useGameStore((s) => s.currentStreak);
   const journalDay = useGameStore((s) => s.journalDay);
   const rank = rankFor(score);
+  const leveledUp = level > (runStartLevel || 1);
   const places = [
     ...new Set(
       (journalDay.interactionsCompleted || [])
@@ -30,8 +36,8 @@ export default function DailyCompletionScreen() {
         .filter(Boolean)
     ),
   ];
-  const xpIntoLevel = xp % 500;
-  const pct = Math.min(100, Math.round((xpIntoLevel / 500) * 100));
+  const into = xpIntoLevel(xp);
+  const pct = Math.min(100, Math.round((into / XP_PER_LEVEL) * 100));
 
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
@@ -52,41 +58,70 @@ export default function DailyCompletionScreen() {
         </motion.div>
         <p className="mt-1 text-sm text-slate-400">{rank.blurb}</p>
 
-        <div className="mt-6 grid grid-cols-3 gap-3">
-          {[
-            ["Score", score, "text-sky-300"],
-            ["XP", xp, "text-amber-300"],
-            ["Level", level, "text-emerald-300"],
-          ].map(([label, value, color], i) => (
-            <motion.div
-              key={label}
-              initial={{ y: 10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.16 + i * 0.06 }}
-              className="rounded-2xl border border-white/10 bg-slate-950/50 px-2 py-3"
-            >
-              <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{label}</div>
-              <div className={`mt-1 text-lg font-bold ${color}`}>
-                <CountUp value={value} />
-              </div>
-            </motion.div>
-          ))}
+        {leveledUp && (
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0, y: 8 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            transition={{ delay: 0.18, type: "spring", stiffness: 260 }}
+            className="mt-5 overflow-hidden rounded-2xl border border-amber-300/40 bg-gradient-to-r from-amber-500/20 via-emerald-400/10 to-sky-400/20 px-4 py-3"
+          >
+            <div className="text-[10px] uppercase tracking-[0.28em] text-amber-300">Campus rank up</div>
+            <div className="text-2xl font-black text-white">Level {level}</div>
+            <div className="text-xs text-slate-300">
+              You rose from Level {runStartLevel} — this rank is saved to your journal.
+            </div>
+          </motion.div>
+        )}
+
+        <div className="mt-6 flex items-center gap-4 rounded-2xl border border-white/10 bg-slate-950/50 p-4 text-left">
+          <LevelRing xp={xp} level={level} size={84} tone="night" />
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-[0.16em] text-slate-500">
+              <span>Next level</span>
+              <span>
+                {into} / {XP_PER_LEVEL}
+              </span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-slate-700/70">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${pct}%` }}
+                transition={{ delay: 0.3, duration: 0.7, ease: "easeOut" }}
+                className="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-400"
+              />
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {[
+                ["XP", xp, "text-amber-300"],
+                ["Score", score, "text-sky-300"],
+                ["Streak", currentStreak, "text-orange-300"],
+              ].map(([label, value, color]) => (
+                <div key={label}>
+                  <div className="text-[9px] uppercase tracking-[0.14em] text-slate-500">{label}</div>
+                  <div className={`text-sm font-bold ${color}`}>
+                    <CountUp value={value} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
-        <div className="mt-5 text-left">
-          <div className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-[0.16em] text-slate-500">
-            <span>Next level</span>
-            <span>{xpIntoLevel} / 500</span>
+        {newBadges?.length > 0 && (
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            {newBadges.map((label) => {
+              const meta = badgeByLabel(label);
+              return (
+                <span
+                  key={label}
+                  className="rounded-full border border-amber-300/40 bg-amber-400/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-200"
+                >
+                  {meta.icon} {label}
+                </span>
+              );
+            })}
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-slate-700/70">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${pct}%` }}
-              transition={{ delay: 0.3, duration: 0.7, ease: "easeOut" }}
-              className="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-400"
-            />
-          </div>
-        </div>
+        )}
 
         <p className="mt-5 text-sm text-slate-400">
           {journalDay.responses.length} check-ins

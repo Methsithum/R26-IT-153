@@ -9,11 +9,13 @@ import FinishAheadBanner from "./FinishAheadBanner";
 import LivesDisplay from "./LivesDisplay";
 import ComboBadge from "./ComboBadge";
 import HitFx from "./HitFx";
+import LevelUpBurst from "./LevelUpBurst";
 
 export default function GameHUD() {
   return (
     <div className="absolute inset-0 pointer-events-none select-none">
       <HitFx />
+      <LevelUpBurst />
 
       <div className="absolute top-4 left-4">
         <DailyProgress />

@@ -59,7 +59,26 @@ export async function getUserSessions(userId) {
   return data.sessions || [];
 }
 
+export async function getUserTasks(userId) {
+  const { data } = await api.get(`/users/${userId}/tasks`);
+  return data.tasks || [];
+}
+
+export async function getUserExams(userId) {
+  const { data } = await api.get(`/users/${userId}/exams`);
+  return data.exams || [];
+}
+
 export async function getUserGamification(userId) {
   const { data } = await api.get(`/users/${userId}/gamification`);
   return data;
+}
+
+export async function loadUserWorld(userId) {
+  const [sessions, tasks, exams] = await Promise.all([
+    getUserSessions(userId),
+    getUserTasks(userId),
+    getUserExams(userId),
+  ]);
+  return { sessions, tasks, exams };
 }

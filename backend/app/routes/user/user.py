@@ -6,6 +6,7 @@ from app.models.journal.task import TaskModel
 from app.models.journal.reflection import ReflectionModel
 from app.models.journal.exam import ExamModel
 from app.services.auth import verify_password
+from app.services.journal.gamification import level_from_xp
 from app.services.time_utils import local_today_iso, to_local_date
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -45,6 +46,7 @@ def _to_response(doc: dict, sessions: list[dict] | None = None) -> UserResponse:
         badges=doc.get("badges") or [],
         current_day=current_day,
         daily_completed=daily_completed,
+        level=level_from_xp(doc.get("total_xp", 0)),
     )
 
 
@@ -134,6 +136,7 @@ async def get_user_gamification(user_id: str):
     return {
         "user_id": user_id,
         "total_xp": user.get("total_xp", 0),
+        "level": level_from_xp(user.get("total_xp", 0)),
         "current_streak": user.get("current_streak", 0),
         "longest_streak": user.get("longest_streak", 0),
         "badges": user.get("badges", []),

@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useGameStore } from "../../Game/state/GameStateManager";
 import { useJournalHistoryStore } from "../../Game/state/journalHistoryStore";
 import { buildJournalPage } from "../../Game/data/journalNarrative";
+import { BADGE_CATALOG, XP_PER_LEVEL, xpIntoLevel, xpToNextLevel } from "../../Game/data/progression";
+import LevelRing from "../../Game/UI/LevelRing";
 import { clearStoredUser } from "../../services/userApi";
 import DiscardTodayButton from "./DiscardTodayButton";
 
@@ -419,58 +421,62 @@ function GameDetailsContent() {
   const xp = useGameStore((s) => s.xp);
   const level = useGameStore((s) => s.level);
   const score = useGameStore((s) => s.score);
-  const streak = useJournalHistoryStore((s) => s.currentStreak());
+  const lifetimeScore = useGameStore((s) => s.lifetimeScore);
+  const streak = useGameStore((s) => s.currentStreak);
+  const longestStreak = useGameStore((s) => s.longestStreak);
   const assignments = useGameStore((s) => s.assignments);
   const exams = useGameStore((s) => s.exams);
-  const xpIntoLevel = xp % 500;
+  const into = xpIntoLevel(xp);
+  const campusScore = Math.max(lifetimeScore || 0, score || 0);
 
   return (
     <div>
       <h2 className="text-xl font-bold mb-4">Game Details</h2>
 
-      {/* gamified header: level badge + XP ring progress + streak flame */}
-      <div className="flex items-center gap-4 mb-5">
-        <div className="relative w-16 h-16 shrink-0">
-          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-amber-300 to-amber-700 shadow-lg" />
-          <div className="absolute inset-[3px] rounded-full bg-[#f5ecd9] flex flex-col items-center justify-center">
-            <div className="text-[9px] uppercase text-stone-500 leading-none">Lv</div>
-            <div className="text-xl font-extrabold text-amber-800 leading-none">{level}</div>
+      <div className="relative overflow-hidden rounded-2xl border border-amber-800/15 bg-gradient-to-br from-amber-50 via-[#f5ecd9] to-orange-100 p-4 mb-5 shadow-sm">
+        <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-amber-300/30 blur-2xl" />
+        <div className="relative flex items-center gap-4">
+          <LevelRing xp={xp} level={level} size={88} />
+          <div className="flex-1 min-w-0">
+            <div className="text-[11px] uppercase tracking-[0.22em] text-amber-800/70">Campus rank</div>
+            <div className="text-2xl font-black text-amber-950 leading-tight">Level {level}</div>
+            <div className="mt-2 flex items-center justify-between text-[11px] text-stone-500">
+              <span>{into.toLocaleString()} / {XP_PER_LEVEL} XP</span>
+              <span>{xpToNextLevel(xp)} to Lv {level + 1}</span>
+            </div>
+            <div className="mt-1 h-2.5 overflow-hidden rounded-full bg-amber-900/10 shadow-inner">
+              <motion.div
+                className="h-full rounded-full bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500"
+                initial={{ width: 0 }}
+                animate={{ width: `${(into / XP_PER_LEVEL) * 100}%` }}
+                transition={{ duration: 0.7, ease: "easeOut" }}
+              />
+            </div>
           </div>
-        </div>
-        <div className="flex-1">
-          <div className="flex items-center justify-between text-[11px] text-stone-500 mb-1">
-            <span>XP Progress</span>
-            <span>{xpIntoLevel} / 500</span>
+          <div className="flex flex-col items-center rounded-2xl bg-orange-50/90 border border-orange-800/10 px-3 py-2 shadow-inner">
+            <div className="text-xl leading-none">🔥</div>
+            <div className="text-lg font-black text-orange-700 leading-none">{streak}</div>
+            <div className="text-[9px] uppercase tracking-wide text-stone-500">streak</div>
+            {longestStreak > 0 && (
+              <div className="mt-1 text-[9px] text-orange-800/70">best {longestStreak}</div>
+            )}
           </div>
-          <div className="w-full h-3 rounded-full bg-stone-300/70 overflow-hidden shadow-inner">
-            <motion.div
-              className="h-full bg-gradient-to-r from-amber-400 to-amber-600"
-              initial={{ width: 0 }}
-              animate={{ width: `${(xpIntoLevel / 500) * 100}%` }}
-              transition={{ duration: 0.6, ease: "easeOut" }}
-            />
-          </div>
-        </div>
-        <div className="flex flex-col items-center rounded-lg bg-orange-50 border border-orange-800/10 px-3 py-1.5">
-          <div className="text-lg leading-none">🔥</div>
-          <div className="text-sm font-extrabold text-orange-700 leading-tight">{streak}</div>
-          <div className="text-[9px] uppercase text-stone-500 leading-none">streak</div>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 mb-6">
-        <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-800/10 px-3 py-2">
+        <div className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-800/10 px-3 py-2.5">
           <span className="text-lg">⭐</span>
           <div>
             <div className="text-[10px] uppercase text-stone-500">Total XP</div>
             <div className="text-base font-bold text-stone-800">{xp.toLocaleString()}</div>
           </div>
         </div>
-        <div className="flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-800/10 px-3 py-2">
+        <div className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-800/10 px-3 py-2.5">
           <span className="text-lg">🪙</span>
           <div>
-            <div className="text-[10px] uppercase text-stone-500">Score</div>
-            <div className="text-base font-bold text-stone-800">{score.toLocaleString()}</div>
+            <div className="text-[10px] uppercase text-stone-500">Campus score</div>
+            <div className="text-base font-bold text-stone-800">{campusScore.toLocaleString()}</div>
           </div>
         </div>
       </div>
@@ -549,6 +555,8 @@ function GameDetailsContent() {
 function CharacterStatsContent() {
   const xp = useGameStore((s) => s.xp);
   const level = useGameStore((s) => s.level);
+  const badges = useGameStore((s) => s.badges);
+  const streak = useGameStore((s) => s.currentStreak);
   const playerName = useGameStore((s) => s.playerName);
   const subjects = useGameStore((s) => s.subjects);
   const universityName = useGameStore((s) => s.universityName);
@@ -556,13 +564,22 @@ function CharacterStatsContent() {
   const campusYear = useGameStore((s) => s.campusYear);
   const semester = useGameStore((s) => s.semester);
   const gpa = useGameStore((s) => s.gpa);
-  const xpIntoLevel = xp % 500;
+  const into = xpIntoLevel(xp);
+  const earned = new Set(badges || []);
+
   return (
     <div>
-      <h2 className="text-xl font-bold mb-1">{playerName || "Student"}</h2>
-      <div className="text-sm text-stone-500 mb-4">
-        Level {level} Student
-        {universityName ? ` · ${universityName}` : ""}
+      <div className="flex items-center gap-4 mb-5">
+        <LevelRing xp={xp} level={level} size={100} />
+        <div className="min-w-0">
+          <h2 className="text-xl font-bold mb-0.5 truncate">{playerName || "Student"}</h2>
+          <div className="text-sm text-stone-500">
+            Level {level} Student{universityName ? ` · ${universityName}` : ""}
+          </div>
+          <div className="mt-2 text-xs font-semibold text-amber-800">
+            {xpToNextLevel(xp)} XP to Level {level + 1}
+          </div>
+        </div>
       </div>
       {(degreeName || campusYear || semester || gpa != null) && (
         <p className="text-sm text-stone-600 mb-4">
@@ -571,13 +588,14 @@ function CharacterStatsContent() {
             campusYear ? `Year ${campusYear}` : null,
             semester ? `Semester ${semester}` : null,
             gpa != null ? `GPA ${Number(gpa).toFixed(2)}` : null,
+            streak ? `${streak}-day streak` : null,
           ]
             .filter(Boolean)
             .join(" · ")}
         </p>
       )}
       {subjects.length > 0 && (
-        <div className="mb-6 flex flex-wrap gap-2">
+        <div className="mb-5 flex flex-wrap gap-2">
           {subjects.map((subject) => (
             <span
               key={subject}
@@ -589,22 +607,35 @@ function CharacterStatsContent() {
         </div>
       )}
       <div className="w-full h-3 rounded-full bg-stone-300 overflow-hidden mb-1">
-        <div
-          className="h-full bg-amber-600"
-          style={{ width: `${(xpIntoLevel / 500) * 100}%` }}
+        <motion.div
+          className="h-full bg-gradient-to-r from-amber-400 to-amber-700"
+          initial={{ width: 0 }}
+          animate={{ width: `${(into / XP_PER_LEVEL) * 100}%` }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
         />
       </div>
-      <div className="text-xs text-stone-500 mb-6">{xpIntoLevel} / 500 XP to next level</div>
-      <div className="text-sm font-semibold text-stone-700 mb-2">Achievements</div>
-      <div className="flex gap-3 flex-wrap">
-        {["First Journal", "3-Day Streak", "Mark Reported", "Deadline Set"].map((a) => (
-          <span
-            key={a}
-            className="text-xs rounded-full bg-amber-100 border border-amber-800/10 px-3 py-1 text-amber-800"
-          >
-            {a}
-          </span>
-        ))}
+      <div className="text-xs text-stone-500 mb-6">{into} / {XP_PER_LEVEL} XP in this rank</div>
+      <div className="text-sm font-semibold text-stone-700 mb-3">Achievements</div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+        {BADGE_CATALOG.map((badge) => {
+          const unlocked = earned.has(badge.key);
+          return (
+            <div
+              key={badge.key}
+              className={`rounded-xl border px-3 py-3 text-center transition-all ${
+                unlocked
+                  ? "bg-gradient-to-br from-amber-50 to-orange-50 border-amber-400/50 shadow-sm"
+                  : "bg-stone-100/70 border-stone-200 opacity-55"
+              }`}
+            >
+              <div className={`text-xl ${unlocked ? "" : "grayscale"}`}>{badge.icon}</div>
+              <div className={`mt-1 text-[11px] font-bold leading-tight ${unlocked ? "text-amber-900" : "text-stone-500"}`}>
+                {badge.label}
+              </div>
+              <div className="mt-0.5 text-[9px] text-stone-500 leading-snug">{unlocked ? "Unlocked" : badge.hint}</div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

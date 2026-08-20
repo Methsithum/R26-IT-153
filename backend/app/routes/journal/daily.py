@@ -1,12 +1,12 @@
 from fastapi import APIRouter, HTTPException
-from app.schemas.journal.daily import StartDailyRequest, AnswerRequest, NextQuestionResponse
+from app.schemas.journal.daily import StartDailyRequest, AnswerRequest, FinishRunRequest, NextQuestionResponse
 from app.models.journal.daily_session import DailySessionModel
 from app.models.journal.task import TaskModel
 from app.models.journal.exam import ExamModel
 from app.models.user.user import UserModel
 from app.services.journal.llm_service import fallback_daily_journal, generate_daily_journal
 from app.services.journal.question_picker import pick_next_question
-from app.services.journal.gamification import _calculate_xp, update_streak_and_xp
+from app.services.journal.gamification import _calculate_xp, apply_run_rewards, progress_fields, update_streak_and_xp, level_from_xp
 from app.services.journal.journal_service import build_session_context
 from app.services.journal.journal_constants import ASSIGNMENT_STATUS_ANSWERS, filter_allowed_activities
 from app.services.journal.alerts import generate_proactive_alerts
@@ -555,7 +555,7 @@ async def _complete_session(session_id: str, session: dict, qa_list: list, task_
     except Exception as e:
         logger.warning(f"Failed to update learning patterns: {e}")
 
-    xp_earned, _ = await update_streak_and_xp(
+    xp_earned, new_badges = await update_streak_and_xp(
         session["user_id"],
         session["date"],
         questions_count=len(qa_list),
@@ -563,7 +563,20 @@ async def _complete_session(session_id: str, session: dict, qa_list: list, task_
         has_at_risk=bool(context.get("at_risk_tasks")),
     )
     await DailySessionModel.update(session_id, {"xp_earned": xp_earned})
-    return {"narrative": narrative, "highlights": highlights}
+    user = await UserModel.find_by_id(session["user_id"]) or user
+    sessions = await DailySessionModel.find_user_sessions(session["user_id"])
+    current_day, daily_completed = _progress_from_sessions(sessions)
+    return {
+        "narrative": narrative,
+        "highlights": highlights,
+        **progress_fields(
+            user,
+            current_day=current_day,
+            daily_completed=daily_completed,
+            xp_earned=xp_earned,
+            new_badges=new_badges,
+        ),
+    }
 
 
 @router.post("/start", response_model=NextQuestionResponse)
@@ -752,12 +765,34 @@ async def answer_question(req: AnswerRequest):
             completed=True,
             journal_entry=page.get("narrative"),
             journal_highlights=page.get("highlights") or [],
+            total_xp=page.get("total_xp"),
+            level=page.get("level"),
+            xp_earned=page.get("xp_earned"),
+            current_streak=page.get("current_streak"),
+            longest_streak=page.get("longest_streak"),
+            badges=page.get("badges"),
+            new_badges=page.get("new_badges"),
+            current_day=page.get("current_day"),
+            daily_completed=page.get("daily_completed"),
         )
 
     next_q = decision["question"]
     update_data.update(_pending_fields(next_q))
     await DailySessionModel.update(req.session_id, update_data)
     return _pack_question(req.session_id, next_q)
+
+
+@router.post("/finish")
+async def finish_daily_run(req: FinishRunRequest):
+    session = await DailySessionModel.find_by_id(req.session_id)
+    if not session:
+        raise HTTPException(404, "Session not found")
+    if not session.get("completed"):
+        raise HTTPException(400, "Finish the journal questions before closing the run")
+    payload = await apply_run_rewards(session["user_id"], req.session_id, req.xp_earned, req.score)
+    if not payload:
+        raise HTTPException(404, "User not found")
+    return payload
 
 
 @router.delete("/today/{user_id}")
@@ -817,6 +852,7 @@ async def delete_today_journal(user_id: str):
         "badges": user.get("badges") or [],
         "current_day": current_day,
         "daily_completed": daily_completed,
+        "level": level_from_xp(user.get("total_xp", 0)),
         "sessions": remaining,
         "tasks": await TaskModel.find_by_user(user_id),
         "exams": await ExamModel.find_by_user(user_id),

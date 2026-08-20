@@ -1,30 +1,35 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { levelFromXp } from "../data/progression";
 
 function sessionsToEntries(sessions = []) {
+  let runningXp = 0;
   return (sessions || [])
     .filter((session) => session && session.completed)
     .sort((a, b) => new Date(a.date) - new Date(b.date))
-    .map((session, index) => ({
-      day: index + 1,
-      journalEntry: session.journal_entry || "",
-      highlights: session.journal_highlights || [],
-      journalDay: {
+    .map((session, index) => {
+      runningXp += Number(session.xp_earned || 0);
+      return {
         day: index + 1,
-        responses: (session.qa_history || []).map((qa) => ({
-          questionId: qa.question_id,
-          questionText: qa.question,
-          category: "academic",
-          answer: qa.answer,
-          source: "backend",
-        })),
-        interactionsCompleted: [],
-      },
-      xp: session.xp_earned || 0,
-      score: session.score_earned || 0,
-      level: 1,
-      completedAt: session.date,
-    }));
+        journalEntry: session.journal_entry || "",
+        highlights: session.journal_highlights || [],
+        journalDay: {
+          day: index + 1,
+          responses: (session.qa_history || []).map((qa) => ({
+            questionId: qa.question_id,
+            questionText: qa.question,
+            category: "academic",
+            answer: qa.answer,
+            source: "backend",
+          })),
+          interactionsCompleted: [],
+        },
+        xp: session.xp_earned || 0,
+        score: session.score_earned || 0,
+        level: levelFromXp(runningXp),
+        completedAt: session.date,
+      };
+    });
 }
 
 export const useJournalHistoryStore = create(

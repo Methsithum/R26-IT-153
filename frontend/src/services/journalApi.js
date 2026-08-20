@@ -34,3 +34,12 @@ export async function deleteTodayJournal(userId) {
   const { data } = await api.delete(`/daily/today/${userId}`);
   return data;
 }
+
+export async function finishDailyRun({ sessionId, xpEarned, score }) {
+  const { data } = await api.post("/daily/finish", {
+    session_id: sessionId,
+    xp_earned: xpEarned,
+    score,
+  });
+  return data;
+}

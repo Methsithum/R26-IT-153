@@ -227,6 +227,15 @@ const PLAY = {
     });
     osc(c, { type: "sine", freq: 523, start: t + 0.42, dur: 0.55, peak: 0.08 });
   },
+  levelUp() {
+    const c = audio();
+    if (!c) return;
+    const t = c.currentTime;
+    [523, 659, 784, 1046, 1318].forEach((freq, i) => {
+      osc(c, { type: "triangle", freq, start: t + i * 0.08, dur: 0.28, peak: 0.14 });
+    });
+    osc(c, { type: "sine", freq: 784, start: t + 0.28, dur: 0.55, peak: 0.09 });
+  },
   tape() {
     const c = audio();
     if (!c) return;

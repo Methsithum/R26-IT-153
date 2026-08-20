@@ -5,8 +5,8 @@ import DailyActivitySelection from "./Pages/Journal/DailyActivitySelection";
 import GamePage from "./Pages/Journal/GamePage";
 import Register from "./Pages/Auth/Register";
 import Login from "./Pages/Auth/Login";
-import { getUserSessions, readStoredUser, refreshStoredUser } from "./services/userApi";
-import { useGameStore } from "./Game/state/GameStateManager";
+import { loadUserWorld, readStoredUser, refreshStoredUser } from "./services/userApi";
+import { isActiveCampusRun, useGameStore } from "./Game/state/GameStateManager";
 import { useJournalHistoryStore } from "./Game/state/journalHistoryStore";
 
 function RequireAuth({ children }) {
@@ -24,7 +24,8 @@ function RedirectIfAuthed({ children }) {
 function HydrateUser({ children }) {
   useEffect(() => {
     const local = readStoredUser();
-    if (local) useGameStore.getState().applyUserProgress(local);
+    const preserveRun = isActiveCampusRun(useGameStore.getState());
+    if (local) useGameStore.getState().applyUserProgress(local, { preserveRun });
     let cancelled = false;
     (async () => {
       try {
@@ -34,9 +35,12 @@ function HydrateUser({ children }) {
           window.location.assign("/register");
           return;
         }
-        useGameStore.getState().applyUserProgress(user);
-        const sessions = await getUserSessions(user.id);
-        if (!cancelled) useJournalHistoryStore.getState().hydrateFromSessions(sessions, user.id);
+        const stillRunning = isActiveCampusRun(useGameStore.getState());
+        useGameStore.getState().applyUserProgress(user, { preserveRun: stillRunning });
+        const world = await loadUserWorld(user.id);
+        if (cancelled) return;
+        useGameStore.getState().applyWorldRecords(world);
+        useJournalHistoryStore.getState().hydrateFromSessions(world.sessions, user.id);
       } catch {
         // Offline — local stored progress still applies.
       }

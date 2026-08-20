@@ -70,6 +70,7 @@ export default function useGameAudio() {
         if (last.kind === "hit") play("hit");
         if (last.kind === "combo") play("combo");
         if (last.kind === "pickup") play("pickup");
+        if (last.kind === "level") play("levelUp");
       }
     });
 

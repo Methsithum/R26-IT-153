@@ -1,8 +1,12 @@
 from app.models.user.user import UserModel
 from app.models.journal.daily_session import DailySessionModel
 from app.models.journal.task import TaskModel
+from app.services.time_utils import local_today_iso, to_local_date
 from datetime import datetime
 from typing import Dict, List, Tuple
+
+XP_PER_LEVEL = 500
+MAX_SESSION_XP = 2500
 
 BADGES = {
     "first_journal": "First Journal Entry",
@@ -40,6 +44,56 @@ TASK_MILESTONES = {
 }
 
 COMPLETED_TASK_STAGES = {"completed", "joined"}
+
+
+def level_from_xp(total_xp: int) -> int:
+    return max(1, int(total_xp or 0) // XP_PER_LEVEL + 1)
+
+
+def xp_into_level(total_xp: int) -> int:
+    return int(total_xp or 0) % XP_PER_LEVEL
+
+
+def progress_from_sessions(sessions: List[Dict]) -> Tuple[int, bool]:
+    completed = [s for s in (sessions or []) if s and s.get("completed")]
+    completed.sort(key=lambda s: str(s.get("date") or ""))
+    today = local_today_iso()
+
+    def _session_date_key(value) -> str | None:
+        day = to_local_date(value)
+        return day.isoformat() if day else None
+
+    today_done = any(_session_date_key(s.get("date")) == today for s in completed)
+    if today_done:
+        return max(1, len(completed)), True
+    return len(completed) + 1, False
+
+
+def progress_fields(
+    user: Dict,
+    *,
+    current_day: int = 1,
+    daily_completed: bool = False,
+    xp_earned: int | None = None,
+    new_badges: List[str] | None = None,
+) -> Dict:
+    total_xp = int(user.get("total_xp") or 0)
+    payload = {
+        "total_xp": total_xp,
+        "level": level_from_xp(total_xp),
+        "xp_into_level": xp_into_level(total_xp),
+        "xp_per_level": XP_PER_LEVEL,
+        "current_streak": int(user.get("current_streak") or 0),
+        "longest_streak": int(user.get("longest_streak") or 0),
+        "badges": user.get("badges") or [],
+        "current_day": current_day,
+        "daily_completed": daily_completed,
+    }
+    if xp_earned is not None:
+        payload["xp_earned"] = int(xp_earned)
+    if new_badges is not None:
+        payload["new_badges"] = new_badges
+    return payload
 
 
 def _calculate_xp(questions_count: int, engagement: str | None, has_at_risk: bool) -> int:
@@ -137,6 +191,52 @@ async def update_streak_and_xp(
     return xp_earned, new_badges
 
 
+async def apply_run_rewards(user_id: str, session_id: str, xp_earned: int, score: int) -> Dict:
+    """Reconcile campus-run XP with the journal award so level-ups persist."""
+    user = await UserModel.find_by_id(user_id)
+    session = await DailySessionModel.find_by_id(session_id)
+    if not user or not session:
+        return {}
+
+    sessions = await DailySessionModel.find_user_sessions(user_id)
+    current_day, daily_completed = progress_from_sessions(sessions)
+
+    already = int(session.get("xp_earned") or 0)
+    if session.get("run_xp_applied"):
+        return progress_fields(
+            user,
+            current_day=current_day,
+            daily_completed=daily_completed,
+            xp_earned=already,
+            new_badges=[],
+        )
+
+    awarded = min(MAX_SESSION_XP, max(already, int(xp_earned or 0)))
+    delta = awarded - already
+    total_xp = max(0, int(user.get("total_xp") or 0) + delta)
+    badges = list(user.get("badges") or [])
+    new_badges: List[str] = []
+    _award_milestone_badges(badges, XP_MILESTONES, total_xp, new_badges)
+
+    await UserModel.update(user_id, {"total_xp": total_xp, "badges": badges})
+    await DailySessionModel.update(
+        session_id,
+        {
+            "xp_earned": awarded,
+            "score_earned": max(0, int(score or 0)),
+            "run_xp_applied": True,
+        },
+    )
+    user = await UserModel.find_by_id(user_id) or {**user, "total_xp": total_xp, "badges": badges}
+    return progress_fields(
+        user,
+        current_day=current_day,
+        daily_completed=True,
+        xp_earned=awarded,
+        new_badges=new_badges,
+    )
+
+
 def _combined_score(user: Dict) -> int:
     return int(user.get("total_xp", 0)) + (int(user.get("current_streak", 0)) * 10)
 
@@ -189,6 +289,7 @@ async def get_leaderboard(limit: int = 10) -> List[Dict]:
             "user_id": user.get("id"),
             "name": user.get("name"),
             "total_xp": user.get("total_xp", 0),
+            "level": level_from_xp(user.get("total_xp", 0)),
             "current_streak": user.get("current_streak", 0),
             "combined_score": _combined_score(user),
         })
@@ -207,8 +308,9 @@ async def get_gamification_summary(user_id: str) -> Dict | None:
     tasks = await TaskModel.find_by_user(user_id)
     completed_tasks = _count_completed_tasks(tasks)
 
-    total_xp = user.get("total_xp", 0)
+    total_xp = int(user.get("total_xp", 0) or 0)
     current_streak = user.get("current_streak", 0)
+    current_day, daily_completed = progress_from_sessions(sessions)
 
     next_badge = _next_badge_progress(
         badges=user.get("badges", []),
@@ -228,10 +330,7 @@ async def get_gamification_summary(user_id: str) -> Dict | None:
     return {
         "user_id": user.get("id"),
         "user_name": user.get("name"),
-        "total_xp": total_xp,
-        "current_streak": current_streak,
-        "longest_streak": user.get("longest_streak", 0),
-        "badges": user.get("badges", []),
+        **progress_fields(user, current_day=current_day, daily_completed=daily_completed),
         "completed_journals": completed_journals,
         "completed_tasks": completed_tasks,
         "combined_score": _combined_score(user),

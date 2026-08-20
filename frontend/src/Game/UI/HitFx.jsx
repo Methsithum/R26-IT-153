@@ -8,6 +8,7 @@ const KIND_STYLE = {
   pickup: "text-emerald-200",
   answer: "text-sky-200",
   save: "text-amber-100",
+  level: "text-amber-200",
 };
 
 export default function HitFx() {

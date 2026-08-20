@@ -6,8 +6,9 @@ import { EXAM_STATUS } from "../data/exams";
 import { getBuildingById } from "../data/buildings";
 import { missionLabel } from "../Environment/stationMap";
 import { mapBackendQuestion, serializeAnswer } from "../data/backendQuestion";
+import { levelFromXp } from "../data/progression";
 import { readStoredUser, storeUser } from "../../services/userApi";
-import { startDailySession, submitDailyAnswer, deleteTodayJournal } from "../../services/journalApi";
+import { startDailySession, submitDailyAnswer, deleteTodayJournal, finishDailyRun } from "../../services/journalApi";
 import { useJournalHistoryStore } from "./journalHistoryStore";
 import { useRunnerStore } from "./runnerStore";
 import {
@@ -90,6 +91,27 @@ function pushFloater(list, floater) {
   return [...list, floater].slice(-8);
 }
 
+function xpPatch(state, nextXp, extra = {}) {
+  const xp = Math.max(0, nextXp);
+  const prevLevel = state.level || levelFromXp(state.xp);
+  const level = levelFromXp(xp);
+  const patch = { ...extra, xp, level };
+  if (level > prevLevel) {
+    patch.leveledUpTo = level;
+    patch.floatingTexts = pushFloater(extra.floatingTexts || state.floatingTexts, {
+      id: performance.now() + 1,
+      kind: "level",
+      text: `LEVEL ${level}`,
+      sub: "Campus rank up",
+    });
+  }
+  return patch;
+}
+
+export function isActiveCampusRun(state) {
+  return Boolean(state?.sessionId) && state.phase !== PHASES.GAME_START;
+}
+
 const initialDay = 1;
 
 export const useGameStore = create((set, get) => ({
@@ -98,6 +120,14 @@ export const useGameStore = create((set, get) => ({
   level: 1,
   xp: 0,
   score: 0,
+  lifetimeScore: 0,
+  currentStreak: 0,
+  longestStreak: 0,
+  badges: [],
+  newBadges: [],
+  runStartXp: 0,
+  runStartLevel: 1,
+  leveledUpTo: null,
   speed: 12,
   lives: MAX_LIVES,
   combo: 0,
@@ -141,11 +171,11 @@ export const useGameStore = create((set, get) => ({
   dailyCompleted: false,
   finishLineZ: null,
 
-  applyUserProgress: (user) => {
+  applyUserProgress: (user, { preserveRun = false } = {}) => {
     if (!user) return;
     const xp = user.total_xp ?? get().xp;
-    const day = Math.max(1, user.current_day || 1);
-    set({
+    const day = Math.max(1, user.current_day || get().day || 1);
+    const patch = {
       userId: user.id || get().userId,
       playerName: user.name || get().playerName,
       subjects: user.subjects || [],
@@ -154,13 +184,33 @@ export const useGameStore = create((set, get) => ({
       campusYear: user.campus_year ?? get().campusYear,
       semester: user.semester ?? get().semester,
       gpa: user.gpa ?? null,
-      xp,
-      level: Math.max(1, Math.floor(xp / 500) + 1),
+      currentStreak: user.current_streak ?? get().currentStreak ?? 0,
+      longestStreak: user.longest_streak ?? get().longestStreak ?? 0,
+      badges: Array.isArray(user.badges) ? user.badges : get().badges || [],
       day,
       dailyCompleted: Boolean(user.daily_completed),
       journalDay:
         get().journalDay?.day === day ? get().journalDay : createEmptyJournalDay(day),
-    });
+    };
+    if (!preserveRun) {
+      patch.xp = xp;
+      patch.level = user.level ?? levelFromXp(xp);
+    }
+    if (user.tasks) patch.assignments = mapBackendTasks(user.tasks);
+    if (user.exams) patch.exams = mapBackendExams(user.exams);
+    set(patch);
+  },
+
+  applyWorldRecords: ({ tasks, exams, sessions } = {}) => {
+    const patch = {};
+    if (tasks) patch.assignments = mapBackendTasks(tasks);
+    if (exams) patch.exams = mapBackendExams(exams);
+    if (sessions) {
+      patch.lifetimeScore = sessions
+        .filter((session) => session && session.completed)
+        .reduce((sum, session) => sum + Number(session.score_earned || 0), 0);
+    }
+    if (Object.keys(patch).length) set(patch);
   },
 
   startDailyGame: async ({
@@ -192,6 +242,8 @@ export const useGameStore = create((set, get) => ({
       throw new Error("No journal question could be selected for today.");
     }
 
+    const startXp = get().xp;
+    const startLevel = get().level;
     set({
       phase: PHASES.RUNNING,
       selectedActivities: activities,
@@ -212,12 +264,15 @@ export const useGameStore = create((set, get) => ({
       dailyCompleted: false,
       finishLineZ: null,
       objectiveText: "Continue your campus run",
-      xp: get().xp + XP_RULES.GAME_START,
+      runStartXp: startXp,
+      runStartLevel: startLevel,
+      newBadges: [],
+      score: 0,
       lives: MAX_LIVES,
       combo: 0,
       exhausted: false,
       hitFlashAt: 0,
-      floatingTexts: [],
+      ...xpPatch(get(), startXp + XP_RULES.GAME_START, { floatingTexts: [], leveledUpTo: null }),
     });
   },
 
@@ -229,19 +284,19 @@ export const useGameStore = create((set, get) => ({
 
     const lives = Math.max(0, get().lives - 1);
     const exhausted = lives === 0;
+    const floaters = pushFloater(get().floatingTexts, {
+      id: now,
+      kind: "hit",
+      text: exhausted ? "LATE TO CLASS" : "−1 LIFE",
+      sub: `−${XP_RULES.HIT_PENALTY} XP`,
+    });
     set({
       lives,
       exhausted,
       combo: 0,
-      xp: Math.max(0, get().xp - XP_RULES.HIT_PENALTY),
       score: Math.max(0, get().score - 80),
       hitFlashAt: now,
-      floatingTexts: pushFloater(get().floatingTexts, {
-        id: now,
-        kind: "hit",
-        text: exhausted ? "LATE TO CLASS" : "−1 LIFE",
-        sub: `−${XP_RULES.HIT_PENALTY} XP`,
-      }),
+      ...xpPatch(get(), get().xp - XP_RULES.HIT_PENALTY, { floatingTexts: floaters }),
     });
     runner.beginStumble(now);
   },
@@ -265,16 +320,16 @@ export const useGameStore = create((set, get) => ({
   collectPickup: () => {
     const combo = get().combo + 1;
     const now = performance.now();
+    const floaters = pushFloater(get().floatingTexts, {
+      id: now,
+      kind: "pickup",
+      text: `+${XP_RULES.PICKUP} XP`,
+      sub: combo >= 2 ? `Combo ×${combo}` : "Collected",
+    });
     set({
       combo,
-      xp: get().xp + XP_RULES.PICKUP,
       score: get().score + 50,
-      floatingTexts: pushFloater(get().floatingTexts, {
-        id: now,
-        kind: "pickup",
-        text: `+${XP_RULES.PICKUP} XP`,
-        sub: combo >= 2 ? `Combo ×${combo}` : "Collected",
-      }),
+      ...xpPatch(get(), get().xp + XP_RULES.PICKUP, { floatingTexts: floaters }),
     });
   },
 
@@ -289,6 +344,10 @@ export const useGameStore = create((set, get) => ({
           sessionCompleted: true,
           backendJournalEntry: res.journal_entry || null,
           backendJournalHighlights: res.journal_highlights || [],
+          currentStreak: res.current_streak ?? get().currentStreak,
+          longestStreak: res.longest_streak ?? get().longestStreak,
+          badges: res.badges ?? get().badges,
+          newBadges: res.new_badges || get().newBadges || [],
         });
         return;
       }
@@ -339,18 +398,18 @@ export const useGameStore = create((set, get) => ({
     if (!activeQuestion) return;
 
     const now = performance.now();
+    const floaters = pushFloater(get().floatingTexts, {
+      id: now,
+      kind: "answer",
+      text: "+120",
+      sub: "Answered",
+    });
     set({
       phase: PHASES.ANSWER_CONFIRMED,
       pendingAnswer: answerValue,
       journalDay: recordResponse(journalDay, activeQuestion, answerValue, "lane"),
-      xp: get().xp + XP_RULES.ANSWER,
       score: get().score + 120,
-      floatingTexts: pushFloater(get().floatingTexts, {
-        id: now,
-        kind: "answer",
-        text: "+120",
-        sub: "Answered",
-      }),
+      ...xpPatch(get(), get().xp + XP_RULES.ANSWER, { floatingTexts: floaters }),
     });
 
     const escalates = shouldEscalateToSpecialEntry(activeQuestion, answerValue);
@@ -494,8 +553,8 @@ export const useGameStore = create((set, get) => ({
       assignments: updatedAssignments,
       exams: updatedExams,
       journalDay: recordInteraction(journalDay, activeQuestion, result),
-      xp: get().xp + XP_RULES.INTERACTION,
       score: get().score + 300,
+      ...xpPatch(get(), get().xp + XP_RULES.INTERACTION, {}),
     });
 
     await get().ingestBackendAnswer(result.value);
@@ -560,25 +619,78 @@ export const useGameStore = create((set, get) => ({
     setTimeout(() => get().finishDailyGame(), 3400);
   },
 
-  finishDailyGame: () => {
-    const { journalDay, xp, score, day, level, backendJournalEntry, backendJournalHighlights } = get();
+  finishDailyGame: async () => {
+    if (get().phase === PHASES.DAILY_COMPLETION) return;
+    const {
+      journalDay,
+      xp,
+      score,
+      day,
+      level,
+      sessionId,
+      runStartXp,
+      backendJournalEntry,
+      backendJournalHighlights,
+    } = get();
+    const previousLevel = level;
     const finalXp = xp + XP_RULES.DAILY_COMPLETE;
     const completedDay = completeJournalDay(journalDay, finalXp, score);
-    set({
+    const sessionXp = Math.max(0, finalXp - (runStartXp ?? 0));
+    let synced = {
       phase: PHASES.DAILY_COMPLETION,
       dailyCompleted: true,
       journalDay: completedDay,
-      xp: finalXp,
       objectiveText: "Daily journal complete",
-    });
+      ...xpPatch(get(), finalXp, {}),
+    };
+    if (synced.level > previousLevel) synced.leveledUpTo = synced.level;
+    set(synced);
+
+    try {
+      if (sessionId) {
+        const data = await finishDailyRun({ sessionId, xpEarned: sessionXp, score });
+        const persistedXp = data.total_xp ?? finalXp;
+        const next = {
+          ...xpPatch({ ...get() }, persistedXp, {}),
+          currentStreak: data.current_streak ?? get().currentStreak,
+          longestStreak: data.longest_streak ?? get().longestStreak,
+          badges: data.badges ?? get().badges,
+          newBadges: [...(get().newBadges || []), ...(data.new_badges || [])].filter(
+            (item, index, list) => list.indexOf(item) === index
+          ),
+          day: data.current_day ?? day,
+          dailyCompleted: data.daily_completed ?? true,
+          lifetimeScore: (get().lifetimeScore || 0) + score,
+        };
+        if (next.level > previousLevel) next.leveledUpTo = next.level;
+        set(next);
+        synced = { ...synced, ...next };
+        const stored = readStoredUser();
+        if (stored) {
+          storeUser({
+            ...stored,
+            total_xp: data.total_xp ?? persistedXp,
+            level: data.level ?? levelFromXp(persistedXp),
+            current_streak: data.current_streak ?? stored.current_streak,
+            longest_streak: data.longest_streak ?? stored.longest_streak,
+            badges: data.badges ?? stored.badges,
+            current_day: data.current_day ?? stored.current_day,
+            daily_completed: true,
+          });
+        }
+      }
+    } catch {
+      // Keep the local XP and level so the completion screen still feels earned.
+    }
+
     useJournalHistoryStore.getState().addEntry({
-      day,
+      day: synced.day ?? day,
       journalDay: completedDay,
       journalEntry: backendJournalEntry,
       highlights: backendJournalHighlights || [],
-      xp: finalXp,
+      xp: sessionXp,
       score,
-      level,
+      level: synced.level,
       completedAt: completedDay.completedAt,
     });
   },
@@ -611,6 +723,7 @@ export const useGameStore = create((set, get) => ({
     const data = await deleteTodayJournal(user.id);
     storeUser(data);
     get().applyUserProgress(data);
+    get().applyWorldRecords({ tasks: data.tasks, exams: data.exams, sessions: data.sessions });
     useJournalHistoryStore.getState().hydrateFromSessions(data.sessions || [], data.id);
     useRunnerStore.getState().resetRun();
     const day = Math.max(1, data.current_day || get().day);
@@ -627,11 +740,9 @@ export const useGameStore = create((set, get) => ({
       dailyCompleted: false,
       finishLineZ: null,
       journalDay: createEmptyJournalDay(day),
-      day,
-      xp: data.total_xp ?? get().xp,
-      level: Math.max(1, Math.floor((data.total_xp ?? get().xp) / 500) + 1),
-      assignments: mapBackendTasks(data.tasks),
-      exams: mapBackendExams(data.exams),
+      newBadges: [],
+      leveledUpTo: null,
+      score: 0,
       lives: MAX_LIVES,
       combo: 0,
       exhausted: false,

@@ -21,6 +21,12 @@ class AnswerRequest(BaseModel):
     session_id: str
     answer: str
 
+
+class FinishRunRequest(BaseModel):
+    session_id: str
+    xp_earned: int
+    score: int = 0
+
 class MissingExam(BaseModel):
     id: str
     subject: str
@@ -43,3 +49,12 @@ class NextQuestionResponse(BaseModel):
     completed: bool = False
     journal_entry: Optional[str] = None
     journal_highlights: Optional[List[str]] = None
+    total_xp: Optional[int] = None
+    level: Optional[int] = None
+    xp_earned: Optional[int] = None
+    current_streak: Optional[int] = None
+    longest_streak: Optional[int] = None
+    badges: Optional[List[str]] = None
+    new_badges: Optional[List[str]] = None
+    current_day: Optional[int] = None
+    daily_completed: Optional[bool] = None
