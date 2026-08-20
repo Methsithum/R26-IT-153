@@ -6,7 +6,7 @@ from app.models.journal.task import TaskModel
 from app.models.journal.reflection import ReflectionModel
 from app.models.journal.exam import ExamModel
 from app.services.auth import verify_password
-from app.services.journal.gamification import level_from_xp
+from app.services.journal.gamification import level_from_xp, reconcile_user_progress
 from app.services.time_utils import local_today_iso, to_local_date
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -71,6 +71,7 @@ async def login_user(payload: UserLogin):
     if not verify_password(payload.password, user["password_hash"]):
         raise HTTPException(401, "Invalid email or password")
     sessions = await DailySessionModel.find_user_sessions(user["id"])
+    user = await reconcile_user_progress(user, sessions)
     return _to_response(user, sessions)
 
 
@@ -85,6 +86,7 @@ async def get_user(user_id: str):
     if not user:
         raise HTTPException(404, "User not found")
     sessions = await DailySessionModel.find_user_sessions(user_id)
+    user = await reconcile_user_progress(user, sessions)
     return _to_response(user, sessions)
 
 
@@ -131,6 +133,7 @@ async def get_user_gamification(user_id: str):
     if not user:
         raise HTTPException(404, "User not found")
     sessions = await DailySessionModel.find_user_sessions(user_id)
+    user = await reconcile_user_progress(user, sessions)
     completed_sessions = [session for session in sessions if session and session.get("completed")]
     current_day, daily_completed = _progress_from_sessions(sessions)
     return {

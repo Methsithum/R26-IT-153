@@ -6,7 +6,7 @@ from app.models.journal.exam import ExamModel
 from app.models.user.user import UserModel
 from app.services.journal.llm_service import fallback_daily_journal, generate_daily_journal
 from app.services.journal.question_picker import pick_next_question
-from app.services.journal.gamification import _calculate_xp, apply_run_rewards, progress_fields, update_streak_and_xp, level_from_xp
+from app.services.journal.gamification import _calculate_xp, apply_run_rewards, progress_fields, reconcile_user_progress, update_streak_and_xp, level_from_xp
 from app.services.journal.journal_service import build_session_context
 from app.services.journal.journal_constants import ASSIGNMENT_STATUS_ANSWERS, filter_allowed_activities
 from app.services.journal.alerts import generate_proactive_alerts
@@ -482,29 +482,8 @@ async def _restore_record_snapshot(user_id: str, snapshot: dict) -> None:
 
 
 async def _revert_gamification(user: dict, xp_to_remove: int, remaining_sessions: list) -> None:
-    completed = [s for s in remaining_sessions if s and s.get("completed")]
-    days = sorted({d for s in completed if (d := to_local_date(s.get("date")))})
-    streak = 0
-    last_date = None
-    if days:
-        streak = 1
-        last_date = datetime.combine(days[-1], time.min)
-        for i in range(len(days) - 1, 0, -1):
-            if (days[i] - days[i - 1]).days == 1:
-                streak += 1
-            else:
-                break
     total_xp = max(0, int(user.get("total_xp") or 0) - max(0, xp_to_remove))
-    longest = max(int(user.get("longest_streak") or 0), streak)
-    await UserModel.update(
-        user["id"],
-        {
-            "total_xp": total_xp,
-            "current_streak": streak,
-            "longest_streak": longest,
-            "last_journal_date": last_date,
-        },
-    )
+    await reconcile_user_progress(user, remaining_sessions, total_xp=total_xp)
 
 
 def _progress_from_sessions(sessions: list[dict]) -> tuple[int, bool]:

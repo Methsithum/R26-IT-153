@@ -2,7 +2,7 @@ from app.models.user.user import UserModel
 from app.models.journal.daily_session import DailySessionModel
 from app.models.journal.task import TaskModel
 from app.services.time_utils import local_today_iso, to_local_date
-from datetime import datetime
+from datetime import date, datetime, time
 from typing import Dict, List, Tuple
 
 XP_PER_LEVEL = 500
@@ -131,6 +131,111 @@ def _count_completed_tasks(tasks: List[Dict]) -> int:
     return completed
 
 
+def _completed_dates(sessions: List[Dict]) -> List[date]:
+    return sorted(
+        {
+            day
+            for session in (sessions or [])
+            if session and session.get("completed") and (day := to_local_date(session.get("date")))
+        }
+    )
+
+
+def _streaks_from_dates(days: List[date], today: date | None = None) -> Tuple[int, int]:
+    if not days:
+        return 0, 0
+    today = today or date.fromisoformat(local_today_iso())
+    longest = 1
+    run = 1
+    for index in range(1, len(days)):
+        gap = (days[index] - days[index - 1]).days
+        if gap == 1:
+            run += 1
+            longest = max(longest, run)
+        elif gap > 1:
+            run = 1
+    current = 0
+    if (today - days[-1]).days <= 1:
+        current = 1
+        for index in range(len(days) - 1, 0, -1):
+            if (days[index] - days[index - 1]).days == 1:
+                current += 1
+            else:
+                break
+    return current, max(longest, current)
+
+
+def earned_badge_keys(
+    *,
+    completed_journals: int,
+    current_streak: int,
+    longest_streak: int,
+    total_xp: int,
+    completed_tasks: int,
+) -> List[str]:
+    badges: List[str] = []
+    if completed_journals >= 1:
+        badges.append("first_journal")
+    streak_best = max(int(current_streak or 0), int(longest_streak or 0))
+    for threshold, key in sorted(STREAK_MILESTONES.items()):
+        if streak_best >= threshold:
+            badges.append(key)
+    for threshold, key in sorted(JOURNAL_MILESTONES.items()):
+        if completed_journals >= threshold:
+            badges.append(key)
+    for threshold, key in sorted(XP_MILESTONES.items()):
+        if int(total_xp or 0) >= threshold:
+            badges.append(key)
+    for threshold, key in sorted(TASK_MILESTONES.items()):
+        if completed_tasks >= threshold:
+            badges.append(key)
+    return badges
+
+
+async def reconcile_user_progress(
+    user: Dict,
+    sessions: List[Dict],
+    *,
+    tasks: List[Dict] | None = None,
+    total_xp: int | None = None,
+    persist: bool = True,
+) -> Dict:
+    """Rebuild streak, longest streak and badges from remaining journals."""
+    if not user:
+        return user
+    if tasks is None:
+        tasks = await TaskModel.find_by_user(user["id"])
+    days = _completed_dates(sessions)
+    current_streak, longest_streak = _streaks_from_dates(days)
+    xp = int(user.get("total_xp") or 0) if total_xp is None else max(0, int(total_xp))
+    badges = earned_badge_keys(
+        completed_journals=_count_completed_journals(sessions),
+        current_streak=current_streak,
+        longest_streak=longest_streak,
+        total_xp=xp,
+        completed_tasks=_count_completed_tasks(tasks),
+    )
+    last_date = datetime.combine(days[-1], time.min) if days else None
+    patch = {
+        "total_xp": xp,
+        "current_streak": current_streak,
+        "longest_streak": longest_streak,
+        "badges": badges,
+        "last_journal_date": last_date,
+    }
+    previous_badges = list(user.get("badges") or [])
+    changed = (
+        int(user.get("current_streak") or 0) != current_streak
+        or int(user.get("longest_streak") or 0) != longest_streak
+        or previous_badges != badges
+        or int(user.get("total_xp") or 0) != xp
+    )
+    if persist and changed:
+        await UserModel.update(user["id"], patch)
+    user.update(patch)
+    return user
+
+
 async def update_streak_and_xp(
     user_id: str,
     date: datetime,
@@ -143,51 +248,18 @@ async def update_streak_and_xp(
         return 0, []
 
     xp_earned = _calculate_xp(questions_count, engagement, has_at_risk)
-    new_badges: List[str] = []
-
-    last = user.get("last_journal_date")
-    today = date.replace(hour=0, minute=0, second=0, microsecond=0)
-    current_streak = user.get("current_streak", 0)
-    longest_streak = user.get("longest_streak", 0)
-
-    if last:
-        last_date = last.replace(hour=0, minute=0, second=0, microsecond=0)
-        day_diff = (today - last_date).days
-        if day_diff == 1:
-            current_streak += 1
-        elif day_diff > 1:
-            current_streak = 1
-    else:
-        current_streak = 1
-
-    if current_streak > longest_streak:
-        longest_streak = current_streak
-
-    badges = user.get("badges", [])
-    if not last and "first_journal" not in badges:
-        badges.append("first_journal")
-        new_badges.append(BADGES["first_journal"])
-
-    _award_milestone_badges(badges, STREAK_MILESTONES, current_streak, new_badges)
-
     sessions = await DailySessionModel.find_user_sessions(user_id)
-    completed_journals = _count_completed_journals(sessions)
-    _award_milestone_badges(badges, JOURNAL_MILESTONES, completed_journals, new_badges)
-
-    total_xp = user.get("total_xp", 0) + xp_earned
-    _award_milestone_badges(badges, XP_MILESTONES, total_xp, new_badges)
-
     tasks = await TaskModel.find_by_user(user_id)
-    completed_tasks = _count_completed_tasks(tasks)
-    _award_milestone_badges(badges, TASK_MILESTONES, completed_tasks, new_badges)
-
-    await UserModel.update(user_id, {
-        "total_xp": total_xp,
-        "current_streak": current_streak,
-        "longest_streak": longest_streak,
-        "badges": badges,
-        "last_journal_date": today
-    })
+    total_xp = int(user.get("total_xp") or 0) + xp_earned
+    previous = set(user.get("badges") or [])
+    user = await reconcile_user_progress(
+        user,
+        sessions,
+        tasks=tasks,
+        total_xp=total_xp,
+        persist=True,
+    )
+    new_badges = [BADGES[key] for key in user.get("badges") or [] if key not in previous and key in BADGES]
     return xp_earned, new_badges
 
 
@@ -303,9 +375,9 @@ async def get_gamification_summary(user_id: str) -> Dict | None:
         return None
 
     sessions = await DailySessionModel.find_user_sessions(user_id)
-    completed_journals = _count_completed_journals(sessions)
-
     tasks = await TaskModel.find_by_user(user_id)
+    user = await reconcile_user_progress(user, sessions, tasks=tasks)
+    completed_journals = _count_completed_journals(sessions)
     completed_tasks = _count_completed_tasks(tasks)
 
     total_xp = int(user.get("total_xp", 0) or 0)
@@ -314,7 +386,7 @@ async def get_gamification_summary(user_id: str) -> Dict | None:
 
     next_badge = _next_badge_progress(
         badges=user.get("badges", []),
-        current_streak=current_streak,
+        current_streak=max(current_streak, int(user.get("longest_streak") or 0)),
         total_xp=total_xp,
         completed_journals=completed_journals,
         completed_tasks=completed_tasks,

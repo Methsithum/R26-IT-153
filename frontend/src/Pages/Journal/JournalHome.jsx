@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useGameStore } from "../../Game/state/GameStateManager";
 import { useJournalHistoryStore } from "../../Game/state/journalHistoryStore";
 import { buildJournalPage } from "../../Game/data/journalNarrative";
-import { BADGE_CATALOG, XP_PER_LEVEL, xpIntoLevel, xpToNextLevel } from "../../Game/data/progression";
+import { BADGE_CATALOG, XP_PER_LEVEL, isBadgeUnlocked, xpIntoLevel, xpToNextLevel } from "../../Game/data/progression";
 import LevelRing from "../../Game/UI/LevelRing";
 import { clearStoredUser } from "../../services/userApi";
 import DiscardTodayButton from "./DiscardTodayButton";
@@ -557,6 +557,7 @@ function CharacterStatsContent() {
   const level = useGameStore((s) => s.level);
   const badges = useGameStore((s) => s.badges);
   const streak = useGameStore((s) => s.currentStreak);
+  const longestStreak = useGameStore((s) => s.longestStreak);
   const playerName = useGameStore((s) => s.playerName);
   const subjects = useGameStore((s) => s.subjects);
   const universityName = useGameStore((s) => s.universityName);
@@ -565,7 +566,7 @@ function CharacterStatsContent() {
   const semester = useGameStore((s) => s.semester);
   const gpa = useGameStore((s) => s.gpa);
   const into = xpIntoLevel(xp);
-  const earned = new Set(badges || []);
+  const journalCount = useJournalHistoryStore((s) => s.entries.length);
 
   return (
     <div>
@@ -618,7 +619,13 @@ function CharacterStatsContent() {
       <div className="text-sm font-semibold text-stone-700 mb-3">Achievements</div>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
         {BADGE_CATALOG.map((badge) => {
-          const unlocked = earned.has(badge.key);
+          const unlocked = isBadgeUnlocked(badge.key, {
+            badges,
+            currentStreak: streak,
+            longestStreak,
+            xp,
+            journalCount,
+          });
           return (
             <div
               key={badge.key}

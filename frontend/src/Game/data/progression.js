@@ -120,3 +120,13 @@ export function badgeByLabel(label) {
     }
   );
 }
+
+export function isBadgeUnlocked(key, { badges = [], currentStreak = 0, longestStreak = 0, xp = 0, journalCount = 0 } = {}) {
+  const stored = new Set(badges || []);
+  const streakBest = Math.max(Number(currentStreak) || 0, Number(longestStreak) || 0);
+  if (key === "first_journal") return journalCount >= 1 || stored.has(key);
+  if (key.startsWith("streak_")) return streakBest >= Number(key.slice(7));
+  if (key.startsWith("journal_")) return journalCount >= Number(key.slice(8));
+  if (key.startsWith("xp_")) return (Number(xp) || 0) >= Number(key.slice(3));
+  return stored.has(key);
+}
