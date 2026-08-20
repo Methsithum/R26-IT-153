@@ -31,6 +31,8 @@ export const PHASES = {
   SPECIAL_INTERACTION_COMPLETED: "SPECIAL_INTERACTION_COMPLETED",
   RETURNING_TO_CAMPUS: "RETURNING_TO_CAMPUS",
   RUNNING_RESUMED: "RUNNING_RESUMED",
+  APPROACHING_FINISH: "APPROACHING_FINISH",
+  DAY_CELEBRATION: "DAY_CELEBRATION",
   DAILY_COMPLETION: "DAILY_COMPLETION",
   GAME_PAUSED: "GAME_PAUSED",
 };
@@ -137,6 +139,7 @@ export const useGameStore = create((set, get) => ({
   showControlHints: true,
 
   dailyCompleted: false,
+  finishLineZ: null,
 
   applyUserProgress: (user) => {
     if (!user) return;
@@ -207,6 +210,7 @@ export const useGameStore = create((set, get) => ({
       pendingAnswer: null,
       journalDay: createEmptyJournalDay(day),
       dailyCompleted: false,
+      finishLineZ: null,
       objectiveText: "Continue your campus run",
       xp: get().xp + XP_RULES.GAME_START,
       lives: MAX_LIVES,
@@ -221,6 +225,7 @@ export const useGameStore = create((set, get) => ({
     const runner = useRunnerStore.getState();
     const now = performance.now();
     if (runner.invincibleUntil > now || runner.isStumbling) return;
+    if (get().phase === PHASES.DAY_CELEBRATION || get().phase === PHASES.DAILY_COMPLETION) return;
 
     const lives = Math.max(0, get().lives - 1);
     const exhausted = lives === 0;
@@ -307,7 +312,7 @@ export const useGameStore = create((set, get) => ({
     const { questionQueue, questionIndex, sessionCompleted } = get();
     const next = questionQueue[questionIndex];
     if (!next || sessionCompleted) {
-      get().finishDailyGame();
+      get().beginFinishRun();
       return;
     }
     set({
@@ -504,10 +509,55 @@ export const useGameStore = create((set, get) => ({
 
   advanceQuestionQueue: () => {
     const nextIndex = get().questionIndex + 1;
-    set({ questionIndex: nextIndex, activeQuestion: null, pendingAnswer: null, phase: PHASES.RUNNING });
-    if (get().sessionCompleted || nextIndex >= get().questionQueue.length) {
-      setTimeout(() => get().finishDailyGame(), 1200);
+    const done = get().sessionCompleted || nextIndex >= get().questionQueue.length;
+    set({
+      questionIndex: nextIndex,
+      activeQuestion: null,
+      pendingAnswer: null,
+      phase: done ? get().phase : PHASES.RUNNING,
+    });
+    if (done) get().beginFinishRun();
+  },
+
+  beginFinishRun: () => {
+    const { phase } = get();
+    if (
+      phase === PHASES.APPROACHING_FINISH ||
+      phase === PHASES.DAY_CELEBRATION ||
+      phase === PHASES.DAILY_COMPLETION
+    ) {
+      return;
     }
+    const z = useRunnerStore.getState().posZ + 52;
+    set({
+      phase: PHASES.APPROACHING_FINISH,
+      activeQuestion: null,
+      pendingAnswer: null,
+      finishLineZ: z,
+      objectiveText: "Finish line ahead — run through the tape",
+      floatingTexts: pushFloater(get().floatingTexts, {
+        id: performance.now(),
+        kind: "save",
+        text: "FINISH LINE",
+        sub: "Keep running",
+      }),
+    });
+  },
+
+  crossFinishLine: () => {
+    if (get().phase !== PHASES.APPROACHING_FINISH) return;
+    useRunnerStore.getState().pulseShake(0.85);
+    set({
+      phase: PHASES.DAY_CELEBRATION,
+      objectiveText: "That's the day.",
+      floatingTexts: pushFloater(get().floatingTexts, {
+        id: performance.now(),
+        kind: "save",
+        text: "FINISH",
+        sub: "Tape broken",
+      }),
+    });
+    setTimeout(() => get().finishDailyGame(), 3400);
   },
 
   finishDailyGame: () => {
@@ -549,6 +599,7 @@ export const useGameStore = create((set, get) => ({
       exhausted: false,
       hitFlashAt: 0,
       floatingTexts: [],
+      finishLineZ: null,
     });
   },
 
@@ -574,6 +625,7 @@ export const useGameStore = create((set, get) => ({
       activeQuestion: null,
       pendingAnswer: null,
       dailyCompleted: false,
+      finishLineZ: null,
       journalDay: createEmptyJournalDay(day),
       day,
       xp: data.total_xp ?? get().xp,
@@ -600,8 +652,15 @@ export const useGameStore = create((set, get) => ({
   setSpeed: (speed) => set({ speed }),
 
   dailyProgress: () => {
-    const { questionQueue, questionIndex, dailyCompleted, sessionCompleted } = get();
-    if (dailyCompleted || sessionCompleted) return 1;
+    const { questionQueue, questionIndex, dailyCompleted, sessionCompleted, phase } = get();
+    if (
+      dailyCompleted ||
+      sessionCompleted ||
+      phase === PHASES.APPROACHING_FINISH ||
+      phase === PHASES.DAY_CELEBRATION
+    ) {
+      return 1;
+    }
     if (questionQueue.length === 0) return 0;
     return Math.min(1, questionIndex / Math.max(questionQueue.length, 1));
   },

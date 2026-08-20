@@ -42,6 +42,25 @@ export default function Minimap() {
           }
           listRef.current.appendChild(dot);
         });
+
+        const { finishLineZ, phase } = useGameStore.getState();
+        if (
+          finishLineZ != null &&
+          (phase === "APPROACHING_FINISH" || phase === "DAY_CELEBRATION") &&
+          finishLineZ >= posZ - VIEW_BEHIND &&
+          finishLineZ <= posZ + VIEW_AHEAD
+        ) {
+          const relative = (finishLineZ - posZ + VIEW_BEHIND) / (VIEW_AHEAD + VIEW_BEHIND);
+          const y = MAP_HEIGHT * (1 - relative);
+          const line = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+          line.setAttribute("x", "28");
+          line.setAttribute("y", String(y - 2));
+          line.setAttribute("width", "18");
+          line.setAttribute("height", "4");
+          line.setAttribute("rx", "1.5");
+          line.setAttribute("fill", "#f5d76e");
+          listRef.current.appendChild(line);
+        }
       }
 
       rafRef.current = requestAnimationFrame(tick);

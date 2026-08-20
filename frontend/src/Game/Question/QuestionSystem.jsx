@@ -37,6 +37,14 @@ export default function QuestionSystem() {
   }, [activeQuestion]);
 
   useFrame(() => {
+    if (
+      phase === PHASES.APPROACHING_FINISH ||
+      phase === PHASES.DAY_CELEBRATION ||
+      phase === PHASES.DAILY_COMPLETION
+    ) {
+      return;
+    }
+
     const { posZ, laneIndex } = useRunnerStore.getState();
 
     if (phase === PHASES.RUNNING && !activeQuestion && posZ >= nextSpawnZ.current) {

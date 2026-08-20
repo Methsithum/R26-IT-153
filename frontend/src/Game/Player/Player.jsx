@@ -4,6 +4,7 @@ import { RigidBody, CapsuleCollider } from "@react-three/rapier";
 import { useRunnerStore } from "../state/runnerStore";
 import { PHASES, useGameStore } from "../state/GameStateManager";
 import StudentCharacter from "./StudentCharacter";
+import { tickSteps } from "../audio/sfx";
 import {
   GROUND_Y,
   ROOM_BOUNDS,
@@ -29,6 +30,7 @@ const CAMPUS_PHASES = new Set([
   PHASES.ANSWER_CONFIRMED,
   PHASES.CHECKING_DATA_REQUIREMENT,
   PHASES.RUNNING_RESUMED,
+  PHASES.APPROACHING_FINISH,
 ]);
 
 export default function Player() {
@@ -188,9 +190,22 @@ export default function Player() {
         gaitPhase.current += dt * (pose === "run" ? 8 + moving * 0.45 : 6);
         store.setFacingYaw(0);
       }
+    } else if (phase === PHASES.DAY_CELEBRATION) {
+      moving = Math.max(3.2, store.speedScale * speed * 0.34);
+      nextZ = store.posZ + moving * dt;
+      nextX = store.posX + (store.targetX - store.posX) * Math.min(1, dt * LANE_SNAP);
+      const hop = Math.abs(Math.sin(gaitPhase.current * 0.7));
+      nextY = GROUND_Y + hop * 0.28;
+      pose = "cheer";
+      gaitPhase.current += dt * 7.2;
+      store.setFacingYaw(0);
+      store.setDistance(store.distance + moving * dt);
     }
 
     poseRef.current = pose;
+    if (pose === "run") tickSteps(gaitPhase.current, "run");
+    else if (pose === "walk") tickSteps(gaitPhase.current, "walk");
+    else tickSteps(gaitPhase.current, "off");
     store.setPosition(nextX, nextY, nextZ);
 
     if (groupRef.current) {
@@ -208,6 +223,9 @@ export default function Player() {
         const wobble = Math.sin(((now - store.stumbleStartedAt) / 70) * Math.PI);
         rotX = 0.22;
         rotZ = laneLean + wobble * 0.28;
+      } else if (pose === "cheer") {
+        rotX = -0.16;
+        rotZ = Math.sin(gaitPhase.current * 0.7) * 0.06;
       }
 
       groupRef.current.rotation.x = rotX;

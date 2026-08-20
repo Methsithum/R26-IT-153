@@ -1,17 +1,49 @@
 import { useEffect } from "react";
 import { PHASES, useGameStore } from "../state/GameStateManager";
 import { useRunnerStore } from "../state/runnerStore";
-import { play, unlockAudio, startAmbient, stopAmbient } from "./sfx";
+import { play, unlockAudio, startAmbient, stopAmbient, setRunWind } from "./sfx";
+
+const RUN_WIND_PHASES = new Set([
+  PHASES.RUNNING,
+  PHASES.QUESTION_APPROACHING,
+  PHASES.ANSWER_SELECTION,
+  PHASES.ANSWER_CONFIRMED,
+  PHASES.CHECKING_DATA_REQUIREMENT,
+  PHASES.RUNNING_RESUMED,
+  PHASES.APPROACHING_FINISH,
+  PHASES.DAY_CELEBRATION,
+]);
+
+let lastStartChimeAt = 0;
+
+function playStartChime() {
+  const now = performance.now();
+  if (now - lastStartChimeAt < 900) return;
+  lastStartChimeAt = now;
+  play("start");
+}
 
 export default function useGameAudio() {
   useEffect(() => {
-    const unlock = () => unlockAudio();
+    const unlock = () => {
+      unlockAudio();
+    };
     window.addEventListener("pointerdown", unlock);
     window.addEventListener("keydown", unlock);
 
+    unlockAudio().then((ready) => {
+      if (!ready) return;
+      const phase = useGameStore.getState().phase;
+      if (RUN_WIND_PHASES.has(phase)) {
+        playStartChime();
+        setRunWind(true);
+      }
+    });
+
     const unsubGame = useGameStore.subscribe((state, prev) => {
       if (state.phase !== prev.phase) {
-        if (state.phase === PHASES.RUNNING && prev.phase === PHASES.GAME_START) play("start");
+        setRunWind(RUN_WIND_PHASES.has(state.phase));
+        if (state.phase === PHASES.RUNNING && prev.phase === PHASES.GAME_START) playStartChime();
         if (state.phase === PHASES.QUESTION_APPROACHING) play("gate");
         if (state.phase === PHASES.ANSWER_CONFIRMED) play("answer");
         if (state.phase === PHASES.TRANSITION_TO_BUILDING) play("door");
@@ -22,7 +54,14 @@ export default function useGameAudio() {
         if (state.phase === PHASES.SPECIAL_INTERACTION_ACTIVE) play("enter");
         if (state.phase === PHASES.SPECIAL_INTERACTION_COMPLETED) play("save");
         if (state.phase === PHASES.RETURNING_TO_CAMPUS) stopAmbient();
-        if (state.phase === PHASES.DAILY_COMPLETION) play("fanfare");
+        if (state.phase === PHASES.APPROACHING_FINISH) play("gate");
+        if (state.phase === PHASES.DAY_CELEBRATION) {
+          play("tape");
+          play("fanfare");
+        }
+        if (state.phase === PHASES.DAILY_COMPLETION || state.phase === PHASES.GAME_PAUSED) {
+          setRunWind(false);
+        }
       }
 
       const last = state.floatingTexts[state.floatingTexts.length - 1];
@@ -36,7 +75,9 @@ export default function useGameAudio() {
 
     const unsubRun = useRunnerStore.subscribe((state, prev) => {
       if (state.isJumping && !prev.isJumping) play("jump");
+      if (!state.isJumping && prev.isJumping) play("land");
       if (state.isSliding && !prev.isSliding) play("slide");
+      if (state.laneIndex !== prev.laneIndex) play("whoosh");
       if (state.nearMission && !prev.nearMission) play("near");
     });
 
@@ -46,6 +87,7 @@ export default function useGameAudio() {
       unsubGame();
       unsubRun();
       stopAmbient();
+      setRunWind(false);
     };
   }, []);
 }

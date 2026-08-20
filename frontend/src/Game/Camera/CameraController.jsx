@@ -37,12 +37,14 @@ export default function CameraController() {
     const { posX, posY, posZ, shake, isJumping, isStumbling } = useRunnerStore.getState();
     const combo = useGameStore.getState().combo;
     const dt = Math.min(delta, 0.05);
+    const celebrating = phase === PHASES.DAY_CELEBRATION;
+    const approaching = phase === PHASES.APPROACHING_FINISH;
 
     const jumpLift = isJumping ? Math.max(0, posY) * 0.18 : 0;
     const targetPos = new THREE.Vector3(
       posX * 0.6,
-      posY + FOLLOW_OFFSET.y - jumpLift * 0.4,
-      posZ + FOLLOW_OFFSET.z
+      posY + FOLLOW_OFFSET.y - jumpLift * 0.4 + (celebrating ? 0.55 : approaching ? 0.2 : 0),
+      posZ + FOLLOW_OFFSET.z - (celebrating ? 0.8 : 0)
     );
     const targetLook = new THREE.Vector3(posX, posY + LOOK_OFFSET.y, posZ + LOOK_OFFSET.z);
 
@@ -58,7 +60,7 @@ export default function CameraController() {
     camera.lookAt(currentLook.current);
 
     const rush = combo >= 5 ? 5 : combo >= 3 ? 2 : 0;
-    const wantFov = BASE_FOV + (isStumbling ? 4 : 0) + shake * 3 + rush;
+    const wantFov = BASE_FOV + (isStumbling ? 4 : 0) + shake * 3 + rush + (celebrating ? 7 : approaching ? 2.5 : 0);
     camera.fov += (wantFov - camera.fov) * Math.min(1, dt * 8);
     camera.updateProjectionMatrix();
   });

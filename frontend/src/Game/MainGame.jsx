@@ -4,6 +4,7 @@ import GameScene from "./GameScene";
 import GameHUD from "./UI/GameHUD";
 import StartScreen from "./UI/StartScreen";
 import DailyCompletionScreen from "./UI/DailyCompletionScreen";
+import CelebrationOverlay from "./UI/CelebrationOverlay";
 import SpecialInteractionRouter from "./Building/SpecialInteractionRouter";
 import InteriorExploreHUD from "./UI/InteriorExploreHUD";
 import usePlayerControls from "./Player/usePlayerControls";
@@ -20,7 +21,8 @@ export default function MainGame() {
       phase === PHASES.ANSWER_SELECTION ||
       phase === PHASES.ANSWER_CONFIRMED ||
       phase === PHASES.CHECKING_DATA_REQUIREMENT ||
-      phase === PHASES.RUNNING_RESUMED,
+      phase === PHASES.RUNNING_RESUMED ||
+      phase === PHASES.APPROACHING_FINISH,
     explore: phase === PHASES.SPECIAL_INTERACTION_READY,
   });
 
@@ -40,11 +42,14 @@ export default function MainGame() {
         </Suspense>
       </Canvas>
 
-      {!insideBuilding && <GameHUD />}
+      {!insideBuilding && phase !== PHASES.DAY_CELEBRATION && phase !== PHASES.DAILY_COMPLETION && (
+        <GameHUD />
+      )}
       <InteriorExploreHUD />
       <SpecialInteractionRouter />
 
       {phase === PHASES.GAME_START && <StartScreen />}
+      <CelebrationOverlay />
       {phase === PHASES.DAILY_COMPLETION && <DailyCompletionScreen />}
     </div>
   );

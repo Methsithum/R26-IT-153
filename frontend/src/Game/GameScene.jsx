@@ -4,6 +4,7 @@ import Player from "./Player/Player";
 import CameraController from "./Camera/CameraController";
 import CampusEnvironment from "./Environment/CampusEnvironment";
 import QuestionSystem from "./Question/QuestionSystem";
+import FinishLine from "./Environment/FinishLine";
 import TransitionManager from "./Transition/TransitionManager";
 import { PHASES, useGameStore } from "./state/GameStateManager";
 
@@ -32,6 +33,7 @@ export default function GameScene() {
       </Physics>
 
       <QuestionSystem />
+      <FinishLine />
       <TransitionManager />
       <CameraController />
     </>

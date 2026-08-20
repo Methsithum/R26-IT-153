@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useGameStore } from "../../Game/state/GameStateManager";
+import { unlockAudio } from "../../Game/audio/sfx";
 import DiscardTodayButton from "./DiscardTodayButton";
 
 const ACTIVITIES = [
@@ -23,6 +24,7 @@ export default function DailyActivitySelection() {
   const [error, setError] = useState("");
 
   function toggle(id) {
+    unlockAudio();
     setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
   }
 
@@ -31,6 +33,7 @@ export default function DailyActivitySelection() {
     setBusy(true);
     setError("");
     try {
+      await unlockAudio();
       await useGameStore.getState().startDailyGame({ activities: selected });
       navigate("/journal/game");
     } catch (err) {

@@ -5,6 +5,7 @@ import Minimap from "./Minimap";
 import ControlHints from "./ControlHints";
 import CampusClock from "./CampusClock";
 import QuestionBanner from "./QuestionBanner";
+import FinishAheadBanner from "./FinishAheadBanner";
 import LivesDisplay from "./LivesDisplay";
 import ComboBadge from "./ComboBadge";
 import HitFx from "./HitFx";
@@ -24,6 +25,7 @@ export default function GameHUD() {
       </div>
 
       <QuestionBanner />
+      <FinishAheadBanner />
 
       <div className="absolute top-4 right-4">
         <ScoreDisplay />

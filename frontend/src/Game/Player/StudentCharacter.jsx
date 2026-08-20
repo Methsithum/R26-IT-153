@@ -30,6 +30,7 @@ export default function StudentCharacter({ gaitPhase, poseRef }) {
     const jump = pose === "jump";
     const slide = pose === "slide";
     const stumble = pose === "stumble";
+    const cheer = pose === "cheer";
 
     const amp = run ? 0.95 : walk ? 0.55 : idle ? 0.08 : 0;
     const swing = Math.sin(t) * amp;
@@ -56,6 +57,13 @@ export default function StudentCharacter({ gaitPhase, poseRef }) {
         rightArm.current.rotation.z = -0.45;
         leftLeg.current.rotation.x = 0.4;
         rightLeg.current.rotation.x = -0.25;
+      } else if (cheer) {
+        leftArm.current.rotation.x = -2.72;
+        rightArm.current.rotation.x = -2.88;
+        leftArm.current.rotation.z = 0.62 + Math.sin(t * 1.4) * 0.08;
+        rightArm.current.rotation.z = -0.62 - Math.sin(t * 1.4) * 0.08;
+        leftLeg.current.rotation.x = Math.sin(t) * 0.32;
+        rightLeg.current.rotation.x = -Math.sin(t) * 0.32;
       } else {
         leftArm.current.rotation.x = -swing;
         rightArm.current.rotation.x = swing;
@@ -67,11 +75,11 @@ export default function StudentCharacter({ gaitPhase, poseRef }) {
     }
 
     if (torso.current) {
-      torso.current.position.y = 1.05 + (idle ? Math.sin(t * 0.6) * 0.015 : 0);
-      torso.current.rotation.x = jump ? -0.08 : run ? 0.08 : walk ? 0.04 : 0;
+      torso.current.position.y = 1.05 + (idle ? Math.sin(t * 0.6) * 0.015 : cheer ? Math.abs(Math.sin(t * 0.8)) * 0.08 : 0);
+      torso.current.rotation.x = jump ? -0.08 : cheer ? -0.14 : run ? 0.08 : walk ? 0.04 : 0;
     }
     if (head.current) {
-      head.current.rotation.x = jump ? -0.12 : idle ? Math.sin(t * 0.6) * 0.03 : 0;
+      head.current.rotation.x = jump ? -0.12 : cheer ? -0.22 : idle ? Math.sin(t * 0.6) * 0.03 : 0;
     }
   });
 
