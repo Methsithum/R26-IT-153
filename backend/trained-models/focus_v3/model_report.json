@@ -1,0 +1,52 @@
+{
+  "best_algorithm": "XGBoost",
+  "test_accuracy": 39.93,
+  "test_macro_f1": 38.33,
+  "classes": [
+    "Anxiety",
+    "Boredom",
+    "Fatigue",
+    "Focused"
+  ],
+  "needs_scaling": false,
+  "img_size": 224,
+  "balance": "undersample",
+  "dataset": "C:\\Users\\CNN COMPUTERS\\OneDrive\\Documents\\Research\\Smart-Uni-Guide\\backend\\datasets\\focus\\faces_224",
+  "datasets": [
+    "daisee",
+    "fatigue"
+  ],
+  "split": "subject-disjoint 70/15/15, decided before frame extraction",
+  "preprocessing": "face_crop.py -- Haar face + 15% margin, 224x224, MobileNetV2 preprocess_input (identical at inference)",
+  "counts": {
+    "train": 6272,
+    "val": 3158,
+    "test": 3263
+  },
+  "train_class_counts": {
+    "Anxiety": 1568,
+    "Boredom": 1568,
+    "Fatigue": 1568,
+    "Focused": 1568
+  },
+  "all_results": {
+    "Random Forest": {
+      "val": 50.13,
+      "val_f1": 44.96,
+      "test": 41.68,
+      "f1": 38.84
+    },
+    "XGBoost": {
+      "val": 49.84,
+      "val_f1": 45.31,
+      "test": 39.93,
+      "f1": 38.33
+    },
+    "SVM": {
+      "val": 45.79,
+      "val_f1": 42.21,
+      "test": 42.6,
+      "f1": 39.78
+    }
+  }
+}
