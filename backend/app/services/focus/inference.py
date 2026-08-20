@@ -3,6 +3,10 @@ Focus-state inference service, backed by the models trained in
 ml_scripts/focus/train_model.py (best_model.pkl / scaler.pkl /
 label_encoder.pkl / feature_extractor.keras).
 
+Face detection, cropping and normalisation live in face_crop.py, which is the
+same module ml_scripts/focus/dataset_builder.py runs over the training videos
+and images -- a webcam frame and a training frame go through identical code.
+
 Models are loaded lazily on first use (not at import time) so importing
 this module — e.g. at FastAPI startup — never crashes the whole app if a
 model file happens to be missing, and never touches disk/TensorFlow until
@@ -11,17 +15,17 @@ a prediction is actually requested.
 import json
 import threading
 
-import cv2
 import numpy as np
 import joblib
 from pathlib import Path
 from tensorflow.keras.models import load_model
-from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
+
+from . import face_crop
 
 BASE_DIR    = Path(__file__).resolve().parents[3]
 MODELS_PATH = BASE_DIR / "trained-models" / "focus"
 
-IMG_SIZE       = 224
+IMG_SIZE       = face_crop.IMG_SIZE
 CLASSES        = ["Focused", "Fatigue", "Anxiety", "Boredom"]
 CONF_THRESHOLD = 0.60
 FATIGUE_THRESH = 0.80
@@ -49,9 +53,7 @@ def _load():
             _state["scaler"]    = joblib.load(MODELS_PATH / "scaler.pkl")
             _state["le"]        = joblib.load(MODELS_PATH / "label_encoder.pkl")
             _state["extractor"] = load_model(str(MODELS_PATH / "feature_extractor.keras"))
-            _state["face_cascade"] = cv2.CascadeClassifier(
-                cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-            )
+            face_crop.get_cascade()
         except Exception as exc:
             _state.clear()
             raise ModelNotReadyError(f"Focus models unavailable: {exc}") from exc
@@ -63,31 +65,16 @@ def is_ready() -> bool:
 
 
 def detect_face(frame):
-    st = _load()
-    gray  = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    faces = st["face_cascade"].detectMultiScale(
-        gray, scaleFactor=1.1, minNeighbors=5, minSize=(80, 80)
-    )
-    if len(faces) == 0:
-        return None, None
-
-    x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
-    pad    = int(min(w, h) * 0.15)
-    fh, fw = frame.shape[:2]
-    x1 = max(0, x - pad)
-    y1 = max(0, y - pad)
-    x2 = min(fw, x + w + pad)
-    y2 = min(fh, y + h + pad)
-    return frame[y1:y2, x1:x2], (x1, y1, x2, y2)
+    """Face crop + box, via the shared detector the training set was built with."""
+    _load()
+    return face_crop.detect_face(frame)
 
 
 def extract_features(face_img):
-    st  = _load()
-    img = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
-    img = cv2.resize(img, (IMG_SIZE, IMG_SIZE))
-    img = preprocess_input(img.astype(np.float32))
-    img = np.expand_dims(img, axis=0)
-    return st["extractor"].predict(img, verbose=0)[0]
+    """Face crop -> 1280-d MobileNetV2 embedding, using the same resize and
+    normalisation face_crop applied to every training image."""
+    st = _load()
+    return st["extractor"].predict(face_crop.preprocess(face_img), verbose=0)[0]
 
 
 def predict_state(features):
