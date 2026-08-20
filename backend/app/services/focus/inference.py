@@ -13,6 +13,7 @@ model file happens to be missing, and never touches disk/TensorFlow until
 a prediction is actually requested.
 """
 import json
+import os
 import threading
 
 import numpy as np
@@ -29,6 +30,38 @@ IMG_SIZE       = face_crop.IMG_SIZE
 CLASSES        = ["Focused", "Fatigue", "Anxiety", "Boredom"]
 CONF_THRESHOLD = 0.60
 FATIGUE_THRESH = 0.80
+
+# Temporary diagnostic, off unless FOCUS_DEBUG_PROBS is set. Dumps the raw
+# predict_proba vector *before* the threshold rules below touch anything, so the
+# model's actual opinion can be compared against what the API ends up serving.
+#   FOCUS_DEBUG_PROBS=1        full block per prediction
+#   FOCUS_DEBUG_PROBS=compact  one line per prediction (readable for live webcam)
+DEBUG_PROBS = os.getenv("FOCUS_DEBUG_PROBS", "").strip().lower()
+
+
+def _debug_probs(st, probs, raw_state, raw_conf, served_state, rule):
+    """Print the untouched probability vector. Never mutates anything."""
+    le  = st["le"]
+    # Column order is the model's own, not the display order in CLASSES -- printing
+    # it this way is what proves the vector is being indexed correctly.
+    cols = [(int(i), str(le.inverse_transform([c])[0]), float(probs[i]))
+            for i, c in enumerate(st["model"].classes_)]
+
+    if DEBUG_PROBS == "compact":
+        line = " | ".join(f"{name}: {p*100:.1f}%" for _, name, p in cols)
+        served = "" if served_state == raw_state else f"  ->served {served_state} [{rule}]"
+        print(f"[focus] {line}  raw={raw_state}{served}", flush=True)
+        return
+
+    print("\nPrediction:", flush=True)
+    for i, name, p in cols:
+        print(f"  [col {i}] {name:<8} {p:.4f} ({p*100:.1f}%)", flush=True)
+    print(f"\n  Raw predicted class: {raw_state} ({raw_conf*100:.1f}%)", flush=True)
+    print(f"  Total probability:   {float(probs.sum()):.3f}", flush=True)
+    if served_state == raw_state:
+        print("  Served class:        %s (post-processing left it unchanged)" % served_state, flush=True)
+    else:
+        print(f"  Served class:        {served_state}  <-- CHANGED by {rule}", flush=True)
 
 _lock  = threading.Lock()
 _state = {}
@@ -83,22 +116,33 @@ def predict_state(features):
     if st["needs_scale"]:
         feat = st["scaler"].transform(feat)
 
-    probs    = st["model"].predict_proba(feat)[0]
+    probs    = st["model"].predict_proba(feat)[0]   # <-- the only predict_proba call in the serving path
     pred_idx = np.argmax(probs)
     state    = st["le"].inverse_transform([pred_idx])[0]
     conf     = float(probs[pred_idx])
 
+    # Captured before the rules below run; `state` is rewritten in place by them.
+    raw_state, raw_conf, rule = state, conf, None
+
+    # ---- post-processing (unchanged; the debug dump above is taken before this) ----
     if conf < CONF_THRESHOLD:
         state = "Focused"
+        rule  = f"CONF_THRESHOLD ({conf:.3f} < {CONF_THRESHOLD})"
     elif state == "Fatigue" and conf < FATIGUE_THRESH:
         sorted_idx = np.argsort(probs)[::-1]
         for idx in sorted_idx[1:]:
             alt = st["le"].inverse_transform([idx])[0]
             if alt != "Fatigue":
                 state = alt
+                rule  = f"FATIGUE_THRESH ({conf:.3f} < {FATIGUE_THRESH})"
                 break
+    # -------------------------------------------------------------------------------
 
     prob_map = {cls: float(probs[st["le"].transform([cls])[0]]) for cls in CLASSES}
+
+    if DEBUG_PROBS:
+        _debug_probs(st, probs, raw_state, raw_conf, state, rule)
+
     return state, prob_map
 
 
