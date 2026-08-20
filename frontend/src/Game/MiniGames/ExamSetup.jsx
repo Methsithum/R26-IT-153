@@ -19,9 +19,40 @@ function bookStyle(name) {
   const hash = hashName(name);
   return {
     color: SPINE_COLORS[hash % SPINE_COLORS.length],
-    width: 34 + (hash % 4) * 7,
-    height: 118 + (hash % 5) * 8,
+    tilt: ((hash % 7) - 3) * 1.4,
   };
+}
+
+function ShelfBook({ subject, layoutId, onClick, size = "shelf" }) {
+  const style = bookStyle(subject);
+  const shelf = size === "shelf";
+  return (
+    <motion.button
+      layoutId={layoutId}
+      type="button"
+      title={subject}
+      onClick={onClick}
+      initial={{ y: 12, opacity: 0 }}
+      animate={{ y: 0, opacity: 1, rotate: shelf ? style.tilt : 0 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      whileHover={{ y: shelf ? -8 : -4, rotate: 0, scale: 1.03 }}
+      whileTap={{ y: 2, scale: 0.98 }}
+      className={`relative z-10 shrink-0 overflow-hidden rounded-sm border border-black/25 text-left shadow-lg ${
+        shelf ? "h-[136px] w-[118px]" : "h-[88px] w-[124px]"
+      }`}
+      style={{ background: style.color }}
+    >
+      <span className="absolute inset-y-0 left-0 w-[8px] bg-black/25" />
+      <span className="absolute inset-x-0 top-0 h-1.5 bg-[#f5d76e]" />
+      <span
+        className={`relative z-10 block px-3 pl-4 font-semibold leading-snug text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)] ${
+          shelf ? "mt-4 line-clamp-4 text-[13px]" : "mt-3 line-clamp-3 text-[12px]"
+        }`}
+      >
+        {subject}
+      </span>
+    </motion.button>
+  );
 }
 
 function toggle(list, value) {
@@ -48,10 +79,10 @@ export default function ExamSetup({ question, onComplete }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="mb-4">
+      <div className="mb-3 shrink-0">
         <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">Exam hall</div>
-        <h2 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900">Exam preparation</h2>
-        <p className="mt-2 max-w-xl text-sm text-stone-600">
+        <h2 className="mt-1 text-2xl font-semibold tracking-tight text-stone-900 sm:text-3xl">Exam preparation</h2>
+        <p className="mt-1 max-w-xl text-sm text-stone-600">
           {question?.questionText ?? "Pull the subjects you prepared, then stamp Mid, Final, or both."}
         </p>
       </div>
@@ -61,72 +92,47 @@ export default function ExamSetup({ question, onComplete }) {
           No registered subjects on this account.
         </div>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-amber-900/20 shadow-inner">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-3xl border border-amber-900/20 shadow-inner">
           <div
-            className="relative min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-5 pt-5"
+            className="relative shrink-0 px-5 pb-0 pt-4"
             style={{ background: "linear-gradient(180deg, #4a2c14 0%, #6b3f22 55%, #5c3818 100%)" }}
           >
             <div className="mb-3 text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-100/70">
               Pull every subject you prepared
             </div>
-            <div className="flex h-[168px] items-end justify-center gap-[3px] px-2">
+            <div className="flex h-[148px] items-end justify-center gap-3 overflow-x-auto px-1">
               <AnimatePresence initial={false}>
-                {options.map((subject) => {
-                  if (subjects.includes(subject)) return null;
-                  const style = bookStyle(subject);
-                  return (
-                    <motion.button
-                      layoutId={`exam-book-${subject}`}
+                {options.map((subject) =>
+                  subjects.includes(subject) ? null : (
+                    <ShelfBook
                       key={subject}
-                      type="button"
+                      subject={subject}
+                      layoutId={`exam-book-${subject}`}
                       onClick={() => onToggleSubject(subject)}
-                      initial={{ y: 12, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      whileHover={{ y: -8 }}
-                      whileTap={{ y: 2 }}
-                      className="flex shrink-0 items-center justify-center rounded-sm border border-black/20 px-1 pb-1 pt-3 text-left shadow-md"
-                      style={{
-                        width: style.width,
-                        height: style.height,
-                        background: style.color,
-                        writingMode: "vertical-rl",
-                        textOrientation: "mixed",
-                      }}
-                    >
-                      <span className="max-h-full overflow-hidden text-ellipsis text-[11px] font-semibold tracking-wide text-amber-50">
-                        {subject}
-                      </span>
-                    </motion.button>
-                  );
-                })}
+                    />
+                  )
+                )}
               </AnimatePresence>
             </div>
             <div className="h-3 rounded-t-sm bg-[#c4a574] shadow-[0_-6px_12px_rgba(0,0,0,0.25)]" />
             <div className="h-2 bg-[#8a5a32]" />
           </div>
 
-          <div className="relative bg-[#c9a26a] px-5 py-4">
+          <div className="relative z-0 shrink-0 bg-[#c9a26a] px-5 py-3">
             <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-950/55">
               Checkout desk
             </div>
-            <div className="mb-4 flex min-h-[72px] flex-wrap items-end gap-3">
+            <div className="mb-3 flex min-h-[52px] flex-wrap items-end gap-3">
               <AnimatePresence initial={false}>
-                {subjects.map((subject) => {
-                  const style = bookStyle(subject);
-                  return (
-                    <motion.button
-                      layoutId={`exam-book-${subject}`}
-                      key={subject}
-                      type="button"
-                      onClick={() => onToggleSubject(subject)}
-                      className="flex h-[72px] w-[64px] flex-col justify-end rounded-md border border-black/15 p-2 text-left shadow-lg"
-                      style={{ background: style.color }}
-                    >
-                      <span className="line-clamp-3 text-[10px] font-semibold leading-tight text-amber-50">{subject}</span>
-                    </motion.button>
-                  );
-                })}
+                {subjects.map((subject) => (
+                  <ShelfBook
+                    key={subject}
+                    subject={subject}
+                    layoutId={`exam-book-${subject}`}
+                    size="desk"
+                    onClick={() => onToggleSubject(subject)}
+                  />
+                ))}
               </AnimatePresence>
               {subjects.length === 0 && (
                 <p className="self-center text-sm text-amber-950/50">The desk is empty — pull a book from the shelf.</p>
@@ -148,7 +154,7 @@ export default function ExamSetup({ question, onComplete }) {
                     whileHover={{ y: -4, rotate: 0 }}
                     whileTap={{ scale: 0.97 }}
                     animate={{ rotate: active ? 0 : tilt }}
-                    className="relative rounded-sm border border-amber-900/20 bg-[#fff7ed] px-4 py-4 text-left shadow-md"
+                    className="relative rounded-sm border border-amber-900/20 bg-[#fff7ed] px-4 py-3 text-left shadow-md"
                   >
                     <span className="absolute left-3 top-2 h-2 w-2 rounded-full bg-red-800/80 shadow" />
                     {active && (
