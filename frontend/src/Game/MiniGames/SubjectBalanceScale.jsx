@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { play } from "../audio/sfx";
 
 function subjectOf(question) {
   const exam = question?.context?.missingExams?.[0];
@@ -47,7 +48,10 @@ export default function SubjectBalanceScale({ question, onComplete }) {
             min={0}
             max={100}
             value={value}
-            onChange={(e) => setValue(Number(e.target.value))}
+            onChange={(e) => {
+              play("click");
+              setValue(Number(e.target.value));
+            }}
             className="flex-1 accent-amber-800"
           />
           <div className="w-20 rounded-xl border border-stone-200 bg-stone-50 px-2 py-2 text-center">

@@ -7,10 +7,12 @@ import DailyCompletionScreen from "./UI/DailyCompletionScreen";
 import SpecialInteractionRouter from "./Building/SpecialInteractionRouter";
 import InteriorExploreHUD from "./UI/InteriorExploreHUD";
 import usePlayerControls from "./Player/usePlayerControls";
+import useGameAudio from "./audio/useGameAudio";
 import { PHASES, useGameStore } from "./state/GameStateManager";
 
 export default function MainGame() {
   const phase = useGameStore((s) => s.phase);
+  useGameAudio();
   usePlayerControls({
     run:
       phase === PHASES.RUNNING ||

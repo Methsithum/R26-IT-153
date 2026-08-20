@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { play } from "../audio/sfx";
 
 function subjectOf(question) {
   const exam = question?.context?.missingExams?.[0];
@@ -46,7 +47,10 @@ export default function GradeSlider({ question, onComplete }) {
           min={0}
           max={100}
           value={value}
-          onChange={(e) => setValue(Number(e.target.value))}
+            onChange={(e) => {
+              play("click");
+              setValue(Number(e.target.value));
+            }}
           className="w-full max-w-md accent-amber-800"
         />
 

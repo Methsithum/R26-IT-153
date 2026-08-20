@@ -35,6 +35,7 @@ export default function CameraController() {
     }
 
     const { posX, posY, posZ, shake, isJumping, isStumbling } = useRunnerStore.getState();
+    const combo = useGameStore.getState().combo;
     const dt = Math.min(delta, 0.05);
 
     const jumpLift = isJumping ? Math.max(0, posY) * 0.18 : 0;
@@ -56,7 +57,8 @@ export default function CameraController() {
     camera.position.copy(currentPos.current);
     camera.lookAt(currentLook.current);
 
-    const wantFov = BASE_FOV + (isStumbling ? 4 : 0) + shake * 3;
+    const rush = combo >= 5 ? 5 : combo >= 3 ? 2 : 0;
+    const wantFov = BASE_FOV + (isStumbling ? 4 : 0) + shake * 3 + rush;
     camera.fov += (wantFov - camera.fov) * Math.min(1, dt * 8);
     camera.updateProjectionMatrix();
   });

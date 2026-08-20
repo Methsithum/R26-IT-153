@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { play } from "../audio/sfx";
 
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -17,6 +18,7 @@ export default function DeadlineAbacus({ question, onComplete }) {
   const subject = subjectOf(question);
 
   function confirm() {
+    play("stamp");
     const iso = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     onComplete(iso);
   }
@@ -44,7 +46,10 @@ export default function DeadlineAbacus({ question, onComplete }) {
             min={1}
             max={31}
             value={day}
-            onChange={(e) => setDay(Number(e.target.value))}
+            onChange={(e) => {
+              play("click");
+              setDay(Number(e.target.value));
+            }}
             className="w-full accent-amber-800"
           />
         </div>
@@ -59,7 +64,10 @@ export default function DeadlineAbacus({ question, onComplete }) {
             min={0}
             max={11}
             value={month}
-            onChange={(e) => setMonth(Number(e.target.value))}
+            onChange={(e) => {
+              play("click");
+              setMonth(Number(e.target.value));
+            }}
             className="w-full accent-amber-800"
           />
         </div>

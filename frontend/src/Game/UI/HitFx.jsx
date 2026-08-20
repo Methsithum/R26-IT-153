@@ -6,6 +6,8 @@ const KIND_STYLE = {
   hit: "text-rose-200",
   combo: "text-amber-200",
   pickup: "text-emerald-200",
+  answer: "text-sky-200",
+  save: "text-amber-100",
 };
 
 export default function HitFx() {

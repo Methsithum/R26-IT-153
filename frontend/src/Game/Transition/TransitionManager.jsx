@@ -188,6 +188,7 @@ export default function TransitionManager() {
       building={building}
       question={activeQuestion}
       exploring={phase === PHASES.SPECIAL_INTERACTION_READY}
+      saved={phase === PHASES.SPECIAL_INTERACTION_COMPLETED}
     />
   );
 }

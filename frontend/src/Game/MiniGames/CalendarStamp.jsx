@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { play } from "../audio/sfx";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -44,8 +46,9 @@ export default function CalendarStamp({ question, onComplete }) {
     if (!selectedDay || stamped) return;
     setDay(selectedDay);
     setStamped(true);
+    play("stamp");
     const iso = `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(selectedDay).padStart(2, "0")}`;
-    setTimeout(() => onComplete(iso), 280);
+    setTimeout(() => onComplete(iso), 520);
   }
 
   return (
@@ -62,7 +65,18 @@ export default function CalendarStamp({ question, onComplete }) {
         </p>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-7">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-7">
+        <AnimatePresence>
+          {stamped && (
+            <motion.div
+              initial={{ scale: 1.8, opacity: 0, rotate: -24 }}
+              animate={{ scale: 1, opacity: 1, rotate: -12 }}
+              className="pointer-events-none absolute right-8 top-16 z-10 flex h-24 w-24 items-center justify-center rounded-full border-[5px] border-red-800/80 text-center text-[11px] font-black uppercase tracking-[0.18em] text-red-800/80"
+            >
+              Stamped
+            </motion.div>
+          )}
+        </AnimatePresence>
         <div className="mb-4 flex shrink-0 items-center justify-between">
           <button type="button" onClick={() => shiftMonth(-1)} className="rounded-full px-3 py-1 text-stone-500 hover:bg-stone-100">
             ‹

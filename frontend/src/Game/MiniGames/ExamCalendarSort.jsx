@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { play } from "../audio/sfx";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -43,6 +44,7 @@ export default function ExamCalendarSort({ question, onComplete }) {
   function stampDay(dayNumber) {
     if (!activeExam) return;
     const iso = `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(dayNumber).padStart(2, "0")}`;
+    play("stamp");
     const nextAssigned = { ...assigned, [activeExam.id]: iso };
     setAssigned(nextAssigned);
     const upcoming = missing.find((exam) => exam.id !== activeExam.id && !nextAssigned[exam.id]);

@@ -46,6 +46,7 @@ export default function Player() {
   const isSliding = useRunnerStore((s) => s.isSliding);
   const transitionEntryZ = useGameStore((s) => s.transitionEntryZ);
   const activeQuestion = useGameStore((s) => s.activeQuestion);
+  const targetBuildingId = useGameStore((s) => s.targetBuildingId);
 
   const exploring = phase === PHASES.SPECIAL_INTERACTION_READY;
   const entering = phase === PHASES.ENTERING_BUILDING;
@@ -134,7 +135,7 @@ export default function Player() {
         gaitPhase.current += dt * 2.2;
       }
 
-      const [mx, , mz] = missionLocalOffset(activeQuestion);
+      const [mx, , mz] = missionLocalOffset(activeQuestion, targetBuildingId);
       const [wx, , wz] = interiorWorld(transitionEntryZ, mx, mz);
       const dist = Math.hypot(nextX - wx, nextZ - wz);
       const near = dist < INTERACT_RANGE;

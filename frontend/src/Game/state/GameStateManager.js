@@ -4,6 +4,7 @@ import { localTodayIso } from "../../services/localDate";
 import { ASSIGNMENT_STATUS } from "../data/assignments";
 import { EXAM_STATUS } from "../data/exams";
 import { getBuildingById } from "../data/buildings";
+import { missionLabel } from "../Environment/stationMap";
 import { mapBackendQuestion, serializeAnswer } from "../data/backendQuestion";
 import { readStoredUser, storeUser } from "../../services/userApi";
 import { startDailySession, submitDailyAnswer, deleteTodayJournal } from "../../services/journalApi";
@@ -72,7 +73,7 @@ function mapBackendExams(exams = []) {
   }));
 }
 
-const XP_RULES = {
+export const XP_RULES = {
   GAME_START: 10,
   ANSWER: 15,
   INTERACTION: 40,
@@ -332,12 +333,19 @@ export const useGameStore = create((set, get) => ({
     const { activeQuestion, journalDay } = get();
     if (!activeQuestion) return;
 
+    const now = performance.now();
     set({
       phase: PHASES.ANSWER_CONFIRMED,
       pendingAnswer: answerValue,
       journalDay: recordResponse(journalDay, activeQuestion, answerValue, "lane"),
       xp: get().xp + XP_RULES.ANSWER,
       score: get().score + 120,
+      floatingTexts: pushFloater(get().floatingTexts, {
+        id: now,
+        kind: "answer",
+        text: "+120",
+        sub: "Answered",
+      }),
     });
 
     const escalates = shouldEscalateToSpecialEntry(activeQuestion, answerValue);
@@ -401,11 +409,14 @@ export const useGameStore = create((set, get) => ({
 
   buildingTransitionComplete: () => set({ phase: PHASES.ENTERING_BUILDING }),
 
-  buildingEntered: () =>
+  buildingEntered: () => {
+    const { activeQuestion, targetBuildingId } = get();
+    const label = missionLabel(activeQuestion, targetBuildingId);
     set({
       phase: PHASES.SPECIAL_INTERACTION_READY,
-      objectiveText: "Walk to the glowing desk",
-    }),
+      objectiveText: `Walk to the ${label.toLowerCase()}`,
+    });
+  },
 
   startSpecialInteraction: () => {
     if (document.pointerLockElement) document.exitPointerLock();
@@ -483,7 +494,7 @@ export const useGameStore = create((set, get) => ({
     });
 
     await get().ingestBackendAnswer(result.value);
-    setTimeout(() => set({ phase: PHASES.RETURNING_TO_CAMPUS }), 700);
+    setTimeout(() => set({ phase: PHASES.RETURNING_TO_CAMPUS }), 1600);
   },
 
   returnTransitionComplete: () => {

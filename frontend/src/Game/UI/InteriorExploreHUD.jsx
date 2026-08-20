@@ -69,7 +69,7 @@ export default function InteriorExploreHUD() {
 
   if (!entering && !exploring) return null;
 
-  const label = missionLabel(question);
+  const label = missionLabel(question, building?.id);
 
   return (
     <div className="pointer-events-none absolute inset-0 z-30 select-none">
@@ -81,6 +81,9 @@ export default function InteriorExploreHUD() {
           <div className="mt-1 text-sm font-medium text-stone-700">
             {entering ? "Doors opening — walk inside" : `Walk to the glowing ${label.toLowerCase()}`}
           </div>
+          {exploring && building?.description && (
+            <div className="mt-2 text-xs leading-relaxed text-stone-500">{building.description}</div>
+          )}
         </div>
       </div>
 
@@ -103,7 +106,7 @@ export default function InteriorExploreHUD() {
                 useGameStore.getState().tryStartMission();
               }}
             >
-              Enter
+              Use {label}
             </button>
             <div className="rounded-full bg-slate-950/55 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/80 backdrop-blur-md">
               Press Enter or E
