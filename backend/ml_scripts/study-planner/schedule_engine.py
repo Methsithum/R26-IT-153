@@ -127,13 +127,17 @@ class StudyScheduler:
             {
               "schedule": {day: [{time_slot, task_id, module, duration_minutes}, ...]},
               "overload_warning": [{"task_id":..., "module":..., "hours_short": ...}, ...],
-              "tasks": {task_id: {module, priority_label, deadline_date, estimated_hours_needed}, ...}
+              "tasks": {task_id: {module, weight, priority_label, deadline_date, estimated_hours_needed}, ...}
             }
         The "tasks" registry covers every task known to the scheduler at
         generation time (not just overloaded ones) - downstream consumers
         like generate_todo_output.py need each task's deadline/priority
         even when it WAS fully scheduled, since the schedule/overload_warning
-        sections alone don't carry that for successfully-placed tasks.
+        sections alone don't carry that for successfully-placed tasks. It also
+        carries "weight" so the full task dict can be round-tripped straight
+        back into add_task() (all of add_task's required fields present),
+        which the study-planner API's reschedule endpoint relies on to
+        reconstruct a StudyScheduler across stateless HTTP requests.
         """
         # Work on a fresh copy of remaining slot capacity so repeated calls
         # (e.g. via reschedule()) don't corrupt the original free-slot list.
@@ -188,6 +192,7 @@ class StudyScheduler:
         tasks_registry = {
             t["task_id"]: {
                 "module": t["module"],
+                "weight": t["weight"],
                 "priority_label": t["priority_label"],
                 "deadline_date": t["deadline_date"],
                 "estimated_hours_needed": t["estimated_hours_needed"],

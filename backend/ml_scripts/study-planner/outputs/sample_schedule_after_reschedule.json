@@ -1,29 +1,29 @@
 {
   "schedule": {
     "Monday": [],
-    "Tuesday": [
-      {
-        "time_slot": "15:30-16:00",
-        "task_id": "T4",
-        "module": "FFF",
-        "duration_minutes": 30
-      }
-    ],
+    "Tuesday": [],
     "Wednesday": [
       {
-        "time_slot": "09:00-10:00",
+        "time_slot": "17:30-19:00",
+        "task_id": "T4",
+        "module": "FFF",
+        "duration_minutes": 90
+      }
+    ],
+    "Thursday": [
+      {
+        "time_slot": "10:00-11:00",
         "task_id": "T5",
         "module": "FFF",
         "duration_minutes": 60
       },
       {
-        "time_slot": "17:00-19:00",
+        "time_slot": "11:00-12:00",
         "task_id": "T6",
         "module": "CCC",
-        "duration_minutes": 120
+        "duration_minutes": 60
       }
     ],
-    "Thursday": [],
     "Friday": [],
     "Saturday": [],
     "Sunday": []
@@ -33,66 +33,79 @@
       "task_id": "T4",
       "module": "FFF",
       "priority_label": "High",
-      "deadline_date": "2026-08-25",
-      "hours_short": 3.5
+      "deadline_date": "2026-08-26",
+      "hours_short": 2.5
     },
     {
       "task_id": "T8",
       "module": "FFF",
       "priority_label": "Medium",
-      "deadline_date": "2026-08-22",
+      "deadline_date": "2026-08-23",
       "hours_short": 4.0
     },
     {
       "task_id": "T3",
       "module": "BBB",
       "priority_label": "Medium",
-      "deadline_date": "2026-08-24",
+      "deadline_date": "2026-08-25",
       "hours_short": 3.0
+    },
+    {
+      "task_id": "T6",
+      "module": "CCC",
+      "priority_label": "Medium",
+      "deadline_date": "2026-08-28",
+      "hours_short": 1.0
     },
     {
       "task_id": "T7",
       "module": "FFF",
       "priority_label": "Low",
-      "deadline_date": "2026-08-28",
+      "deadline_date": "2026-08-29",
       "hours_short": 1.0
     }
   ],
   "tasks": {
     "T3": {
       "module": "BBB",
+      "weight": 18.0,
       "priority_label": "Medium",
-      "deadline_date": "2026-08-24",
+      "deadline_date": "2026-08-25",
       "estimated_hours_needed": 3
     },
     "T4": {
       "module": "FFF",
+      "weight": 25.0,
       "priority_label": "High",
-      "deadline_date": "2026-08-25",
+      "deadline_date": "2026-08-26",
       "estimated_hours_needed": 4
     },
     "T5": {
       "module": "FFF",
+      "weight": 0.0,
       "priority_label": "Medium",
-      "deadline_date": "2026-08-26",
+      "deadline_date": "2026-08-27",
       "estimated_hours_needed": 1
     },
     "T6": {
       "module": "CCC",
+      "weight": 8.0,
       "priority_label": "Medium",
-      "deadline_date": "2026-08-27",
+      "deadline_date": "2026-08-28",
       "estimated_hours_needed": 2
     },
     "T7": {
       "module": "FFF",
+      "weight": 0.0,
       "priority_label": "Low",
-      "deadline_date": "2026-08-28",
+      "deadline_date": "2026-08-29",
       "estimated_hours_needed": 1
     },
     "T8": {
       "module": "FFF",
+      "weight": 25.0,
       "priority_label": "Medium",
-      "deadline_date": "2026-08-22",
+      "deadline_date": "2026-08-23",
       "estimated_hours_needed": 4
     }
   }
