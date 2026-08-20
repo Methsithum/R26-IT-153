@@ -62,6 +62,7 @@ class TaskModel:
             "deadline": None,
             "mark": None,
             "last_mark_check": None,
+            "last_deadline_check": None,
         })
 
     @staticmethod
@@ -124,6 +125,15 @@ class TaskModel:
             "mark": mark,
             "last_mark_check": today,
         })
+
+    @staticmethod
+    async def record_deadline_check(user_id: str, subject: str):
+        existing = await TaskModel.find_assignment(user_id, subject)
+        if existing:
+            await TaskModel.update(
+                existing["id"],
+                {"last_deadline_check": local_today_iso()},
+            )
 
     @staticmethod
     async def record_mark_check(user_id: str, subject: str):

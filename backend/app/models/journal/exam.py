@@ -34,6 +34,7 @@ class ExamModel:
             "date": None,
             "mark": None,
             "last_mark_check": None,
+            "last_date_check": None,
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow(),
         }
@@ -47,20 +48,46 @@ class ExamModel:
         return [ExamModel._serialize(d) for d in docs]
 
     @staticmethod
-    async def missing(user_id: str, subjects: list[str], exam_types: list[str]):
-        if not subjects or not exam_types:
-            return []
+    async def missing(user_id: str, subjects: list[str] | None = None, exam_types: list[str] | None = None):
+        query = {
+            "user_id": user_id,
+            **ExamModel._blank_field_query("date"),
+        }
+        if subjects:
+            query["subject"] = {"$in": subjects}
+        if exam_types:
+            query["exam_type"] = {"$in": exam_types}
+        docs = list(exam_collection.find(query))
+        ready = []
+        for doc in docs:
+            exam = ExamModel._serialize(doc)
+            if is_mark_check_due(exam.get("last_date_check")):
+                ready.append(exam)
+        return ready
+
+    @staticmethod
+    async def dated_kinds(user_id: str) -> list[str]:
         docs = list(
             exam_collection.find(
                 {
                     "user_id": user_id,
-                    "subject": {"$in": subjects},
-                    "exam_type": {"$in": exam_types},
-                    **ExamModel._blank_field_query("date"),
+                    "date": {"$nin": [None, ""], "$exists": True},
                 }
             )
         )
-        return [ExamModel._serialize(d) for d in docs]
+        return list(dict.fromkeys(str(doc.get("exam_type") or "") for doc in docs if doc.get("exam_type")))
+
+    @staticmethod
+    async def marked_kinds(user_id: str) -> list[str]:
+        docs = list(
+            exam_collection.find(
+                {
+                    "user_id": user_id,
+                    "mark": {"$nin": [None, ""], "$exists": True},
+                }
+            )
+        )
+        return list(dict.fromkeys(str(doc.get("exam_type") or "") for doc in docs if doc.get("exam_type")))
 
     @staticmethod
     async def missing_marks(user_id: str, subjects: list[str] | None = None, exam_types: list[str] | None = None):
@@ -97,6 +124,18 @@ class ExamModel:
         exam_collection.update_one(
             {"_id": ObjectId(exam_id)},
             {"$set": {"mark": mark, "last_mark_check": today, "updated_at": datetime.utcnow()}},
+        )
+
+    @staticmethod
+    async def record_date_check(exam_id: str):
+        exam_collection.update_one(
+            {"_id": ObjectId(exam_id)},
+            {
+                "$set": {
+                    "last_date_check": local_today_iso(),
+                    "updated_at": datetime.utcnow(),
+                }
+            },
         )
 
     @staticmethod

@@ -32,6 +32,7 @@ export const STATIONS_BY_BUILDING = {
   },
   "exam-hall": {
     examSort: { ...desk(0, 4.2, 5.65), label: "Exam schedule" },
+    shelf: { ...desk(6.4, -6.2, -4.8), label: "Exam subject shelf" },
     abacus: { ...desk(-8.0, 4.2, 5.65), label: "Deadline desk" },
     calendar: { ...wallBack(0), label: "Notice board" },
     dartboard: { ...wallRight(-2.2, 2.28), label: "Results board" },
@@ -64,22 +65,28 @@ export function stationKeyFor(question, buildingId) {
   let key = "calendar";
 
   if (type === "date") key = "abacus";
-  else if (type === "examDate" || type === "examSetup") key = "examSort";
+  else if (type === "examDate") key = "examSort";
+  else if (type === "examSetup") key = layout.shelf ? "shelf" : "examSort";
   else if (type === "subjectPick") {
     key =
       buildingId === "lecture-hall" || field === "lectureSubjects" ? "tickets" : "shelf";
   } else if (type === "markTarget") {
     key = layout.dartboard ? "dartboard" : MARK_KEYS.find((k) => layout[k]) || "dartboard";
   } else if (type === "marks") {
-    const available = MARK_KEYS.filter((k) => layout[k]);
-    const id =
-      question?.context?.assignmentId ||
-      question?.context?.missingExams?.[0]?.id ||
-      question?.id ||
-      "marks";
-    key = available.length
-      ? available[pickVariantIndex(String(id), available.length)]
-      : "slider";
+    const examMark = field === "examMark" || field === "exam-mark-check";
+    if (examMark && layout.dartboard) {
+      key = "dartboard";
+    } else {
+      const available = MARK_KEYS.filter((k) => layout[k]);
+      const id =
+        question?.context?.assignmentId ||
+        question?.context?.missingExams?.[0]?.id ||
+        question?.id ||
+        "marks";
+      key = available.length
+        ? available[pickVariantIndex(String(id), available.length)]
+        : "slider";
+    }
   }
 
   if (layout[key]) return key;

@@ -24,6 +24,7 @@ async def pick_question_id(
     session_context: Dict[str, Any] | None = None,
     total_questions_asked: int = 0,
     max_questions: int = 12,
+    uncovered_activities: List[str] | None = None,
 ) -> Dict[str, Any]:
     """Ask the LLM to choose one bank `question_id`. It must not invent text."""
     if not candidates:
@@ -62,29 +63,39 @@ async def pick_question_id(
         )
         at_risk_info = f"\nAT-RISK TASKS (prefer questions about these):\n{at_risk_str}\n"
 
+    uncovered = uncovered_activities or []
+    uncovered_info = (
+        f"Uncovered ticked activities (must not end yet): {', '.join(uncovered)}.\n"
+        if uncovered
+        else "Every ticked activity already has at least one question.\n"
+    )
+
     prompt = f"""
 You pick journal check-in questions for student {user_name}.
 You MUST pick from the candidate list. Never invent a question, never rewrite one, never invent options.
 
 Today's activities: {', '.join(selected_activities) or 'unspecified'}.
-{extra_info}{at_risk_info}
+{uncovered_info}{extra_info}{at_risk_info}
 Answers so far:
 {history_str}
 
 Known tasks:
 {json.dumps(tasks, default=str)}
 
-Questions asked this session: {total_questions_asked}. Max allowed: {max_questions}.
+Questions asked this session: {total_questions_asked}. Soft max: {max_questions}.
 
 CANDIDATES (pick exactly one id):
 {candidate_lines}
 
 Rules:
-1. If you already have enough of a picture of today, or {total_questions_asked} is close to the max, set end_session true and question_id null.
-2. Prefer candidates that match today's activities and any at-risk tasks.
-3. Do not pick a candidate that repeats what was already answered.
-4. If the latest answer implies a task progress change, include task_updates. Each update: {{"task_id": (existing id or null), "title": "...", "progress_stage": "...", "deadline": ...}}. Only use progress stages from: {sorted(TASK_PROGRESS_STAGES)}.
-5. Respond with JSON only:
+1. Never set end_session true while uncovered activities remain. The backend will reject it.
+2. Follow the latest answer: pick a candidate in the same activity thread for one more beat, then rotate to an uncovered activity.
+3. Prefer candidates that match today's activities and any at-risk tasks.
+4. Do not pick a candidate that repeats what was already answered.
+5. Keep coverage thin: one or two flavour questions per activity is enough, then rotate.
+6. If every ticked activity is covered and you have a clear picture of today, you may set end_session true and question_id null.
+7. If the latest answer implies a task progress change, include task_updates. Each update: {{"task_id": (existing id or null), "title": "...", "progress_stage": "...", "deadline": ...}}. Only use progress stages from: {sorted(TASK_PROGRESS_STAGES)}.
+8. Respond with JSON only:
 {{
   "question_id": "one-of-the-candidate-ids-or-null",
   "end_session": false,
@@ -103,10 +114,15 @@ Rules:
         return _fallback_pick(candidates)
 
     question_id = data.get("question_id")
-    if data.get("end_session") or not question_id:
+    if (data.get("end_session") or not question_id) and not uncovered:
         return {
             "question_id": None,
             "end_session": True,
+            "task_updates": data.get("task_updates") or [],
+        }
+    if (data.get("end_session") or not question_id) and uncovered:
+        return {
+            **_fallback_pick(candidates),
             "task_updates": data.get("task_updates") or [],
         }
     if question_id not in allowed_ids:

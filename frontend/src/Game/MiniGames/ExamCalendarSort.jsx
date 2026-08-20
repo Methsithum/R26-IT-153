@@ -32,7 +32,9 @@ export default function ExamCalendarSort({ question, onComplete }) {
 
   const total = daysInMonth(monthIndex, year);
   const firstWeekday = new Date(year, monthIndex, 1).getDay();
-  const allAssigned = missing.length > 0 && missing.every((exam) => assigned[exam.id]);
+  const stampedCount = missing.filter((exam) => assigned[exam.id]).length;
+  const leftoverCount = missing.length - stampedCount;
+  const canConfirm = stampedCount > 0;
   const activeExam = missing.find((exam) => exam.id === activeId) || missing[0];
 
   function shiftMonth(delta) {
@@ -45,6 +47,12 @@ export default function ExamCalendarSort({ question, onComplete }) {
     if (!activeExam) return;
     const iso = `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(dayNumber).padStart(2, "0")}`;
     play("stamp");
+    if (assigned[activeExam.id] === iso) {
+      const nextAssigned = { ...assigned };
+      delete nextAssigned[activeExam.id];
+      setAssigned(nextAssigned);
+      return;
+    }
     const nextAssigned = { ...assigned, [activeExam.id]: iso };
     setAssigned(nextAssigned);
     const upcoming = missing.find((exam) => exam.id !== activeExam.id && !nextAssigned[exam.id]);
@@ -67,9 +75,7 @@ export default function ExamCalendarSort({ question, onComplete }) {
         </div>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900">Missing exam dates</h2>
         <p className="mt-2 max-w-2xl text-sm text-stone-600">
-          {question?.context?.field === "exam-dates-check"
-            ? "Stamp only the dates that have been released. This is a real calendar — no generated dates."
-            : question?.questionText ?? "Stamp only the dates that are still missing. This is a real calendar — no generated dates."}
+          Stamp only the papers whose dates are out. Leave the rest blank — those will be asked again next week.
         </p>
       </div>
 
@@ -91,7 +97,7 @@ export default function ExamCalendarSort({ question, onComplete }) {
               >
                 <div className="text-sm font-semibold">{examLabel(exam)}</div>
                 <div className={`mt-1 text-xs ${active ? "text-amber-100/80" : "text-stone-500"}`}>
-                  {date || "Date missing — tap a day on the calendar"}
+                  {date || "Not released yet — leave blank, or tap a day"}
                 </div>
               </button>
             );
@@ -147,11 +153,15 @@ export default function ExamCalendarSort({ question, onComplete }) {
 
       <button
         type="button"
-        disabled={!allAssigned}
+        disabled={!canConfirm}
         onClick={() => onComplete(assigned)}
         className="mt-4 shrink-0 rounded-2xl bg-amber-800 py-3.5 text-sm font-semibold text-amber-50 transition-colors hover:bg-amber-700 disabled:opacity-40"
       >
-        {allAssigned ? "Confirm exam dates" : "Stamp every missing paper first"}
+        {!canConfirm
+          ? "Stamp at least one released date"
+          : leftoverCount > 0
+            ? `Confirm ${stampedCount} date${stampedCount === 1 ? "" : "s"} · ${leftoverCount} still waiting`
+            : "Confirm exam dates"}
       </button>
     </div>
   );

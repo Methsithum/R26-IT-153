@@ -14,6 +14,8 @@ export const ACTIVITY_TO_CATEGORY = {
   academic_study: "attendance",
   assignment_work: "academic",
   exam_preparation: "academic",
+  lab_practical: "academic",
+  quiz_work: "academic",
   project_development: "activity",
   internship: "activity",
   club_participation: "wellbeing",
@@ -274,17 +276,43 @@ export function generateDailyQuestions({
 
 /**
  * Yes on a date/mark gate should open the building mini-game.
- * "Not yet" leaves the saved date/mark null and asks again another day.
+ * "Not yet" leaves the saved date/mark null and asks again another week.
+ * After a Yes on a multi-exam mark gate, the next question is a subject pick — do not escalate yet.
  */
+function isAffirmative(answerValue) {
+  return (
+    answerValue === "Yes" ||
+    answerValue === "Only some of them" ||
+    answerValue === "Only some subjects" ||
+    answerValue === "I need to check" ||
+    answerValue === "Only a tentative date" ||
+    answerValue === "Partial results only" ||
+    answerValue === "Partial feedback only"
+  );
+}
+
 export function shouldEscalateToSpecialEntry(question, answerValue) {
   const field = question?.context?.field;
-  return (
-    answerValue === "Yes" &&
-    (field === "mark-check" ||
-      field === "exam-mark-check" ||
-      field === "deadline-check" ||
-      field === "exam-dates-check")
-  );
+  if (!isAffirmative(answerValue)) return false;
+  if (field === "deadline-check") {
+    return (
+      answerValue === "Yes" ||
+      answerValue === "Only a tentative date" ||
+      answerValue === "I need to check"
+    );
+  }
+  if (field === "exam-dates-check") return true;
+  if (field === "mark-check") {
+    const options = question?.context?.subjectOptions || [];
+    if (options.length > 1 && !question?.subject && !question?.context?.subject) return false;
+    return answerValue === "Yes" || answerValue === "Partial feedback only";
+  }
+  if (field === "exam-mark-check") {
+    const remaining = question?.context?.missingExams?.length || 0;
+    if (remaining > 1) return false;
+    return answerValue === "Yes" || answerValue === "Only some subjects" || answerValue === "Partial results only";
+  }
+  return false;
 }
 
 export const shouldEscalateToMarkEntry = shouldEscalateToSpecialEntry;

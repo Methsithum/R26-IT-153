@@ -215,10 +215,26 @@ export default function SubjectPicker({ question, onComplete }) {
   const registered = useGameStore((s) => s.subjects);
   const options = question?.context?.subjectOptions?.length ? question.context.subjectOptions : registered;
   const [picked, setPicked] = useState([]);
-  const isLecture = question?.context?.field === "lectureSubjects";
+  const field = question?.context?.field;
+  const isLecture = field === "lectureSubjects";
+  const isLab = field === "labSubjects";
+  const isQuiz = field === "quizSubjects";
 
-  const title = isLecture ? "Today's lectures" : "Assignment subjects";
+  const title = isLecture
+    ? "Today's lectures"
+    : isLab
+      ? "Lab subjects"
+      : isQuiz
+        ? "Quiz subjects"
+        : "Assignment subjects";
   const eyebrow = isLecture ? "Lecture desk" : "Library shelf";
+  const hint = isLecture
+    ? "Stamp the lectures you attended today."
+    : isLab
+      ? "Pull the lab subjects you worked on today."
+      : isQuiz
+        ? "Pull the quiz subjects you sat or prepared today."
+        : "Pull the books you worked on today.";
 
   function onToggle(subject) {
     play(isLecture ? "stamp" : "book");
@@ -231,8 +247,7 @@ export default function SubjectPicker({ question, onComplete }) {
         <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">{eyebrow}</div>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900">{title}</h2>
         <p className="mt-2 max-w-xl text-sm text-stone-600">
-          {question?.questionText ??
-            (isLecture ? "Stamp the lectures you attended today." : "Pull the books you worked on today.")}
+          {question?.questionText ?? hint}
         </p>
       </div>
 

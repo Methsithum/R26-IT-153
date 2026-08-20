@@ -417,19 +417,24 @@ export const useGameStore = create((set, get) => ({
     if (!needsInteraction) {
       await get().ingestBackendAnswer(answerValue);
       const todayKey = localTodayIso();
-      if (activeQuestion.context?.field === "exam-mark-check") {
-        const examId = activeQuestion.context?.missingExams?.[0]?.id;
+      const declined =
+        answerValue === "Not yet" || answerValue === "Waiting on the lecturer";
+      if (declined && activeQuestion.context?.field === "exam-mark-check") {
+        const ids = new Set((activeQuestion.context?.missingExams || []).map((exam) => exam.id));
         set({
           exams: get().exams.map((exam) =>
-            exam.id === examId ? { ...exam, lastMarkCheckDate: todayKey } : exam
+            ids.has(exam.id) ? { ...exam, lastMarkCheckDate: todayKey } : exam
           ),
         });
       }
-      if (activeQuestion.context?.field === "mark-check") {
+      if (declined && activeQuestion.context?.field === "mark-check") {
         const subject = activeQuestion.context?.subject || activeQuestion.subject;
+        const options = activeQuestion.context?.subjectOptions || [];
         set({
           assignments: get().assignments.map((item) =>
-            item.id === activeQuestion.context?.assignmentId || item.subject === subject
+            item.id === activeQuestion.context?.assignmentId ||
+            item.subject === subject ||
+            options.includes(item.subject)
               ? { ...item, lastMarkCheckDate: todayKey }
               : item
           ),
@@ -593,13 +598,7 @@ export const useGameStore = create((set, get) => ({
       activeQuestion: null,
       pendingAnswer: null,
       finishLineZ: z,
-      objectiveText: "Finish line ahead — run through the tape",
-      floatingTexts: pushFloater(get().floatingTexts, {
-        id: performance.now(),
-        kind: "save",
-        text: "FINISH LINE",
-        sub: "Keep running",
-      }),
+      objectiveText: "The tape is ahead — keep running",
     });
   },
 

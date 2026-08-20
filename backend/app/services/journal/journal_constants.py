@@ -7,6 +7,8 @@ ALLOWED_ACTIVITIES: Final[set[str]] = {
     "academic_study",
     "assignment_work",
     "exam_preparation",
+    "lab_practical",
+    "quiz_work",
     "project_development",
     "internship",
     "sports",
@@ -43,6 +45,7 @@ INTERNSHIP_PROGRESS_STAGES: Final[set[str]] = {
 TASK_PROGRESS_STAGES: Final[set[str]] = ASSIGNMENT_PROGRESS_STAGES | INTERNSHIP_PROGRESS_STAGES
 
 MARK_RECEIVED_STAGES: Final[set[str]] = {"completed", "report_completed", "viva_pending"}
+EXAM_KINDS: Final[set[str]] = {"mid", "final", "lab", "quiz"}
 MARK_CHECK_INTERVAL_DAYS: Final[int] = 7
 
 

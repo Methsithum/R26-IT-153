@@ -8,7 +8,7 @@ from app.services.journal.llm_service import fallback_daily_journal, generate_da
 from app.services.journal.question_picker import pick_next_question
 from app.services.journal.gamification import _calculate_xp, apply_run_rewards, progress_fields, reconcile_user_progress, update_streak_and_xp, level_from_xp
 from app.services.journal.journal_service import build_session_context
-from app.services.journal.journal_constants import ASSIGNMENT_STATUS_ANSWERS, filter_allowed_activities
+from app.services.journal.journal_constants import ASSIGNMENT_STATUS_ANSWERS, EXAM_KINDS, filter_allowed_activities
 from app.services.journal.alerts import generate_proactive_alerts
 from app.services.journal.learning_patterns import aggregate_learning_patterns
 import json
@@ -107,6 +107,7 @@ def _pending_fields(question: Optional[Dict[str, Any]]) -> dict:
             "subject": question.get("subject"),
             "subject_options": question.get("subject_options"),
             "missing_exams": question.get("missing_exams"),
+            "exam_kind": question.get("exam_kind"),
         },
     }
 
@@ -121,6 +122,8 @@ def _task_rows(tasks: List[Dict]) -> List[Dict]:
             "progress_stage": t.get("progress_stage"),
             "deadline": t.get("deadline"),
             "mark": t.get("mark"),
+            "last_mark_check": t.get("last_mark_check"),
+            "last_deadline_check": t.get("last_deadline_check"),
             "task_type": t.get("task_type"),
         }
         for t in tasks
@@ -210,8 +213,68 @@ def _parse_subject_payload(answer: Any) -> Dict[str, List[str]]:
         raw_subjects = payload.get("subjects") or payload.get("lecture_subjects") or payload.get("assignment_subjects") or []
         subjects = [str(item).strip() for item in raw_subjects if str(item).strip()]
         raw_kinds = payload.get("exam_kinds") or payload.get("kinds") or []
-        kinds = [item for item in raw_kinds if item in ("mid", "final")]
+        kinds = [item for item in raw_kinds if item in EXAM_KINDS]
     return {"subjects": list(dict.fromkeys(subjects)), "exam_kinds": list(dict.fromkeys(kinds))}
+
+
+_YES_ANSWERS = {
+    "yes",
+    "only some of them",
+    "only some subjects",
+    "i need to check",
+    "only a tentative date",
+    "partial results only",
+    "partial feedback only",
+}
+_NO_ANSWERS = {"not yet", "no", "waiting on the lecturer"}
+
+
+def _norm_lane(answer: Any) -> str:
+    return str(answer or "").strip().lower()
+
+
+def _is_yes(answer: Any) -> bool:
+    return _norm_lane(answer) in _YES_ANSWERS
+
+
+def _is_no(answer: Any) -> bool:
+    return _norm_lane(answer) in _NO_ANSWERS
+
+
+def _kind_from_exams(exams: List[Dict] | None) -> Optional[str]:
+    if not exams:
+        return None
+    kind = str(exams[0].get("exam_type") or "").strip().lower()
+    return kind or None
+
+
+def _append_kind(existing: List[str] | None, kind: Optional[str]) -> List[str]:
+    values = list(existing or [])
+    if kind and kind not in values:
+        values.append(kind)
+    return values
+
+
+async def _recent_asked_ids(user_id: str) -> List[str]:
+    sessions = await DailySessionModel.find_recent_user_sessions(user_id, limit=6)
+    ids: List[str] = []
+    for session in sessions:
+        ids.extend(session.get("asked_question_ids") or [])
+    return ids
+
+
+async def _academic_state(user_id: str) -> dict:
+    tasks = await TaskModel.find_by_user(user_id)
+    return {
+        "tasks": tasks,
+        "tasks_data": _task_rows(tasks),
+        "missing_exams": await ExamModel.missing(user_id),
+        "unmarked_exams": await ExamModel.missing_marks(user_id),
+        "unmarked_assignments": await TaskModel.assignments_needing_mark(user_id),
+        "dated_exam_kinds": await ExamModel.dated_kinds(user_id),
+        "marked_exam_kinds": await ExamModel.marked_kinds(user_id),
+        "recent_asked_ids": await _recent_asked_ids(user_id),
+    }
 
 
 async def _record_structured_answer(session: dict, answer: str) -> dict:
@@ -220,7 +283,7 @@ async def _record_structured_answer(session: dict, answer: str) -> dict:
     user_id = session["user_id"]
     updates: dict = {}
 
-    if field in {"lectureSubjects", "assignmentSubjects", "examSetup"}:
+    if field in {"lectureSubjects", "assignmentSubjects", "examSetup", "labSubjects", "quizSubjects"}:
         parsed = _parse_subject_payload(answer)
         subjects = parsed["subjects"]
         combined = list(dict.fromkeys([*(session.get("today_subjects") or []), *subjects]))
@@ -233,8 +296,16 @@ async def _record_structured_answer(session: dict, answer: str) -> dict:
             updates["assignment_subjects"] = subjects
             for subject in subjects:
                 await TaskModel.ensure_assignment(user_id, subject)
+        elif field == "labSubjects":
+            updates["lab_subjects"] = subjects
+            for subject in subjects:
+                await ExamModel.ensure(user_id, subject, "lab")
+        elif field == "quizSubjects":
+            updates["quiz_subjects"] = subjects
+            for subject in subjects:
+                await ExamModel.ensure(user_id, subject, "quiz")
         else:
-            kinds = parsed["exam_kinds"] or ["mid", "final"]
+            kinds = [k for k in parsed["exam_kinds"] if k in ("mid", "final")] or ["mid", "final"]
             updates["exam_subjects"] = subjects
             updates["exam_kinds"] = kinds
             for subject in subjects:
@@ -276,40 +347,72 @@ async def _record_structured_answer(session: dict, answer: str) -> dict:
 
     subject = meta.get("subject") or session.get("pending_mark_subject")
     if not subject:
-        if field in {"deadline", "deadline-check", "mark", "mark-check"}:
+        if field in {"deadline", "deadline-check"}:
             subject = (session.get("assignment_subjects") or [None])[0]
-        else:
+        elif field not in {"mark", "mark-check", "examDates", "exam-dates-check", "examMark", "exam-mark-check"}:
             subject = (session.get("today_subjects") or [None])[0]
     if field in {"deadline", "deadline-check"} and subject:
         iso = _iso_date(answer)
         if iso:
             await TaskModel.set_deadline(user_id, subject, iso)
+        elif field == "deadline-check" and _is_no(answer):
+            await TaskModel.record_deadline_check(user_id, subject)
         checked = list(session.get("asked_deadline_subjects") or [])
         if subject not in checked:
             checked.append(subject)
         updates["asked_deadline_subjects"] = checked
         return updates
-    if field in {"mark", "mark-check"} and subject:
+    if field in {"mark", "mark-check"}:
         parsed = _parse_mark(answer)
-        if parsed is not None and not isinstance(parsed, dict):
-            await TaskModel.set_mark(user_id, subject, parsed)
-        elif field == "mark-check":
-            await TaskModel.record_mark_check(user_id, subject)
+        target_subjects = [subject] if subject else list(meta.get("subject_options") or [])
+        if parsed is not None and not isinstance(parsed, dict) and (subject or target_subjects):
+            await TaskModel.set_mark(user_id, subject or target_subjects[0], parsed)
+            updates["pending_mark_subject"] = None
+            updates["confirmed_assignment_marks"] = True
+        elif field == "mark-check" and _is_no(answer):
+            for item in target_subjects:
+                if item:
+                    await TaskModel.record_mark_check(user_id, item)
+        elif field == "mark-check" and _is_yes(answer):
+            updates["confirmed_assignment_marks"] = True
         return updates
     if field in {"examDates", "exam-dates-check"}:
+        exams_meta = meta.get("missing_exams") or []
+        kind = _kind_from_exams(exams_meta) or session.get("pending_exam_date_kind")
         try:
             payload = json.loads(answer) if isinstance(answer, str) else answer
         except json.JSONDecodeError:
             payload = {}
-        if isinstance(payload, dict):
+        if isinstance(payload, dict) and payload:
+            stamped_ids = set()
             for exam_id, date_value in payload.items():
                 iso = _iso_date(date_value)
                 if exam_id and iso:
                     await ExamModel.set_date(str(exam_id), iso)
+                    stamped_ids.add(str(exam_id))
+            for exam in exams_meta:
+                exam_id = str(exam.get("id") or "")
+                if exam_id and exam_id not in stamped_ids:
+                    await ExamModel.record_date_check(exam_id)
+            updates["asked_exam_date_kinds"] = _append_kind(session.get("asked_exam_date_kinds"), kind)
+            updates["pending_exam_date_kind"] = None
+            return updates
+        if _is_no(answer):
+            for exam in exams_meta:
+                if exam.get("id"):
+                    await ExamModel.record_date_check(str(exam.get("id")))
+            updates["asked_exam_date_kinds"] = _append_kind(session.get("asked_exam_date_kinds"), kind)
+            updates["pending_exam_date_kind"] = None
+        elif _is_yes(answer):
+            updates["asked_exam_date_kinds"] = _append_kind(session.get("asked_exam_date_kinds"), kind)
+            updates["pending_exam_date_kind"] = kind
         return updates
     if field in {"examMark", "exam-mark-check"}:
         exams_meta = meta.get("missing_exams") or []
-        exam_id = session.get("pending_mark_exam_id") or (exams_meta[0].get("id") if exams_meta else None)
+        exam_id = session.get("pending_mark_exam_id") or (
+            exams_meta[0].get("id") if len(exams_meta) == 1 else None
+        )
+        kind = _kind_from_exams(exams_meta) or session.get("pending_exam_mark_kind")
         parsed = _parse_mark(answer)
         if isinstance(parsed, dict):
             for eid, mark_value in parsed.items():
@@ -319,11 +422,21 @@ async def _record_structured_answer(session: dict, answer: str) -> dict:
                     continue
                 if eid:
                     await ExamModel.set_mark(str(eid), mark)
+            updates["pending_mark_exam_id"] = None
             return updates
         if parsed is not None and exam_id:
             await ExamModel.set_mark(str(exam_id), parsed)
-        elif field == "exam-mark-check" and exam_id:
-            await ExamModel.record_mark_check(str(exam_id))
+            updates["pending_mark_exam_id"] = None
+            return updates
+        if field == "exam-mark-check" and _is_no(answer):
+            for exam in exams_meta:
+                if exam.get("id"):
+                    await ExamModel.record_mark_check(str(exam.get("id")))
+            updates["asked_exam_mark_kinds"] = _append_kind(session.get("asked_exam_mark_kinds"), kind)
+            updates["pending_exam_mark_kind"] = None
+        elif field == "exam-mark-check" and _is_yes(answer):
+            updates["asked_exam_mark_kinds"] = _append_kind(session.get("asked_exam_mark_kinds"), kind)
+            updates["pending_exam_mark_kind"] = kind
         return updates
     return updates
 
@@ -341,6 +454,7 @@ def _record_snapshot(tasks: List[Dict], exams: List[Dict]) -> dict:
                 "deadline": t.get("deadline"),
                 "mark": t.get("mark"),
                 "last_mark_check": t.get("last_mark_check"),
+                "last_deadline_check": t.get("last_deadline_check"),
                 "progress_stage": t.get("progress_stage"),
             }
             for t in (tasks or [])
@@ -352,6 +466,7 @@ def _record_snapshot(tasks: List[Dict], exams: List[Dict]) -> dict:
                 "date": e.get("date"),
                 "mark": e.get("mark"),
                 "last_mark_check": e.get("last_mark_check"),
+                "last_date_check": e.get("last_date_check"),
             }
             for e in (exams or [])
             if e.get("id")
@@ -413,6 +528,7 @@ async def _clear_todays_structured_writes(user_id: str, sessions: List[dict]) ->
         updates: dict = {}
         if created_today or eid in exam_date_ids or (updated_today and exam.get("date") in iso_answers):
             updates["date"] = None
+            updates["last_date_check"] = None
         mark_value = exam.get("mark")
         try:
             mark_num = float(mark_value) if mark_value not in (None, "") else None
@@ -462,6 +578,7 @@ async def _restore_record_snapshot(user_id: str, snapshot: dict) -> None:
                 "deadline": prev.get("deadline"),
                 "mark": prev.get("mark"),
                 "last_mark_check": prev.get("last_mark_check"),
+                "last_deadline_check": prev.get("last_deadline_check"),
                 "progress_stage": prev.get("progress_stage") or task.get("progress_stage"),
             },
         )
@@ -477,6 +594,7 @@ async def _restore_record_snapshot(user_id: str, snapshot: dict) -> None:
                 "date": prev.get("date"),
                 "mark": prev.get("mark"),
                 "last_mark_check": prev.get("last_mark_check"),
+                "last_date_check": prev.get("last_date_check"),
             },
         )
 
@@ -585,21 +703,15 @@ async def start_daily_session(req: StartDailyRequest):
             for kind in kinds:
                 await ExamModel.ensure(req.user_id, subject, kind)
 
-    tasks = await TaskModel.find_by_user(req.user_id)
+    academic = await _academic_state(req.user_id)
+    tasks = academic["tasks"]
     exams = await ExamModel.find_by_user(req.user_id)
-    tasks_data = _task_rows(tasks)
-    missing_exams = []
-    if "exam_preparation" in selected_activities and exam_subjects and exam_kinds:
-        missing_exams = await ExamModel.missing(
-            req.user_id, exam_subjects, exam_kinds
-        )
-    unmarked_exams = await ExamModel.missing_marks(req.user_id)
-    unmarked_assignments = await TaskModel.assignments_needing_mark(req.user_id)
 
     date = calendar_datetime(req.date)
 
     max_questions = _calculate_max_questions(len(selected_activities))
     session_context = {"derived": None, "at_risk_tasks": []}
+    recent_asked_ids = academic["recent_asked_ids"]
 
     try:
         decision = await pick_next_question(
@@ -607,7 +719,7 @@ async def start_daily_session(req: StartDailyRequest):
             selected_activities=selected_activities,
             asked_ids=[],
             qa_history=[],
-            tasks=tasks_data,
+            tasks=academic["tasks_data"],
             session_context=session_context,
             total_questions_asked=0,
             max_questions=max_questions,
@@ -616,10 +728,15 @@ async def start_daily_session(req: StartDailyRequest):
             assignment_subjects=assignment_subjects,
             exam_subjects=exam_subjects,
             exam_kinds=exam_kinds,
+            lab_subjects=[],
+            quiz_subjects=[],
             registered_subjects=user_subjects,
-            missing_exams=missing_exams,
-            unmarked_exams=unmarked_exams,
-            unmarked_assignments=unmarked_assignments,
+            missing_exams=academic["missing_exams"],
+            unmarked_exams=academic["unmarked_exams"],
+            unmarked_assignments=academic["unmarked_assignments"],
+            dated_exam_kinds=academic["dated_exam_kinds"],
+            marked_exam_kinds=academic["marked_exam_kinds"],
+            recent_asked_ids=recent_asked_ids,
         )
         question = decision.get("question")
     except Exception:
@@ -637,6 +754,8 @@ async def start_daily_session(req: StartDailyRequest):
         "assignment_subjects": assignment_subjects,
         "exam_subjects": exam_subjects,
         "exam_kinds": exam_kinds,
+        "lab_subjects": [],
+        "quiz_subjects": [],
         "max_questions": max_questions,
         "study_duration_minutes": req.study_duration_minutes,
         "engagement": req.engagement,
@@ -649,6 +768,13 @@ async def start_daily_session(req: StartDailyRequest):
         ),
         "asked_question_ids": [],
         "asked_deadline_subjects": [],
+        "asked_exam_date_kinds": [],
+        "asked_exam_mark_kinds": [],
+        "pending_exam_date_kind": None,
+        "pending_exam_mark_kind": None,
+        "pending_mark_exam_id": None,
+        "pending_mark_subject": None,
+        "confirmed_assignment_marks": False,
         "qa_history": [],
         "completed": False,
         "journal_entry": None,
@@ -699,14 +825,15 @@ async def answer_question(req: AnswerRequest):
     assignment_subjects = session.get("assignment_subjects") or []
     exam_subjects = session.get("exam_subjects") or []
     exam_kinds = [k for k in (session.get("exam_kinds") or []) if k in ("mid", "final")]
-    tasks = await TaskModel.find_by_user(session["user_id"])
-    tasks_data = _task_rows(tasks)
-    missing_exams = []
-    if "exam_preparation" in (session.get("selected_activities") or []) and exam_subjects and exam_kinds:
-        missing_exams = await ExamModel.missing(session["user_id"], exam_subjects, exam_kinds)
-    unmarked_exams = await ExamModel.missing_marks(session["user_id"])
-    unmarked_assignments = await TaskModel.assignments_needing_mark(session["user_id"])
-    qa_list = [{"question": q["question"], "answer": q["answer"]} for q in qa_history]
+    academic = await _academic_state(session["user_id"])
+    qa_list = [
+        {
+            "question": q["question"],
+            "answer": q["answer"],
+            "question_id": q.get("question_id"),
+        }
+        for q in qa_history
+    ]
     user = await UserModel.find_by_id(session["user_id"])
     session_context = await build_session_context(session)
     max_questions = session.get("max_questions", 12)
@@ -717,7 +844,7 @@ async def answer_question(req: AnswerRequest):
         selected_activities=session["selected_activities"],
         asked_ids=asked_ids,
         qa_history=qa_list,
-        tasks=tasks_data,
+        tasks=academic["tasks_data"],
         session_context=session_context,
         total_questions_asked=len(qa_history),
         max_questions=max_questions,
@@ -726,13 +853,23 @@ async def answer_question(req: AnswerRequest):
         assignment_subjects=assignment_subjects,
         exam_subjects=exam_subjects,
         exam_kinds=exam_kinds,
+        lab_subjects=session.get("lab_subjects") or [],
+        quiz_subjects=session.get("quiz_subjects") or [],
         registered_subjects=registered_subjects,
-        missing_exams=missing_exams,
-        unmarked_exams=unmarked_exams,
-        unmarked_assignments=unmarked_assignments,
+        missing_exams=academic["missing_exams"],
+        unmarked_exams=academic["unmarked_exams"],
+        unmarked_assignments=academic["unmarked_assignments"],
         pending_mark_exam_id=session.get("pending_mark_exam_id"),
         pending_mark_subject=session.get("pending_mark_subject"),
+        pending_exam_date_kind=session.get("pending_exam_date_kind"),
+        pending_exam_mark_kind=session.get("pending_exam_mark_kind"),
+        confirmed_assignment_marks=bool(session.get("confirmed_assignment_marks")),
         asked_deadline_subjects=session.get("asked_deadline_subjects") or [],
+        asked_exam_date_kinds=session.get("asked_exam_date_kinds") or [],
+        asked_exam_mark_kinds=session.get("asked_exam_mark_kinds") or [],
+        dated_exam_kinds=academic["dated_exam_kinds"],
+        marked_exam_kinds=academic["marked_exam_kinds"],
+        recent_asked_ids=academic["recent_asked_ids"],
     )
 
     if decision.get("end_session") or not decision.get("question"):

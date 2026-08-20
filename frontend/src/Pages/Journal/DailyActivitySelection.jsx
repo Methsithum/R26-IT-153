@@ -9,6 +9,8 @@ const ACTIVITIES = [
   { id: "academic_study", label: "University Lectures", icon: "🎓" },
   { id: "assignment_work", label: "Assignment Work", icon: "📝" },
   { id: "exam_preparation", label: "Exam Preparation", icon: "📚" },
+  { id: "lab_practical", label: "Lab / Practical", icon: "🔬" },
+  { id: "quiz_work", label: "Quiz", icon: "📋" },
   { id: "internship", label: "Internship / Work", icon: "💼" },
   { id: "club_participation", label: "Extracurricular Activities", icon: "🎨" },
   { id: "project_development", label: "Personal Projects", icon: "🛠️" },
