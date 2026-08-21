@@ -102,8 +102,18 @@ class TaskModel:
         })
 
     @staticmethod
-    async def set_progress(user_id: str, subject: str, progress_stage: str):
-        existing = await TaskModel.find_assignment(user_id, subject)
+    async def set_progress(user_id: str, subject: str, progress_stage: str, task_id: str | None = None):
+        existing = None
+        if task_id:
+            existing = await TaskModel.find_by_id(task_id)
+            if existing and (
+                existing.get("user_id") != user_id
+                or (subject and existing.get("subject") != subject)
+                or (existing.get("task_type") or "assignment") != "assignment"
+            ):
+                existing = None
+        if not existing:
+            existing = await TaskModel.find_assignment(user_id, subject)
         if not existing:
             return None
         if existing.get("mark") not in (None, "") and progress_stage != "completed":

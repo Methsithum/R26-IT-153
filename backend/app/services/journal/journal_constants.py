@@ -30,8 +30,11 @@ ASSIGNMENT_PROGRESS_STAGES: Final[set[str]] = {
 ASSIGNMENT_STATUS_ANSWERS: Final[dict[str, str]] = {
     "not started": "not_started",
     "in progress": "in_progress",
+    "still in progress": "in_progress",
+    "yes in progress": "in_progress",
     "almost done": "in_progress",
     "submitted": "report_completed",
+    "yes submitted": "report_completed",
 }
 
 INTERNSHIP_PROGRESS_STAGES: Final[set[str]] = {

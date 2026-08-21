@@ -118,6 +118,7 @@ def _pending_fields(question: Optional[Dict[str, Any]]) -> dict:
             "subject_options": question.get("subject_options"),
             "missing_exams": question.get("missing_exams"),
             "exam_kind": question.get("exam_kind"),
+            "task_id": question.get("task_id"),
         },
     }
 
@@ -161,7 +162,7 @@ def _first_token(answer: Any) -> str:
 
 
 def _assignment_progress_stage(answer: Any) -> Optional[str]:
-    text = str(answer or "").strip().lower().replace("_", " ").replace("-", " ")
+    text = str(answer or "").strip().lower().replace("_", " ").replace("-", " ").replace(",", " ")
     text = " ".join(text.split())
     return ASSIGNMENT_STATUS_ANSWERS.get(text)
 
@@ -343,16 +344,19 @@ async def _record_structured_answer(session: dict, answer: str) -> dict:
             updates["pending_mark_subject"] = subject
         return updates
 
-    if field == "assignmentProgress" or session.get("pending_question_id") == "asg-status":
+    if field == "assignmentProgress" or session.get("pending_question_id") in {
+        "asg-status",
+        "asg-status-b",
+    }:
         stage = _assignment_progress_stage(answer)
-        if stage:
-            subjects = list(dict.fromkeys(session.get("assignment_subjects") or []))
-            meta_subject = meta.get("subject")
-            if meta_subject and meta_subject in subjects:
-                subjects = list(dict.fromkeys([meta_subject, *subjects]))
-            for subject in subjects:
-                if subject:
-                    await TaskModel.set_progress(user_id, subject, stage)
+        subject = meta.get("subject") or (session.get("assignment_subjects") or [None])[0]
+        task_id = meta.get("task_id")
+        asked = list(session.get("asked_assignment_progress_ids") or [])
+        if task_id and task_id not in asked:
+            asked.append(task_id)
+        updates["asked_assignment_progress_ids"] = asked
+        if stage and subject:
+            await TaskModel.set_progress(user_id, subject, stage, task_id=task_id)
         await _drop_stray_assignment_tasks(user_id, session)
         return updates
 
@@ -755,6 +759,7 @@ async def start_daily_session(req: StartDailyRequest):
             unmarked_assignments=academic["unmarked_assignments"],
             asked_deadline_subjects=[],
             asked_next_assignment_subjects=[],
+            asked_assignment_progress_ids=[],
             dated_exam_kinds=academic["dated_exam_kinds"],
             marked_exam_kinds=academic["marked_exam_kinds"],
             recent_asked_ids=recent_asked_ids,
@@ -790,6 +795,7 @@ async def start_daily_session(req: StartDailyRequest):
         "asked_question_ids": [],
         "asked_deadline_subjects": [],
         "asked_next_assignment_subjects": [],
+        "asked_assignment_progress_ids": [],
         "asked_exam_date_kinds": [],
         "asked_exam_mark_kinds": [],
         "pending_exam_date_kind": None,
@@ -888,6 +894,7 @@ async def answer_question(req: AnswerRequest):
         confirmed_assignment_marks=bool(session.get("confirmed_assignment_marks")),
         asked_deadline_subjects=session.get("asked_deadline_subjects") or [],
         asked_next_assignment_subjects=session.get("asked_next_assignment_subjects") or [],
+        asked_assignment_progress_ids=session.get("asked_assignment_progress_ids") or [],
         asked_exam_date_kinds=session.get("asked_exam_date_kinds") or [],
         asked_exam_mark_kinds=session.get("asked_exam_mark_kinds") or [],
         dated_exam_kinds=academic["dated_exam_kinds"],
