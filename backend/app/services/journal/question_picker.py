@@ -7,8 +7,9 @@ setup coverage and date/mark gates so academic facts cannot be skipped.
 from typing import Any, Dict, List, Optional, Sequence
 
 from app.services.journal.llm_service import pick_question_id
-from app.services.journal.journal_constants import is_mark_check_due
+from app.services.journal.journal_constants import MARK_RECEIVED_STAGES, is_mark_check_due
 from app.services.journal.question_bank import QUESTION_BANK, get_question, pad_options
+from app.services.time_utils import local_today, to_local_date
 
 SHORTLIST_SIZE = 20
 KIND_ORDER = ("mid", "final", "lab", "quiz")
@@ -24,6 +25,7 @@ FORCED_QUESTION_IDS = {
     "exam-setup",
     "lab-subjects",
     "quiz-subjects",
+    "asg-next-assignment",
     "asg-deadline-check",
     "asg-deadline",
     "asg-mark-pick",
@@ -41,6 +43,7 @@ FORCED_ONLY_STAGES = {
     "exam_setup_needed",
     "lab_subjects_needed",
     "quiz_subjects_needed",
+    "next_assignment_check",
     "deadline_needed",
     "deadline_check",
     "exam_date",
@@ -107,21 +110,86 @@ def _matches_activities(question: dict, selected: List[str]) -> bool:
     return any(tag in selected for tag in tags)
 
 
-def _subjects_needing_deadline(tasks: List[Dict], today_subjects: List[str]) -> List[str]:
-    assignment_tasks = [
+SUBMITTED_SKIP_IDS = {
+    "asg-worked",
+    "asg-worked-b",
+    "asg-worked-c",
+    "asg-status",
+    "asg-status-b",
+    "asg-blockers",
+    "asg-next",
+    "asg-hours",
+    "asg-confidence",
+}
+
+
+def _assignment_created_key(task: Dict) -> tuple:
+    return (str(task.get("created_at") or ""), str(task.get("id") or ""))
+
+
+def _assignment_tasks(tasks: List[Dict]) -> List[Dict]:
+    return [
         task
-        for task in tasks
+        for task in (tasks or [])
         if task.get("subject") and (task.get("task_type") or "assignment") == "assignment"
     ]
-    by_subject = {task.get("subject"): task for task in assignment_tasks}
+
+
+def _current_assignment_by_subject(tasks: List[Dict]) -> Dict[str, Dict]:
+    current: Dict[str, Dict] = {}
+    for task in _assignment_tasks(tasks):
+        subject = task.get("subject")
+        previous = current.get(subject)
+        if not previous or _assignment_created_key(task) > _assignment_created_key(previous):
+            current[subject] = task
+    return current
+
+
+def assignment_deadline_passed(task: Optional[Dict]) -> bool:
+    if not task:
+        return False
+    day = to_local_date(task.get("deadline"))
+    if not day:
+        return False
+    return day < local_today()
+
+
+def _open_assignment_subjects(tasks: List[Dict], assignment_subjects: List[str]) -> List[str]:
+    current = _current_assignment_by_subject(tasks)
+    open_subjects: List[str] = []
+    for subject in assignment_subjects or []:
+        task = current.get(subject)
+        stage = str((task or {}).get("progress_stage") or "").lower()
+        if stage not in MARK_RECEIVED_STAGES:
+            open_subjects.append(subject)
+    return open_subjects
+
+
+def _subjects_needing_next_assignment(
+    tasks: List[Dict],
+    assignment_subjects: List[str],
+    asked: Optional[List[str]] = None,
+) -> List[str]:
+    already = set(asked or [])
+    current = _current_assignment_by_subject(tasks)
     needed: List[str] = []
-    for subject in today_subjects:
-        task = by_subject.get(subject)
+    for subject in assignment_subjects or []:
+        if not subject or subject in already:
+            continue
+        if assignment_deadline_passed(current.get(subject)):
+            needed.append(subject)
+    return needed
+
+
+def _subjects_needing_deadline(tasks: List[Dict], today_subjects: List[str]) -> List[str]:
+    current = _current_assignment_by_subject(tasks)
+    needed: List[str] = []
+    for subject in today_subjects or []:
+        task = current.get(subject)
         if not task or not task.get("deadline"):
             if subject and is_mark_check_due((task or {}).get("last_deadline_check")) and subject not in needed:
                 needed.append(subject)
-    for task in assignment_tasks:
-        subject = task.get("subject")
+    for subject, task in current.items():
         if (
             subject
             and not task.get("deadline")
@@ -239,6 +307,8 @@ def hydrate(
             text = text.replace("{subject}", subject)
         elif question.get("stage") == "deadline_check":
             text = f"Has the deadline for {subject} been given?"
+        elif question.get("stage") == "next_assignment_check":
+            text = f"Is this the next assignment for {subject}?"
         elif question.get("stage") == "deadline_needed":
             text = f"When is the deadline for {subject}?"
         elif question.get("stage") == "mark_entry":
@@ -301,6 +371,27 @@ def _forced_setup_question(
     if "quiz_work" in selected and not quiz_subjects:
         return get_question("quiz-subjects")
     return None
+
+
+def _forced_next_assignment(
+    selected: List[str],
+    tasks: List[Dict],
+    assignment_subjects: List[str],
+    asked_next_assignment_subjects: Optional[List[str]] = None,
+) -> Optional[Dict[str, Any]]:
+    if "assignment_work" not in (selected or []):
+        return None
+    needed = _subjects_needing_next_assignment(
+        tasks, assignment_subjects, asked_next_assignment_subjects
+    )
+    if not needed:
+        return None
+    return {
+        "question": get_question("asg-next-assignment"),
+        "subject": needed[0],
+        "missing_exams": None,
+        "subject_options": None,
+    }
 
 
 def _forced_date_followup(
@@ -518,6 +609,7 @@ async def pick_next_question(
     dated_exam_kinds: Optional[List[str]] = None,
     marked_exam_kinds: Optional[List[str]] = None,
     recent_asked_ids: Optional[List[str]] = None,
+    asked_next_assignment_subjects: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     today_subjects = today_subjects or []
     lecture_subjects = lecture_subjects or []
@@ -536,6 +628,7 @@ async def pick_next_question(
     dated_exam_kinds = dated_exam_kinds or []
     marked_exam_kinds = marked_exam_kinds or []
     recent_asked_ids = recent_asked_ids or []
+    asked_next_assignment_subjects = asked_next_assignment_subjects or []
 
     forced = _forced_setup_question(
         selected_activities,
@@ -553,6 +646,15 @@ async def pick_next_question(
             "question": hydrate(forced, subject_options=registered_subjects),
             "task_updates": [],
         }
+
+    next_assignment = _forced_next_assignment(
+        selected_activities,
+        tasks,
+        assignment_subjects,
+        asked_next_assignment_subjects,
+    )
+    if next_assignment and next_assignment.get("question"):
+        return {"end_session": False, "question": _hydrate_forced(next_assignment), "task_updates": []}
 
     date_followup = _forced_date_followup(
         selected_activities,
@@ -591,6 +693,8 @@ async def pick_next_question(
         lab_subjects=lab_subjects,
         quiz_subjects=quiz_subjects,
     )
+    if not _open_assignment_subjects(tasks, assignment_subjects):
+        uncovered = [activity for activity in uncovered if activity != "assignment_work"]
     hard_cap = max_questions + 8
     if total_questions_asked >= hard_cap:
         return {"end_session": True, "question": None, "task_updates": []}
@@ -603,6 +707,8 @@ async def pick_next_question(
         recent_asked_ids,
         uncovered,
     )
+    if not _open_assignment_subjects(tasks, assignment_subjects):
+        shortlist = [question for question in shortlist if question["id"] not in SUBMITTED_SKIP_IDS]
     shortlist = _prefer_followup(shortlist, qa_history, uncovered)
     if not shortlist:
         return {"end_session": True, "question": None, "task_updates": []}

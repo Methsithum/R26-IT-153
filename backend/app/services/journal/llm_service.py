@@ -69,12 +69,18 @@ async def pick_question_id(
         if uncovered
         else "Every ticked activity already has at least one question.\n"
     )
+    journal_date = (session_context or {}).get("journal_date")
+    day_line = (
+        f"This check-in is for calendar date {journal_date}. Ask about that day's activities, even if it is not today.\n"
+        if journal_date
+        else "This check-in is for today.\n"
+    )
 
     prompt = f"""
 You pick journal check-in questions for student {user_name}.
 You MUST pick from the candidate list. Never invent a question, never rewrite one, never invent options.
 
-Today's activities: {', '.join(selected_activities) or 'unspecified'}.
+{day_line}Activities for that day: {', '.join(selected_activities) or 'unspecified'}.
 {uncovered_info}{extra_info}{at_risk_info}
 Answers so far:
 {history_str}
@@ -90,10 +96,10 @@ CANDIDATES (pick exactly one id):
 Rules:
 1. Never set end_session true while uncovered activities remain. The backend will reject it.
 2. Follow the latest answer: pick a candidate in the same activity thread for one more beat, then rotate to an uncovered activity.
-3. Prefer candidates that match today's activities and any at-risk tasks.
+3. Prefer candidates that match that day's activities and any at-risk tasks.
 4. Do not pick a candidate that repeats what was already answered.
 5. Keep coverage thin: one or two flavour questions per activity is enough, then rotate.
-6. If every ticked activity is covered and you have a clear picture of today, you may set end_session true and question_id null.
+6. If every ticked activity is covered and you have a clear picture of that day, you may set end_session true and question_id null.
 7. If the latest answer implies a task progress change, include task_updates. Each update: {{"task_id": (existing id or null), "title": "...", "progress_stage": "...", "deadline": ...}}. Only use progress stages from: {sorted(TASK_PROGRESS_STAGES)}.
 8. Respond with JSON only:
 {{
@@ -168,15 +174,21 @@ async def generate_daily_journal(
     task_updates_summary: List[Dict],
     session_context: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
+    journal_date = (session_context or {}).get("journal_date")
+    day_line = (
+        f"Write this page as the student's diary for {journal_date}, not necessarily today's date.\n"
+        if journal_date
+        else "Write this page as today's diary.\n"
+    )
     prompt = f"""
 You are writing a student diary page for {user_name}.
 Return JSON only:
 {{
   "narrative": "2-4 first-person sentences. Natural diary voice. Weave the answers into a story. Never write lists like academic (Yes) or category (answer). Do not mention XP, score, mini-games, or that this is a video game.",
-  "highlights": ["one short recap bullet per fact from today"]
+  "highlights": ["one short recap bullet per fact from that day"]
 }}
 
-Today's activities: {', '.join(selected_activities) or 'unspecified'}.
+{day_line}Activities: {', '.join(selected_activities) or 'unspecified'}.
 Study duration: {study_duration_minutes or 0} minutes.
 Subject focus: {subject_focus or 'unspecified'}.
 Q&A log: {json.dumps(qa_history, indent=2, default=str)}.

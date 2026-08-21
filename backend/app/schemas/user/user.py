@@ -52,4 +52,6 @@ class UserResponse(BaseModel):
     badges: list[str]
     current_day: int = 1
     daily_completed: bool = False
+    missed_dates: List[str] = []
+    play_date: Optional[str] = None
     level: int = 1

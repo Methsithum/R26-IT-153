@@ -58,3 +58,5 @@ class NextQuestionResponse(BaseModel):
     new_badges: Optional[List[str]] = None
     current_day: Optional[int] = None
     daily_completed: Optional[bool] = None
+    missed_dates: Optional[List[str]] = None
+    play_date: Optional[str] = None

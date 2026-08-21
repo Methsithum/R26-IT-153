@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useGameStore } from "../state/GameStateManager";
+import { formatCampusDate, isPastCampusDate } from "../../services/localDate";
 import { badgeByLabel, XP_PER_LEVEL, xpIntoLevel } from "../data/progression";
 import LevelRing from "./LevelRing";
 import DiscardTodayButton from "../../Pages/Journal/DiscardTodayButton";
@@ -27,6 +28,11 @@ export default function DailyCompletionScreen() {
   const newBadges = useGameStore((s) => s.newBadges);
   const currentStreak = useGameStore((s) => s.currentStreak);
   const journalDay = useGameStore((s) => s.journalDay);
+  const journalDate = useGameStore((s) => s.journalDate);
+  const missedDates = useGameStore((s) => s.missedDates);
+  const closedDay = journalDay?.day || day;
+  const catchUpDone = isPastCampusDate(journalDate);
+  const moreCatchUp = (missedDates || []).length > 0;
   const rank = rankFor(score);
   const leveledUp = level > (runStartLevel || 1);
   const places = [
@@ -46,8 +52,10 @@ export default function DailyCompletionScreen() {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         className="w-full max-w-md px-8 py-10 rounded-3xl border border-emerald-300/25 bg-slate-900/90 shadow-2xl text-center"
       >
-        <div className="text-emerald-300 text-xs uppercase tracking-[0.3em] mb-2">Day closed</div>
-        <h1 className="text-3xl font-bold text-slate-50">Day {day} Complete</h1>
+        <div className="text-emerald-300 text-xs uppercase tracking-[0.3em] mb-2">
+          {catchUpDone ? "Catch-up closed" : "Day closed"}
+        </div>
+        <h1 className="text-3xl font-bold text-slate-50">Day {closedDay} Complete</h1>
         <motion.div
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -56,7 +64,11 @@ export default function DailyCompletionScreen() {
         >
           {rank.title}
         </motion.div>
-        <p className="mt-1 text-sm text-slate-400">{rank.blurb}</p>
+        <p className="mt-1 text-sm text-slate-400">
+          {catchUpDone
+            ? `Saved as ${formatCampusDate(journalDate)}.${moreCatchUp ? " Another missed day is waiting on the roadmap." : " Today's run is unlocked next."}`
+            : rank.blurb}
+        </p>
 
         {leveledUp && (
           <motion.div
@@ -151,7 +163,7 @@ export default function DailyCompletionScreen() {
         >
           Return to Journal
         </button>
-        <DiscardTodayButton className="mt-4" />
+        <DiscardTodayButton className="mt-4" date={journalDate} dayNumber={closedDay} />
       </motion.div>
     </div>
   );

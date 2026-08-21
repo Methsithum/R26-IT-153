@@ -1,8 +1,8 @@
 from app.models.user.user import UserModel
 from app.models.journal.daily_session import DailySessionModel
 from app.models.journal.task import TaskModel
-from app.services.time_utils import local_today_iso, to_local_date
-from datetime import date, datetime, time
+from app.services.time_utils import local_today, local_today_iso, to_local_date
+from datetime import date, datetime, time, timedelta
 from typing import Dict, List, Tuple
 
 XP_PER_LEVEL = 500
@@ -54,19 +54,68 @@ def xp_into_level(total_xp: int) -> int:
     return int(total_xp or 0) % XP_PER_LEVEL
 
 
+def completed_journal_dates(sessions: List[Dict]) -> List[date]:
+    return sorted(
+        {
+            day
+            for session in (sessions or [])
+            if session and session.get("completed") and (day := to_local_date(session.get("date")))
+        }
+    )
+
+
+def missed_journal_dates(sessions: List[Dict], today: date | None = None) -> List[date]:
+    """Calendar gaps after the first completed journal, up to yesterday."""
+    today = today or local_today()
+    done = completed_journal_dates(sessions)
+    if not done:
+        return []
+    known = set(done)
+    missed: List[date] = []
+    cursor = done[0]
+    while cursor < today:
+        if cursor not in known:
+            missed.append(cursor)
+        cursor += timedelta(days=1)
+    return missed
+
+
+def play_journal_date(sessions: List[Dict], today: date | None = None) -> date | None:
+    """Oldest missed day, otherwise today if it is still open."""
+    today = today or local_today()
+    missed = missed_journal_dates(sessions, today)
+    if missed:
+        return missed[0]
+    if today in set(completed_journal_dates(sessions)):
+        return None
+    return today
+
+
+def latest_completed_journal_date(sessions: List[Dict]) -> date | None:
+    done = completed_journal_dates(sessions)
+    return done[-1] if done else None
+
+
 def progress_from_sessions(sessions: List[Dict]) -> Tuple[int, bool]:
     completed = [s for s in (sessions or []) if s and s.get("completed")]
-    completed.sort(key=lambda s: str(s.get("date") or ""))
-    today = local_today_iso()
-
-    def _session_date_key(value) -> str | None:
-        day = to_local_date(value)
-        return day.isoformat() if day else None
-
-    today_done = any(_session_date_key(s.get("date")) == today for s in completed)
+    missed = missed_journal_dates(sessions)
+    today_done = local_today() in set(completed_journal_dates(sessions))
+    if missed:
+        return len(completed) + 1, False
     if today_done:
         return max(1, len(completed)), True
     return len(completed) + 1, False
+
+
+def progress_bundle(sessions: List[Dict]) -> Dict:
+    current_day, daily_completed = progress_from_sessions(sessions)
+    play = play_journal_date(sessions)
+    return {
+        "current_day": current_day,
+        "daily_completed": daily_completed,
+        "missed_dates": [day.isoformat() for day in missed_journal_dates(sessions)],
+        "play_date": play.isoformat() if play else None,
+    }
 
 
 def progress_fields(
@@ -74,9 +123,18 @@ def progress_fields(
     *,
     current_day: int = 1,
     daily_completed: bool = False,
+    missed_dates: List[str] | None = None,
+    play_date: str | None = None,
+    sessions: List[Dict] | None = None,
     xp_earned: int | None = None,
     new_badges: List[str] | None = None,
 ) -> Dict:
+    if sessions is not None:
+        bundle = progress_bundle(sessions)
+        current_day = bundle["current_day"]
+        daily_completed = bundle["daily_completed"]
+        missed_dates = bundle["missed_dates"]
+        play_date = bundle["play_date"]
     total_xp = int(user.get("total_xp") or 0)
     payload = {
         "total_xp": total_xp,
@@ -88,6 +146,8 @@ def progress_fields(
         "badges": user.get("badges") or [],
         "current_day": current_day,
         "daily_completed": daily_completed,
+        "missed_dates": missed_dates or [],
+        "play_date": play_date,
     }
     if xp_earned is not None:
         payload["xp_earned"] = int(xp_earned)
@@ -271,17 +331,10 @@ async def apply_run_rewards(user_id: str, session_id: str, xp_earned: int, score
         return {}
 
     sessions = await DailySessionModel.find_user_sessions(user_id)
-    current_day, daily_completed = progress_from_sessions(sessions)
 
     already = int(session.get("xp_earned") or 0)
     if session.get("run_xp_applied"):
-        return progress_fields(
-            user,
-            current_day=current_day,
-            daily_completed=daily_completed,
-            xp_earned=already,
-            new_badges=[],
-        )
+        return progress_fields(user, sessions=sessions, xp_earned=already, new_badges=[])
 
     awarded = min(MAX_SESSION_XP, max(already, int(xp_earned or 0)))
     delta = awarded - already
@@ -300,13 +353,8 @@ async def apply_run_rewards(user_id: str, session_id: str, xp_earned: int, score
         },
     )
     user = await UserModel.find_by_id(user_id) or {**user, "total_xp": total_xp, "badges": badges}
-    return progress_fields(
-        user,
-        current_day=current_day,
-        daily_completed=True,
-        xp_earned=awarded,
-        new_badges=new_badges,
-    )
+    sessions = await DailySessionModel.find_user_sessions(user_id)
+    return progress_fields(user, sessions=sessions, xp_earned=awarded, new_badges=new_badges)
 
 
 def _combined_score(user: Dict) -> int:
@@ -382,7 +430,6 @@ async def get_gamification_summary(user_id: str) -> Dict | None:
 
     total_xp = int(user.get("total_xp", 0) or 0)
     current_streak = user.get("current_streak", 0)
-    current_day, daily_completed = progress_from_sessions(sessions)
 
     next_badge = _next_badge_progress(
         badges=user.get("badges", []),
@@ -402,7 +449,7 @@ async def get_gamification_summary(user_id: str) -> Dict | None:
     return {
         "user_id": user.get("id"),
         "user_name": user.get("name"),
-        **progress_fields(user, current_day=current_day, daily_completed=daily_completed),
+        **progress_fields(user, sessions=sessions),
         "completed_journals": completed_journals,
         "completed_tasks": completed_tasks,
         "combined_score": _combined_score(user),

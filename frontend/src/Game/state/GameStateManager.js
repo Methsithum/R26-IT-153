@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { generateDailyQuestions, shouldEscalateToSpecialEntry } from "../data/questions";
-import { localTodayIso } from "../../services/localDate";
+import { campusDateKey, localTodayIso } from "../../services/localDate";
 import { ASSIGNMENT_STATUS } from "../data/assignments";
 import { EXAM_STATUS } from "../data/exams";
 import { getBuildingById } from "../data/buildings";
@@ -39,23 +39,29 @@ export const PHASES = {
 };
 
 function mapBackendTasks(tasks = []) {
+  const submitted = new Set(["report_completed", "completed", "viva_pending"]);
   return (tasks || [])
     .filter((task) => task && (task.task_type === "assignment" || task.subject))
-    .map((task) => ({
-      id: task.id,
-      title: task.title || `${task.subject} assignment`,
-      subject: task.subject,
-      status:
-        task.mark != null && task.mark !== ""
-          ? ASSIGNMENT_STATUS.MARK_RECEIVED
-          : task.deadline
-            ? ASSIGNMENT_STATUS.DEADLINE_RECORDED
-            : ASSIGNMENT_STATUS.NEW,
-      deadline: task.deadline || null,
-      mark: task.mark ?? null,
-      lastMarkCheckDate: task.last_mark_check || null,
-      markCheckFrequencyDays: 7,
-    }));
+    .map((task) => {
+      const stage = String(task.progress_stage || "").toLowerCase();
+      return {
+        id: task.id,
+        title: task.title || `${task.subject} assignment`,
+        subject: task.subject,
+        status:
+          task.mark != null && task.mark !== ""
+            ? ASSIGNMENT_STATUS.MARK_RECEIVED
+            : submitted.has(stage)
+              ? ASSIGNMENT_STATUS.MARK_PENDING
+              : task.deadline
+                ? ASSIGNMENT_STATUS.DEADLINE_RECORDED
+                : ASSIGNMENT_STATUS.NEW,
+        deadline: task.deadline || null,
+        mark: task.mark ?? null,
+        lastMarkCheckDate: task.last_mark_check || null,
+        markCheckFrequencyDays: 7,
+      };
+    });
 }
 
 function mapBackendExams(exams = []) {
@@ -169,6 +175,9 @@ export const useGameStore = create((set, get) => ({
   showControlHints: true,
 
   dailyCompleted: false,
+  missedDates: [],
+  playDate: null,
+  journalDate: null,
   finishLineZ: null,
 
   applyUserProgress: (user, { preserveRun = false } = {}) => {
@@ -189,6 +198,8 @@ export const useGameStore = create((set, get) => ({
       badges: Array.isArray(user.badges) ? user.badges : get().badges || [],
       day,
       dailyCompleted: Boolean(user.daily_completed),
+      missedDates: Array.isArray(user.missed_dates) ? user.missed_dates : get().missedDates || [],
+      playDate: user.play_date || get().playDate || localTodayIso(),
       journalDay:
         get().journalDay?.day === day ? get().journalDay : createEmptyJournalDay(day),
     };
@@ -222,15 +233,17 @@ export const useGameStore = create((set, get) => ({
   } = {}) => {
     const user = readStoredUser();
     if (!user?.id) {
-      throw new Error("Please register or sign in before starting today's run.");
+      throw new Error("Please register or sign in before starting a campus run.");
     }
 
     useRunnerStore.getState().resetRun();
     get().applyUserProgress(user);
     const day = get().day;
+    const playDate = get().playDate || localTodayIso();
 
     const res = await startDailySession({
       userId: user.id,
+      date: `${playDate}T00:00:00`,
       selectedActivities: activities,
       lectureSubjects,
       assignmentSubjects,
@@ -262,6 +275,7 @@ export const useGameStore = create((set, get) => ({
       pendingAnswer: null,
       journalDay: createEmptyJournalDay(day),
       dailyCompleted: false,
+      journalDate: playDate,
       finishLineZ: null,
       objectiveText: "Continue your campus run",
       runStartXp: startXp,
@@ -632,6 +646,8 @@ export const useGameStore = create((set, get) => ({
       backendJournalHighlights,
     } = get();
     const previousLevel = level;
+    const playedDay = day;
+    const savedJournalDate = get().journalDate || get().playDate || localTodayIso();
     const finalXp = xp + XP_RULES.DAILY_COMPLETE;
     const completedDay = completeJournalDay(journalDay, finalXp, score);
     const sessionXp = Math.max(0, finalXp - (runStartXp ?? 0));
@@ -659,6 +675,8 @@ export const useGameStore = create((set, get) => ({
           ),
           day: data.current_day ?? day,
           dailyCompleted: data.daily_completed ?? true,
+          missedDates: Array.isArray(data.missed_dates) ? data.missed_dates : get().missedDates,
+          playDate: data.play_date ?? get().playDate,
           lifetimeScore: (get().lifetimeScore || 0) + score,
         };
         if (next.level > previousLevel) next.leveledUpTo = next.level;
@@ -674,7 +692,9 @@ export const useGameStore = create((set, get) => ({
             longest_streak: data.longest_streak ?? stored.longest_streak,
             badges: data.badges ?? stored.badges,
             current_day: data.current_day ?? stored.current_day,
-            daily_completed: true,
+            daily_completed: data.daily_completed ?? stored.daily_completed,
+            missed_dates: data.missed_dates ?? stored.missed_dates,
+            play_date: data.play_date ?? stored.play_date,
           });
         }
       }
@@ -683,14 +703,15 @@ export const useGameStore = create((set, get) => ({
     }
 
     useJournalHistoryStore.getState().addEntry({
-      day: synced.day ?? day,
+      day: playedDay,
+      date: savedJournalDate,
       journalDay: completedDay,
       journalEntry: backendJournalEntry,
       highlights: backendJournalHighlights || [],
       xp: sessionXp,
       score,
       level: synced.level,
-      completedAt: completedDay.completedAt,
+      completedAt: `${savedJournalDate}T00:00:00`,
     });
   },
 
@@ -714,12 +735,14 @@ export const useGameStore = create((set, get) => ({
     });
   },
 
-  discardTodayJournal: async () => {
+  discardTodayJournal: async (date) => {
     const user = readStoredUser();
     if (!user?.id) {
-      throw new Error("Please sign in to delete today's journal.");
+      throw new Error("Please sign in to delete this journal.");
     }
-    const data = await deleteTodayJournal(user.id);
+    const target =
+      campusDateKey(date) || get().journalDate || get().playDate || localTodayIso();
+    const data = await deleteTodayJournal(user.id, target);
     storeUser(data);
     get().applyUserProgress(data);
     get().applyWorldRecords({ tasks: data.tasks, exams: data.exams, sessions: data.sessions });
@@ -736,7 +759,10 @@ export const useGameStore = create((set, get) => ({
       questionIndex: 0,
       activeQuestion: null,
       pendingAnswer: null,
-      dailyCompleted: false,
+      dailyCompleted: Boolean(data.daily_completed),
+      missedDates: Array.isArray(data.missed_dates) ? data.missed_dates : [],
+      playDate: data.play_date || localTodayIso(),
+      journalDate: null,
       finishLineZ: null,
       journalDay: createEmptyJournalDay(day),
       newBadges: [],

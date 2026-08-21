@@ -6,29 +6,16 @@ from app.models.journal.task import TaskModel
 from app.models.journal.reflection import ReflectionModel
 from app.models.journal.exam import ExamModel
 from app.services.auth import verify_password
-from app.services.journal.gamification import level_from_xp, reconcile_user_progress
-from app.services.time_utils import local_today_iso, to_local_date
+from app.services.journal.gamification import (
+    level_from_xp,
+    progress_bundle,
+    reconcile_user_progress,
+)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
-
-def _session_date_key(value) -> str | None:
-    day = to_local_date(value)
-    return day.isoformat() if day else None
-
-
-def _progress_from_sessions(sessions: list[dict]) -> tuple[int, bool]:
-    completed = [s for s in (sessions or []) if s and s.get("completed")]
-    completed.sort(key=lambda s: str(s.get("date") or ""))
-    today = local_today_iso()
-    today_done = any(_session_date_key(s.get("date")) == today for s in completed)
-    if today_done:
-        return max(1, len(completed)), True
-    return len(completed) + 1, False
-
-
 def _to_response(doc: dict, sessions: list[dict] | None = None) -> UserResponse:
-    current_day, daily_completed = _progress_from_sessions(sessions or [])
+    bundle = progress_bundle(sessions or [])
     return UserResponse(
         id=str(doc.get("id") or doc.get("_id")),
         email=doc["email"],
@@ -44,8 +31,10 @@ def _to_response(doc: dict, sessions: list[dict] | None = None) -> UserResponse:
         current_streak=doc.get("current_streak", 0),
         longest_streak=doc.get("longest_streak", 0),
         badges=doc.get("badges") or [],
-        current_day=current_day,
-        daily_completed=daily_completed,
+        current_day=bundle["current_day"],
+        daily_completed=bundle["daily_completed"],
+        missed_dates=bundle["missed_dates"],
+        play_date=bundle["play_date"],
         level=level_from_xp(doc.get("total_xp", 0)),
     )
 
@@ -135,7 +124,7 @@ async def get_user_gamification(user_id: str):
     sessions = await DailySessionModel.find_user_sessions(user_id)
     user = await reconcile_user_progress(user, sessions)
     completed_sessions = [session for session in sessions if session and session.get("completed")]
-    current_day, daily_completed = _progress_from_sessions(sessions)
+    bundle = progress_bundle(sessions)
     return {
         "user_id": user_id,
         "total_xp": user.get("total_xp", 0),
@@ -145,7 +134,9 @@ async def get_user_gamification(user_id: str):
         "badges": user.get("badges", []),
         "total_sessions": len(sessions),
         "completed_sessions": len(completed_sessions),
-        "current_day": current_day,
-        "daily_completed": daily_completed,
+        "current_day": bundle["current_day"],
+        "daily_completed": bundle["daily_completed"],
+        "missed_dates": bundle["missed_dates"],
+        "play_date": bundle["play_date"],
         "subjects": user.get("subjects") or [],
     }

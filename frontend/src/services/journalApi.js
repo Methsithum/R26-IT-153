@@ -1,5 +1,5 @@
 import api from "./apiClient";
-import { localTodayIso } from "./localDate";
+import { localTodayIso, campusDateKey } from "./localDate";
 
 export async function startDailySession({
   userId,
@@ -30,8 +30,10 @@ export async function submitDailyAnswer(sessionId, answer) {
   return data;
 }
 
-export async function deleteTodayJournal(userId) {
-  const { data } = await api.delete(`/daily/today/${userId}`);
+export async function deleteTodayJournal(userId, date = localTodayIso()) {
+  const { data } = await api.delete(`/daily/today/${userId}`, {
+    params: { date: campusDateKey(date) || localTodayIso() },
+  });
   return data;
 }
 

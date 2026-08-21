@@ -3,6 +3,7 @@ from app.models.journal.exam import ExamModel
 from app.models.journal.daily_session import DailySessionModel
 from app.models.user.user import UserModel
 from app.services.journal.context_utils import compute_derived_context, identify_at_risk_tasks
+from app.services.time_utils import to_local_date
 
 async def build_session_context(session_doc):
     user = await UserModel.find_by_id(session_doc["user_id"])
@@ -17,8 +18,10 @@ async def build_session_context(session_doc):
     # Identify at-risk tasks for prioritization
     at_risk_tasks = await identify_at_risk_tasks(tasks_data)
     
+    journal_day = to_local_date(session_doc.get("date"))
     return {
         "user_name": user["name"],
+        "journal_date": journal_day.isoformat() if journal_day else None,
         "activities": session_doc["selected_activities"],
         "duration": session_doc.get("study_duration_minutes"),
         "subject": session_doc.get("subject_focus"),

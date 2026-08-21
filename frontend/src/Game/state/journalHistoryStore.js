@@ -11,6 +11,7 @@ function sessionsToEntries(sessions = []) {
       runningXp += Number(session.xp_earned || 0);
       return {
         day: index + 1,
+        date: String(session.date || "").slice(0, 10),
         journalEntry: session.journal_entry || "",
         highlights: session.journal_highlights || [],
         journalDay: {

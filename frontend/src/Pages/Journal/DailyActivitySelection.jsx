@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useGameStore } from "../../Game/state/GameStateManager";
 import { unlockAudio } from "../../Game/audio/sfx";
+import { apiErrorMessage } from "../../services/userApi";
+import { formatCampusDate, isPastCampusDate, localTodayIso } from "../../services/localDate";
 import DiscardTodayButton from "./DiscardTodayButton";
 
 const ACTIVITIES = [
@@ -21,6 +23,10 @@ export default function DailyActivitySelection() {
   const navigate = useNavigate();
   const day = useGameStore((s) => s.day);
   const dailyCompleted = useGameStore((s) => s.dailyCompleted);
+  const playDate = useGameStore((s) => s.playDate);
+  const missedDates = useGameStore((s) => s.missedDates);
+  const catchingUp = (missedDates || []).length > 0 || isPastCampusDate(playDate);
+  const playLabel = formatCampusDate(playDate);
   const [selected, setSelected] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -39,7 +45,7 @@ export default function DailyActivitySelection() {
       await useGameStore.getState().startDailyGame({ activities: selected });
       navigate("/journal/game");
     } catch (err) {
-      setError(err?.message || "Could not start today's run. Try again.");
+      setError(apiErrorMessage(err, "Could not start this day's run. Try again."));
       setBusy(false);
     }
   }
@@ -51,8 +57,10 @@ export default function DailyActivitySelection() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-lg rounded-md shadow-2xl border border-black/20 bg-[#f5ecd9] text-stone-800 p-6 sm:p-8"
       >
-        <div className="text-[11px] uppercase tracking-[0.25em] text-stone-500 mb-1">Day {day}</div>
-        {dailyCompleted ? (
+        <div className="text-[11px] uppercase tracking-[0.25em] text-stone-500 mb-1">
+          {catchingUp ? `Catch-up · Day ${day}` : `Day ${day}`}
+        </div>
+        {dailyCompleted && !catchingUp ? (
           <div className="mt-2">
             <h1 className="text-2xl font-bold mb-2">Today’s journal is already saved</h1>
             <p className="text-sm text-stone-600 mb-6">
@@ -65,14 +73,18 @@ export default function DailyActivitySelection() {
               >
                 Return to Journal
               </button>
-              <DiscardTodayButton />
+              <DiscardTodayButton date={localTodayIso()} />
             </div>
           </div>
         ) : (
           <>
-            <h1 className="text-2xl font-bold mb-2">What did you do today?</h1>
+            <h1 className="text-2xl font-bold mb-2">
+              {catchingUp ? `What did you do on ${playLabel}?` : "What did you do today?"}
+            </h1>
             <p className="text-sm text-stone-600 mb-6">
-              Pick everything that applies. Subjects, deadlines and exam dates are asked inside the campus run — only if they are still missing.
+              {catchingUp
+                ? `This run is Day ${day} and will be saved as ${playLabel}, not today. After you finish, today's day will still be waiting.`
+                : "Pick everything that applies. Subjects, deadlines and exam dates are asked inside the campus run — only if they are still missing."}
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {ACTIVITIES.map((activity) => {
@@ -105,7 +117,7 @@ export default function DailyActivitySelection() {
                 className="rounded-lg bg-amber-700 hover:bg-amber-600 disabled:opacity-40 transition-colors text-amber-50
                            font-semibold px-6 py-3 text-sm shadow"
               >
-                {busy ? "Preparing questions…" : "Continue to Campus Run →"}
+                {busy ? "Preparing questions…" : catchingUp ? "Continue catch-up run →" : "Continue to Campus Run →"}
               </button>
             </div>
           </>

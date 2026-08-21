@@ -7,6 +7,7 @@ import { buildJournalPage } from "../../Game/data/journalNarrative";
 import { BADGE_CATALOG, XP_PER_LEVEL, isBadgeUnlocked, xpIntoLevel, xpToNextLevel } from "../../Game/data/progression";
 import LevelRing from "../../Game/UI/LevelRing";
 import { clearStoredUser } from "../../services/userApi";
+import { campusDateKey, formatCampusDate } from "../../services/localDate";
 import DiscardTodayButton from "./DiscardTodayButton";
 
 const TABS = [
@@ -82,8 +83,12 @@ function BookFlip({ pageKey, direction, children, className = "" }) {
 function OpenJournalContent({ selectTab }) {
   const day = useGameStore((s) => s.day);
   const dailyCompleted = useGameStore((s) => s.dailyCompleted);
+  const missedDates = useGameStore((s) => s.missedDates);
+  const playDate = useGameStore((s) => s.playDate);
   const playerName = useGameStore((s) => s.playerName);
   const subjects = useGameStore((s) => s.subjects);
+  const catchingUp = (missedDates || []).length > 0;
+  const playLabel = catchingUp ? formatCampusDate(playDate) : null;
 
   return (
     <div className="flex flex-col h-full justify-between">
@@ -93,9 +98,11 @@ function OpenJournalContent({ selectTab }) {
         </div>
         <h2 className="text-3xl sm:text-4xl font-bold text-stone-800 mb-5">Welcome back, {playerName || "student"}!</h2>
         <p className="text-base text-stone-600 leading-relaxed max-w-2xl">
-          {dailyCompleted
-            ? "Today's entry is complete. Come back tomorrow to continue your streak."
-            : "Today's journal entry is still incomplete. Complete your campus run to log it."}{" "}
+          {catchingUp
+            ? `You missed a campus day. Play Day ${day} now and it will be saved as ${playLabel} — then you can still log today.`
+            : dailyCompleted
+              ? "Today's entry is complete. Come back tomorrow to continue your streak."
+              : "Today's journal entry is still incomplete. Complete your campus run to log it."}{" "}
           Your check-ins, deadlines and marks are collected as you play — nothing to fill in by hand.
         </p>
         {subjects.length > 0 && (
@@ -118,16 +125,22 @@ function OpenJournalContent({ selectTab }) {
           className="bg-amber-50 border border-amber-800/10 shadow-lg px-8 py-6 rounded-sm text-center max-w-sm"
         >
           <div className="text-xs text-stone-500 mb-3">
-            {dailyCompleted
-              ? "Check the roadmap to see when the next day unlocks."
-              : "Start today's game to log your journal entry."}
+            {catchingUp
+              ? `Catch up Day ${day} (${playLabel}) before today's run.`
+              : dailyCompleted
+                ? "Check the roadmap to see when the next day unlocks."
+                : "Start today's game to log your journal entry."}
           </div>
           <button
             onClick={() => selectTab("roadmap")}
             className="rounded-lg bg-amber-700 hover:bg-amber-600 transition-colors text-amber-50
                        font-semibold px-5 py-2.5 text-sm shadow"
           >
-            {dailyCompleted ? "View Roadmap" : `Start Game (Day ${day})`}
+            {catchingUp
+              ? `Catch up Day ${day}`
+              : dailyCompleted
+                ? "View Roadmap"
+                : `Start Game (Day ${day})`}
           </button>
         </motion.div>
       </div>
@@ -159,6 +172,7 @@ const ROADMAP_ICONS = ["🏛️", "📚", "🏫", "🔬"];
 const NODE_STYLE = {
   completed: { fill: "#2f9e63", stroke: "#1d6b42", label: "#ffffff" },
   current: { fill: "#b45309", stroke: "#7c3a06", label: "#ffffff" },
+  catchup: { fill: "#c2410c", stroke: "#7c2d12", label: "#ffffff" },
   locked: { fill: "#d8d2c4", stroke: "#a8895a", label: "#8a7457" },
 };
 
@@ -169,9 +183,12 @@ function RoadmapContent({ onViewDay }) {
   const navigate = useNavigate();
   const currentDay = useGameStore((s) => s.day);
   const dailyCompleted = useGameStore((s) => s.dailyCompleted);
+  const missedDates = useGameStore((s) => s.missedDates);
+  const playDate = useGameStore((s) => s.playDate);
   const entries = useJournalHistoryStore((s) => s.entries);
   const completedDays = new Set(entries.map((e) => e.day));
   const scrollRef = useRef(null);
+  const catchingUp = (missedDates || []).length > 0;
 
   // Always starts at Day 1 — the path grows with progress and scrolls
   // rather than compressing older days out of view.
@@ -190,18 +207,29 @@ function RoadmapContent({ onViewDay }) {
 
   function nodeState(d) {
     if (d < currentDay) return "completed";
-    if (d === currentDay) return dailyCompleted ? "completed" : "current";
+    if (d === currentDay) {
+      if (dailyCompleted) return "completed";
+      return catchingUp ? "catchup" : "current";
+    }
     return "locked";
   }
 
   function handleNodeClick(d, state) {
     if (state === "locked") return;
-    if (state === "current") {
+    if (state === "current" || state === "catchup") {
       navigate("/journal/activities");
       return;
     }
     // completed — reopen that day's journal entry
     if (completedDays.has(d)) onViewDay?.(d);
+  }
+
+  function nodeCaption(d, state) {
+    if (state === "catchup") {
+      return formatCampusDate(playDate, { weekday: "short", month: "short", day: "numeric" });
+    }
+    if (state === "current") return "Play Today";
+    return `Day ${d}`;
   }
 
   // Bring "Today" into view whenever the roadmap opens or progresses.
@@ -216,7 +244,9 @@ function RoadmapContent({ onViewDay }) {
     <div>
       <h2 className="text-xl font-bold mb-1">Game Roadmap</h2>
       <p className="text-xs text-stone-500 mb-4">
-        Complete Day {currentDay} to unlock Day {currentDay + 1}.
+        {catchingUp
+          ? `Day ${currentDay} is a catch-up for ${formatCampusDate(playDate)}. Play it first — it saves as that date, then today's day unlocks.`
+          : `Complete Day ${currentDay} to unlock Day ${currentDay + 1}.`}
       </p>
       <div ref={scrollRef} className="w-full overflow-x-auto pb-2">
         <svg width={W} height={H} className="select-none block">
@@ -232,8 +262,9 @@ function RoadmapContent({ onViewDay }) {
           {positions.map(({ d, x, y }, i) => {
             const state = nodeState(d);
             const style = NODE_STYLE[state];
-            const r = state === "current" ? 19 : 15;
+            const r = state === "current" || state === "catchup" ? 19 : 15;
             const clickable = state !== "locked";
+            const pulse = state === "current" || state === "catchup";
             return (
               <g
                 key={d}
@@ -245,8 +276,8 @@ function RoadmapContent({ onViewDay }) {
                     {ROADMAP_ICONS[(i / 3) % ROADMAP_ICONS.length]}
                   </text>
                 )}
-                {state === "current" && (
-                  <circle cx={x} cy={y} r={r + 7} fill="none" stroke="#b45309" strokeWidth={2} opacity={0.35}>
+                {pulse && (
+                  <circle cx={x} cy={y} r={r + 7} fill="none" stroke={style.stroke} strokeWidth={2} opacity={0.35}>
                     <animate attributeName="r" values={`${r + 4};${r + 11};${r + 4}`} dur="1.8s" repeatCount="indefinite" />
                     <animate attributeName="opacity" values="0.45;0.05;0.45" dur="1.8s" repeatCount="indefinite" />
                   </circle>
@@ -263,7 +294,7 @@ function RoadmapContent({ onViewDay }) {
                   {state === "completed" ? "✓" : state === "locked" ? "🔒" : d}
                 </text>
                 <text x={x} y={y + r + 15} fontSize={9.5} textAnchor="middle" fill="#8a7457">
-                  {state === "current" ? "Play Today" : `Day ${d}`}
+                  {nodeCaption(d, state)}
                 </text>
               </g>
             );
@@ -273,6 +304,7 @@ function RoadmapContent({ onViewDay }) {
       <div className="flex flex-wrap gap-4 mt-2 text-[11px] text-stone-500">
         <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#2f9e63] mr-1" />Completed (tap to view)</span>
         <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#b45309] mr-1" />Today (tap to play)</span>
+        <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#c2410c] mr-1" />Catch-up (saves as that date)</span>
         <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#d8d2c4] mr-1" />Locked</span>
       </div>
     </div>
@@ -281,8 +313,6 @@ function RoadmapContent({ onViewDay }) {
 
 function RecentJournalsContent({ focusDay }) {
   const entries = useJournalHistoryStore((s) => s.entries);
-  const day = useGameStore((s) => s.day);
-  const dailyCompleted = useGameStore((s) => s.dailyCompleted);
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
@@ -313,6 +343,10 @@ function RecentJournalsContent({ focusDay }) {
 
   const clamped = Math.min(Math.max(index, 0), entries.length - 1);
   const entry = entries[clamped];
+  const latest = entries[entries.length - 1];
+  const latestDate = campusDateKey(latest?.date || latest?.completedAt);
+  const entryDate = campusDateKey(entry?.date || entry?.completedAt);
+  const canReplay = Boolean(latestDate) && entryDate === latestDate;
   const { narrative, highlights } = buildJournalPage(entry);
 
   return (
@@ -404,12 +438,12 @@ function RecentJournalsContent({ focusDay }) {
             </div>
           </div>
         ) : null}
-        {dailyCompleted && entry.day === day && (
+        {canReplay && (
           <div className="mt-6 border-t border-stone-300/60 pt-4">
             <p className="mb-3 text-sm text-stone-600">
-              Saved the wrong answers in a hurry? Delete today’s page and play Day {day} again.
+              Saved the wrong answers in a hurry? Delete this page and play Day {entry.day} again.
             </p>
-            <DiscardTodayButton />
+            <DiscardTodayButton date={entryDate} dayNumber={entry.day} />
           </div>
         )}
       </div>
