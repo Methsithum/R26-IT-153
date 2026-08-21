@@ -1,12 +1,14 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useGameStore } from "../state/GameStateManager";
+import { useActiveMap } from "../state/mapStore";
 
 export default function StartScreen() {
   const navigate = useNavigate();
   const day = useGameStore((s) => s.day);
   const missedDates = useGameStore((s) => s.missedDates);
   const catchingUp = (missedDates || []).length > 0;
+  const map = useActiveMap();
 
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm">
@@ -17,6 +19,9 @@ export default function StartScreen() {
       >
         <div className="text-amber-300 text-xs uppercase tracking-[0.3em] mb-2">Student Journal</div>
         <h1 className="text-3xl font-bold text-slate-50 mb-1">University Campus Run</h1>
+        <p className="text-amber-200/90 text-xs mb-3">
+          {map.icon} {map.name} — {map.tagline}
+        </p>
         <p className="text-slate-400 text-sm mb-6">
           {catchingUp
             ? `Day ${day} is a catch-up — log what you did that day, then today's run still waits.`

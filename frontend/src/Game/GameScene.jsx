@@ -7,19 +7,27 @@ import QuestionSystem from "./Question/QuestionSystem";
 import FinishLine from "./Environment/FinishLine";
 import TransitionManager from "./Transition/TransitionManager";
 import { PHASES, useGameStore } from "./state/GameStateManager";
+import { useActiveMap } from "./state/mapStore";
 
 export default function GameScene() {
   const phase = useGameStore((s) => s.phase);
+  const map = useActiveMap();
   const physicsPaused = phase === PHASES.GAME_PAUSED || phase === PHASES.GAME_START;
 
   return (
     <>
-      <Sky sunPosition={[80, 60, 50]} turbidity={4} rayleigh={1.2} />
-      <hemisphereLight args={["#dceeff", "#4a5a3a", 0.65]} />
+      <color attach="background" args={[map.fog.color]} />
+      <fog attach="fog" args={[map.fog.color, map.fog.near, map.fog.far]} />
+      <Sky
+        sunPosition={map.sky.sunPosition}
+        turbidity={map.sky.turbidity}
+        rayleigh={map.sky.rayleigh}
+      />
+      <hemisphereLight args={[map.lights.hemiSky, map.lights.hemiGround, map.lights.hemi]} />
       <directionalLight
         castShadow
-        position={[40, 60, -20]}
-        intensity={1.4}
+        position={map.lights.sunPos}
+        intensity={map.lights.sun}
         shadow-mapSize={[1024, 1024]}
         shadow-camera-left={-30}
         shadow-camera-right={30}

@@ -8,6 +8,8 @@ import { BADGE_CATALOG, XP_PER_LEVEL, isBadgeUnlocked, xpIntoLevel, xpToNextLeve
 import LevelRing from "../../Game/UI/LevelRing";
 import { clearStoredUser } from "../../services/userApi";
 import { campusDateKey, formatCampusDate } from "../../services/localDate";
+import { CAMPUS_MAPS, isMapUnlocked } from "../../Game/data/maps";
+import { useMapStore } from "../../Game/state/mapStore";
 import DiscardTodayButton from "./DiscardTodayButton";
 
 const TABS = [
@@ -460,6 +462,8 @@ function GameDetailsContent() {
   const longestStreak = useGameStore((s) => s.longestStreak);
   const assignments = useGameStore((s) => s.assignments);
   const exams = useGameStore((s) => s.exams);
+  const selectedMapId = useMapStore((s) => s.selectedMapId);
+  const activeMap = CAMPUS_MAPS.find((item) => item.id === selectedMapId && isMapUnlocked(item, level)) || CAMPUS_MAPS[0];
   const into = xpIntoLevel(xp);
   const campusScore = Math.max(lifetimeScore || 0, score || 0);
 
@@ -513,6 +517,58 @@ function GameDetailsContent() {
             <div className="text-base font-bold text-stone-800">{campusScore.toLocaleString()}</div>
           </div>
         </div>
+      </div>
+
+      <div className="text-sm font-semibold text-stone-700 mb-1">Campus Maps</div>
+      <p className="text-[11px] text-stone-500 mb-3">
+        Unlock new avenues as you rank up, then pick any open map for your next run.
+      </p>
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 mb-6">
+        {CAMPUS_MAPS.map((item) => {
+          const unlocked = isMapUnlocked(item, level);
+          const selected = activeMap.id === item.id;
+          const light = Boolean(item.lightText) && unlocked;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              disabled={!unlocked}
+              onClick={() => useMapStore.getState().selectMap(item.id, level)}
+              className={`relative overflow-hidden rounded-xl border text-left px-3 py-3 transition-all ${
+                selected
+                  ? "border-amber-700 ring-2 ring-amber-600/30 shadow-md"
+                  : unlocked
+                    ? "border-amber-800/15 hover:border-amber-700/40 hover:shadow-sm"
+                    : "border-stone-300/70 opacity-70 cursor-not-allowed"
+              }`}
+              style={{
+                background: unlocked
+                  ? `linear-gradient(135deg, ${item.cardFrom}, ${item.cardTo})`
+                  : "#ece7dc",
+              }}
+            >
+              {!unlocked && (
+                <div className="absolute inset-0 bg-[#f5ecd9]/70 backdrop-blur-[1px]" />
+              )}
+              <div className="relative">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-lg leading-none">{unlocked ? item.icon : "🔒"}</span>
+                  {selected && (
+                    <span className={`text-[9px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 ${light ? "text-white bg-white/20" : "text-amber-950 bg-white/80"}`}>
+                      Playing
+                    </span>
+                  )}
+                </div>
+                <div className={`mt-1.5 text-sm font-bold ${unlocked ? (light ? "text-white" : "text-stone-900") : "text-stone-500"}`}>
+                  {item.name}
+                </div>
+                <div className={`text-[10px] ${unlocked ? (light ? "text-white/80" : "text-stone-700/80") : "text-stone-500"}`}>
+                  {unlocked ? item.tagline : `Unlocks at Level ${item.unlockLevel}`}
+                </div>
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       <div className="text-sm font-semibold text-stone-700 mb-2">Assignment Quests</div>

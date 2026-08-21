@@ -51,8 +51,8 @@ function pickUnusedLane(rand, used) {
   return free[Math.floor(rand() * free.length)];
 }
 
-export function generateChunk(index) {
-  const rand = seededRandom(index * 9973 + 17);
+export function generateChunk(index, map) {
+  const rand = seededRandom(index * 9973 + 17 + (map?.unlockLevel || 0) * 13);
   const z = index * CHUNK_LENGTH;
 
   const obstacles = [];
@@ -90,15 +90,34 @@ export function generateChunk(index) {
   }
 
   const decorations = [];
-  const decorCount = 2 + Math.floor(rand() * 3);
+  const kinds = map?.decor || ["tree", "lamp"];
+  const night = map?.id === "night-lamps";
+  const hedgeKind = kinds.includes("hedge");
+  if (hedgeKind && index > 0) {
+    [-1, 1].forEach((side) => {
+      decorations.push({
+        id: `hedge-${index}-${side}`,
+        kind: "hedge",
+        side,
+        z: z + CHUNK_LENGTH * 0.5,
+        offset: 6.35,
+        length: CHUNK_LENGTH * 0.72,
+      });
+    });
+  }
+  const extra = night ? 5 : 4;
+  const decorCount = extra + Math.floor(rand() * 3);
   for (let i = 0; i < decorCount; i++) {
     const side = rand() > 0.5 ? 1 : -1;
+    const pool = night ? ["lamp", "lamp", "tree", "bush"] : kinds.filter((k) => k !== "hedge");
+    const kind = pool[Math.floor(rand() * pool.length)] || "tree";
     decorations.push({
       id: `dec-${index}-${i}`,
-      kind: rand() > 0.5 ? "tree" : "lamp",
+      kind,
       side,
-      z: z + rand() * CHUNK_LENGTH,
-      offset: 5.5 + rand() * 4,
+      z: z + 2 + rand() * (CHUNK_LENGTH - 4),
+      offset: kind === "fence" ? 7.2 : 7.4 + rand() * 4.5,
+      scale: 0.85 + rand() * 0.45,
     });
   }
 

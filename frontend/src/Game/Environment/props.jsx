@@ -1,30 +1,104 @@
 // Small reusable primitive props used to dress the campus.
 
-export function Tree({ position }) {
+export function Tree({ position, map, scale = 1 }) {
+  const canopy = map?.treeCanopy || "#3f7a3f";
+  const trunk = map?.treeTrunk || "#6b4a2b";
   return (
-    <group position={position}>
-      <mesh castShadow position={[0, 0.6, 0]}>
-        <cylinderGeometry args={[0.15, 0.2, 1.2, 6]} />
-        <meshStandardMaterial color="#6b4a2b" />
+    <group position={position} scale={scale}>
+      <mesh castShadow position={[0, 0.7, 0]}>
+        <cylinderGeometry args={[0.16, 0.22, 1.4, 8]} />
+        <meshStandardMaterial color={trunk} roughness={0.9} />
       </mesh>
-      <mesh castShadow position={[0, 1.7, 0]}>
-        <coneGeometry args={[0.9, 1.8, 8]} />
-        <meshStandardMaterial color="#3f7a3f" />
+      <mesh castShadow position={[0, 1.85, 0]}>
+        <sphereGeometry args={[0.85, 10, 8]} />
+        <meshStandardMaterial color={canopy} roughness={0.85} />
+      </mesh>
+      <mesh castShadow position={[0.38, 1.55, 0.12]}>
+        <sphereGeometry args={[0.55, 8, 8]} />
+        <meshStandardMaterial color={canopy} roughness={0.88} />
+      </mesh>
+      <mesh castShadow position={[-0.32, 1.62, -0.18]}>
+        <sphereGeometry args={[0.48, 8, 8]} />
+        <meshStandardMaterial color={canopy} roughness={0.88} />
       </mesh>
     </group>
   );
 }
 
-export function LampPost({ position }) {
+export function LampPost({ position, map }) {
+  const glow = Math.max(0.25, map?.lampEmissive ?? 0.6);
   return (
     <group position={position}>
-      <mesh castShadow position={[0, 1.2, 0]}>
-        <cylinderGeometry args={[0.05, 0.05, 2.4, 6]} />
-        <meshStandardMaterial color="#333" />
+      <mesh castShadow position={[0, 0.08, 0]}>
+        <cylinderGeometry args={[0.16, 0.18, 0.12, 10]} />
+        <meshStandardMaterial color="#2a2a2a" metalness={0.4} roughness={0.4} />
       </mesh>
-      <mesh position={[0, 2.45, 0]}>
-        <sphereGeometry args={[0.14, 8, 8]} />
-        <meshStandardMaterial color="#ffe9a8" emissive="#ffe9a8" emissiveIntensity={0.6} />
+      <mesh castShadow position={[0, 1.35, 0]}>
+        <cylinderGeometry args={[0.055, 0.07, 2.5, 8]} />
+        <meshStandardMaterial color="#3a3a3a" metalness={0.55} roughness={0.35} />
+      </mesh>
+      <mesh position={[0, 2.62, 0.18]} rotation={[0.35, 0, 0]}>
+        <boxGeometry args={[0.08, 0.08, 0.5]} />
+        <meshStandardMaterial color="#2f2f2f" metalness={0.5} />
+      </mesh>
+      <mesh position={[0, 2.48, 0.42]}>
+        <sphereGeometry args={[0.16, 12, 12]} />
+        <meshStandardMaterial color="#ffe9a8" emissive="#ffd27a" emissiveIntensity={glow} />
+      </mesh>
+      {glow > 1.5 && (
+        <pointLight position={[0, 2.45, 0.4]} intensity={glow * 1.2} distance={9} color="#ffd27a" />
+      )}
+    </group>
+  );
+}
+
+export function Hedge({ position, map, length = 8 }) {
+  return (
+    <group position={position}>
+      <mesh castShadow receiveShadow position={[0, 0.42, 0]}>
+        <boxGeometry args={[0.55, 0.84, length]} />
+        <meshStandardMaterial color={map?.hedge || "#2f5e2c"} roughness={0.95} />
+      </mesh>
+      <mesh position={[0, 0.9, 0]}>
+        <boxGeometry args={[0.62, 0.18, length * 0.98]} />
+        <meshStandardMaterial color={map?.treeCanopy || "#3d7a3a"} roughness={0.95} />
+      </mesh>
+    </group>
+  );
+}
+
+export function Bush({ position, map, scale = 1 }) {
+  return (
+    <group position={position} scale={scale}>
+      <mesh castShadow position={[0, 0.32, 0]}>
+        <sphereGeometry args={[0.42, 8, 8]} />
+        <meshStandardMaterial color={map?.hedge || "#2f5e2c"} roughness={0.95} />
+      </mesh>
+      <mesh castShadow position={[0.22, 0.28, 0.1]}>
+        <sphereGeometry args={[0.28, 8, 8]} />
+        <meshStandardMaterial color={map?.treeCanopy || "#3d7a3a"} roughness={0.95} />
+      </mesh>
+    </group>
+  );
+}
+
+export function Fence({ position, map }) {
+  const rail = map?.curb || "#d2c8b8";
+  return (
+    <group position={position}>
+      {[-1.6, -0.55, 0.55, 1.6].map((z) => (
+        <mesh key={z} castShadow position={[0, 0.55, z]}>
+          <boxGeometry args={[0.08, 1.1, 0.08]} />
+          <meshStandardMaterial color="#6b6258" roughness={0.7} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.42, 0]}>
+        <boxGeometry args={[0.06, 0.08, 3.4]} />
+        <meshStandardMaterial color={rail} />
+      </mesh>
+      <mesh position={[0, 0.82, 0]}>
+        <boxGeometry args={[0.06, 0.08, 3.4]} />
+        <meshStandardMaterial color={rail} />
       </mesh>
     </group>
   );
