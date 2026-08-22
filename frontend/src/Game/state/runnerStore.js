@@ -44,6 +44,7 @@ export const useRunnerStore = create((set, get) => ({
   lookLocked: false,
   doorOpen: 0,
   enterProgress: 0,
+  visitFade: 0,
   nearMission: false,
   campusSnapshot: null,
 
@@ -100,6 +101,7 @@ export const useRunnerStore = create((set, get) => ({
   },
   setDoorOpen: (doorOpen) => set({ doorOpen }),
   setEnterProgress: (enterProgress) => set({ enterProgress }),
+  setVisitFade: (visitFade) => set({ visitFade }),
   setNearMission: (nearMission) => set({ nearMission }),
 
   snapshotCampus: () => {
@@ -177,6 +179,7 @@ export const useRunnerStore = create((set, get) => ({
       lookLocked: false,
       doorOpen: 0,
       enterProgress: 0,
+      visitFade: 0,
       nearMission: false,
       campusSnapshot: null,
     }),

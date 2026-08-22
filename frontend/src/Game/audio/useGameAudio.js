@@ -46,7 +46,6 @@ export default function useGameAudio() {
         if (state.phase === PHASES.RUNNING && prev.phase === PHASES.GAME_START) playStartChime();
         if (state.phase === PHASES.QUESTION_APPROACHING) play("gate");
         if (state.phase === PHASES.ANSWER_CONFIRMED) play("answer");
-        if (state.phase === PHASES.TRANSITION_TO_BUILDING) play("door");
         if (state.phase === PHASES.ENTERING_BUILDING) play("door");
         if (state.phase === PHASES.SPECIAL_INTERACTION_READY) {
           startAmbient(state.targetBuildingId || "library");

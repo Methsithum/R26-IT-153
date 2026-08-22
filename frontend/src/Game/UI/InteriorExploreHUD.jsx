@@ -64,22 +64,37 @@ export default function InteriorExploreHUD() {
   const question = useGameStore((s) => s.activeQuestion);
   const near = useRunnerStore((s) => s.nearMission);
   const lookLocked = useRunnerStore((s) => s.lookLocked);
-  const entering = phase === PHASES.ENTERING_BUILDING || phase === PHASES.TRANSITION_TO_BUILDING;
+  const approaching = phase === PHASES.TRANSITION_TO_BUILDING;
+  const entering = phase === PHASES.ENTERING_BUILDING;
   const exploring = phase === PHASES.SPECIAL_INTERACTION_READY;
+  const visitFade = useRunnerStore((s) => s.visitFade);
 
-  if (!entering && !exploring) return null;
+  if (!approaching && !entering && !exploring && visitFade < 0.02) return null;
 
   const label = missionLabel(question, building?.id);
+  const title = approaching
+    ? `Entering the ${building?.shortName ?? building?.name ?? "building"}`
+    : entering
+      ? "Doors opening — walk inside"
+      : `Walk to the glowing ${label.toLowerCase()}`;
 
   return (
     <div className="pointer-events-none absolute inset-0 z-30 select-none">
+      {visitFade > 0.01 && (
+        <div
+          className="absolute inset-0 z-40 bg-black"
+          style={{ opacity: Math.min(1, visitFade) }}
+        />
+      )}
+      {(approaching || entering || exploring) && (
+        <>
       <div className="absolute left-1/2 top-5 w-[min(92vw,440px)] -translate-x-1/2">
         <div className="rounded-2xl border border-white/40 bg-white/75 px-5 py-3 text-center shadow-xl backdrop-blur-md">
           <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">
             {building?.name ?? "Campus building"}
           </div>
           <div className="mt-1 text-sm font-medium text-stone-700">
-            {entering ? "Doors opening — walk inside" : `Walk to the glowing ${label.toLowerCase()}`}
+            {title}
           </div>
           {exploring && building?.description && (
             <div className="mt-2 text-xs leading-relaxed text-stone-500">{building.description}</div>
@@ -123,6 +138,8 @@ export default function InteriorExploreHUD() {
               ? "Move the mouse to look · WASD walks · Esc frees cursor"
               : "Click the room, then move the mouse to look · WASD or stick walks"}
           </div>
+        </>
+      )}
         </>
       )}
     </div>

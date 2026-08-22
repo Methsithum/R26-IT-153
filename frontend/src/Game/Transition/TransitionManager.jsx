@@ -12,13 +12,31 @@ import {
   GROUND_Y,
   CAM_INNER,
 } from "../Environment/BuildingInterior";
+import { nearbyDoor } from "../Environment/landmark";
 import BuildingInterior from "../Environment/BuildingInterior";
 
-const TO_BUILDING_DURATION = 1.7;
+const TO_BUILDING_DURATION = 1.05;
 const ENTER_DURATION = 2.7;
 const DOOR_OPEN_PORTION = 0.26;
-const RETURN_DURATION = 1.6;
+const RETURN_DURATION = 1.4;
+const RETURN_CUT = 0.4;
 const FOLLOW_DIST = 3.35;
+const UP = new THREE.Vector3(0, 1, 0);
+const LOOK_M = new THREE.Matrix4();
+
+function easeOutCubic(t) {
+  return 1 - (1 - t) ** 3;
+}
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+}
+
+function setLook(camera, look, quat) {
+  LOOK_M.lookAt(camera.position, look, UP);
+  quat.setFromRotationMatrix(LOOK_M);
+  camera.quaternion.copy(quat);
+}
 
 function followCameraTarget(runner, ix, iz, dist = FOLLOW_DIST, clamp = true) {
   const yaw = runner.lookYaw;
@@ -55,6 +73,22 @@ function followCameraTarget(runner, ix, iz, dist = FOLLOW_DIST, clamp = true) {
   );
 }
 
+function interiorDoorCam(ix, iz) {
+  return new THREE.Vector3(ix, 1.62, iz + APPROACH_Z + 1.85);
+}
+
+function interiorDoorLook(ix, iz) {
+  return new THREE.Vector3(ix, 1.36, iz + DOOR_LOCAL_Z);
+}
+
+function roadEyeCam(posX, posZ) {
+  return new THREE.Vector3(posX * 0.45, 1.58, posZ - 2.55);
+}
+
+function roadEyeLook(posX, posZ) {
+  return new THREE.Vector3(posX, 1.42, posZ + 5.2);
+}
+
 export default function TransitionManager() {
   const { camera } = useThree();
   const phase = useGameStore((s) => s.phase);
@@ -66,8 +100,11 @@ export default function TransitionManager() {
   const firedRef = useRef(false);
   const lastPhase = useRef(phase);
   const fromPos = useRef(new THREE.Vector3());
+  const fromLook = useRef(new THREE.Vector3());
   const camPos = useRef(new THREE.Vector3());
   const camLook = useRef(new THREE.Vector3());
+  const lookQuat = useRef(new THREE.Quaternion());
+  const restoredRef = useRef(false);
 
   const building = getBuildingById(targetBuildingId);
   const [ix, , iz] = interiorAnchor(transitionEntryZ);
@@ -82,25 +119,36 @@ export default function TransitionManager() {
 
       if (phase === PHASES.TRANSITION_TO_BUILDING) {
         const runner = useRunnerStore.getState();
+        runner.setDoorOpen(0);
+        runner.setEnterProgress(0);
+        runner.setVisitFade(0);
+        runner.setExploreInput(0, 0);
+        runner.setNearMission(false);
+        runner.setLookLocked(false);
+        fromLook.current.set(runner.posX, runner.posY + 1.6, runner.posZ + 8);
+        camLook.current.copy(fromLook.current);
+      } else if (phase === PHASES.ENTERING_BUILDING) {
+        const runner = useRunnerStore.getState();
         const [wx, wy, wz] = interiorWorld(transitionEntryZ, 0, APPROACH_Z);
         runner.setPosition(wx, wy, wz);
         runner.setFacingYaw(Math.PI);
-        runner.setDoorOpen(0);
         runner.setEnterProgress(0);
-        runner.setExploreInput(0, 0);
-        runner.setNearMission(false);
+        runner.setDoorOpen(0);
         runner.setLook(0, 0.28);
-        runner.setLookLocked(false);
-        camLook.current.set(ix, 1.45, iz + DOOR_LOCAL_Z);
-      } else if (phase === PHASES.ENTERING_BUILDING) {
+        runner.setVisitFade(1);
+        const entrance = interiorDoorCam(ix, iz);
+        const look = interiorDoorLook(ix, iz);
+        fromPos.current.copy(entrance);
+        camPos.current.copy(entrance);
+        fromLook.current.copy(look);
+        camLook.current.copy(look);
+        camera.position.copy(entrance);
+        setLook(camera, look, lookQuat.current);
+      } else if (phase === PHASES.RETURNING_TO_CAMPUS) {
         const runner = useRunnerStore.getState();
-        camLook.current.set(runner.posX, runner.posY + 1.2, runner.posZ);
-      } else {
-        camLook.current.set(ix, 1.15, iz + 8.4);
-      }
-
-      if (phase === PHASES.RETURNING_TO_CAMPUS) {
-        useRunnerStore.getState().restoreCampus();
+        restoredRef.current = false;
+        fromLook.current.set(runner.posX, runner.posY + 1.15, runner.posZ);
+        camLook.current.copy(fromLook.current);
       }
     }
 
@@ -110,10 +158,24 @@ export default function TransitionManager() {
 
     if (phase === PHASES.TRANSITION_TO_BUILDING) {
       const t = Math.min(1, elapsed.current / TO_BUILDING_DURATION);
-      const ease = 1 - Math.pow(1 - t, 3);
-      const entrance = new THREE.Vector3(ix, 2.05, iz + APPROACH_Z + 3.2);
-      camera.position.lerpVectors(fromPos.current, entrance, ease);
-      camera.lookAt(ix, 1.35, iz + DOOR_LOCAL_Z);
+      const u = easeInOutCubic(t);
+      const door = nearbyDoor(targetBuildingId, runner.posZ);
+      const eye = roadEyeCam(runner.posX, runner.posZ);
+      const look = roadEyeLook(runner.posX, runner.posZ);
+      if (door.close) {
+        look.x += (door.doorX - look.x) * 0.28;
+        look.z += (door.doorZ - look.z) * 0.18;
+        eye.x += (door.doorX - eye.x) * 0.12;
+      }
+
+      camera.position.lerpVectors(fromPos.current, eye, u);
+      camLook.current.lerpVectors(fromLook.current, look, u);
+      setLook(camera, camLook.current, lookQuat.current);
+      camera.fov += (50 - camera.fov) * Math.min(1, dt * 5);
+      camera.updateProjectionMatrix();
+      runner.setVisitFade(easeOutCubic(Math.max(0, (t - 0.42) / 0.58)));
+      runner.setEnterProgress(t);
+
       if (t >= 1 && !firedRef.current) {
         firedRef.current = true;
         useGameStore.getState().buildingTransitionComplete();
@@ -122,6 +184,7 @@ export default function TransitionManager() {
 
     if (phase === PHASES.ENTERING_BUILDING) {
       const t = Math.min(1, elapsed.current / ENTER_DURATION);
+      runner.setVisitFade(Math.max(0, 1 - t / 0.22));
       runner.setDoorOpen(Math.min(1, t / DOOR_OPEN_PORTION));
       const walkT = t <= DOOR_OPEN_PORTION ? 0 : (t - DOOR_OPEN_PORTION) / (1 - DOOR_OPEN_PORTION);
       runner.setEnterProgress(walkT);
@@ -133,7 +196,9 @@ export default function TransitionManager() {
         Math.min(1, dt * 5)
       );
       camera.position.copy(camPos.current);
-      camera.lookAt(camLook.current);
+      setLook(camera, camLook.current, lookQuat.current);
+      camera.fov += (50 - camera.fov) * Math.min(1, dt * 4);
+      camera.updateProjectionMatrix();
 
       if (t >= 1 && !firedRef.current) {
         firedRef.current = true;
@@ -153,27 +218,60 @@ export default function TransitionManager() {
         Math.min(1, dt * 16)
       );
       camera.position.copy(camPos.current);
-      camera.lookAt(camLook.current);
+      setLook(camera, camLook.current, lookQuat.current);
       camera.fov += (50 - camera.fov) * Math.min(1, dt * 6);
       camera.updateProjectionMatrix();
     }
 
     if (phase === PHASES.RETURNING_TO_CAMPUS) {
       const t = Math.min(1, elapsed.current / RETURN_DURATION);
-      const ease = 1 - Math.pow(1 - t, 3);
-      const back = new THREE.Vector3(runner.posX * 0.6, GROUND_Y + 4.6, runner.posZ - 7.5);
-      camera.position.lerpVectors(fromPos.current, back, ease);
-      camera.lookAt(runner.posX, GROUND_Y + 1.6, runner.posZ + 8);
-      runner.setDoorOpen(Math.max(0, 1 - t * 1.4));
+      runner.setDoorOpen(Math.max(0, 1 - t * 1.6));
+
+      if (t < RETURN_CUT) {
+        runner.setVisitFade(easeInOutCubic(t / RETURN_CUT));
+        const outCam = interiorDoorCam(ix, iz);
+        const outLook = new THREE.Vector3(ix, 1.4, iz + APPROACH_Z + 1.2);
+        const u = easeInOutCubic(t / RETURN_CUT);
+        camera.position.lerpVectors(fromPos.current, outCam, u);
+        camLook.current.lerpVectors(fromLook.current, outLook, u);
+        setLook(camera, camLook.current, lookQuat.current);
+      } else {
+        if (!restoredRef.current) {
+          restoredRef.current = true;
+          runner.restoreCampus();
+          const after = useRunnerStore.getState();
+          const eye = roadEyeCam(after.posX, after.posZ);
+          const look = roadEyeLook(after.posX, after.posZ);
+          fromPos.current.copy(eye);
+          fromLook.current.copy(look);
+          camPos.current.copy(eye);
+          camLook.current.copy(look);
+          camera.position.copy(eye);
+          setLook(camera, look, lookQuat.current);
+          after.setVisitFade(1);
+        }
+
+        const after = useRunnerStore.getState();
+        const back = new THREE.Vector3(after.posX * 0.6, GROUND_Y + 4.6, after.posZ - 7.5);
+        const backLook = new THREE.Vector3(after.posX, GROUND_Y + 1.6, after.posZ + 8);
+        const u = easeInOutCubic((t - RETURN_CUT) / (1 - RETURN_CUT));
+        camera.position.lerpVectors(fromPos.current, back, u);
+        camLook.current.lerpVectors(fromLook.current, backLook, u);
+        setLook(camera, camLook.current, lookQuat.current);
+        after.setVisitFade(Math.max(0, 1 - u * 1.35));
+        camera.fov += (55 - camera.fov) * Math.min(1, dt * 5);
+        camera.updateProjectionMatrix();
+      }
+
       if (t >= 1 && !firedRef.current) {
         firedRef.current = true;
+        useRunnerStore.getState().setVisitFade(0);
         useGameStore.getState().returnTransitionComplete();
       }
     }
   });
 
   const showInterior = [
-    PHASES.TRANSITION_TO_BUILDING,
     PHASES.ENTERING_BUILDING,
     PHASES.SPECIAL_INTERACTION_READY,
     PHASES.SPECIAL_INTERACTION_ACTIVE,

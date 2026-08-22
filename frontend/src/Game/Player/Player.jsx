@@ -91,11 +91,11 @@ export default function Player() {
     let pose = "idle";
 
     if (atDoor) {
-      const [wx, wy, wz] = interiorWorld(transitionEntryZ, 0, APPROACH_Z);
-      nextX = wx;
-      nextY = wy;
-      nextZ = wz;
-      store.setFacingYaw(Math.PI);
+      const snap = store.campusSnapshot;
+      nextX = snap?.posX ?? store.posX;
+      nextY = GROUND_Y;
+      nextZ = snap?.posZ ?? store.posZ;
+      store.setFacingYaw(0);
       pose = "idle";
       gaitPhase.current += dt * 2.2;
     } else if (entering) {

@@ -19,6 +19,8 @@ export default function CameraController() {
     if (lastPhase.current !== phase) {
       lastPhase.current = phase;
       currentPos.current.copy(camera.position);
+      const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+      currentLook.current.copy(camera.position).addScaledVector(fwd, 8);
     }
 
     if (

@@ -24,7 +24,11 @@ export default function BuildingLandmark({ building, map }) {
       </mesh>
       <mesh position={[-building.side * 3.62, 1.15, 0]} rotation={[0, Math.PI / 2, 0]}>
         <boxGeometry args={[1.7, 2.3, 0.12]} />
-        <meshStandardMaterial color="#1a1e24" />
+        <meshStandardMaterial color="#0a0c10" />
+      </mesh>
+      <mesh position={[-building.side * 3.15, 1.2, 0]}>
+        <boxGeometry args={[0.85, 2.4, 1.55]} />
+        <meshStandardMaterial color="#07080a" />
       </mesh>
       {[-1.6, 0, 1.6].map((z) =>
         [3.55, 4.85].map((y) => (
