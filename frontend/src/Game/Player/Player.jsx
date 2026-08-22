@@ -7,13 +7,13 @@ import StudentCharacter from "./StudentCharacter";
 import { tickSteps } from "../audio/sfx";
 import {
   GROUND_Y,
-  ROOM_BOUNDS,
   APPROACH_Z,
   INSIDE_SPAWN_Z,
   interiorAnchor,
   interiorWorld,
   missionLocalOffset,
 } from "../Environment/BuildingInterior";
+import { resolveInteriorWalk } from "../Environment/interiorColliders";
 
 const JUMP_HEIGHT = 2.35;
 const JUMP_DURATION = 0.7;
@@ -118,19 +118,37 @@ export default function Player() {
       const fwdZ = -Math.cos(yaw);
       const rightX = Math.cos(yaw);
       const rightZ = -Math.sin(yaw);
+      const [ax, , az] = interiorAnchor(transitionEntryZ);
       if (len > 0.01) {
         const nx = (rightX * ix + fwdX * -iz) / len;
         const nz = (rightZ * ix + fwdZ * -iz) / len;
         const nlen = Math.hypot(nx, nz) || 1;
         const vx = nx / nlen;
         const vz = nz / nlen;
-        const [ax, , az] = interiorAnchor(transitionEntryZ);
-        nextX = Math.min(ax + ROOM_BOUNDS.maxX, Math.max(ax + ROOM_BOUNDS.minX, store.posX + vx * WALK_SPEED * dt));
-        nextZ = Math.min(az + ROOM_BOUNDS.maxZ, Math.max(az + ROOM_BOUNDS.minZ, store.posZ + vz * WALK_SPEED * dt));
+        const wantedX = store.posX + vx * WALK_SPEED * dt;
+        const wantedZ = store.posZ + vz * WALK_SPEED * dt;
+        [nextX, nextZ] = resolveInteriorWalk(
+          ax,
+          az,
+          store.posX,
+          store.posZ,
+          wantedX,
+          wantedZ,
+          targetBuildingId
+        );
         store.setFacingYaw(Math.atan2(vx, vz));
         pose = "walk";
         gaitPhase.current += dt * 8.5;
       } else {
+        [nextX, nextZ] = resolveInteriorWalk(
+          ax,
+          az,
+          store.posX,
+          store.posZ,
+          store.posX,
+          store.posZ,
+          targetBuildingId
+        );
         const face = yaw + Math.PI;
         if (Math.abs(store.facingYaw - face) > 0.03) store.setFacingYaw(face);
         pose = "idle";
