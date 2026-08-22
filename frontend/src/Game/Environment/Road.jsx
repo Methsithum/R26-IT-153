@@ -9,6 +9,10 @@ const SPAN = 160;
 export default function Road({ map }) {
   const groupRef = useRef();
   const { asphalt, sidewalk, grass } = useMapTextures(map);
+  const rainy = map.id === "rainy-walk";
+  const sports = map.id === "sports-field";
+  const lake = map.id === "lakeside-path";
+  const waterSide = lake ? map.waterSide || 1 : 0;
 
   useFrame(() => {
     const { posZ } = useRunnerStore.getState();
@@ -23,7 +27,11 @@ export default function Road({ map }) {
     <group ref={groupRef}>
       <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
         <planeGeometry args={[ROAD_WIDTH, SPAN]} />
-        <meshStandardMaterial map={asphalt} roughness={map.id === "rainy-walk" ? 0.22 : 0.78} metalness={map.id === "rainy-walk" ? 0.35 : 0.08} />
+        <meshStandardMaterial
+          map={asphalt}
+          roughness={rainy ? 0.18 : 0.78}
+          metalness={rainy ? 0.42 : 0.08}
+        />
       </mesh>
 
       {[-2.2, 0, 2.2].map((x) => (
@@ -52,26 +60,45 @@ export default function Road({ map }) {
           position={[side * sidewalkX, 0.03, 0]}
         >
           <planeGeometry args={[2.7, SPAN]} />
-          <meshStandardMaterial map={sidewalk} roughness={0.86} />
+          <meshStandardMaterial
+            map={sidewalk}
+            roughness={rainy ? 0.2 : sports ? 0.62 : 0.86}
+            metalness={rainy ? 0.28 : 0}
+          />
         </mesh>
       ))}
 
-      {[-1, 1].map((side) => (
-        <mesh
-          key={`grass-${side}`}
-          receiveShadow
-          rotation={[-Math.PI / 2, 0, 0]}
-          position={[side * grassX, 0, 0]}
-        >
-          <planeGeometry args={[16, SPAN]} />
-          <meshStandardMaterial map={grass} roughness={0.95} />
-        </mesh>
-      ))}
+      {sports &&
+        [-1, 1].map((side) => (
+          <mesh
+            key={`lane-${side}`}
+            rotation={[-Math.PI / 2, 0, 0]}
+            position={[side * sidewalkX, 0.035, 0]}
+          >
+            <planeGeometry args={[0.12, SPAN]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.45} />
+          </mesh>
+        ))}
+
+      {[-1, 1].map((side) => {
+        if (lake && side === waterSide) return null;
+        return (
+          <mesh
+            key={`grass-${side}`}
+            receiveShadow
+            rotation={[-Math.PI / 2, 0, 0]}
+            position={[side * grassX, 0, 0]}
+          >
+            <planeGeometry args={[16, SPAN]} />
+            <meshStandardMaterial map={grass} roughness={0.95} />
+          </mesh>
+        );
+      })}
 
       {map.water && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[18.5, -0.08, 0]}>
-          <planeGeometry args={[14, SPAN]} />
-          <meshStandardMaterial color={map.water} roughness={0.12} metalness={0.55} />
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[waterSide * 18.2, -0.1, 0]}>
+          <planeGeometry args={[16, SPAN]} />
+          <meshStandardMaterial color={map.water} roughness={0.08} metalness={0.62} transparent opacity={0.92} />
         </mesh>
       )}
     </group>

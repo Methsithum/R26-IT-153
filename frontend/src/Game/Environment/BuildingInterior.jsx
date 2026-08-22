@@ -1,5 +1,6 @@
 import { Text } from "@react-three/drei";
 import { useRunnerStore } from "../state/runnerStore";
+import { useActiveMap } from "../state/mapStore";
 import MissionStations from "./MissionStations";
 import { stationKeyFor, missionLocalOffset } from "./stationMap";
 
@@ -430,41 +431,182 @@ function DoubleDoors({ color }) {
   );
 }
 
-function EntranceFacade({ name, theme }) {
+function CourtyardTree({ position, canopy, trunk, scale = 1 }) {
+  return (
+    <group position={position} scale={scale}>
+      <mesh castShadow position={[0, 0.7, 0]}>
+        <cylinderGeometry args={[0.16, 0.22, 1.4, 8]} />
+        <meshStandardMaterial color={trunk} roughness={0.9} />
+      </mesh>
+      <mesh castShadow position={[0, 1.9, 0]}>
+        <sphereGeometry args={[0.9, 10, 8]} />
+        <meshStandardMaterial color={canopy} roughness={0.85} />
+      </mesh>
+      <mesh castShadow position={[0.4, 1.55, 0.12]}>
+        <sphereGeometry args={[0.52, 8, 8]} />
+        <meshStandardMaterial color={canopy} roughness={0.88} />
+      </mesh>
+    </group>
+  );
+}
+
+function CourtyardLamp({ position, glow = 0.85 }) {
+  return (
+    <group position={position}>
+      <mesh castShadow position={[0, 0.08, 0]}>
+        <cylinderGeometry args={[0.16, 0.18, 0.12, 10]} />
+        <meshStandardMaterial color="#2a2a2a" metalness={0.4} roughness={0.4} />
+      </mesh>
+      <mesh castShadow position={[0, 1.35, 0]}>
+        <cylinderGeometry args={[0.055, 0.07, 2.5, 8]} />
+        <meshStandardMaterial color="#3a3a3a" metalness={0.55} roughness={0.35} />
+      </mesh>
+      <mesh position={[0, 2.48, 0.28]}>
+        <sphereGeometry args={[0.16, 12, 12]} />
+        <meshStandardMaterial color="#ffe9a8" emissive="#ffd27a" emissiveIntensity={glow} />
+      </mesh>
+      <pointLight position={[0, 2.45, 0.28]} intensity={glow * 3.2} distance={8} color="#ffd27a" />
+    </group>
+  );
+}
+
+function Planter({ position, hedge, canopy }) {
+  return (
+    <group position={position}>
+      <mesh castShadow receiveShadow position={[0, 0.22, 0]}>
+        <boxGeometry args={[1.05, 0.44, 0.72]} />
+        <meshStandardMaterial color="#8a6a48" roughness={0.82} />
+      </mesh>
+      <mesh castShadow position={[0, 0.58, 0]}>
+        <sphereGeometry args={[0.38, 8, 8]} />
+        <meshStandardMaterial color={hedge} roughness={0.95} />
+      </mesh>
+      <mesh position={[0.18, 0.52, 0.1]}>
+        <sphereGeometry args={[0.24, 8, 8]} />
+        <meshStandardMaterial color={canopy} roughness={0.95} />
+      </mesh>
+    </group>
+  );
+}
+
+function EntranceForecourt({ name, theme }) {
+  const map = useActiveMap();
   const z = HALF_D - 0.08;
   const sideW = (ROOM_W - 2.2) / 2;
+  const grass = map?.grass || "#4e8c45";
+  const grassDark = map?.grassDark || "#3a6c34";
+  const walk = map?.sidewalk || "#ddd3c4";
+  const curb = map?.curb || theme.trim;
+  const hedge = map?.hedge || "#2d5c2a";
+  const canopy = map?.treeCanopy || "#3b7a38";
+  const trunk = map?.treeTrunk || "#6b452c";
+
   return (
     <group>
-      <mesh position={[-(1.1 + sideW / 2), WALL_H / 2, z]}>
-        <boxGeometry args={[sideW, WALL_H, 0.3]} />
+      <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.04, z + 9]}>
+        <planeGeometry args={[46, 28]} />
+        <meshStandardMaterial color={grassDark} roughness={0.98} />
+      </mesh>
+      <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, z + 8.2]}>
+        <planeGeometry args={[38, 22]} />
+        <meshStandardMaterial color={grass} roughness={0.96} />
+      </mesh>
+      <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, z + 6.4]}>
+        <planeGeometry args={[16.5, 13.5]} />
+        <meshStandardMaterial color={walk} roughness={0.88} />
+      </mesh>
+      <mesh receiveShadow position={[0, 0.05, z + 4.2]}>
+        <boxGeometry args={[4.4, 0.1, 8.4]} />
+        <meshStandardMaterial color={curb} roughness={0.78} />
+      </mesh>
+      {[0.55, 1.05, 1.55].map((step, i) => (
+        <mesh key={step} receiveShadow position={[0, 0.08 + i * 0.09, z + step]}>
+          <boxGeometry args={[3.4 - i * 0.15, 0.16, 0.46]} />
+          <meshStandardMaterial color={theme.trim} roughness={0.7} />
+        </mesh>
+      ))}
+
+      <mesh position={[-(1.1 + sideW / 2), WALL_H / 2, z - 0.35]}>
+        <boxGeometry args={[sideW, WALL_H, 1.1]} />
         <meshStandardMaterial color={theme.facade} roughness={0.85} />
       </mesh>
-      <mesh position={[1.1 + sideW / 2, WALL_H / 2, z]}>
-        <boxGeometry args={[sideW, WALL_H, 0.3]} />
+      <mesh position={[1.1 + sideW / 2, WALL_H / 2, z - 0.35]}>
+        <boxGeometry args={[sideW, WALL_H, 1.1]} />
         <meshStandardMaterial color={theme.facade} roughness={0.85} />
       </mesh>
       <mesh position={[0, 4.85, z + 0.02]}>
-        <boxGeometry args={[2.3, 2.1, 0.34]} />
+        <boxGeometry args={[2.3, 2.1, 0.5]} />
         <meshStandardMaterial color={theme.walls} />
       </mesh>
-      <mesh position={[-1.45, 1.55, z + 0.18]}>
-        <cylinderGeometry args={[0.16, 0.18, 3.1, 10]} />
+      <mesh position={[0, WALL_H + 2.15, z - 0.55]}>
+        <boxGeometry args={[ROOM_W + 0.8, 4.4, 2.4]} />
+        <meshStandardMaterial color={theme.facade} roughness={0.88} />
+      </mesh>
+      <mesh position={[0, WALL_H + 4.45, z - 0.35]}>
+        <boxGeometry args={[ROOM_W + 1.6, 0.32, 3.2]} />
+        <meshStandardMaterial color={theme.trim} roughness={0.55} metalness={0.12} />
+      </mesh>
+      {[-10, -5, 5, 10].map((x) => (
+        <mesh key={`win-${x}`} position={[x, WALL_H + 2.05, z + 0.68]}>
+          <boxGeometry args={[1.35, 1.15, 0.08]} />
+          <meshStandardMaterial
+            color={theme.windowGlass || "#d7e8f4"}
+            emissive={theme.windowGlow || "#fde68a"}
+            emissiveIntensity={(theme.windowIntensity || 0.2) + 0.15}
+            roughness={0.22}
+          />
+        </mesh>
+      ))}
+
+      <mesh position={[0, 5.42, z + 1.55]}>
+        <boxGeometry args={[8.4, 0.18, 3.4]} />
+        <meshStandardMaterial color={theme.trim} roughness={0.5} />
+      </mesh>
+      <mesh position={[-3.7, 2.7, z + 1.55]}>
+        <boxGeometry args={[0.28, 5.4, 0.28]} />
         <meshStandardMaterial color={theme.trim} />
       </mesh>
-      <mesh position={[1.45, 1.55, z + 0.18]}>
-        <cylinderGeometry args={[0.16, 0.18, 3.1, 10]} />
+      <mesh position={[3.7, 2.7, z + 1.55]}>
+        <boxGeometry args={[0.28, 5.4, 0.28]} />
         <meshStandardMaterial color={theme.trim} />
       </mesh>
-      <mesh position={[0, 0.12, z + 0.85]} receiveShadow>
-        <boxGeometry args={[3.2, 0.24, 1.6]} />
+      <mesh position={[-1.45, 1.55, z + 0.42]}>
+        <cylinderGeometry args={[0.18, 0.2, 3.1, 10]} />
         <meshStandardMaterial color={theme.trim} />
       </mesh>
-      <mesh position={[0, 5.55, z + 0.22]}>
-        <boxGeometry args={[3.6, 0.22, 0.7]} />
+      <mesh position={[1.45, 1.55, z + 0.42]}>
+        <cylinderGeometry args={[0.18, 0.2, 3.1, 10]} />
         <meshStandardMaterial color={theme.trim} />
       </mesh>
-      <pointLight position={[0, 3.2, z + 2.1]} intensity={14} distance={16} color={theme.light} />
-      <Text position={[0, 5.55, z + 0.6]} fontSize={0.22} color={theme.name} anchorX="center" anchorY="middle" maxWidth={4}>
+
+      {[-1, 1].map((side) => (
+        <mesh key={`wing-${side}`} position={[side * 10.4, 1.05, z + 3.4]}>
+          <boxGeometry args={[0.38, 2.1, 6.6]} />
+          <meshStandardMaterial color={theme.trim} roughness={0.8} />
+        </mesh>
+      ))}
+      {[-1, 1].map((side) => (
+        <mesh key={`hedge-${side}`} position={[side * 8.2, 0.46, z + 5.8]}>
+          <boxGeometry args={[0.7, 0.92, 8.4]} />
+          <meshStandardMaterial color={hedge} roughness={0.95} />
+        </mesh>
+      ))}
+
+      <Planter position={[-3.15, 0, z + 2.35]} hedge={hedge} canopy={canopy} />
+      <Planter position={[3.15, 0, z + 2.35]} hedge={hedge} canopy={canopy} />
+      <CourtyardLamp position={[-4.6, 0, z + 3.6]} glow={Math.max(0.7, map?.lampEmissive || 0.8)} />
+      <CourtyardLamp position={[4.6, 0, z + 3.6]} glow={Math.max(0.7, map?.lampEmissive || 0.8)} />
+      <CourtyardTree position={[-12.4, 0, z + 6.2]} canopy={canopy} trunk={trunk} scale={1.15} />
+      <CourtyardTree position={[12.4, 0, z + 6.2]} canopy={canopy} trunk={trunk} scale={1.08} />
+      <CourtyardTree position={[-11.2, 0, z + 10.4]} canopy={canopy} trunk={trunk} scale={0.92} />
+      <CourtyardTree position={[11.2, 0, z + 10.4]} canopy={canopy} trunk={trunk} scale={1} />
+
+      <mesh position={[0, 5.58, z + 0.55]}>
+        <boxGeometry args={[4.2, 0.28, 0.9]} />
+        <meshStandardMaterial color={theme.trim} />
+      </mesh>
+      <pointLight position={[0, 3.15, z + 2.4]} intensity={16} distance={18} color={theme.light} />
+      <Text position={[0, 5.58, z + 1.02]} fontSize={0.22} color={theme.name} anchorX="center" anchorY="middle" maxWidth={4.2}>
         {name}
       </Text>
     </group>
@@ -541,7 +683,7 @@ export default function BuildingInterior({ entryZ, building, question, exploring
         </>
       )}
 
-      <EntranceFacade name={name} theme={theme} />
+      <EntranceForecourt name={name} theme={theme} />
       <DoubleDoors color={theme.door} />
 
       {furnitureFor(id)}

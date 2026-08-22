@@ -16,12 +16,22 @@ function Horizon({ map }) {
     if (ref.current) ref.current.position.z = posZ + 70;
   });
   const hill = map.grassDark;
+  const lake = map.id === "lakeside-path";
+  const sports = map.id === "sports-field";
   return (
     <group ref={ref}>
       {[-48, -28, 28, 52].map((x, i) => (
-        <mesh key={x} position={[x, -4 + (i % 2), -8]} scale={[18, 9 + (i % 3), 10]}>
+        <mesh
+          key={x}
+          position={[x, sports ? -6.5 : -4 + (i % 2), -8]}
+          scale={[18, sports ? 5 : 9 + (i % 3), 10]}
+        >
           <sphereGeometry args={[1, 12, 8]} />
-          <meshStandardMaterial color={hill} roughness={1} />
+          <meshStandardMaterial
+            color={lake && x > 20 ? map.water : hill}
+            roughness={lake && x > 20 ? 0.15 : 1}
+            metalness={lake && x > 20 ? 0.45 : 0}
+          />
         </mesh>
       ))}
     </group>

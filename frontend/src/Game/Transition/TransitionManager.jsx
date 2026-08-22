@@ -111,9 +111,9 @@ export default function TransitionManager() {
     if (phase === PHASES.TRANSITION_TO_BUILDING) {
       const t = Math.min(1, elapsed.current / TO_BUILDING_DURATION);
       const ease = 1 - Math.pow(1 - t, 3);
-      const entrance = new THREE.Vector3(ix, 2.35, iz + APPROACH_Z + 3.8);
+      const entrance = new THREE.Vector3(ix, 2.05, iz + APPROACH_Z + 3.2);
       camera.position.lerpVectors(fromPos.current, entrance, ease);
-      camera.lookAt(ix, 1.45, iz + DOOR_LOCAL_Z);
+      camera.lookAt(ix, 1.35, iz + DOOR_LOCAL_Z);
       if (t >= 1 && !firedRef.current) {
         firedRef.current = true;
         useGameStore.getState().buildingTransitionComplete();
