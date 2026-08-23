@@ -36,7 +36,7 @@ async def pick_question_id(
 
     candidate_lines = "\n".join(
         [
-            f"- {c['id']}: {c['question']} | activities={','.join(c.get('activities') or [])} | stage={c.get('stage')}"
+            f"- {c['id']} (intent={c.get('intent_id') or c['id']}): {c['question']} | activities={','.join(c.get('activities') or [])}"
             for c in candidates
         ]
     )
@@ -75,18 +75,45 @@ async def pick_question_id(
         if journal_date
         else "This check-in is for today.\n"
     )
+    recent_answers = (session_context or {}).get("recent_answers") or []
+    if not recent_answers:
+        for prior in (session_context or {}).get("recent_sessions") or []:
+            for pair in prior.get("qa_history") or []:
+                recent_answers.append(
+                    {
+                        "question": pair.get("question"),
+                        "answer": pair.get("answer"),
+                        "question_id": pair.get("question_id"),
+                    }
+                )
+        recent_answers = recent_answers[-16:]
+    memory_str = (
+        "\n".join(
+            f"Q: {item.get('question')}\nA: {item.get('answer')}"
+            for item in recent_answers
+            if item.get("question") or item.get("answer")
+        )
+        or "None on file"
+    )
+    exams = (session_context or {}).get("exams") or []
 
     prompt = f"""
 You pick journal check-in questions for student {user_name}.
-You MUST pick from the candidate list. Never invent a question, never rewrite one, never invent options.
+You MUST pick from the candidate list. Never invent a question, never rewrite one, never invent options or a new id.
 
 {day_line}Activities for that day: {', '.join(selected_activities) or 'unspecified'}.
 {uncovered_info}{extra_info}{at_risk_info}
-Answers so far:
+Answers so far this session:
 {history_str}
 
-Known tasks:
+Previous check-in answers (memory — follow these, do not re-ask the same fact):
+{memory_str}
+
+Known assignments/tasks:
 {json.dumps(tasks, default=str)}
+
+Known exams:
+{json.dumps(exams, default=str)}
 
 Questions asked this session: {total_questions_asked}. Soft max: {max_questions}.
 
@@ -95,13 +122,14 @@ CANDIDATES (pick exactly one id):
 
 Rules:
 1. Never set end_session true while uncovered activities remain. The backend will reject it.
-2. Follow the latest answer: pick a candidate in the same activity thread for one more beat, then rotate to an uncovered activity.
-3. Prefer candidates that match that day's activities and any at-risk tasks.
-4. Do not pick a candidate that repeats what was already answered.
-5. Keep coverage thin: one or two flavour questions per activity is enough, then rotate.
-6. If every ticked activity is covered and you have a clear picture of that day, you may set end_session true and question_id null.
-7. If the latest answer implies a task progress change, include task_updates. Each update: {{"task_id": (existing id or null), "title": "...", "progress_stage": "...", "deadline": ...}}. Only use progress stages from: {sorted(TASK_PROGRESS_STAGES)}.
-8. Respond with JSON only:
+2. Follow the latest answer in this session. Stay on that activity for one more beat, then rotate to an uncovered activity.
+3. Use previous answers, known tasks, and known exams as memory. Do not pick a candidate that asks something they already answered unless today could have changed it.
+4. Subjects, deadlines, exam dates, and marks are collected by the backend. Do not try to gather those facts yourself.
+5. Prefer a candidate whose intent fits what they just said, that day's activities, and any at-risk tasks.
+6. Keep coverage thin: one or two flavour questions per activity is enough, then rotate.
+7. If every ticked activity is covered and you have a clear picture of that day, you may set end_session true and question_id null.
+8. If the latest answer implies a task progress change, include task_updates. Each update: {{"task_id": (existing id or null), "title": "...", "progress_stage": "...", "deadline": ...}}. Only use progress stages from: {sorted(TASK_PROGRESS_STAGES)}.
+9. Respond with JSON only:
 {{
   "question_id": "one-of-the-candidate-ids-or-null",
   "end_session": false,

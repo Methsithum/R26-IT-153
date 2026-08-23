@@ -21,9 +21,12 @@ def _q(
     target_location: Optional[str] = None,
     stage: str = "daily_checkin",
     context_field: Optional[str] = None,
+    intent_id: Optional[str] = None,
+    system: bool = False,
 ) -> dict[str, Any]:
     return {
         "id": qid,
+        "intent_id": intent_id or _intent_from_id(qid, system or bool(stage != "daily_checkin")),
         "question": question,
         "options": options,
         "activities": activities,
@@ -34,7 +37,17 @@ def _q(
         "target_location": target_location,
         "stage": stage,
         "context_field": context_field,
+        "system": system or stage != "daily_checkin",
+        "active": True,
     }
+
+
+def _intent_from_id(qid: str, locked: bool) -> str:
+    if locked:
+        return qid
+    if len(qid) > 2 and qid[-2] == "-" and qid[-1] in "abcdefghijklmnopqrstuvwxyz":
+        return qid[:-2]
+    return qid
 
 
 ANY = ["*"]
@@ -310,7 +323,39 @@ QUESTION_BY_ID = {q["id"]: q for q in QUESTION_BANK}
 
 
 def get_question(question_id: str) -> Optional[dict[str, Any]]:
-    return QUESTION_BY_ID.get(question_id)
+    if not question_id:
+        return None
+    try:
+        from app.models.journal.question import QuestionModel
+
+        doc = QuestionModel.find_by_qid(question_id)
+        if doc:
+            return doc
+    except Exception:
+        pass
+    found = QUESTION_BY_ID.get(question_id)
+    return dict(found) if found else None
+
+
+def get_questions(question_ids: list[str]) -> list[dict[str, Any]]:
+    ids = [qid for qid in question_ids or [] if qid]
+    if not ids:
+        return []
+    found: dict[str, dict[str, Any]] = {}
+    try:
+        from app.models.journal.question import QuestionModel
+
+        for doc in QuestionModel.find_by_qids(ids):
+            if doc and doc.get("id"):
+                found[doc["id"]] = doc
+    except Exception:
+        pass
+    result = []
+    for qid in ids:
+        doc = found.get(qid) or QUESTION_BY_ID.get(qid)
+        if doc:
+            result.append(dict(doc))
+    return result
 
 
 def pad_options(options: Optional[list[str]]) -> Optional[list[str]]:

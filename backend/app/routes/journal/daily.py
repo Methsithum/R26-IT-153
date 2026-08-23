@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from app.schemas.journal.daily import StartDailyRequest, AnswerRequest, FinishRunRequest, NextQuestionResponse
 from app.models.journal.daily_session import DailySessionModel
+from app.models.journal.question import QuestionModel
 from app.models.journal.task import TaskModel
 from app.models.journal.exam import ExamModel
 from app.models.user.user import UserModel
@@ -119,6 +120,7 @@ def _pending_fields(question: Optional[Dict[str, Any]]) -> dict:
             "missing_exams": question.get("missing_exams"),
             "exam_kind": question.get("exam_kind"),
             "task_id": question.get("task_id"),
+            "intent_id": question.get("intent_id") or question.get("id"),
         },
     }
 
@@ -267,16 +269,55 @@ def _append_kind(existing: List[str] | None, kind: Optional[str]) -> List[str]:
     return values
 
 
-async def _recent_asked_ids(user_id: str) -> List[str]:
+async def _picker_memory(user_id: str) -> dict:
     sessions = await DailySessionModel.find_recent_user_sessions(user_id, limit=6)
-    ids: List[str] = []
+    asked_ids: List[str] = []
+    answers: List[dict] = []
     for session in sessions:
-        ids.extend(session.get("asked_question_ids") or [])
-    return ids
+        asked_ids.extend(session.get("asked_question_ids") or [])
+        for qa in session.get("qa_history") or []:
+            question = str(qa.get("question") or "").strip()
+            answer = str(qa.get("answer") or "").strip()
+            if question or answer:
+                answers.append(
+                    {
+                        "question": question,
+                        "answer": answer,
+                        "question_id": qa.get("question_id"),
+                    }
+                )
+    recent_intents: List[str] = []
+    seen = set()
+    for session in sessions[:2]:
+        values = list(session.get("asked_intent_ids") or [])
+        if not values:
+            values = QuestionModel.intents_for_ids(session.get("asked_question_ids") or [])
+        for intent in values:
+            if intent and intent not in seen:
+                seen.add(intent)
+                recent_intents.append(intent)
+    return {
+        "recent_asked_ids": asked_ids,
+        "recent_intent_ids": recent_intents,
+        "recent_answers": answers[-16:],
+    }
+
+
+def _exam_rows(exams: List[Dict]) -> List[Dict]:
+    return [
+        {
+            "subject": exam.get("subject"),
+            "exam_type": exam.get("exam_type"),
+            "date": exam.get("date"),
+            "mark": exam.get("mark"),
+        }
+        for exam in exams or []
+    ]
 
 
 async def _academic_state(user_id: str) -> dict:
     tasks = await TaskModel.find_by_user(user_id)
+    memory = await _picker_memory(user_id)
     return {
         "tasks": tasks,
         "tasks_data": _task_rows(tasks),
@@ -285,7 +326,7 @@ async def _academic_state(user_id: str) -> dict:
         "unmarked_assignments": await TaskModel.assignments_needing_mark(user_id),
         "dated_exam_kinds": await ExamModel.dated_kinds(user_id),
         "marked_exam_kinds": await ExamModel.marked_kinds(user_id),
-        "recent_asked_ids": await _recent_asked_ids(user_id),
+        **memory,
     }
 
 
@@ -733,6 +774,8 @@ async def start_daily_session(req: StartDailyRequest):
         "derived": None,
         "at_risk_tasks": [],
         "journal_date": play_day.isoformat(),
+        "recent_answers": academic.get("recent_answers") or [],
+        "exams": _exam_rows(exams),
     }
     recent_asked_ids = academic["recent_asked_ids"]
 
@@ -763,6 +806,8 @@ async def start_daily_session(req: StartDailyRequest):
             dated_exam_kinds=academic["dated_exam_kinds"],
             marked_exam_kinds=academic["marked_exam_kinds"],
             recent_asked_ids=recent_asked_ids,
+            asked_intent_ids=[],
+            recent_intent_ids=academic.get("recent_intent_ids") or [],
         )
         question = decision.get("question")
     except Exception:
@@ -793,6 +838,7 @@ async def start_daily_session(req: StartDailyRequest):
             else (assignment_subjects[0] if assignment_subjects else (exam_subjects[0] if exam_subjects else req.subject_focus))
         ),
         "asked_question_ids": [],
+        "asked_intent_ids": [],
         "asked_deadline_subjects": [],
         "asked_next_assignment_subjects": [],
         "asked_assignment_progress_ids": [],
@@ -825,8 +871,15 @@ async def answer_question(req: AnswerRequest):
         raise HTTPException(400, "Invalid or already completed session")
 
     asked_ids = list(session.get("asked_question_ids") or [])
+    asked_intent_ids = list(session.get("asked_intent_ids") or [])
     if session.get("pending_question_id"):
         asked_ids.append(session["pending_question_id"])
+        intent = (session.get("pending_meta") or {}).get("intent_id")
+        if not intent:
+            pending = QuestionModel.find_by_qid(session["pending_question_id"]) or {}
+            intent = pending.get("intent_id") or session["pending_question_id"]
+        if intent and intent not in asked_intent_ids:
+            asked_intent_ids.append(intent)
 
     qa_pair = {
         "question_id": session.get("pending_question_id"),
@@ -844,6 +897,7 @@ async def answer_question(req: AnswerRequest):
     update_data = {
         "qa_history": qa_history,
         "asked_question_ids": asked_ids,
+        "asked_intent_ids": asked_intent_ids,
         **(session_updates or {}),
         **_pending_fields(None),
     }
@@ -900,6 +954,8 @@ async def answer_question(req: AnswerRequest):
         dated_exam_kinds=academic["dated_exam_kinds"],
         marked_exam_kinds=academic["marked_exam_kinds"],
         recent_asked_ids=academic["recent_asked_ids"],
+        asked_intent_ids=asked_intent_ids,
+        recent_intent_ids=academic.get("recent_intent_ids") or [],
     )
 
     if decision.get("end_session") or not decision.get("question"):

@@ -8,7 +8,8 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from app.services.journal.llm_service import pick_question_id
 from app.services.journal.journal_constants import MARK_RECEIVED_STAGES, is_mark_check_due
-from app.services.journal.question_bank import QUESTION_BANK, get_question, pad_options
+from app.models.journal.question import QuestionModel
+from app.services.journal.question_bank import QUESTION_BANK, get_question, get_questions, pad_options
 from app.services.time_utils import local_today, to_local_date
 
 SHORTLIST_SIZE = 20
@@ -119,6 +120,14 @@ SUBMITTED_SKIP_IDS = {
     "asg-worked-c",
     "asg-status",
     "asg-status-b",
+    "asg-blockers",
+    "asg-next",
+    "asg-hours",
+    "asg-confidence",
+}
+SUBMITTED_SKIP_INTENTS = {
+    "asg-worked",
+    "asg-status",
     "asg-blockers",
     "asg-next",
     "asg-hours",
@@ -280,7 +289,7 @@ def uncovered_activities(
     asked = set(asked_ids or [])
     lab_subjects = lab_subjects or []
     quiz_subjects = quiz_subjects or []
-    asked_questions = [get_question(qid) for qid in asked_ids or []]
+    asked_questions = get_questions(asked_ids or [])
     uncovered: List[str] = []
     for activity in selected_activities or []:
         if activity == "academic_study" and not (lecture_subjects or "lecture-subjects" in asked):
@@ -311,31 +320,79 @@ def uncovered_activities(
     return uncovered
 
 
+def _flavor_intents(intents: Optional[Sequence[str]]) -> List[str]:
+    return [intent for intent in (intents or []) if intent and intent not in FORCED_QUESTION_IDS]
+
+
+def _order_shortlist(sampled: List[dict], selected_activities: List[str], uncovered: Optional[List[str]]) -> List[dict]:
+    matching = []
+    uncovered_matching = []
+    generic = []
+    for question in sampled:
+        if not question or not _stage_allowed(question):
+            continue
+        if question.get("activities") == ["*"]:
+            generic.append(question)
+        elif uncovered and any(tag in uncovered for tag in (question.get("activities") or [])):
+            uncovered_matching.append(question)
+        elif _matches_activities(question, selected_activities):
+            matching.append(question)
+    return uncovered_matching + matching + generic
+
+
+def _bank_shortlist(
+    selected_activities: List[str],
+    exclude_ids: Sequence[str],
+    exclude_intents: Sequence[str],
+    uncovered: Optional[List[str]] = None,
+) -> List[dict]:
+    skip_ids = set(exclude_ids)
+    skip_intents = set(exclude_intents)
+    sampled = []
+    for question in QUESTION_BANK:
+        qid = question.get("id")
+        intent = question.get("intent_id") or qid
+        if question.get("system") or not _stage_allowed(question):
+            continue
+        if qid in skip_ids or intent in skip_intents:
+            continue
+        sampled.append(question)
+    return _order_shortlist(sampled, selected_activities, uncovered)
+
+
 def build_shortlist(
     selected_activities: List[str],
     asked_ids: List[str],
     recent_asked_ids: Optional[List[str]] = None,
     uncovered: Optional[List[str]] = None,
+    asked_intent_ids: Optional[List[str]] = None,
+    recent_intent_ids: Optional[List[str]] = None,
 ) -> List[dict]:
     asked = set(asked_ids or [])
     recent = {qid for qid in (recent_asked_ids or []) if qid not in FORCED_QUESTION_IDS}
-    matching = []
-    uncovered_matching = []
-    generic = []
-    for question in QUESTION_BANK:
-        qid = question["id"]
-        if qid in asked or qid in recent:
-            continue
-        if not _stage_allowed(question):
-            continue
-        if _matches_activities(question, selected_activities):
-            if question.get("activities") == ["*"]:
-                generic.append(question)
-            elif uncovered and any(tag in uncovered for tag in (question.get("activities") or [])):
-                uncovered_matching.append(question)
-            else:
-                matching.append(question)
-    ordered = uncovered_matching + matching + generic
+    exclude_ids = list(asked | recent)
+    session_intents = _flavor_intents(asked_intent_ids)
+    recent_intents = _flavor_intents(recent_intent_ids)
+    sampled: List[dict] = []
+    try:
+        sampled = QuestionModel.flavor_shortlist(
+            selected_activities=selected_activities,
+            exclude_ids=exclude_ids,
+            exclude_intents=session_intents + recent_intents,
+            sample_size=80,
+        )
+        if len(sampled) < 8:
+            sampled = QuestionModel.flavor_shortlist(
+                selected_activities=selected_activities,
+                exclude_ids=exclude_ids,
+                exclude_intents=session_intents,
+                sample_size=80,
+            )
+    except Exception:
+        sampled = []
+    ordered = _order_shortlist(sampled, selected_activities, uncovered)
+    if len(ordered) < 8:
+        ordered = _bank_shortlist(selected_activities, exclude_ids, session_intents, uncovered)
     return ordered[:SHORTLIST_SIZE]
 
 
@@ -706,6 +763,8 @@ async def pick_next_question(
     dated_exam_kinds: Optional[List[str]] = None,
     marked_exam_kinds: Optional[List[str]] = None,
     recent_asked_ids: Optional[List[str]] = None,
+    asked_intent_ids: Optional[List[str]] = None,
+    recent_intent_ids: Optional[List[str]] = None,
     asked_next_assignment_subjects: Optional[List[str]] = None,
     asked_assignment_progress_ids: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
@@ -726,6 +785,8 @@ async def pick_next_question(
     dated_exam_kinds = dated_exam_kinds or []
     marked_exam_kinds = marked_exam_kinds or []
     recent_asked_ids = recent_asked_ids or []
+    asked_intent_ids = asked_intent_ids or QuestionModel.intents_for_ids(asked_ids)
+    recent_intent_ids = recent_intent_ids or []
     asked_next_assignment_subjects = asked_next_assignment_subjects or []
     asked_assignment_progress_ids = asked_assignment_progress_ids or []
 
@@ -814,9 +875,16 @@ async def pick_next_question(
         asked_ids,
         recent_asked_ids,
         uncovered,
+        asked_intent_ids=asked_intent_ids,
+        recent_intent_ids=recent_intent_ids,
     )
     if not _open_assignment_subjects(tasks, assignment_subjects):
-        shortlist = [question for question in shortlist if question["id"] not in SUBMITTED_SKIP_IDS]
+        shortlist = [
+            question
+            for question in shortlist
+            if question["id"] not in SUBMITTED_SKIP_IDS
+            and (question.get("intent_id") or question["id"]) not in SUBMITTED_SKIP_INTENTS
+        ]
     shortlist = _prefer_followup(shortlist, qa_history, uncovered)
     if not shortlist:
         return {"end_session": True, "question": None, "task_updates": []}

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { PHASES, useGameStore } from "../state/GameStateManager";
 import { useRunnerStore } from "../state/runnerStore";
-import { play, unlockAudio, startAmbient, stopAmbient, setRunWind } from "./sfx";
+import { play, unlockAudio, startAmbient, stopAmbient, setRunWind, setMusic } from "./sfx";
 
 const RUN_WIND_PHASES = new Set([
   PHASES.RUNNING,
@@ -14,6 +14,15 @@ const RUN_WIND_PHASES = new Set([
   PHASES.DAY_CELEBRATION,
 ]);
 
+const INTERIOR_PHASES = new Set([
+  PHASES.TRANSITION_TO_BUILDING,
+  PHASES.ENTERING_BUILDING,
+  PHASES.SPECIAL_INTERACTION_READY,
+  PHASES.SPECIAL_INTERACTION_ACTIVE,
+  PHASES.SPECIAL_INTERACTION_COMPLETED,
+  PHASES.RETURNING_TO_CAMPUS,
+]);
+
 let lastStartChimeAt = 0;
 
 function playStartChime() {
@@ -21,6 +30,13 @@ function playStartChime() {
   if (now - lastStartChimeAt < 900) return;
   lastStartChimeAt = now;
   play("start");
+}
+
+function musicFor(phase) {
+  if (phase === PHASES.DAY_CELEBRATION) return "celebrate";
+  if (RUN_WIND_PHASES.has(phase)) return "run";
+  if (INTERIOR_PHASES.has(phase)) return "interior";
+  return "off";
 }
 
 export default function useGameAudio() {
@@ -38,11 +54,13 @@ export default function useGameAudio() {
         playStartChime();
         setRunWind(true);
       }
+      setMusic(musicFor(phase));
     });
 
     const unsubGame = useGameStore.subscribe((state, prev) => {
       if (state.phase !== prev.phase) {
         setRunWind(RUN_WIND_PHASES.has(state.phase));
+        setMusic(musicFor(state.phase));
         if (state.phase === PHASES.RUNNING && prev.phase === PHASES.GAME_START) playStartChime();
         if (state.phase === PHASES.QUESTION_APPROACHING) play("gate");
         if (state.phase === PHASES.ANSWER_CONFIRMED) play("answer");
@@ -60,6 +78,7 @@ export default function useGameAudio() {
         }
         if (state.phase === PHASES.DAILY_COMPLETION || state.phase === PHASES.GAME_PAUSED) {
           setRunWind(false);
+          setMusic("off");
         }
       }
 
@@ -88,6 +107,7 @@ export default function useGameAudio() {
       unsubRun();
       stopAmbient();
       setRunWind(false);
+      setMusic("off");
     };
   }, []);
 }

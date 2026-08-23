@@ -19,6 +19,19 @@ async def build_session_context(session_doc):
     at_risk_tasks = await identify_at_risk_tasks(tasks_data)
     
     journal_day = to_local_date(session_doc.get("date"))
+    recent_answers = []
+    for prior in recent_sessions or []:
+        for pair in prior.get("qa_history") or []:
+            question = str(pair.get("question") or "").strip()
+            answer = str(pair.get("answer") or "").strip()
+            if question or answer:
+                recent_answers.append(
+                    {
+                        "question": question,
+                        "answer": answer,
+                        "question_id": pair.get("question_id"),
+                    }
+                )
     return {
         "user_name": user["name"],
         "journal_date": journal_day.isoformat() if journal_day else None,
@@ -26,6 +39,7 @@ async def build_session_context(session_doc):
         "duration": session_doc.get("study_duration_minutes"),
         "subject": session_doc.get("subject_focus"),
         "qa": session_doc.get("qa_history", []),
+        "recent_answers": recent_answers[-16:],
         "recent_sessions": [
             {
                 "date": s.get("date"),
