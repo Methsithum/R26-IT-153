@@ -5,10 +5,13 @@
 // shape rather than rewriting components.
 import { CODE_MODULE_ENCODING, ASSESSMENT_TYPE_ENCODING } from "../utils/featureNameMap";
 
+// Placeholder shown only until the real registered user (from the Auth flow's
+// useGameStore) is hydrated in — see useAcademicStore's syncProfileFromUser.
 export const MOCK_STUDENT_PROFILE = {
   id: "stu-2026-0142",
   name: "Amaya Perera",
   studentId: "SUG2026-0142",
+  university: "",
   degree: "BSc (Hons) Computer Science",
   year: 2,
   semester: 1,

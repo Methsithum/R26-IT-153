@@ -10,6 +10,7 @@ import Login from "./Pages/Auth/Login";
 import { loadUserWorld, readStoredUser, refreshStoredUser } from "./services/userApi";
 import { isActiveCampusRun, useGameStore } from "./Game/state/GameStateManager";
 import { useJournalHistoryStore } from "./Game/state/journalHistoryStore";
+import { useAcademicStore } from "./store/useAcademicStore";
 
 // Study Planner component (yours)
 import AppLayout from "./Components/academic/Layout/AppLayout";
@@ -43,7 +44,10 @@ function HydrateUser({ children }) {
   useEffect(() => {
     const local = readStoredUser();
     const preserveRun = isActiveCampusRun(useGameStore.getState());
-    if (local) useGameStore.getState().applyUserProgress(local, { preserveRun });
+    if (local) {
+      useGameStore.getState().applyUserProgress(local, { preserveRun });
+      useAcademicStore.getState().syncProfileFromUser(useGameStore.getState());
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -55,6 +59,7 @@ function HydrateUser({ children }) {
         }
         const stillRunning = isActiveCampusRun(useGameStore.getState());
         useGameStore.getState().applyUserProgress(user, { preserveRun: stillRunning });
+        useAcademicStore.getState().syncProfileFromUser(useGameStore.getState());
         const world = await loadUserWorld(user.id);
         if (cancelled) return;
         useGameStore.getState().applyWorldRecords(world);

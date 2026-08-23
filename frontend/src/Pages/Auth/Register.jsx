@@ -5,7 +5,7 @@ import { useJournalHistoryStore } from "../../Game/state/journalHistoryStore";
 import { apiErrorMessage, registerUser } from "../../services/userApi";
 import AuthShell, { Field, inputClass } from "./AuthShell";
 
-const YEARS = [1, 2, 3, 4, 5, 6];
+const YEARS = [1, 2, 3, 4];
 
 export default function Register() {
   const navigate = useNavigate();

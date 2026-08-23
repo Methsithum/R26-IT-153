@@ -48,6 +48,9 @@ export default function Profile() {
           <Field label="Student ID">
             <input className="input" value={form.studentId} onChange={(e) => update("studentId", e.target.value)} />
           </Field>
+          <Field label="University">
+            <input className="input" value={form.university || ""} onChange={(e) => update("university", e.target.value)} />
+          </Field>
           <Field label="Degree">
             <input className="input" value={form.degree} onChange={(e) => update("degree", e.target.value)} />
           </Field>

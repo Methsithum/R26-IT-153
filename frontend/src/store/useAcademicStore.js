@@ -26,9 +26,32 @@ export const useAcademicStore = create(
       darkMode: typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches,
       toggleDarkMode: () => set((s) => ({ darkMode: !s.darkMode })),
 
-      // --- Student profile (mock, editable — no CRUD backend yet) ---
+      // --- Student profile. Seeded from MOCK_STUDENT_PROFILE (there's still
+      // no profile CRUD backend), but overwritten with the real registered
+      // account once available — see syncProfileFromUser, called from
+      // App.jsx's HydrateUser after Register/Login/refresh. ---
       profile: MOCK_STUDENT_PROFILE,
       updateProfile: (patch) => set((s) => ({ profile: { ...s.profile, ...patch } })),
+      // `gameState` is useGameStore's state (userId, playerName, universityName,
+      // degreeName, campusYear, semester, gpa) — only real, non-empty fields
+      // overwrite the current profile so an unhydrated/logged-out game store
+      // never clobbers it with blanks.
+      syncProfileFromUser: (gameState) => {
+        if (!gameState?.userId) return;
+        set((s) => ({
+          profile: {
+            ...s.profile,
+            id: gameState.userId,
+            studentId: gameState.userId,
+            name: gameState.playerName || s.profile.name,
+            university: gameState.universityName || s.profile.university,
+            degree: gameState.degreeName || s.profile.degree,
+            year: gameState.campusYear ?? s.profile.year,
+            semester: gameState.semester ?? s.profile.semester,
+            currentGpa: gameState.gpa ?? s.profile.currentGpa,
+          },
+        }));
+      },
 
       // --- Modules (mock) ---
       modules: MOCK_MODULES,
