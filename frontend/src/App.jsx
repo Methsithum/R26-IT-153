@@ -1,18 +1,18 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import AppLayout from "./Components/academic/Layout/AppLayout";
-import Dashboard from "./Pages/academic/Dashboard";
-import StudyPlanner from "./Pages/academic/StudyPlanner";
-import Tasks from "./Pages/academic/Tasks";
-import TaskDetails from "./Pages/academic/TaskDetails";
-import Modules from "./Pages/academic/Modules";
-import ModuleDetail from "./Pages/academic/ModuleDetail";
-import Exams from "./Pages/academic/Exams";
-import Analytics from "./Pages/academic/Analytics";
-import AddAcademicData from "./Pages/academic/AddAcademicData";
-import Notifications from "./Pages/academic/Notifications";
-import Settings from "./Pages/academic/Settings";
-import Profile from "./Pages/academic/Profile";
-import CalendarPage from "./Pages/academic/Calendar";
+import Dashboard from "./Pages/studyplanner/Dashboard";
+import StudyPlanner from "./Pages/studyplanner/StudyPlanner";
+import Tasks from "./Pages/studyplanner/Tasks";
+import TaskDetails from "./Pages/studyplanner/TaskDetails";
+import Modules from "./Pages/studyplanner/Modules";
+import ModuleDetail from "./Pages/studyplanner/ModuleDetail";
+import Exams from "./Pages/studyplanner/Exams";
+import Analytics from "./Pages/studyplanner/Analytics";
+import AddAcademicData from "./Pages/studyplanner/AddAcademicData";
+import Notifications from "./Pages/studyplanner/Notifications";
+import Settings from "./Pages/studyplanner/Settings";
+import Profile from "./Pages/studyplanner/Profile";
+import CalendarPage from "./Pages/studyplanner/Calendar";
 
 function App() {
   return (
