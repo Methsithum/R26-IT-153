@@ -2,6 +2,16 @@ import { useCallback, useEffect, useState } from "react";
 import { useAcademicStore } from "../store/useAcademicStore";
 import { createSchedule, rescheduleSchedule, getTodoList } from "../services/academicApi";
 
+// The backend's /todo rejects a schedule whose `tasks` registry is empty
+// (422 "schedule_result has no 'tasks' registry") instead of just returning
+// an empty list — a real edge case for a student with zero pending tasks
+// (e.g. a brand-new account, or right after completing their last one).
+// Skip the call in that case rather than surfacing a spurious backend error.
+async function fetchTodoSafely(scheduleResult) {
+  if (!scheduleResult?.tasks || Object.keys(scheduleResult.tasks).length === 0) return [];
+  return getTodoList(scheduleResult);
+}
+
 /**
  * Generates (or regenerates) the weekly schedule from the live /schedule
  * endpoint using the student's pending assignments + free slots, and stores
@@ -35,8 +45,7 @@ export function useWeeklySchedule() {
       const result = await createSchedule(weeklyFreeSlots, tasks);
       setSchedule(result);
       setRemainingFreeSlots(weeklyFreeSlots);
-      const todo = await getTodoList(result);
-      setTodoList(todo);
+      setTodoList(await fetchTodoSafely(result));
       return result;
     } catch (e) {
       setError(e.message);
@@ -50,8 +59,13 @@ export function useWeeklySchedule() {
     if (!scheduleResponse) {
       generate().catch(() => {});
     }
+    // Re-checks whenever `assignments` changes (not just on mount) so a
+    // schedule generated from stale/placeholder assignments — e.g. before
+    // the gamified journal's real data has finished syncing in — gets
+    // regenerated once syncFromJournal clears scheduleResponse and swaps in
+    // the real list, instead of silently keeping the wrong cached schedule.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [assignments]);
 
   return { schedule: scheduleResponse, loading, error, regenerate: generate };
 }
@@ -78,8 +92,7 @@ export function useReschedule() {
           newTasks,
         });
         setSchedule(result);
-        const todo = await getTodoList(result);
-        setTodoList(todo);
+        setTodoList(await fetchTodoSafely(result));
         return result;
       } catch (e) {
         setError(e.message);

@@ -1,13 +1,28 @@
 import { motion } from "framer-motion";
 import { GraduationCap } from "lucide-react";
 import Topbar from "../../Components/academic/Layout/Topbar";
+import EmptyState from "../../Components/academic/Shared/EmptyState";
 import { useAcademicStore } from "../../store/useAcademicStore";
-import { MOCK_EXAMS } from "../../mocks/academicMocks";
 import { daysRemaining, formatFriendlyDate } from "../../utils/dateHelpers";
 
 export default function Exams() {
   const modules = useAcademicStore((s) => s.modules);
-  const exams = [...MOCK_EXAMS].sort((a, b) => a.date.localeCompare(b.date));
+  const exams = [...useAcademicStore((s) => s.exams)].sort((a, b) => a.date.localeCompare(b.date));
+
+  if (exams.length === 0) {
+    return (
+      <div>
+        <Topbar title="Exams" subtitle="Upcoming exams across your modules." />
+        <div className="px-4 sm:px-6 pb-10">
+          <EmptyState
+            icon={GraduationCap}
+            title="No exam dates yet"
+            subtitle="Exam dates recorded in your journal will show up here once set."
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

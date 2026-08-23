@@ -30,7 +30,9 @@ export default function ModuleCard({ module, index = 0 }) {
         </div>
         <div>
           <p className="font-semibold text-slate-700 dark:text-white">{module.name}</p>
-          <p className="text-xs text-slate-400 mt-0.5">{module.taskCount} tasks · {formatDeadlineCopy(module.nextDeadline)}</p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {module.taskCount} tasks{module.nextDeadline ? ` · ${formatDeadlineCopy(module.nextDeadline)}` : " · No deadlines yet"}
+          </p>
         </div>
         <div>
           <div className="flex justify-between text-xs text-slate-400 mb-1">

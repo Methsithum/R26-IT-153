@@ -64,6 +64,11 @@ function HydrateUser({ children }) {
         if (cancelled) return;
         useGameStore.getState().applyWorldRecords(world);
         useJournalHistoryStore.getState().hydrateFromSessions(world.sessions, user.id);
+        useAcademicStore.getState().syncFromJournal({
+          tasks: world.tasks,
+          exams: world.exams,
+          subjects: user.subjects,
+        });
       } catch {
         // Offline — local stored progress still applies.
       }

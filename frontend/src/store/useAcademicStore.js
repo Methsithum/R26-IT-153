@@ -4,10 +4,144 @@ import {
   MOCK_STUDENT_PROFILE,
   MOCK_MODULES,
   MOCK_ASSIGNMENTS,
+  MOCK_EXAMS,
   MOCK_NOTIFICATIONS,
   MOCK_SETTINGS,
   MOCK_WEEKLY_FREE_SLOTS,
 } from "../mocks/academicMocks";
+import { CODE_MODULE_ENCODING, ASSESSMENT_TYPE_ENCODING } from "../utils/featureNameMap";
+
+const MODULE_COLORS = ["brand", "teal", "pink", "orange"];
+// The trained model only knows 7 fixed OULAD module categories (AAA-GGG) —
+// it has never seen a real subject name. Each real subject gets mapped
+// positionally onto one of those categories so /predict-priority etc. still
+// work; this is an approximation forced by the model's fixed training
+// categories, not a claim that e.g. "Operating Systems" literally is "AAA".
+const MODEL_MODULE_CODES = Object.keys(CODE_MODULE_ENCODING);
+
+function slugifySubject(subject) {
+  return String(subject || "unknown")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "") || "unknown";
+}
+
+function average(nums) {
+  const valid = nums.filter((n) => typeof n === "number" && !Number.isNaN(n));
+  if (!valid.length) return null;
+  return valid.reduce((sum, n) => sum + n, 0) / valid.length;
+}
+
+/**
+ * Builds real modules/assignments/exams from the gamified journal's data
+ * (real subjects from registration + real tasks/exams from its MongoDB
+ * collections) instead of the mock dataset. Called once real data exists —
+ * see App.jsx's HydrateUser, right after loadUserWorld() resolves.
+ */
+function buildFromJournal({ tasks = [], exams = [], subjects = [] }) {
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  const bySubject = {};
+  subjects.forEach((subject) => {
+    bySubject[subject] = { tasks: [], exams: [] };
+  });
+  tasks.forEach((t) => {
+    if (!t?.subject) return;
+    bySubject[t.subject] = bySubject[t.subject] || { tasks: [], exams: [] };
+    bySubject[t.subject].tasks.push(t);
+  });
+  exams.forEach((e) => {
+    if (!e?.subject) return;
+    bySubject[e.subject] = bySubject[e.subject] || { tasks: [], exams: [] };
+    bySubject[e.subject].exams.push(e);
+  });
+
+  const subjectNames = Object.keys(bySubject);
+
+  const modules = subjectNames.map((subject, i) => {
+    const { tasks: subjTasks, exams: subjExams } = bySubject[subject];
+    const marks = [...subjTasks, ...subjExams]
+      .map((r) => (r.mark != null && r.mark !== "" ? Number(r.mark) : null))
+      .filter((m) => m != null && !Number.isNaN(m));
+    const avgMark = average(marks);
+    const pendingTasks = subjTasks.filter((t) => t.mark == null && String(t.progress_stage || "").toLowerCase() !== "completed");
+    const completedCount = subjTasks.length - pendingTasks.length;
+    const deadlines = [
+      ...subjTasks.map((t) => t.deadline).filter(Boolean),
+      ...subjExams.map((e) => e.date).filter(Boolean),
+    ].sort();
+
+    return {
+      code: slugifySubject(subject),
+      name: subject,
+      color: MODULE_COLORS[i % MODULE_COLORS.length],
+      currentGrade: avgMark != null ? Math.round(avgMark) : 0,
+      hasGradeData: avgMark != null, // false = no marks recorded yet, not a real 0%
+      trend: 0, // no historical grade series from the journal yet
+      taskCount: subjTasks.length,
+      progress: subjTasks.length ? completedCount / subjTasks.length : 0,
+      studyHoursThisWeek: 0, // journal doesn't track study hours per subject
+      nextDeadline: deadlines.find((d) => d >= todayIso) || deadlines[deadlines.length - 1] || null,
+    };
+  });
+
+  const assignments = tasks
+    .filter((t) => t?.subject && (t.task_type === "assignment" || !t.task_type))
+    .map((t) => {
+      const module = modules.find((m) => m.name === t.subject);
+      const modelCodeIndex = subjectNames.indexOf(t.subject) % MODEL_MODULE_CODES.length;
+      const modelCode = MODEL_MODULE_CODES[modelCodeIndex];
+      const isCompleted = t.mark != null || String(t.progress_stage || "").toLowerCase() === "completed";
+      const deadlineDate = t.deadline ? String(t.deadline).slice(0, 10) : null;
+      const isMissed = !isCompleted && deadlineDate && deadlineDate < todayIso;
+      const estimatedHoursNeeded = 4; // not tracked by the journal — neutral default
+      const daysUntilDeadline = deadlineDate
+        ? Math.round((new Date(`${deadlineDate}T00:00:00`) - new Date(`${todayIso}T00:00:00`)) / 86400000)
+        : 14;
+
+      return {
+        taskId: t.id,
+        module: module?.code || slugifySubject(t.subject),
+        moduleName: t.subject,
+        title: t.title || `${t.subject} assignment`,
+        assessmentType: "TMA", // not tracked by the journal — neutral default
+        weight: 20, // not tracked by the journal — neutral default
+        deadlineDate: deadlineDate || new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+        estimatedHoursNeeded,
+        status: isCompleted ? "completed" : isMissed ? "missed" : "pending",
+        completedHours: isCompleted ? estimatedHoursNeeded : 0,
+        notes: "",
+        featureRow: {
+          date: daysUntilDeadline,
+          weight: 20,
+          num_of_prev_attempts: 0,
+          studied_credits: 60,
+          module_presentation_length: 240,
+          date_registration: -30,
+          prior_avg_score: module?.currentGrade || 65,
+          avg_weekly_clicks: 15,
+          clicks_trend: 0,
+          active_weeks_ratio: 0.5,
+          has_vle_activity: 1,
+          assessment_type_enc: ASSESSMENT_TYPE_ENCODING.TMA,
+          code_module_enc: CODE_MODULE_ENCODING[modelCode],
+        },
+      };
+    });
+
+  const mappedExams = exams
+    .filter((e) => e?.date)
+    .map((e) => ({
+      id: e.id,
+      module: slugifySubject(e.subject),
+      moduleName: e.subject,
+      date: String(e.date).slice(0, 10),
+      type: e.exam_type || "Exam",
+    }));
+
+  return { modules, assignments, exams: mappedExams };
+}
 
 // Why Zustand (not React Context) for this store:
 // The schedule/task state here is written from many unrelated places (task
@@ -49,11 +183,17 @@ export const useAcademicStore = create(
             year: gameState.campusYear ?? s.profile.year,
             semester: gameState.semester ?? s.profile.semester,
             currentGpa: gameState.gpa ?? s.profile.currentGpa,
+            // Registration only collects a GPA past Year1/Sem1 — false here
+            // means "no real GPA yet", so currentGpa is still the mock
+            // placeholder and must not be shown as if it were a real number.
+            hasGpaData: gameState.gpa != null,
           },
         }));
       },
 
-      // --- Modules (mock) ---
+      // --- Modules. Seeded from MOCK_MODULES, replaced with real subjects
+      // (and their real tasks/exams) once the gamified journal's data is
+      // available — see syncFromJournal. ---
       modules: MOCK_MODULES,
 
       // --- Assignments / tasks. Each carries a real `featureRow` for the ML
@@ -62,6 +202,36 @@ export const useAcademicStore = create(
       predictedPriorities: {}, // taskId -> { priority_label, confidence }
       setPredictedPriority: (taskId, result) =>
         set((s) => ({ predictedPriorities: { ...s.predictedPriorities, [taskId]: result } })),
+
+      // --- Exams (mock until synced from the journal, same as modules) ---
+      exams: MOCK_EXAMS,
+
+      // Replaces modules/assignments/exams with real data built from the
+      // journal's registered subjects + its tasks/exams collections. Called
+      // once per login/refresh from App.jsx's HydrateUser, right after
+      // loadUserWorld() resolves. No-ops if the user hasn't registered any
+      // subjects yet (keeps the mock preview data visible until then).
+      syncFromJournal: ({ tasks, exams, subjects }) => {
+        if (!subjects || subjects.length === 0) return;
+        const built = buildFromJournal({ tasks: tasks || [], exams: exams || [], subjects });
+        set((s) => {
+          // Only discard the cached /schedule response when the real task
+          // set actually differs from what it was generated against (e.g.
+          // this is the first sync, replacing mock/placeholder assignments,
+          // or the journal's tasks changed) — a normal reload where nothing
+          // changed should keep the valid cached schedule, not regenerate
+          // it every time the app boots.
+          const oldIds = new Set(s.assignments.map((a) => a.taskId));
+          const newIds = new Set(built.assignments.map((a) => a.taskId));
+          const sameTasks = oldIds.size === newIds.size && [...oldIds].every((id) => newIds.has(id));
+          return {
+            modules: built.modules,
+            assignments: built.assignments,
+            exams: built.exams,
+            ...(sameTasks ? {} : { scheduleResponse: null, todoList: [] }),
+          };
+        });
+      },
 
       addAssignment: (assignment) => set((s) => ({ assignments: [assignment, ...s.assignments] })),
 
@@ -112,7 +282,9 @@ export const useAcademicStore = create(
       partialize: (s) => ({
         darkMode: s.darkMode,
         profile: s.profile,
+        modules: s.modules,
         assignments: s.assignments,
+        exams: s.exams,
         predictedPriorities: s.predictedPriorities,
         weeklyFreeSlots: s.weeklyFreeSlots,
         remainingFreeSlots: s.remainingFreeSlots,
@@ -122,10 +294,10 @@ export const useAcademicStore = create(
         settings: s.settings,
         streak: s.streak,
       }),
-      // v2: dropped monthSessionsByKey — Study Planner's Month view no
-      // longer shows fabricated placeholder sessions, only real assignment
-      // deadlines, so that cached mock data is no longer used anywhere.
-      version: 2,
+      // v3: added real exams + made modules persistable, now that both can
+      // be replaced with real journal data via syncFromJournal instead of
+      // always being the mock dataset.
+      version: 3,
       migrate: (persisted) => {
         if (persisted) delete persisted.monthSessionsByKey;
         return persisted;

@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useAcademicStore } from "../../../store/useAcademicStore";
-import { MOCK_EXAMS } from "../../../mocks/academicMocks";
 import { toLocalDateStr } from "../../../utils/dateHelpers";
 
 const EVENT_STYLES = {
@@ -16,6 +15,7 @@ export default function CalendarView() {
     return { year: d.getFullYear(), month: d.getMonth() };
   });
   const assignments = useAcademicStore((s) => s.assignments);
+  const exams = useAcademicStore((s) => s.exams);
 
   const eventsByDate = useMemo(() => {
     const map = {};
@@ -24,9 +24,9 @@ export default function CalendarView() {
       map[date].push(type);
     };
     assignments.forEach((a) => push(a.deadlineDate, a.status === "completed" ? "completed" : "assignment"));
-    MOCK_EXAMS.forEach((e) => push(e.date, "exam"));
+    exams.forEach((e) => push(e.date, "exam"));
     return map;
-  }, [assignments]);
+  }, [assignments, exams]);
 
   const firstDay = new Date(cursor.year, cursor.month, 1);
   const startWeekday = (firstDay.getDay() + 6) % 7;

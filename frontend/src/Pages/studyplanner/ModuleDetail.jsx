@@ -58,7 +58,7 @@ export default function ModuleDetail() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <MiniStat label="Current Grade" value={`${module.currentGrade}%`} />
           <MiniStat label="Assignments" value={module.taskCount} />
-          <MiniStat label="Next Deadline" value={formatDeadlineCopy(module.nextDeadline)} />
+          <MiniStat label="Next Deadline" value={module.nextDeadline ? formatDeadlineCopy(module.nextDeadline) : "None yet"} />
           <MiniStat label="Study Hours (wk)" value={`${module.studyHoursThisWeek}h`} />
         </div>
 

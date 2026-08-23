@@ -4,7 +4,10 @@ import { formatDeadlineCopy } from "../../../utils/dateHelpers";
 // Framed as a recommendation, never a diagnostic label of the student
 // (PROJECT CONTEXT.md Section 13 "Academic Risk/Warning section").
 export default function AcademicRiskSection({ modules }) {
-  const flagged = modules.filter((m) => m.currentGrade < 70);
+  // hasGradeData is false for a real module with no marks recorded yet
+  // (currentGrade sits at a placeholder 0 in that case) — never flag "no
+  // data yet" as if it were a genuine low grade.
+  const flagged = modules.filter((m) => m.hasGradeData !== false && m.currentGrade < 70);
 
   if (flagged.length === 0) {
     return (
@@ -25,7 +28,7 @@ export default function AcademicRiskSection({ modules }) {
             <div>
               <p className="text-sm font-semibold text-slate-700 dark:text-white">{m.name}</p>
               <p className="text-xs text-slate-500 dark:text-slate-300">
-                {m.currentGrade}% · deadline {formatDeadlineCopy(m.nextDeadline).toLowerCase()}
+                {m.currentGrade}%{m.nextDeadline ? ` · deadline ${formatDeadlineCopy(m.nextDeadline).toLowerCase()}` : ""}
               </p>
             </div>
             <span className="text-xs font-bold text-medium-600 bg-white dark:bg-white/10 rounded-full px-3 py-1">

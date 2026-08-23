@@ -24,7 +24,11 @@ export default function Dashboard() {
     return assignments.map((a) => ({ ...a, priorityLabel: schedule.tasks[a.taskId]?.priority_label }));
   }, [assignments, schedule]);
 
-  const atRiskModule = [...modules].sort((a, b) => a.currentGrade - b.currentGrade)[0];
+  // hasGradeData is false for a real module with no marks yet — its
+  // placeholder 0% must never read as a genuine low grade.
+  const atRiskModule = [...modules]
+    .filter((m) => m.hasGradeData !== false)
+    .sort((a, b) => a.currentGrade - b.currentGrade)[0];
 
   return (
     <div>

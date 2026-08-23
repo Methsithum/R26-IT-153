@@ -44,8 +44,14 @@ export default function SummaryCards({ profile, assignments, weeklyHours, weekly
         icon={GraduationCap}
         iconBg="bg-gradient-to-br from-brand-500 to-brand-400"
         label="Current GPA"
-        value={profile.currentGpa.toFixed(2)}
-        sub={<TrendPill value={profile.currentGpa - profile.previousGpa} />}
+        value={profile.hasGpaData === false ? "N/A" : profile.currentGpa.toFixed(2)}
+        sub={
+          profile.hasGpaData === false ? (
+            <span className="text-[11px] text-slate-400">Not recorded yet</span>
+          ) : (
+            <TrendPill value={profile.currentGpa - profile.previousGpa} />
+          )
+        }
         delay={0}
       />
       <Card
