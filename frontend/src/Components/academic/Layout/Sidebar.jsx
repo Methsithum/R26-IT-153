@@ -8,9 +8,9 @@ import {
   BarChart3,
   Bell,
   Settings,
-  Sparkles,
 } from "lucide-react";
 import { useAcademicStore } from "../../../store/useAcademicStore";
+import Logo from "../Shared/Logo";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: LayoutGrid, exact: true },
@@ -29,9 +29,7 @@ export default function Sidebar() {
   return (
     <aside className="hidden lg:flex flex-col w-64 shrink-0 h-screen sticky top-0 bg-white dark:bg-[#150f28] border-r border-black/5 dark:border-white/5 px-4 py-6">
       <div className="flex items-center gap-2 px-2 mb-8">
-        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-brand-500 to-accent-pink flex items-center justify-center shadow-playful">
-          <Sparkles className="text-white" size={20} />
-        </div>
+        <Logo size={40} />
         <div>
           <p className="font-display font-bold text-lg leading-tight text-slate-800 dark:text-white">StudyFlow</p>
           <p className="text-[11px] text-slate-400 -mt-0.5">Smart Uni Guide</p>

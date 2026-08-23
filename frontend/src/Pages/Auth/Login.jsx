@@ -35,7 +35,7 @@ export default function Login() {
       footer={
         <>
           New student?{" "}
-          <Link to="/register" className="font-semibold text-amber-800 hover:underline">
+          <Link to="/register" className="font-semibold text-brand-600 dark:text-brand-400 hover:underline">
             Create an account
           </Link>
         </>
@@ -62,11 +62,11 @@ export default function Login() {
             placeholder="Your password"
           />
         </Field>
-        {error && <p className="text-sm text-red-700">{error}</p>}
+        {error && <p className="text-sm text-high-600 dark:text-high-500">{error}</p>}
         <button
           type="submit"
           disabled={busy}
-          className="mt-1 rounded-xl bg-amber-800 px-4 py-3 text-sm font-semibold text-amber-50 shadow-sm transition-colors hover:bg-amber-700 disabled:opacity-50"
+          className="mt-1 rounded-xl bg-brand-500 px-4 py-3 text-sm font-semibold text-white shadow-playful transition-colors hover:bg-brand-600 disabled:opacity-50"
         >
           {busy ? "Signing in…" : "Sign in"}
         </button>

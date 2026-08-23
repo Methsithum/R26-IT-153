@@ -98,12 +98,12 @@ export default function Register() {
 
   return (
     <AuthShell
-      title="Create your student journal"
-      subtitle="Tell us who you are and which campus modules you are taking."
+      title="Create your Smart Uni Guide account"
+      subtitle="Tell us who you are and which modules you're taking this semester."
       footer={
         <>
           Already registered?{" "}
-          <Link to="/login" className="font-semibold text-amber-800 hover:underline">
+          <Link to="/login" className="font-semibold text-brand-600 dark:text-brand-400 hover:underline">
             Sign in
           </Link>
         </>
@@ -166,10 +166,10 @@ export default function Register() {
                 key={year}
                 type="button"
                 onClick={() => setYearOrSemester("campus_year", year)}
-                className={`rounded-full px-3 py-1.5 text-sm ${
+                className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
                   form.campus_year === year
-                    ? "bg-amber-800 text-amber-50"
-                    : "border border-stone-200 bg-stone-50 text-stone-600 hover:bg-stone-100"
+                    ? "bg-brand-500 text-white shadow-playful"
+                    : "border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10"
                 }`}
               >
                 Year {year}
@@ -184,10 +184,10 @@ export default function Register() {
                 key={sem}
                 type="button"
                 onClick={() => setYearOrSemester("semester", sem)}
-                className={`flex-1 rounded-xl px-3 py-2 text-sm ${
+                className={`flex-1 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
                   form.semester === sem
-                    ? "bg-amber-800 text-amber-50"
-                    : "border border-stone-200 bg-stone-50 text-stone-600 hover:bg-stone-100"
+                    ? "bg-brand-500 text-white shadow-playful"
+                    : "border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10"
                 }`}
               >
                 Semester {sem}
@@ -210,24 +210,24 @@ export default function Register() {
                 onChange={(e) => setField("gpa", e.target.value)}
                 placeholder="e.g. 3.45"
               />
-              <p className="mt-1 text-xs text-stone-500">Current cumulative GPA, from 0.00 to 4.00.</p>
+              <p className="mt-1 text-xs text-slate-400">Current cumulative GPA, from 0.00 to 4.00.</p>
             </Field>
           </div>
         )}
 
         <div className="sm:col-span-2">
           <Field label="Currently registered subjects">
-            <div className="rounded-xl border border-stone-200 bg-white px-3 py-2">
+            <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2">
               <div className="mb-2 flex flex-wrap gap-2">
                 {subjects.map((subject) => (
                   <span
                     key={subject}
-                    className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-sm text-amber-900"
+                    className="inline-flex items-center gap-1 rounded-full bg-brand-50 dark:bg-brand-500/15 px-3 py-1 text-sm text-brand-700 dark:text-brand-300"
                   >
                     {subject}
                     <button
                       type="button"
-                      className="text-amber-700/70 hover:text-amber-950"
+                      className="text-brand-500/70 hover:text-brand-700 dark:hover:text-brand-300"
                       onClick={() => setSubjects((prev) => prev.filter((item) => item !== subject))}
                     >
                       ×
@@ -235,11 +235,11 @@ export default function Register() {
                   </span>
                 ))}
                 {subjects.length === 0 && (
-                  <span className="text-sm text-stone-400">e.g. Operating Systems, Web Development</span>
+                  <span className="text-sm text-slate-400">e.g. Operating Systems, Web Development</span>
                 )}
               </div>
               <input
-                className="w-full border-0 bg-transparent py-1 text-sm outline-none placeholder:text-stone-400"
+                className="w-full border-0 bg-transparent py-1 text-sm text-slate-700 dark:text-white outline-none placeholder:text-slate-400"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={onDraftKey}
@@ -273,14 +273,14 @@ export default function Register() {
           />
         </Field>
 
-        {error && <p className="sm:col-span-2 text-sm text-red-700">{error}</p>}
+        {error && <p className="sm:col-span-2 text-sm text-high-600 dark:text-high-500">{error}</p>}
 
         <button
           type="submit"
           disabled={busy}
-          className="sm:col-span-2 mt-1 rounded-xl bg-amber-800 px-4 py-3 text-sm font-semibold text-amber-50 shadow-sm transition-colors hover:bg-amber-700 disabled:opacity-50"
+          className="sm:col-span-2 mt-1 rounded-xl bg-brand-500 px-4 py-3 text-sm font-semibold text-white shadow-playful transition-colors hover:bg-brand-600 disabled:opacity-50"
         >
-          {busy ? "Creating journal…" : "Create account"}
+          {busy ? "Creating your account…" : "Create account"}
         </button>
       </form>
     </AuthShell>
