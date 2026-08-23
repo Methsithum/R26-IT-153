@@ -4,7 +4,7 @@ import { useRunnerStore, LANES } from "../state/runnerStore";
 import { PHASES, useGameStore } from "../state/GameStateManager";
 import AnswerLane from "./AnswerLane";
 
-const LANE_DISTANCE_AHEAD = 62;
+const LANE_DISTANCE_AHEAD = 95;
 const SPAWN_GAP = 70;
 const LANE_COUNT = LANES.length;
 

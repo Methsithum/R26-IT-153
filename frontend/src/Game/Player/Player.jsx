@@ -76,7 +76,13 @@ export default function Player() {
       store.setShake(0);
     }
 
-    const cruise = exhausted ? 0.58 : Math.min(1.38, 1 + store.distance * 0.0007);
+    const reading =
+      phase === PHASES.QUESTION_APPROACHING || phase === PHASES.ANSWER_SELECTION;
+    const cruise = exhausted
+      ? 0.58
+      : reading
+        ? 0.7
+        : Math.min(1.38, 1 + store.distance * 0.0007);
     if (!store.isStumbling && campusRun) {
       const nextScale = store.speedScale + (cruise - store.speedScale) * Math.min(1, dt * 1.6);
       if (Math.abs(nextScale - store.speedScale) > 0.02) {
