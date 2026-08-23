@@ -6,3 +6,83 @@ body,
   height: 100%;
   margin: 0;
 }
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-display: "Baloo 2", "Poppins", ui-rounded, "Segoe UI", sans-serif;
+  --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+
+  /* Brand */
+  --color-brand-50: #f2ecff;
+  --color-brand-100: #e4d9ff;
+  --color-brand-200: #cbb3ff;
+  --color-brand-300: #ac85ff;
+  --color-brand-400: #8f5cff;
+  --color-brand-500: #7c3aed;
+  --color-brand-600: #6d28d9;
+  --color-brand-700: #5b21b6;
+
+  --color-accent-teal: #14b8a6;
+  --color-accent-pink: #ec4899;
+  --color-accent-blue: #3b82f6;
+  --color-accent-orange: #fb923c;
+
+  /* Priority system - bold and saturated on purpose */
+  --color-high-50: #fff1f0;
+  --color-high-500: #f43f5e;
+  --color-high-600: #e11d48;
+  --color-medium-50: #fffbeb;
+  --color-medium-500: #f59e0b;
+  --color-medium-600: #d97706;
+  --color-low-50: #ecfdf5;
+  --color-low-500: #10b981;
+  --color-low-600: #059669;
+
+  /* Surfaces */
+  --color-surface: #ffffff;
+  --color-surface-muted: #f7f5ff;
+  --color-canvas: #fbf9ff;
+
+  --shadow-playful: 0 10px 30px -10px rgb(124 58 237 / 0.25);
+  --shadow-card: 0 4px 14px -4px rgb(23 15 46 / 0.08);
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+  }
+  body {
+    @apply bg-[var(--color-canvas)] text-slate-800 antialiased;
+  }
+  .dark body {
+    @apply bg-[#0f0b1f] text-slate-100;
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+  }
+}
+
+@layer utilities {
+  .card {
+    @apply bg-white dark:bg-[#1a1530] rounded-3xl shadow-[var(--shadow-card)] border border-black/5 dark:border-white/5;
+  }
+  .input {
+    @apply w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2 text-sm text-slate-700 dark:text-white outline-none focus:ring-2 focus:ring-brand-400/50;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgb(124 58 237 / 0.3);
+    border-radius: 999px;
+  }
+}
+
+@keyframes pop-in {
+  0% { transform: scale(0.8); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-pop-in {
+  animation: pop-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
