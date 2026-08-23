@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { formatDeadlineCopy } from "../../../utils/dateHelpers";
+import { moduleInitials } from "../../../utils/featureNameMap";
 
 const COLOR_MAP = {
   brand: "from-brand-500 to-brand-400",
@@ -21,7 +22,7 @@ export default function ModuleCard({ module, index = 0 }) {
       <Link to={`/modules/${module.code}`} className="card p-5 flex flex-col gap-3 hover:-translate-y-0.5 hover:shadow-playful transition-all block">
         <div className="flex items-center justify-between">
           <div className={`w-10 h-10 rounded-2xl bg-gradient-to-br ${COLOR_MAP[module.color]} flex items-center justify-center text-white font-bold text-sm`}>
-            {module.code}
+            {moduleInitials(module.name)}
           </div>
           <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${module.trend >= 0 ? "text-low-600" : "text-high-600"}`}>
             <TrendIcon size={13} /> {Math.abs(module.trend)}%

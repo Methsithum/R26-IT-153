@@ -33,7 +33,7 @@ export default function SemesterOverview() {
           <Tooltip contentStyle={{ borderRadius: 16, border: "none", boxShadow: "0 10px 30px -10px rgba(124,58,237,0.25)" }} />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           {MOCK_MODULES.map((m) => (
-            <Bar key={m.code} dataKey={m.code} stackId="hours" fill={COLORS[m.code]} radius={[4, 4, 0, 0]} />
+            <Bar key={m.code} dataKey={m.code} name={m.name} stackId="hours" fill={COLORS[m.code]} radius={[4, 4, 0, 0]} />
           ))}
         </BarChart>
       </ResponsiveContainer>

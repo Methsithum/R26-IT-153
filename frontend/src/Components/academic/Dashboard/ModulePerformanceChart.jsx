@@ -1,9 +1,10 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from "recharts";
+import { moduleInitials } from "../../../utils/featureNameMap";
 
 const BAR_COLORS = ["#7c3aed", "#14b8a6", "#ec4899", "#fb923c", "#3b82f6"];
 
 export default function ModulePerformanceChart({ modules }) {
-  const data = modules.map((m) => ({ name: m.code, grade: m.currentGrade, fullName: m.name }));
+  const data = modules.map((m) => ({ name: moduleInitials(m.name), grade: m.currentGrade, fullName: m.name }));
 
   return (
     <div className="card p-5">

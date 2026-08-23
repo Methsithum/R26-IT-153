@@ -66,7 +66,7 @@ export default function CalendarView() {
           const events = eventsByDate[dateStr] || [];
           const isToday = dateStr === toLocalDateStr(new Date());
           return (
-            <div key={i} className={`min-h-[64px] rounded-xl p-1.5 border ${isToday ? "border-brand-400 bg-brand-50 dark:bg-brand-500/10" : "border-black/5 dark:border-white/5"}`}>
+            <div key={i} className={`min-h-16 rounded-xl p-1.5 border ${isToday ? "border-brand-400 bg-brand-50 dark:bg-brand-500/10" : "border-black/5 dark:border-white/5"}`}>
               <p className={`text-[11px] font-semibold ${isToday ? "text-brand-600" : "text-slate-400"}`}>{day}</p>
               <div className="flex flex-wrap gap-0.5 mt-1">
                 {events.slice(0, 4).map((type, ei) => (

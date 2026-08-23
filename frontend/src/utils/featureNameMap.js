@@ -63,6 +63,17 @@ export const ASSESSMENT_TYPE_LABELS = {
   Exam: "Exam",
 };
 
+// Short display initials from a real module name (e.g. "Database Systems" ->
+// "DS"), for badges/chart labels that would otherwise fall back to the
+// internal OULAD-style module code (e.g. "AAA") — model bookkeeping the
+// student never needs to see.
+export function moduleInitials(name = "") {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "?";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+}
+
 export const PRIORITY_COLORS = {
   High: {
     text: "text-high-600 dark:text-high-500",
