@@ -38,7 +38,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 
 OUTPUTS_DIR = os.path.join(BACKEND_DIR, "ml_scripts", "study-planner", "outputs")
-MODELS_DIR = os.path.join(BACKEND_DIR, "trained-models", "stuyd-planner")
+MODELS_DIR = os.path.join(BACKEND_DIR, "app", "models", "study_planner")
 
 MODEL_PATH = os.path.join(MODELS_DIR, "priority_model.joblib")
 SCALER_PATH = os.path.join(MODELS_DIR, "scaler.joblib")

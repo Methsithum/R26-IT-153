@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # Paths (relative to this file, so it works regardless of the process cwd)
 # ---------------------------------------------------------------------------
 BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-MODELS_DIR = os.path.join(BACKEND_DIR, "trained-models", "stuyd-planner")  # existing (typo'd) path, kept for consistency
+MODELS_DIR = os.path.join(BACKEND_DIR, "app", "models", "study_planner")
 
 MODEL_PATH = os.path.join(MODELS_DIR, "priority_model.joblib")
 LABEL_ENCODERS_PATH = os.path.join(MODELS_DIR, "label_encoders.joblib")

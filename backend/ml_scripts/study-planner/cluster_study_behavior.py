@@ -43,7 +43,7 @@ BACKEND_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 
 DATASETS_DIR = os.path.join(BACKEND_DIR, "datasets", "study-planner")
 OUTPUTS_DIR = os.path.join(BACKEND_DIR, "ml_scripts", "study-planner", "outputs")
-MODELS_DIR = os.path.join(BACKEND_DIR, "trained-models", "stuyd-planner")
+MODELS_DIR = os.path.join(BACKEND_DIR, "app", "models", "study_planner")
 
 LEAKAGE_FREE_CSV = os.path.join(OUTPUTS_DIR, "oulad_task_level_leakage_free.csv")
 

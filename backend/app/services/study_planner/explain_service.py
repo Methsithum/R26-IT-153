@@ -24,7 +24,7 @@ from app.services.study_planner.priority_service import FEATURE_ORDER, PriorityS
 logger = logging.getLogger(__name__)
 
 BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-MODELS_DIR = os.path.join(BACKEND_DIR, "trained-models", "stuyd-planner")
+MODELS_DIR = os.path.join(BACKEND_DIR, "app", "models", "study_planner")
 
 MODEL_PATH = os.path.join(MODELS_DIR, "priority_model.joblib")
 XGB_LABEL_ENCODER_PATH = os.path.join(MODELS_DIR, "xgb_label_encoder.joblib")

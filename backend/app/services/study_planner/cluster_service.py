@@ -16,7 +16,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-MODELS_DIR = os.path.join(BACKEND_DIR, "trained-models", "stuyd-planner")
+MODELS_DIR = os.path.join(BACKEND_DIR, "app", "models", "study_planner")
 
 KMEANS_MODEL_PATH = os.path.join(MODELS_DIR, "kmeans_model.joblib")
 KMEANS_SCALER_PATH = os.path.join(MODELS_DIR, "kmeans_scaler.joblib")

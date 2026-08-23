@@ -54,7 +54,7 @@ BACKEND_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 
 DATASETS_DIR = os.path.join(BACKEND_DIR, "datasets", "study-planner")
 OUTPUTS_DIR = os.path.join(BACKEND_DIR, "ml_scripts", "study-planner", "outputs")
-MODELS_DIR = os.path.join(BACKEND_DIR, "trained-models", "stuyd-planner")  # existing (typo'd) path, kept for consistency
+MODELS_DIR = os.path.join(BACKEND_DIR, "app", "models", "study_planner")
 
 os.makedirs(OUTPUTS_DIR, exist_ok=True)
 os.makedirs(MODELS_DIR, exist_ok=True)
