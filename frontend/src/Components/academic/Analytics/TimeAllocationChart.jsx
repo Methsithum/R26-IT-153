@@ -4,7 +4,7 @@ const COLORS = ["#7c3aed", "#14b8a6", "#ec4899", "#fb923c"];
 
 export default function TimeAllocationChart({ modules }) {
   const totalHours = modules.reduce((sum, m) => sum + m.studyHoursThisWeek, 0) || 1;
-  const data = modules.map((m) => ({ name: m.code, value: m.studyHoursThisWeek, pct: Math.round((m.studyHoursThisWeek / totalHours) * 100) }));
+  const data = modules.map((m) => ({ name: m.name, value: m.studyHoursThisWeek, pct: Math.round((m.studyHoursThisWeek / totalHours) * 100) }));
 
   return (
     <div className="card p-5">

@@ -49,7 +49,7 @@ export default function ModuleDetail() {
 
   return (
     <div>
-      <Topbar title={module.name} subtitle={`Module ${module.code}`} />
+      <Topbar title={module.name} subtitle="Module details" />
       <div className="px-4 sm:px-6 pb-10 space-y-5">
         <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-400 hover:text-brand-600">
           <ArrowLeft size={15} /> Back
