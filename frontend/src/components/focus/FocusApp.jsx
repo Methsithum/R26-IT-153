@@ -20,6 +20,30 @@ const SPRINT_STREAK_MIN = 25;
 const CHECKIN_INTERVAL_MS = 5 * 60 * 1000;
 const SAVE_INTERVAL_MS = 60 * 1000;
 const TODAY_GOAL = 120;
+const CHECKIN_PROMPT = "Are you focusing right now?";
+
+function speakCheckIn(text = CHECKIN_PROMPT) {
+  if (typeof window === "undefined" || !window.speechSynthesis) return;
+  const synth = window.speechSynthesis;
+  synth.cancel();
+
+  const speak = () => {
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = "en-US";
+    utter.rate = 1;
+    utter.pitch = 1;
+    const voices = synth.getVoices();
+    const en = voices.find((v) => v.lang.toLowerCase().startsWith("en"));
+    if (en) utter.voice = en;
+    synth.speak(utter);
+  };
+
+  if (synth.getVoices().length) {
+    speak();
+    return;
+  }
+  synth.addEventListener("voiceschanged", speak, { once: true });
+}
 
 export default function FocusApp() {
   const [tab, setTab] = useState("dashboard");
@@ -65,6 +89,15 @@ export default function FocusApp() {
     }, CHECKIN_INTERVAL_MS);
     return () => clearInterval(id);
   }, [sessionOn]);
+
+  useEffect(() => {
+    if (!showCheckIn || checkInAns !== null) {
+      window.speechSynthesis?.cancel();
+      return;
+    }
+    speakCheckIn(CHECKIN_PROMPT);
+    return () => window.speechSynthesis?.cancel();
+  }, [showCheckIn, checkInAns]);
 
   const todayGoal = TODAY_GOAL;
   const todayFocusMin = todayBaseFocus + sessionFocusMin;
