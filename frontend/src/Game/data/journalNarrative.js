@@ -90,3 +90,24 @@ export function buildJournalPage(entry) {
 export function composeJournalNarrative(entry) {
   return buildJournalPage(entry).narrative;
 }
+
+/** Split a diary letter into readable paragraphs, including older one-block entries. */
+export function splitJournalParagraphs(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return [];
+  const byBlank = raw
+    .split(/\n\s*\n/)
+    .map((part) => part.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  if (byBlank.length > 1) return byBlank;
+
+  const sentences = raw.match(/[^.!?]+[.!?]+(?:["”']+)?|[^.!?]+$/g) || [raw];
+  const cleaned = sentences.map((item) => item.trim()).filter(Boolean);
+  if (cleaned.length <= 2) return [cleaned.join(" ")];
+  const size = cleaned.length <= 5 ? 2 : 3;
+  const chunks = [];
+  for (let i = 0; i < cleaned.length; i += size) {
+    chunks.push(cleaned.slice(i, i + size).join(" "));
+  }
+  return chunks;
+}

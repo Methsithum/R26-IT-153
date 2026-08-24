@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { formatCampusDate, localTodayIso } from "../../services/localDate";
+import { splitJournalParagraphs } from "../../Game/data/journalNarrative";
 import { apiErrorMessage, readStoredUser } from "../../services/userApi";
 import {
   fetchReflectionStatus,
@@ -160,7 +161,7 @@ export default function ReflectionsPage() {
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <div className="text-[11px] uppercase tracking-[0.25em] text-stone-500">Weekly letter</div>
-          <h2 className="text-2xl font-bold text-stone-800">
+          <h2 className="font-journal text-[1.65rem] font-medium tracking-tight text-stone-800">
             {shortWeekLabel(current?.week_start, current?.week_end)}
           </h2>
         </div>
@@ -199,14 +200,11 @@ export default function ReflectionsPage() {
 
         {letter ? (
           <>
-            <p
-              className="text-[15px] leading-7 text-stone-700 mb-6 first-letter:text-3xl
-                         first-letter:font-bold first-letter:text-amber-700 first-letter:mr-1
-                         first-letter:float-left"
-              style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
-            >
-              {letter.narrative}
-            </p>
+            <div className="journal-letter mb-6">
+              {splitJournalParagraphs(letter.narrative).map((paragraph, i) => (
+                <p key={`${i}-${paragraph.slice(0, 24)}`}>{paragraph}</p>
+              ))}
+            </div>
             {(letter.highlights || []).length > 0 && (
               <div className="mb-6 rounded-2xl border border-amber-800/10 bg-amber-50/70 px-4 py-4">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-800/70 mb-2">
