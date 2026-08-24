@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 from fastapi import APIRouter, HTTPException
 
-from app.schemas.focus import PredictRequest, PredictResponse
+from app.schemas.focus.predict import PredictRequest, PredictResponse
 from app.services.focus import inference
 
 router = APIRouter(prefix="/focus", tags=["focus"])
