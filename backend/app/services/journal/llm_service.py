@@ -212,7 +212,7 @@ async def generate_daily_journal(
 You are writing a student diary page for {user_name}.
 Return JSON only:
 {{
-  "narrative": "2-4 first-person sentences. Natural diary voice. Weave the answers into a story. Never write lists like academic (Yes) or category (answer). Do not mention XP, score, mini-games, or that this is a video game.",
+  "narrative": "2-3 short first-person paragraphs separated by a blank line. Natural diary voice. Weave the answers into a story. Never write lists like academic (Yes) or category (answer). Do not mention XP, score, mini-games, or that this is a video game.",
   "highlights": ["one short recap bullet per fact from that day"]
 }}
 
@@ -224,7 +224,7 @@ Task updates: {json.dumps(task_updates_summary, default=str)}.
 Session context: {json.dumps(session_context or {{}}, default=str)}.
 
 Rules:
-- The paragraph and the bullets must cover the same day.
+- The paragraphs and the bullets must cover the same day.
 - Highlights: 3 to 8 bullets. Each bullet is one fact (focus, attendance, subject, deadline, mark, exam date, exam mark, activity).
 - Be specific. Use the student's actual answers, subjects, and dates.
 """
@@ -253,8 +253,9 @@ def fallback_period_journal(kind: str, answers: Dict[str, str] | None = None) ->
     if kind == "weekly":
         narrative = (
             "This week I paused long enough to look back at the campus days I actually lived, "
-            "not only the ones I meant to have. The check-ins, the unfinished work, and the small wins "
-            "are on the page now so next week does not start from a blank head."
+            "not only the ones I meant to have.\n\n"
+            "The check-ins, the unfinished work, and the small wins are on the page now so next week "
+            "does not start from a blank head."
         )
     else:
         narrative = (
@@ -275,7 +276,7 @@ You are writing a weekly student diary page for {user_name}.
 Use ONLY the campus journal sessions from that week. Do not invent deadlines, marks, subjects, or days that are not in the data.
 Return JSON only:
 {{
-  "narrative": "3-6 first-person sentences. Warm, specific, literary but plain. Weave the week's actual journal entries into one letter. Never mention XP, mini-games, forms, or that this is software.",
+  "narrative": "2-3 short first-person paragraphs separated by a blank line (\\n\\n). Warm, specific, literary but plain. Weave the week's actual journal entries into one letter. Never mention XP, mini-games, forms, or that this is software.",
   "highlights": ["3 to 6 short recap bullets drawn from that week's sessions"]
 }}
 
