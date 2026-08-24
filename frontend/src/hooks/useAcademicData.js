@@ -59,13 +59,16 @@ export function useWeeklySchedule() {
     if (!scheduleResponse) {
       generate().catch(() => {});
     }
-    // Re-checks whenever `assignments` changes (not just on mount) so a
-    // schedule generated from stale/placeholder assignments — e.g. before
-    // the gamified journal's real data has finished syncing in — gets
-    // regenerated once syncFromJournal clears scheduleResponse and swaps in
-    // the real list, instead of silently keeping the wrong cached schedule.
+    // Re-checks whenever `assignments` or `weeklyFreeSlots` changes (not
+    // just on mount) so a schedule generated from stale/placeholder
+    // assignments — e.g. before the gamified journal's real data has
+    // finished syncing in — gets regenerated once syncFromJournal clears
+    // scheduleResponse and swaps in the real list, instead of silently
+    // keeping the wrong cached schedule. Same for weeklyFreeSlots: editing
+    // "Preferred Study Time" in Settings clears scheduleResponse too, and
+    // this dependency is what actually triggers the regenerate.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignments]);
+  }, [assignments, weeklyFreeSlots]);
 
   return { schedule: scheduleResponse, loading, error, regenerate: generate };
 }

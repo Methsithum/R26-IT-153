@@ -207,14 +207,6 @@ export const MOCK_EXAMS = [
   { id: "exam-aaa", module: "AAA", moduleName: "Database Systems", date: "2026-09-29", type: "Final Exam" },
 ];
 
-export const MOCK_NOTIFICATIONS = [
-  { id: "n1", type: "deadline", title: "TMA03 due in 5 days", body: "Database Systems — Normalization & Indexing", time: "2026-08-22T08:00:00", read: false },
-  { id: "n2", type: "recommendation", title: "New study recommendation available", body: "The planner suggests +2 hours on Database Systems this week.", time: "2026-08-22T07:30:00", read: false },
-  { id: "n3", type: "completion", title: "You completed CMA02 — SQL Query Practice", body: "Nice work! Your streak is now 6 days.", time: "2026-08-21T19:10:00", read: true },
-  { id: "n4", type: "missed", title: "Missed study session", body: "Software Engineering — TMA01 session was skipped. Tap to reschedule.", time: "2026-08-20T21:00:00", read: true },
-  { id: "n5", type: "deadline", title: "Practical Exam in 19 days", body: "Web Application Development", time: "2026-08-19T09:00:00", read: true },
-];
-
 export const MOCK_SETTINGS = {
   notifications: {
     assignmentReminders: true,
@@ -223,23 +215,12 @@ export const MOCK_SETTINGS = {
     missedTaskAlerts: true,
   },
   studyPreferences: {
-    preferredStudyTime: "evening", // morning | afternoon | evening
+    preferredStudyTimes: ["evening"], // 1 or 2 of: morning | afternoon | evening | night
     maxDailyStudyHours: 4,
     breakDurationMinutes: 15,
   },
 };
 
-// Default weekly free-time pattern sent to /schedule. In a real system this
-// would come from the student's timetable; here it's a reasonable mock.
-export const MOCK_WEEKLY_FREE_SLOTS = [
-  { day: "Monday", start_time: "18:00", end_time: "20:00", duration_minutes: 120 },
-  { day: "Tuesday", start_time: "17:00", end_time: "19:00", duration_minutes: 120 },
-  { day: "Wednesday", start_time: "18:00", end_time: "21:00", duration_minutes: 180 },
-  { day: "Thursday", start_time: "17:00", end_time: "19:00", duration_minutes: 120 },
-  { day: "Friday", start_time: "16:00", end_time: "18:00", duration_minutes: 120 },
-  { day: "Saturday", start_time: "10:00", end_time: "13:00", duration_minutes: 180 },
-  { day: "Sunday", start_time: "14:00", end_time: "17:00", duration_minutes: 180 },
-];
 
 export const MOCK_WEEKLY_STUDY_HOURS = [
   { day: "Mon", hours: 2 },
