@@ -1,0 +1,39 @@
+{
+  "Focused": {
+    "precision": 0.7156862745098039,
+    "recall": 0.6347826086956522,
+    "f1-score": 0.6728110599078341,
+    "support": 115.0
+  },
+  "Fatigue": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1-score": 1.0,
+    "support": 56.0
+  },
+  "Anxiety": {
+    "precision": 0.7818181818181819,
+    "recall": 0.4056603773584906,
+    "f1-score": 0.5341614906832298,
+    "support": 106.0
+  },
+  "Boredom": {
+    "precision": 0.3984375,
+    "recall": 0.796875,
+    "f1-score": 0.53125,
+    "support": 64.0
+  },
+  "accuracy": 0.6539589442815249,
+  "macro avg": {
+    "precision": 0.7239854890819964,
+    "recall": 0.7093294965135357,
+    "f1-score": 0.684555637647766,
+    "support": 341.0
+  },
+  "weighted avg": {
+    "precision": 0.7233919320860842,
+    "recall": 0.6539589442815249,
+    "f1-score": 0.6568750437003615,
+    "support": 341.0
+  }
+}

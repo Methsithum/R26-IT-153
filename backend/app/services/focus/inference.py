@@ -1,67 +1,34 @@
 """
-Focus-state inference service, backed by the models trained in
-ml_scripts/focus/train_model.py (best_model.pkl / scaler.pkl /
-label_encoder.pkl / feature_extractor.keras).
+Focus-state inference service, backed by whichever model
+ml_scripts/focus/focus_state_model_training.ipynb selected as most accurate
+(trained-models/focus/results_summary.json records which one) -- either a
+classical model (focus_classical_model.joblib + feature_scaler.joblib) on
+MediaPipe landmark/blendshape features, or the MobileNetV2 CNN
+(focus_mobilenetv2.keras) on the cropped face image directly.
 
-Face detection, cropping and normalisation live in face_crop.py, which is the
-same module ml_scripts/focus/dataset_builder.py runs over the training videos
-and images -- a webcam frame and a training frame go through identical code.
+Face detection, cropping and feature extraction live in face_crop.py, the
+same module the training notebook builds its dataset and feature cache with,
+so a webcam frame and a training frame go through identical code.
 
-Models are loaded lazily on first use (not at import time) so importing
-this module — e.g. at FastAPI startup — never crashes the whole app if a
-model file happens to be missing, and never touches disk/TensorFlow until
-a prediction is actually requested.
+The model is loaded lazily on first use (not at import time), so importing
+this module -- e.g. at FastAPI startup -- never crashes the app if a model
+file happens to be missing, and never touches disk/TensorFlow until a
+prediction is actually requested.
 """
 import json
-import os
 import threading
-
-import numpy as np
-import joblib
 from pathlib import Path
-from tensorflow.keras.models import load_model
+
+import joblib
+import numpy as np
 
 from . import face_crop
 
 BASE_DIR    = Path(__file__).resolve().parents[3]
 MODELS_PATH = BASE_DIR / "trained-models" / "focus"
 
-IMG_SIZE       = face_crop.IMG_SIZE
 CLASSES        = ["Focused", "Fatigue", "Anxiety", "Boredom"]
-CONF_THRESHOLD = 0.60
-FATIGUE_THRESH = 0.80
-
-# Temporary diagnostic, off unless FOCUS_DEBUG_PROBS is set. Dumps the raw
-# predict_proba vector *before* the threshold rules below touch anything, so the
-# model's actual opinion can be compared against what the API ends up serving.
-#   FOCUS_DEBUG_PROBS=1        full block per prediction
-#   FOCUS_DEBUG_PROBS=compact  one line per prediction (readable for live webcam)
-DEBUG_PROBS = os.getenv("FOCUS_DEBUG_PROBS", "").strip().lower()
-
-
-def _debug_probs(st, probs, raw_state, raw_conf, served_state, rule):
-    """Print the untouched probability vector. Never mutates anything."""
-    le  = st["le"]
-    # Column order is the model's own, not the display order in CLASSES -- printing
-    # it this way is what proves the vector is being indexed correctly.
-    cols = [(int(i), str(le.inverse_transform([c])[0]), float(probs[i]))
-            for i, c in enumerate(st["model"].classes_)]
-
-    if DEBUG_PROBS == "compact":
-        line = " | ".join(f"{name}: {p*100:.1f}%" for _, name, p in cols)
-        served = "" if served_state == raw_state else f"  ->served {served_state} [{rule}]"
-        print(f"[focus] {line}  raw={raw_state}{served}", flush=True)
-        return
-
-    print("\nPrediction:", flush=True)
-    for i, name, p in cols:
-        print(f"  [col {i}] {name:<8} {p:.4f} ({p*100:.1f}%)", flush=True)
-    print(f"\n  Raw predicted class: {raw_state} ({raw_conf*100:.1f}%)", flush=True)
-    print(f"  Total probability:   {float(probs.sum()):.3f}", flush=True)
-    if served_state == raw_state:
-        print("  Served class:        %s (post-processing left it unchanged)" % served_state, flush=True)
-    else:
-        print(f"  Served class:        {served_state}  <-- CHANGED by {rule}", flush=True)
+CONF_THRESHOLD = 0.50   # below this, report Focused rather than act on an uncertain guess
 
 _lock  = threading.Lock()
 _state = {}
@@ -78,18 +45,23 @@ def _load():
         if _state:
             return _state
         try:
-            with open(MODELS_PATH / "model_report.json", "r") as f:
-                report = json.load(f)
-            _state["needs_scale"] = report["needs_scaling"]
-            _state["best_algo"]   = report["best_algorithm"]
-            _state["model"]     = joblib.load(MODELS_PATH / "best_model.pkl")
-            _state["scaler"]    = joblib.load(MODELS_PATH / "scaler.pkl")
-            _state["le"]        = joblib.load(MODELS_PATH / "label_encoder.pkl")
-            _state["extractor"] = load_model(str(MODELS_PATH / "feature_extractor.keras"))
-            face_crop.get_cascade()
+            with open(MODELS_PATH / "results_summary.json") as f:
+                summary = json.load(f)
+
+            if summary["best_model"] == "MobileNetV2 CNN":
+                from tensorflow.keras.models import load_model
+                _state["kind"]  = "cnn"
+                _state["model"] = load_model(str(MODELS_PATH / "focus_mobilenetv2.keras"))
+            else:
+                _state["kind"]    = "classical"
+                _state["model"]   = joblib.load(MODELS_PATH / "focus_classical_model.joblib")
+                _state["scaler"]  = joblib.load(MODELS_PATH / "feature_scaler.joblib")
+                _state["columns"] = summary["feature_columns"]
+
+            face_crop.get_landmarker()
         except Exception as exc:
             _state.clear()
-            raise ModelNotReadyError(f"Focus models unavailable: {exc}") from exc
+            raise ModelNotReadyError(f"Focus model unavailable: {exc}") from exc
     return _state
 
 
@@ -97,69 +69,47 @@ def is_ready() -> bool:
     return bool(_state)
 
 
-def detect_face(frame):
-    """Face crop + box, via the shared detector the training set was built with."""
-    _load()
-    return face_crop.detect_face(frame)
+def _predict_classical(st, features: dict):
+    vec = np.array([[features[c] for c in st["columns"]]])
+    vec = st["scaler"].transform(vec)
+    return st["model"].predict_proba(vec)[0]
 
 
-def extract_features(face_img):
-    """Face crop -> 1280-d MobileNetV2 embedding, using the same resize and
-    normalisation face_crop applied to every training image."""
-    st = _load()
-    return st["extractor"].predict(face_crop.preprocess(face_img), verbose=0)[0]
+def _predict_cnn(st, face_bgr):
+    import cv2
+    from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 
-
-def predict_state(features):
-    st   = _load()
-    feat = features.reshape(1, -1)
-    if st["needs_scale"]:
-        feat = st["scaler"].transform(feat)
-
-    probs    = st["model"].predict_proba(feat)[0]   # <-- the only predict_proba call in the serving path
-    pred_idx = np.argmax(probs)
-    state    = st["le"].inverse_transform([pred_idx])[0]
-    conf     = float(probs[pred_idx])
-
-    # Captured before the rules below run; `state` is rewritten in place by them.
-    raw_state, raw_conf, rule = state, conf, None
-
-    # ---- post-processing (unchanged; the debug dump above is taken before this) ----
-    if conf < CONF_THRESHOLD:
-        state = "Focused"
-        rule  = f"CONF_THRESHOLD ({conf:.3f} < {CONF_THRESHOLD})"
-    elif state == "Fatigue" and conf < FATIGUE_THRESH:
-        sorted_idx = np.argsort(probs)[::-1]
-        for idx in sorted_idx[1:]:
-            alt = st["le"].inverse_transform([idx])[0]
-            if alt != "Fatigue":
-                state = alt
-                rule  = f"FATIGUE_THRESH ({conf:.3f} < {FATIGUE_THRESH})"
-                break
-    # -------------------------------------------------------------------------------
-
-    prob_map = {cls: float(probs[st["le"].transform([cls])[0]]) for cls in CLASSES}
-
-    if DEBUG_PROBS:
-        _debug_probs(st, probs, raw_state, raw_conf, state, rule)
-
-    return state, prob_map
+    img = cv2.cvtColor(face_bgr, cv2.COLOR_BGR2RGB)
+    img = preprocess_input(img.astype(np.float32))
+    return st["model"].predict(np.expand_dims(img, axis=0), verbose=0)[0]
 
 
 def predict_from_frame(frame_bgr):
-    """
-    Full pipeline: face crop -> features -> state.
-    Returns dict with face_detected, state, confidence, probs.
-    """
-    face_crop, _ = detect_face(frame_bgr)
-    if face_crop is None or face_crop.size == 0:
+    """Full pipeline: detect+crop -> features -> state. Returns a dict
+    matching the PredictResponse schema."""
+    st = _load()
+
+    face = face_crop.detect_and_crop(frame_bgr)
+    if face is None:
         return {"face_detected": False, "state": None, "confidence": 0.0, "probs": {}}
 
-    features   = extract_features(face_crop)
-    state, probs = predict_state(features)
+    if st["kind"] == "cnn":
+        probs = _predict_cnn(st, face)
+    else:
+        features = face_crop.extract_features(face)
+        if features is None:
+            return {"face_detected": False, "state": None, "confidence": 0.0, "probs": {}}
+        probs = _predict_classical(st, features)
+
+    pred_idx = int(np.argmax(probs))
+    state = CLASSES[pred_idx]
+    if float(probs[pred_idx]) < CONF_THRESHOLD:
+        state = "Focused"
+
+    prob_map = {cls: float(p) for cls, p in zip(CLASSES, probs)}
     return {
         "face_detected": True,
         "state": state,
-        "confidence": probs.get(state, 0.0),
-        "probs": probs,
+        "confidence": prob_map[state],
+        "probs": prob_map,
     }
