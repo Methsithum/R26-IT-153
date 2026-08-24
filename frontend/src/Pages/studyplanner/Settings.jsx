@@ -11,11 +11,29 @@ const NOTIF_LABELS = {
   missedTaskAlerts: "Missed task alerts",
 };
 
+const TIME_OPTIONS = [
+  { key: "morning", label: "Morning" },
+  { key: "afternoon", label: "Afternoon" },
+  { key: "evening", label: "Evening" },
+  { key: "night", label: "Night" },
+];
+
 export default function Settings() {
   const settings = useAcademicStore((s) => s.settings);
   const updateNotificationSetting = useAcademicStore((s) => s.updateNotificationSetting);
   const updateStudyPreference = useAcademicStore((s) => s.updateStudyPreference);
   const profile = useAcademicStore((s) => s.profile);
+
+  const selectedTimes = settings.studyPreferences.preferredStudyTimes || [];
+  function toggleTime(key) {
+    if (selectedTimes.includes(key)) {
+      if (selectedTimes.length === 1) return; // always keep at least one selected
+      updateStudyPreference("preferredStudyTimes", selectedTimes.filter((k) => k !== key));
+    } else {
+      if (selectedTimes.length >= 2) return; // cap at two
+      updateStudyPreference("preferredStudyTimes", [...selectedTimes, key]);
+    }
+  }
 
   return (
     <div>
@@ -53,16 +71,32 @@ export default function Settings() {
 
           <div className="space-y-4">
             <div>
-              <label className="text-xs font-semibold text-slate-500 dark:text-slate-300 block mb-1">Preferred Study Time</label>
-              <select
-                value={settings.studyPreferences.preferredStudyTime}
-                onChange={(e) => updateStudyPreference("preferredStudyTime", e.target.value)}
-                className="input"
-              >
-                <option value="morning">Morning</option>
-                <option value="afternoon">Afternoon</option>
-                <option value="evening">Evening</option>
-              </select>
+              <label className="text-xs font-semibold text-slate-500 dark:text-slate-300 block mb-1">
+                Preferred Study Time <span className="font-normal normal-case text-slate-400">(pick 1 or 2)</span>
+              </label>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {TIME_OPTIONS.map(({ key, label }) => {
+                  const active = selectedTimes.includes(key);
+                  const disabled = !active && selectedTimes.length >= 2;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => toggleTime(key)}
+                      className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                        active
+                          ? "bg-brand-500 text-white shadow-playful"
+                          : disabled
+                          ? "border border-slate-100 dark:border-white/5 bg-slate-50 dark:bg-white/5 text-slate-300 dark:text-slate-600 cursor-not-allowed"
+                          : "border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/10"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-500 dark:text-slate-300 block mb-1">

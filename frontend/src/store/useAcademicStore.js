@@ -5,11 +5,12 @@ import {
   MOCK_MODULES,
   MOCK_ASSIGNMENTS,
   MOCK_EXAMS,
-  MOCK_NOTIFICATIONS,
   MOCK_SETTINGS,
-  MOCK_WEEKLY_FREE_SLOTS,
 } from "../mocks/academicMocks";
 import { CODE_MODULE_ENCODING, ASSESSMENT_TYPE_ENCODING } from "../utils/featureNameMap";
+import { buildWeeklyModuleAllocation } from "../utils/studyAllocation";
+import { buildWeeklyFreeSlots } from "../utils/freeSlotGenerator";
+import { buildNotificationsFromRealData } from "../utils/notificationBuilder";
 
 const MODULE_COLORS = ["brand", "teal", "pink", "orange"];
 // The trained model only knows 7 fixed OULAD module categories (AAA-GGG) —
@@ -165,7 +166,10 @@ export const useAcademicStore = create(
       // account once available — see syncProfileFromUser, called from
       // App.jsx's HydrateUser after Register/Login/refresh. ---
       profile: MOCK_STUDENT_PROFILE,
-      updateProfile: (patch) => set((s) => ({ profile: { ...s.profile, ...patch } })),
+      updateProfile: (patch) => {
+        set((s) => ({ profile: { ...s.profile, ...patch } }));
+        if ("availableStudyHoursPerWeek" in patch) get().recomputeSemesterAllocation();
+      },
       // `gameState` is useGameStore's state (userId, playerName, universityName,
       // degreeName, campusYear, semester, gpa) — only real, non-empty fields
       // overwrite the current profile so an unhydrated/logged-out game store
@@ -206,6 +210,29 @@ export const useAcademicStore = create(
       // --- Exams (mock until synced from the journal, same as modules) ---
       exams: MOCK_EXAMS,
 
+      // Full-semester weekly study-hours-per-module projection — see
+      // utils/studyAllocation.js. `semesterAllocation[i]` is one week's row
+      // ({ week: "W1", [moduleCode]: hours, ... }); recomputed whenever the
+      // real modules/assignments/exams or the student's weekly availability
+      // change, so it never goes stale relative to what's actually due.
+      semesterAllocation: [],
+      recomputeSemesterAllocation: () =>
+        set((s) => {
+          if (!s.modules?.length) return {};
+          const weeklyHours = s.profile.availableStudyHoursPerWeek || 15;
+          const semesterAllocation = buildWeeklyModuleAllocation({
+            modules: s.modules,
+            assignments: s.assignments,
+            exams: s.exams,
+            weeklyHours,
+          });
+          const week1 = semesterAllocation[0] || {};
+          return {
+            semesterAllocation,
+            modules: s.modules.map((m) => ({ ...m, studyHoursThisWeek: week1[m.code] ?? 0 })),
+          };
+        }),
+
       // Replaces modules/assignments/exams with real data built from the
       // journal's registered subjects + its tasks/exams collections. Called
       // once per login/refresh from App.jsx's HydrateUser, right after
@@ -231,25 +258,41 @@ export const useAcademicStore = create(
             ...(sameTasks ? {} : { scheduleResponse: null, todoList: [] }),
           };
         });
+        get().recomputeSemesterAllocation();
+        get().recomputeNotifications();
       },
 
-      addAssignment: (assignment) => set((s) => ({ assignments: [assignment, ...s.assignments] })),
+      addAssignment: (assignment) => {
+        set((s) => ({ assignments: [assignment, ...s.assignments] }));
+        get().recomputeSemesterAllocation();
+        get().recomputeNotifications();
+      },
 
-      completeTask: (taskId) =>
+      completeTask: (taskId) => {
         set((s) => ({
           assignments: s.assignments.map((a) =>
             a.taskId === taskId ? { ...a, status: "completed", completedHours: a.estimatedHoursNeeded } : a
           ),
-        })),
+        }));
+        get().recomputeSemesterAllocation();
+        get().recomputeNotifications();
+      },
 
-      updateAssignmentDeadline: (taskId, newDate) =>
+      updateAssignmentDeadline: (taskId, newDate) => {
         set((s) => ({
           assignments: s.assignments.map((a) => (a.taskId === taskId ? { ...a, deadlineDate: newDate } : a)),
-        })),
+        }));
+        get().recomputeSemesterAllocation();
+        get().recomputeNotifications();
+      },
 
-      // --- Schedule (real /schedule + /reschedule responses persisted locally) ---
-      weeklyFreeSlots: MOCK_WEEKLY_FREE_SLOTS,
-      remainingFreeSlots: MOCK_WEEKLY_FREE_SLOTS,
+      // --- Schedule (real /schedule + /reschedule responses persisted locally).
+      // weeklyFreeSlots is generated from the student's real Settings
+      // (preferredStudyTimes + maxDailyStudyHours) via buildWeeklyFreeSlots —
+      // the actual input /schedule time-blocks tasks into, so those Settings
+      // genuinely drive the generated plan. ---
+      weeklyFreeSlots: buildWeeklyFreeSlots(MOCK_SETTINGS.studyPreferences),
+      remainingFreeSlots: buildWeeklyFreeSlots(MOCK_SETTINGS.studyPreferences),
       scheduleResponse: null, // raw ScheduleResponse from the backend
       todoList: [],
       setSchedule: (scheduleResponse) => set({ scheduleResponse }),
@@ -257,18 +300,52 @@ export const useAcademicStore = create(
       setTodoList: (todoList) => set({ todoList }),
 
       // --- Notifications (mock) ---
-      notifications: MOCK_NOTIFICATIONS,
+      // Real, derived from actual assignments/exams/modules — see
+      // recomputeNotifications. No mock content: starts empty and is
+      // populated the moment real data syncs in.
+      notifications: [],
       markNotificationRead: (id) =>
         set((s) => ({ notifications: s.notifications.map((n) => (n.id === id ? { ...n, read: true } : n)) })),
       markAllNotificationsRead: () => set((s) => ({ notifications: s.notifications.map((n) => ({ ...n, read: true })) })),
       addNotification: (n) => set((s) => ({ notifications: [n, ...s.notifications] })),
+      // Rebuilds the notification list from current real data, preserving
+      // `read`/`time` for notifications that still apply (so marking one
+      // read, or its "Xh ago" timestamp, doesn't reset every recompute) and
+      // dropping ones that no longer apply (deadline passed, task no
+      // longer missed, grade recovered, etc). Called whenever assignments/
+      // exams/modules change — see syncFromJournal, completeTask,
+      // updateAssignmentDeadline.
+      recomputeNotifications: () =>
+        set((s) => {
+          const fresh = buildNotificationsFromRealData({ assignments: s.assignments, exams: s.exams, modules: s.modules });
+          const existingById = Object.fromEntries(s.notifications.map((n) => [n.id, n]));
+          const notifications = fresh.map((n) => ({
+            ...n,
+            time: existingById[n.id]?.time || new Date().toISOString(),
+            read: existingById[n.id]?.read || false,
+          }));
+          return { notifications };
+        }),
 
       // --- Settings (mock) ---
       settings: MOCK_SETTINGS,
       updateNotificationSetting: (key, value) =>
         set((s) => ({ settings: { ...s.settings, notifications: { ...s.settings.notifications, [key]: value } } })),
       updateStudyPreference: (key, value) =>
-        set((s) => ({ settings: { ...s.settings, studyPreferences: { ...s.settings.studyPreferences, [key]: value } } })),
+        set((s) => {
+          const studyPreferences = { ...s.settings.studyPreferences, [key]: value };
+          const patch = { settings: { ...s.settings, studyPreferences } };
+          if (key === "preferredStudyTimes" || key === "maxDailyStudyHours") {
+            // These directly define weeklyFreeSlots — regenerate it so the
+            // change actually reaches /schedule, and drop the stale cached
+            // schedule (built against the old slots) so it regenerates too.
+            patch.weeklyFreeSlots = buildWeeklyFreeSlots(studyPreferences);
+            patch.remainingFreeSlots = patch.weeklyFreeSlots;
+            patch.scheduleResponse = null;
+            patch.todoList = [];
+          }
+          return patch;
+        }),
 
       // --- Streak / celebratory state ---
       streak: 6,
@@ -285,6 +362,7 @@ export const useAcademicStore = create(
         modules: s.modules,
         assignments: s.assignments,
         exams: s.exams,
+        semesterAllocation: s.semesterAllocation,
         predictedPriorities: s.predictedPriorities,
         weeklyFreeSlots: s.weeklyFreeSlots,
         remainingFreeSlots: s.remainingFreeSlots,
@@ -294,12 +372,24 @@ export const useAcademicStore = create(
         settings: s.settings,
         streak: s.streak,
       }),
-      // v3: added real exams + made modules persistable, now that both can
-      // be replaced with real journal data via syncFromJournal instead of
-      // always being the mock dataset.
-      version: 3,
-      migrate: (persisted) => {
-        if (persisted) delete persisted.monthSessionsByKey;
+      // v6: notifications are now derived from real assignments/exams/
+      // modules (see recomputeNotifications) instead of MOCK_NOTIFICATIONS
+      // — discard any persisted mock notifications so they don't linger
+      // next to real ones; a fresh real list is rebuilt on next sync.
+      version: 6,
+      migrate: (persisted, version) => {
+        if (!persisted) return persisted;
+        delete persisted.monthSessionsByKey;
+        const prefs = persisted.settings?.studyPreferences;
+        if (prefs && !Array.isArray(prefs.preferredStudyTimes)) {
+          prefs.preferredStudyTimes = prefs.preferredStudyTime ? [prefs.preferredStudyTime] : ["evening"];
+          delete prefs.preferredStudyTime;
+          persisted.weeklyFreeSlots = buildWeeklyFreeSlots(prefs);
+          persisted.remainingFreeSlots = persisted.weeklyFreeSlots;
+          persisted.scheduleResponse = null;
+          persisted.todoList = [];
+        }
+        if (version < 6) persisted.notifications = [];
         return persisted;
       },
     }
