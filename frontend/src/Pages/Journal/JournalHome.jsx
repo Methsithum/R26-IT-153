@@ -10,11 +10,13 @@ import { clearStoredUser } from "../../services/userApi";
 import { campusDateKey, formatCampusDate } from "../../services/localDate";
 import DiscardTodayButton from "./DiscardTodayButton";
 import CampusMapsPage from "./CampusMapsPage";
+import ReflectionsPage from "./ReflectionsPage";
 
 const TABS = [
   { id: "open", label: "Open Journal" },
   { id: "roadmap", label: "Game Roadmap" },
   { id: "maps", label: "Campus Maps" },
+  { id: "reflect", label: "Reflections" },
   { id: "recent", label: "Recent Journals" },
   { id: "details", label: "Game Details" },
   { id: "stats", label: "Character Stats" },
@@ -103,9 +105,9 @@ function OpenJournalContent({ selectTab }) {
           {catchingUp
             ? `You missed a campus day. Play Day ${day} now and it will be saved as ${playLabel} — then you can still log today.`
             : dailyCompleted
-              ? "Today's entry is complete. Come back tomorrow to continue your streak."
+              ? "Today's entry is complete. Come back tomorrow to continue your streak — or write this week's letter while the days are still close."
               : "Today's journal entry is still incomplete. Complete your campus run to log it."}{" "}
-          Your check-ins, deadlines and marks are collected as you play — nothing to fill in by hand.
+          Your check-ins, deadlines and marks are collected as you play — weekly letters live on the Reflections page.
         </p>
         {subjects.length > 0 && (
           <div className="mt-5 flex flex-wrap gap-2">
@@ -688,6 +690,7 @@ const TAB_CONTENT = {
   open: OpenJournalContent,
   roadmap: RoadmapContent,
   maps: CampusMapsPage,
+  reflect: ReflectionsPage,
   recent: RecentJournalsContent,
   details: GameDetailsContent,
   stats: CharacterStatsContent,
