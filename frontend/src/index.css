@@ -11,6 +11,7 @@ body,
 @theme {
   --font-display: "Baloo 2", "Poppins", ui-rounded, "Segoe UI", sans-serif;
   --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-journal: "Literata", Georgia, "Times New Roman", serif;
 
   /* Brand */
   --color-brand-50: #f2ecff;
@@ -76,6 +77,24 @@ body,
   .scrollbar-thin::-webkit-scrollbar-thumb {
     background: rgb(124 58 237 / 0.3);
     border-radius: 999px;
+  }
+  .journal-letter {
+    font-family: var(--font-journal);
+    font-optical-sizing: auto;
+    font-weight: 400;
+    width: 100%;
+  }
+  .journal-letter p {
+    margin: 0;
+    font-size: 16px;
+    line-height: 1.85;
+    font-weight: 400;
+    color: #4a4338;
+    letter-spacing: 0.012em;
+    text-wrap: pretty;
+  }
+  .journal-letter p + p {
+    margin-top: 1.35em;
   }
 }
 

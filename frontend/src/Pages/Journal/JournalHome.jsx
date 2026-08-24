@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGameStore } from "../../Game/state/GameStateManager";
 import { useJournalHistoryStore } from "../../Game/state/journalHistoryStore";
-import { buildJournalPage } from "../../Game/data/journalNarrative";
+import { buildJournalPage, splitJournalParagraphs } from "../../Game/data/journalNarrative";
 import { BADGE_CATALOG, XP_PER_LEVEL, isBadgeUnlocked, xpIntoLevel, xpToNextLevel } from "../../Game/data/progression";
 import LevelRing from "../../Game/UI/LevelRing";
 import { clearStoredUser } from "../../services/userApi";
@@ -407,14 +407,11 @@ function RecentJournalsContent({ focusDay }) {
               day: "numeric",
             })}
         </div>
-        <p
-          className="text-[15px] leading-7 text-stone-700 mb-6 first-letter:text-3xl
-                     first-letter:font-bold first-letter:text-amber-700 first-letter:mr-1
-                     first-letter:float-left"
-          style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
-        >
-          {narrative || "No entry was recorded for this day."}
-        </p>
+        <div className="journal-letter mb-6">
+          {splitJournalParagraphs(narrative || "No entry was recorded for this day.").map((paragraph, i) => (
+            <p key={`${i}-${paragraph.slice(0, 24)}`}>{paragraph}</p>
+          ))}
+        </div>
         {highlights.length > 0 && (
           <div className="mb-6 rounded-2xl border border-amber-800/10 bg-amber-50/70 px-4 py-4">
             <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-800/70 mb-2">
