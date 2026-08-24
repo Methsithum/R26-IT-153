@@ -12,17 +12,14 @@ export const STATE_CFG = {
 };
 
 export const LEVEL_DATA = [
-  { name:"Seedling",      min:0,    max:500,  icon:"🌱" },
-  { name:"Growing Plant", min:500,  max:1500, icon:"🌿" },
-  { name:"Focus Tree",    min:1500, max:3000, icon:"🌳" },
-  { name:"Golden Tree",   min:3000, max:9999, icon:"✨" },
+  { name:"Seedling",      min:0,    max:50,   icon:"🌱" },
+  { name:"Growing Plant", min:50,   max:150,  icon:"🌿" },
+  { name:"Focus Tree",    min:150,  max:300,  icon:"🌳" },
+  { name:"Golden Tree",   min:300,  max:9999, icon:"✨" },
 ];
 
-// Achievement definitions only — no hardcoded `earned` flag. FocusApp computes
-// `earned` per achievement from real live-session metrics (see FocusApp.jsx)
-// since this app has no persistence: multi-day achievements (Perfect Week,
-// Early Bird, Night Owl, Unbreakable) can't honestly be "earned" within a
-// single session and always render locked.
+// Achievement definitions only — `earned` is computed from persisted Mongo
+// history (weekly days, streaks, interventions) in FocusApp, not hardcoded.
 export const ACHIEVEMENTS_LIST = [
   { id:1, key:"sprint25",     name:"25-min Sprint",   icon:"⚡", desc:"Focus 25 min straight",      pts:50  },
   { id:2, key:"calmQuest5",   name:"Stress Buster",   icon:"🧘", desc:"Complete 5 Calm Quests",     pts:30  },

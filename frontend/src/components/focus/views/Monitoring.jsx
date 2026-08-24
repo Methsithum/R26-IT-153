@@ -2,8 +2,9 @@ import React, { useEffect, useRef } from "react";
 import Card from "../Card";
 import { CLASSES, STATE_CFG } from "../focusData";
 import { PageHeader, SectionTitle, Meter, Badge, DataRow } from "../ui";
+import { formatHM } from "../../../lib/focusTime";
 
-export default function TabMonitoring({ state, handleStateSelect, camera, sessionOn, setSessionOn, dist, points, focusMin }) {
+export default function TabMonitoring({ state, handleStateSelect, camera, sessionOn, setSessionOn, distMin, focusMin }) {
   const displayVideoRef = useRef(null);
   const { camStatus, stream, probs, confidence, faceDetected, predictError } = camera;
 
@@ -201,9 +202,8 @@ export default function TabMonitoring({ state, handleStateSelect, camera, sessio
             <SectionTitle title="Session Info" className="mb-2" />
             <div>
               <DataRow icon="⚡" label="Session Status" value={sessionOn ? "Active" : "Paused"} color={sessionOn ? "#22c55e" : "#94a3b8"} />
-              <DataRow icon="⏱" label="Focus Today" value={`${focusMin} min`} color="#22c55e" />
-              <DataRow icon="😴" label="Distractions" value={`${Object.values(dist).reduce((a, b) => a + b, 0).toFixed(1)} min`} color="#f97316" />
-              <DataRow icon="✦" label="Points Earned" value={`${points.toLocaleString()}`} color="#f59e0b" last />
+              <DataRow icon="⏱" label="This Session (focus)" value={formatHM(focusMin, { allowSeconds: true })} color="#22c55e" />
+              <DataRow icon="😴" label="This Session (distraction)" value={formatHM(distMin, { allowSeconds: true })} color="#f97316" last />
             </div>
             <button
               onClick={() => setSessionOn((s) => !s)}

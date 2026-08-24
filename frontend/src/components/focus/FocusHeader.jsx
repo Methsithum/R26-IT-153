@@ -1,7 +1,8 @@
 import React from "react";
 import { TABS } from "./focusData";
+import { formatHM } from "../../lib/focusTime";
 
-export default function FocusHeader({ tab, setTab, cfg, points, sessionOn, setSessionOn, setShowCheckIn }) {
+export default function FocusHeader({ tab, setTab, cfg, focusMin, sessionOn, setSessionOn, setShowCheckIn }) {
   return (
     <div
       className="sticky top-0 z-40 border-b border-slate-200"
@@ -48,7 +49,7 @@ export default function FocusHeader({ tab, setTab, cfg, points, sessionOn, setSe
               className="px-3 py-1.5 rounded-lg text-xs font-bold border"
               style={{ backgroundColor: "#f59e0b10", color: "#f59e0b", borderColor: "#f59e0b40" }}
             >
-              ✦ {points.toLocaleString()}
+              ⏱ {formatHM(focusMin, { allowSeconds: true })}
             </div>
 
             <button

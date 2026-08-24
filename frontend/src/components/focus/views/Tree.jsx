@@ -3,6 +3,7 @@ import Card from "../Card";
 import TreeSVG from "../TreeSVG";
 import { STATE_CFG, LEVEL_DATA } from "../focusData";
 import { PageHeader, SectionTitle, StatTile, Meter, Badge, DataRow } from "../ui";
+import { formatHM } from "../../../lib/focusTime";
 
 const STATE_BLURB = {
   Focused: "Tree grows and sparkles with energy!",
@@ -12,32 +13,29 @@ const STATE_BLURB = {
   NoFace: "Tree waits quietly until you're back in frame.",
 };
 
-const POINT_RULES = [
-  { action: "Focus 1 minute", icon: "⏱", pts: "+10", color: "#22c55e" },
-  { action: "25-min continuous focus", icon: "⚡", pts: "+50 bonus", color: "#f59e0b" },
-  { action: "Complete daily goal", icon: "🎯", pts: "+100 bonus", color: "#a855f7" },
-  { action: "Complete Break Challenge", icon: "😴", pts: "+20", color: "#f97316" },
-  { action: "Complete Calm Quest", icon: "🌿", pts: "+15", color: "#ef4444" },
-  { action: "Complete Bonus Content", icon: "🎬", pts: "+25", color: "#3b82f6" },
+const GROWTH_RULES = [
+  { action: "Every focused minute is saved", icon: "⏱", value: "DB", color: "#22c55e" },
+  { action: "25-min continuous focus", icon: "⚡", value: "Sprint", color: "#f59e0b" },
+  { action: "Hit the daily 2h goal", icon: "🎯", value: "Goal", color: "#a855f7" },
+  { action: "Complete a Break Challenge", icon: "😴", value: "Break", color: "#f97316" },
+  { action: "Complete a Calm Quest", icon: "🌿", value: "Calm", color: "#ef4444" },
 ];
 
-export default function TabTree({ state, points, streak, focusMin, LEVEL_DATA: LD = LEVEL_DATA }) {
+export default function TabTree({ state, lifetimeMin, streak, focusMin, LEVEL_DATA: LD = LEVEL_DATA }) {
   const cfg = STATE_CFG[state] || STATE_CFG.Focused;
-  const lv = LD.filter((l) => points >= l.min).length - 1;
+  const lv = Math.max(0, LD.filter((l) => lifetimeMin >= l.min).length - 1);
   const current = LD[lv];
   const next = LD[lv + 1];
-
-  // Progress through the *current* level band, not toward an absolute total.
   const bandSize = next ? next.min - current.min : 1;
-  const levelPct = next ? ((points - current.min) / bandSize) * 100 : 100;
-  const ptsToNext = next ? Math.max(next.min - points, 0) : 0;
+  const levelPct = next ? ((lifetimeMin - current.min) / bandSize) * 100 : 100;
+  const toNext = next ? Math.max(next.min - lifetimeMin, 0) : 0;
 
   return (
     <div className="fu-view">
       <PageHeader
         icon="🌳"
         title="My Focus Tree"
-        subtitle="Your tree grows with every focused minute you earn"
+        subtitle="Grows from all-time focused hours and minutes saved in your report"
         right={<Badge color={lv === 3 ? "#f59e0b" : cfg.color}>{current.icon} {current.name}</Badge>}
       />
 
@@ -51,13 +49,12 @@ export default function TabTree({ state, points, streak, focusMin, LEVEL_DATA: L
               borderColor: cfg.border,
             }}
           >
-            {/* Soft halo behind the tree, tinted by the live state color. */}
             <div
               className="absolute rounded-full blur-3xl pointer-events-none transition-all duration-700"
               style={{ width: 260, height: 260, top: -40, backgroundColor: cfg.color, opacity: 0.12 }}
             />
             <div className="relative">
-              <TreeSVG state={state} points={points} size={220} />
+              <TreeSVG state={state} points={lifetimeMin} size={220} />
             </div>
 
             <div className="text-center mt-4 relative">
@@ -69,7 +66,7 @@ export default function TabTree({ state, points, streak, focusMin, LEVEL_DATA: L
               <div className="flex justify-between text-xs mb-1.5">
                 <span className="text-slate-600">{next ? `Next: ${next.name}` : "Maximum level"}</span>
                 <span className="font-semibold" style={{ color: cfg.color }}>
-                  {next ? `${ptsToNext} pts to go` : "✨ Complete"}
+                  {next ? `${formatHM(toNext)} to go` : "✨ Complete"}
                 </span>
               </div>
               <Meter
@@ -80,7 +77,7 @@ export default function TabTree({ state, points, streak, focusMin, LEVEL_DATA: L
                 sheen={!!next}
               />
               <p className="text-[11px] text-slate-500 mt-1.5 text-right">
-                {points.toLocaleString()} {next ? `/ ${next.min.toLocaleString()}` : ""} pts
+                {formatHM(lifetimeMin)} {next ? `/ ${formatHM(next.min)}` : ""} all-time
               </p>
             </div>
           </Card>
@@ -88,7 +85,6 @@ export default function TabTree({ state, points, streak, focusMin, LEVEL_DATA: L
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 1 }}>
             <SectionTitle title="Growth Journey" subtitle="Every level your tree can reach" className="mb-4" />
             <div className="relative">
-              {/* Rail connecting the level markers into a single timeline. */}
               <div className="absolute left-[15px] top-3 bottom-3 w-px bg-slate-200" />
               <div className="space-y-4">
                 {LD.map((lvl, i) => {
@@ -115,7 +111,7 @@ export default function TabTree({ state, points, streak, focusMin, LEVEL_DATA: L
                           >
                             {lvl.name}
                           </span>
-                          <span className="text-slate-500 whitespace-nowrap">{lvl.min}–{lvl.max} pts</span>
+                          <span className="text-slate-500 whitespace-nowrap">{formatHM(lvl.min)}–{formatHM(lvl.max)}</span>
                         </div>
                         <Meter
                           pct={passed ? 100 : active ? levelPct : 0}
@@ -134,8 +130,8 @@ export default function TabTree({ state, points, streak, focusMin, LEVEL_DATA: L
         <div className="col-span-12 md:col-span-7 flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: "Total Points", value: points.toLocaleString(), icon: "✦", color: "#f59e0b", unit: "pts" },
-              { label: "Focus Today", value: Math.round(focusMin), icon: "⏱", color: "#22c55e", unit: "min" },
+              { label: "All-time Focus", value: formatHM(lifetimeMin), icon: "🌳", color: "#f59e0b" },
+              { label: "Focus Today", value: formatHM(focusMin), icon: "⏱", color: "#22c55e" },
               { label: "Current Streak", value: streak, icon: "🔥", color: "#f97316", unit: "min" },
               { label: "Growth Stages", value: lv + 1, icon: "🌱", color: "#22c55e", unit: `/ ${LD.length}` },
             ].map((s, i) => (
@@ -188,16 +184,16 @@ export default function TabTree({ state, points, streak, focusMin, LEVEL_DATA: L
           </Card>
 
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 3 }}>
-            <SectionTitle title="Points Guide" subtitle="Ways to grow your tree faster" className="mb-2" />
+            <SectionTitle title="How the tree grows" subtitle="Driven by saved focus time, not dummy points" className="mb-2" />
             <div>
-              {POINT_RULES.map((p, i) => (
+              {GROWTH_RULES.map((p, i) => (
                 <DataRow
                   key={p.action}
                   icon={p.icon}
                   label={p.action}
-                  value={p.pts}
+                  value={p.value}
                   color={p.color}
-                  last={i === POINT_RULES.length - 1}
+                  last={i === GROWTH_RULES.length - 1}
                 />
               ))}
             </div>

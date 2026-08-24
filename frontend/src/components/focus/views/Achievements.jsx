@@ -61,7 +61,7 @@ export default function TabAchievements({ ACHIEVEMENTS_LIST }) {
       <PageHeader
         icon="🏅"
         title="Achievements"
-        subtitle="Badges unlock automatically from your live session metrics"
+        subtitle="Badges unlock from your saved focus history, not dummy flags"
         right={<Badge color="#f59e0b">{earned.length} / {ACHIEVEMENTS_LIST.length} unlocked</Badge>}
       />
 
@@ -101,7 +101,7 @@ export default function TabAchievements({ ACHIEVEMENTS_LIST }) {
 
       {earned.length > 0 && (
         <>
-          <SectionTitle title="Unlocked" subtitle="Badges you've earned this session" className="mb-3" />
+          <SectionTitle title="Unlocked" subtitle="Badges earned from persisted time and streaks" className="mb-3" />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
             {earned.map((a, i) => <AchievementCard key={a.id} a={a} index={i} />)}
           </div>

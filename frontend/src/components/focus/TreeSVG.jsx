@@ -3,7 +3,7 @@ import { STATE_CFG, LEVEL_DATA } from "./focusData";
 
 export default function TreeSVG({ state, points, size = 200 }) {
   const cfg = STATE_CFG[state] || STATE_CFG.Focused;
-  const lv = LEVEL_DATA.filter((l) => points >= l.min).length - 1;
+  const lv = Math.max(0, LEVEL_DATA.filter((l) => (points || 0) >= l.min).length - 1);
   const isGolden = lv === 3;
   const leafFill = isGolden ? "#f59e0b" : cfg.color;
 

@@ -1,41 +1,29 @@
 import React from "react";
 import Card from "../Card";
 import { PageHeader, SectionTitle, StatTile, Meter, Badge, DataRow, ProgressRing, EmptyState } from "../ui";
+import { dayDistMin, dayFocusMin, formatHM, todayISO, weekdayShort } from "../../../lib/focusTime";
 
-const DISTRACTIONS = [
-  { key: "Fatigue", icon: "😴", color: "#f97316" },
-  { key: "Anxiety", icon: "😰", color: "#ef4444" },
-  { key: "Boredom", icon: "😑", color: "#3b82f6" },
+const BREAKDOWN = [
+  { key: "focus", label: "Focus", icon: "🎯", color: "#22c55e" },
+  { key: "distraction", label: "Distraction", icon: "😴", color: "#f97316" },
 ];
 
-// All figures here come from the live session (props from FocusApp) — there's
-// no persistence, so this is a "today so far" report, not a multi-day one.
-export default function TabReport({ focusMin, points, dist, myRank, todayGoal }) {
-  const distTotal = Object.values(dist).reduce((a, b) => a + b, 0);
-  const trackedTotal = focusMin + distTotal;
+export default function TabReport({ focusMin, distMin, todayFocusMin = 0, todayDistMin = 0, todayGoal, week }) {
+  const trackedTotal = focusMin + distMin;
   const hasData = trackedTotal > 0;
   const focusScore = hasData ? Math.round((focusMin / trackedTotal) * 100) : 0;
-  const goalPct = Math.round(Math.min((focusMin / todayGoal) * 100, 100));
+  const goalPct = Math.round(Math.min((todayFocusMin / todayGoal) * 100, 100));
+  const fmt = (n) => formatHM(n, { allowSeconds: true });
 
-  const dailySummary = [
-    { label: "Focus", icon: "🎯", value: focusMin, color: "#22c55e", pct: hasData ? (focusMin / trackedTotal) * 100 : 0 },
-    ...DISTRACTIONS.map((d) => ({
-      label: d.key,
-      icon: d.icon,
-      value: dist[d.key] || 0,
-      color: d.color,
-      pct: hasData ? ((dist[d.key] || 0) / trackedTotal) * 100 : 0,
-    })),
-  ];
+  const dailySummary = BREAKDOWN.map((item) => {
+    const value = item.key === "focus" ? focusMin : distMin;
+    return {
+      ...item,
+      value,
+      pct: hasData ? (value / trackedTotal) * 100 : 0,
+    };
+  });
 
-  const rankedDistractions = DISTRACTIONS
-    .map((d) => ({ ...d, value: dist[d.key] || 0 }))
-    .sort((a, b) => b.value - a.value);
-
-  const dominantDistraction = distTotal > 0 ? rankedDistractions[0] : null;
-
-  // The focus score only means something once there's enough tracked time behind
-  // it; below that it reads as a verdict on a couple of frames.
   const scoreVerdict = !hasData
     ? { text: "Awaiting data", color: "#64748b" }
     : focusScore >= 80
@@ -46,16 +34,19 @@ export default function TabReport({ focusMin, points, dist, myRank, todayGoal })
 
   const notes = [
     !hasData
-      ? { icon: "📷", text: "No detections yet this session — start Live Monitoring to build your report.", color: "#64748b" }
+      ? { icon: "📷", text: "No detections yet this session — start Live Monitoring with your face in frame.", color: "#64748b" }
       : null,
-    dominantDistraction
-      ? { icon: "🎯", text: `${dominantDistraction.key} has been your most common distraction so far this session (${dominantDistraction.value}m).`, color: "#f97316" }
-      : null,
-    focusMin >= todayGoal
-      ? { icon: "🎉", text: `You've hit today's ${todayGoal}-minute focus goal!`, color: "#22c55e" }
+    distMin > 0
+      ? { icon: "⏱", text: `${fmt(distMin)} of overall distraction time in this session.`, color: "#f97316" }
       : hasData
-        ? { icon: "⏱", text: `${Math.max(todayGoal - Math.round(focusMin), 0)} more focused minutes to reach today's goal.`, color: "#3b82f6" }
+        ? { icon: "🎯", text: "No distraction time in this session — keep it up.", color: "#22c55e" }
         : null,
+    week?.insight
+      ? { icon: "📅", text: week.insight, color: "#64748b" }
+      : null,
+    todayFocusMin >= todayGoal
+      ? { icon: "🎉", text: `You've hit today's ${formatHM(todayGoal)} focus goal!`, color: "#22c55e" }
+      : { icon: "⏱", text: `${formatHM(Math.max(todayGoal - todayFocusMin, 0))} more focused time today to reach the daily goal (${formatHM(todayFocusMin)} so far today).`, color: "#3b82f6" },
   ].filter(Boolean);
 
   const today = new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
@@ -65,7 +56,7 @@ export default function TabReport({ focusMin, points, dist, myRank, todayGoal })
       <PageHeader
         icon="📈"
         title="Session Report"
-        subtitle="Live figures from this session — nothing is carried over between days"
+        subtitle="This live session only — today's saved totals stay on the Dashboard"
         right={
           <>
             <Badge color="#64748b">📅 {today}</Badge>
@@ -81,14 +72,64 @@ export default function TabReport({ focusMin, points, dist, myRank, todayGoal })
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         {[
-          { label: "Focus Time", value: Math.round(focusMin), unit: "min", icon: "⏱", color: "#22c55e" },
-          { label: "Distraction Time", value: Math.round(distTotal), unit: "min", icon: "😴", color: "#f97316" },
+          { label: "Focus Time", value: fmt(focusMin), icon: "⏱", color: "#22c55e" },
+          { label: "Distraction Time", value: fmt(distMin), icon: "😴", color: "#f97316" },
           { label: "Focus Score", value: focusScore, unit: "%", icon: "🎯", color: "#a855f7", sub: hasData ? null : "no data" },
-          { label: "Goal Progress", value: goalPct, unit: "%", icon: "📊", color: "#3b82f6", sub: `of ${todayGoal}m` },
+          { label: "Goal Progress", value: goalPct, unit: "%", icon: "📊", color: "#3b82f6", sub: `today ${formatHM(todayFocusMin)}` },
         ].map((s, i) => (
           <StatTile key={s.label} {...s} index={i} />
         ))}
       </div>
+
+      <Card className="p-6 mb-4 fu-stagger" style={{ "--fu-i": 0 }}>
+        <SectionTitle
+          title="This week"
+          subtitle={
+            week
+              ? `${formatHM(week.totalFocus || 0)} focused · ${formatHM(week.totalDist || 0)} distracted`
+              : "Loading saved days…"
+          }
+          className="mb-5"
+        />
+        {(week?.days || []).length === 0 ? (
+          <EmptyState icon="📅" title="No weekly data yet" hint="Keep a session running — each day is stored in the database." />
+        ) : (
+          <div className="grid grid-cols-7 gap-2">
+            {(week.days || []).map((d) => {
+              const f = dayFocusMin(d);
+              const dist = dayDistMin(d);
+              const tracked = f + dist;
+              const isToday = d.date === todayISO();
+              const maxTracked = Math.max(...(week.days || []).map((x) => dayFocusMin(x) + dayDistMin(x)), 1);
+              return (
+                <div
+                  key={d.date}
+                  className="rounded-xl border p-2 text-center"
+                  style={{
+                    borderColor: isToday ? "#22c55e40" : "rgba(0,0,0,0.06)",
+                    backgroundColor: isToday ? "#22c55e08" : "transparent",
+                  }}
+                >
+                  <p className="text-[11px] font-semibold text-slate-500 mb-2">{weekdayShort(d.date)}</p>
+                  <div className="h-16 flex items-end justify-center gap-0.5">
+                    <div
+                      className="w-2.5 rounded-t"
+                      title={`Focus ${formatHM(f)}`}
+                      style={{ height: `${Math.max((f / maxTracked) * 100, tracked ? 4 : 0)}%`, backgroundColor: "#22c55e" }}
+                    />
+                    <div
+                      className="w-2.5 rounded-t"
+                      title={`Distraction ${formatHM(dist)}`}
+                      style={{ height: `${Math.max((dist / maxTracked) * 100, dist ? 4 : 0)}%`, backgroundColor: "#f97316" }}
+                    />
+                  </div>
+                  <p className="text-[10px] font-bold mt-2" style={{ color: "#22c55e" }}>{formatHM(f)}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
         <Card className="p-6 flex flex-col items-center justify-center fu-stagger" style={{ "--fu-i": 0 }}>
@@ -99,25 +140,23 @@ export default function TabReport({ focusMin, points, dist, myRank, todayGoal })
           </ProgressRing>
           <p className="text-xs font-semibold mt-4" style={{ color: scoreVerdict.color }}>{scoreVerdict.text}</p>
           <p className="text-[11px] text-slate-500 mt-1">
-            {Math.round(focusMin)}m focused of {Math.round(trackedTotal)}m tracked
+            {fmt(focusMin)} focused of {fmt(trackedTotal)} this session
           </p>
         </Card>
 
         <Card className="p-6 xl:col-span-2 fu-stagger" style={{ "--fu-i": 1 }}>
           <SectionTitle
             title="Time Breakdown"
-            subtitle="How this session's tracked minutes were spent"
+            subtitle="Focus vs overall distraction this session"
             className="mb-5"
           />
           {hasData ? (
             <>
-              {/* Single stacked rail — the shape of the session at a glance,
-                  before the per-state detail below. */}
               <div className="flex h-3 rounded-full overflow-hidden bg-slate-200 mb-5">
                 {dailySummary.filter((i) => i.pct > 0).map((item) => (
                   <div
                     key={item.label}
-                    title={`${item.label}: ${item.value}m`}
+                    title={`${item.label}: ${fmt(item.value)}`}
                     className="h-full transition-all duration-700"
                     style={{ width: `${item.pct}%`, backgroundColor: item.color }}
                   />
@@ -136,7 +175,7 @@ export default function TabReport({ focusMin, points, dist, myRank, todayGoal })
                         {item.label}
                       </span>
                       <span className="font-bold whitespace-nowrap" style={{ color: item.color }}>
-                        {item.value}m
+                        {fmt(item.value)}
                         <span className="text-xs font-semibold opacity-70 ml-1.5">{Math.round(item.pct)}%</span>
                       </span>
                     </div>
@@ -149,7 +188,7 @@ export default function TabReport({ focusMin, points, dist, myRank, todayGoal })
             <EmptyState
               icon="📷"
               title="No tracked time yet"
-              hint="Open Live Monitoring and start a session — this breakdown fills in as detections come in."
+              hint="Open Live Monitoring with your face in frame — this breakdown is this session only, starting at zero."
             />
           )}
         </Card>
@@ -157,33 +196,31 @@ export default function TabReport({ focusMin, points, dist, myRank, todayGoal })
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-6 fu-stagger" style={{ "--fu-i": 2 }}>
-          <SectionTitle title="Daily Goal" subtitle={`${Math.round(focusMin)} / ${todayGoal} focused minutes`} className="mb-4" />
+          <SectionTitle title="Daily Goal" subtitle={`${formatHM(todayFocusMin)} / ${formatHM(todayGoal)} focused today`} className="mb-4" />
           <div className="flex items-baseline gap-2 mb-3">
             <p className="text-4xl font-bold" style={{ color: "#22c55e" }}>{goalPct}<span className="text-xl">%</span></p>
             <span className="text-xs text-slate-500">
-              {focusMin >= todayGoal ? "complete" : `${Math.max(todayGoal - Math.round(focusMin), 0)}m remaining`}
+              {todayFocusMin >= todayGoal ? "complete" : `${formatHM(Math.max(todayGoal - todayFocusMin, 0))} remaining today`}
             </span>
           </div>
           <Meter pct={goalPct} color="#22c55e" height={12} glow sheen />
-          {focusMin >= todayGoal && (
-            <p className="text-xs mt-3 font-semibold" style={{ color: "#22c55e" }}>🎉 Goal achieved! +100 bonus pts</p>
+          {todayFocusMin >= todayGoal && (
+            <p className="text-xs mt-3 font-semibold" style={{ color: "#22c55e" }}>🎉 Goal achieved!</p>
           )}
         </Card>
 
         <Card className="p-6 fu-stagger" style={{ "--fu-i": 3 }}>
           <SectionTitle title="Session Totals" className="mb-2" />
           <div>
-            <DataRow icon="⏱" label="Focus Time" value={`${Math.round(focusMin)} min`} color="#22c55e" />
-            <DataRow icon="✦" label="Total Points" value={`${points.toLocaleString()} pts`} color="#f59e0b" />
-            {rankedDistractions.map((d) => (
-              <DataRow key={d.key} icon={d.icon} label={`${d.key} Time`} value={`${d.value} min`} color={d.color} />
-            ))}
-            <DataRow icon="🏆" label="Team Rank" value={`#${myRank}`} color="#a855f7" last />
+            <DataRow icon="⏱" label="Focus Time" value={fmt(focusMin)} color="#22c55e" />
+            <DataRow icon="😴" label="Distraction Time" value={fmt(distMin)} color="#f97316" />
+            <DataRow icon="📊" label="Tracked Time" value={fmt(trackedTotal)} color="#64748b" />
+            <DataRow icon="📅" label="Today (saved + session)" value={formatHM(todayFocusMin + todayDistMin)} color="#a855f7" last />
           </div>
         </Card>
 
         <Card className="p-6 fu-stagger" style={{ "--fu-i": 4 }}>
-          <SectionTitle title="Session Notes" subtitle="Generated from this session's data" className="mb-4" />
+          <SectionTitle title="Session Notes" subtitle="From this session's detections" className="mb-4" />
           <div className="space-y-3">
             {notes.map((ins, i) => (
               <div
