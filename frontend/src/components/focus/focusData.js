@@ -11,6 +11,14 @@ export const STATE_CFG = {
   NoFace:  { color:"#94a3b8", bg:"#94a3b812", border:"#94a3b835", icon:"👤", label:"No face" },
 };
 
+export const TREE_MOOD = {
+  Focused: { emoji: "😊", line: "Your tree is happy — you're in the zone!" },
+  Fatigue: { emoji: "😴", line: "Your tree is sleepy — a short rest would help." },
+  Anxiety: { emoji: "😟", line: "Your tree is uneasy — take a slow breath." },
+  Boredom: { emoji: "😔", line: "Your tree looks sad — mix the task up a bit." },
+  NoFace:  { emoji: "😶", line: "Your tree is waiting until you're back in frame." },
+};
+
 export const LEVEL_DATA = [
   { name:"Seedling",      min:0,    max:50,   icon:"🌱" },
   { name:"Growing Plant", min:50,   max:150,  icon:"🌿" },
@@ -76,5 +84,5 @@ export const TABS = [
 ];
 
 export default {
-  CLASSES, STATE_CFG, LEVEL_DATA, ACHIEVEMENTS_LIST, INTERVENTIONS, REPORT_TYPES, TABS
+  CLASSES, STATE_CFG, TREE_MOOD, LEVEL_DATA, ACHIEVEMENTS_LIST, INTERVENTIONS, REPORT_TYPES, TABS
 };
