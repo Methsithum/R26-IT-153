@@ -11,9 +11,14 @@ const TODAY_NAME = new Date().toLocaleDateString(undefined, { weekday: "long" })
 export default function DayView({ schedule, tasksRegistry }) {
   const modules = useAcademicStore((s) => s.modules);
   const weeklyFreeSlots = useAcademicStore((s) => s.weeklyFreeSlots);
+  const assignments = useAcademicStore((s) => s.assignments);
   const moduleName = (code) => modules.find((m) => m.code === code)?.name || code;
+  const taskTitle = (taskId) => assignments.find((a) => a.taskId === taskId)?.title || null;
 
-  const studySessionsByDay = useMemo(() => buildStudySessionsByDay(modules, weeklyFreeSlots), [modules, weeklyFreeSlots]);
+  const studySessionsByDay = useMemo(
+    () => buildStudySessionsByDay(modules, weeklyFreeSlots, assignments, schedule || {}),
+    [modules, weeklyFreeSlots, assignments, schedule]
+  );
 
   const items = schedule?.[TODAY_NAME] || [];
   const studySessions = studySessionsByDay[TODAY_NAME] || [];
@@ -51,15 +56,18 @@ export default function DayView({ schedule, tasksRegistry }) {
                 </div>
                 <div className="rounded-2xl p-3.5 border border-dashed" style={{ borderColor: hex, backgroundColor: `${hex}14` }}>
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-bold text-slate-700 dark:text-white truncate" title={s.moduleName}>
-                      {s.moduleName}
+                    <p
+                      className="text-sm font-bold text-slate-700 dark:text-white truncate"
+                      title={s.assignmentTitle || s.moduleName}
+                    >
+                      {s.assignmentTitle || s.moduleName}
                     </p>
                     <span className="text-[11px] font-bold" style={{ color: hex }}>
                       Study
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-300 mt-0.5">
-                    {s.timeSlot} · {s.durationMinutes} minutes
+                  <p className="text-xs text-slate-500 dark:text-slate-300 mt-0.5 truncate">
+                    {s.assignmentTitle ? `${s.moduleName} · ` : ""}{s.timeSlot} · {s.durationMinutes} minutes
                   </p>
                 </div>
               </motion.div>
@@ -69,6 +77,7 @@ export default function DayView({ schedule, tasksRegistry }) {
           const item = entry;
           const priority = tasksRegistry?.[item.task_id]?.priority_label || "Medium";
           const colors = PRIORITY_COLORS[priority];
+          const title = taskTitle(item.task_id);
           return (
             <motion.div
               key={`${item.task_id}-${i}`}
@@ -82,13 +91,13 @@ export default function DayView({ schedule, tasksRegistry }) {
               </div>
               <div className={`rounded-2xl p-3.5 ${colors.bg}`}>
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-bold text-slate-700 dark:text-white truncate" title={moduleName(item.module)}>
-                    {moduleName(item.module)}
+                  <p className="text-sm font-bold text-slate-700 dark:text-white truncate" title={title || moduleName(item.module)}>
+                    {title || moduleName(item.module)}
                   </p>
                   <span className={`text-[11px] font-bold ${colors.text}`}>{priority}</span>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-300 mt-0.5">
-                  {item.time_slot} · {item.duration_minutes} minutes
+                <p className="text-xs text-slate-500 dark:text-slate-300 mt-0.5 truncate">
+                  {title ? `${moduleName(item.module)} · ` : ""}{item.time_slot} · {item.duration_minutes} minutes
                 </p>
               </div>
             </motion.div>

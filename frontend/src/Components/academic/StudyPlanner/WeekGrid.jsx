@@ -12,9 +12,14 @@ const TODAY_NAME = new Date().toLocaleDateString(undefined, { weekday: "long" })
 export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
   const modules = useAcademicStore((s) => s.modules);
   const weeklyFreeSlots = useAcademicStore((s) => s.weeklyFreeSlots);
+  const assignments = useAcademicStore((s) => s.assignments);
   const moduleName = (code) => modules.find((m) => m.code === code)?.name || code;
+  const taskTitle = (taskId) => assignments.find((a) => a.taskId === taskId)?.title || null;
 
-  const studySessionsByDay = useMemo(() => buildStudySessionsByDay(modules, weeklyFreeSlots), [modules, weeklyFreeSlots]);
+  const studySessionsByDay = useMemo(
+    () => buildStudySessionsByDay(modules, weeklyFreeSlots, assignments, schedule || {}),
+    [modules, weeklyFreeSlots, assignments, schedule]
+  );
 
   const hasAny = WEEKDAYS.some((d) => (schedule?.[d] || []).length > 0 || (studySessionsByDay[d] || []).length > 0);
 
@@ -79,16 +84,22 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
                             {s.timeSlot}
                           </p>
                         </div>
-                        <p className="text-xs font-semibold text-slate-700 dark:text-white truncate" title={s.moduleName}>
-                          {s.moduleName}
+                        <p
+                          className="text-xs font-semibold text-slate-700 dark:text-white truncate"
+                          title={s.assignmentTitle || s.moduleName}
+                        >
+                          {s.assignmentTitle || s.moduleName}
                         </p>
-                        <p className="text-[10px] text-slate-400">Study session · {s.durationMinutes} min</p>
+                        <p className="text-[10px] text-slate-400 truncate">
+                          {s.assignmentTitle ? `${s.moduleName} · ` : ""}Study session · {s.durationMinutes} min
+                        </p>
                       </motion.div>
                     );
                   }
                   const item = entry;
                   const priority = tasksRegistry?.[item.task_id]?.priority_label || "Medium";
                   const colors = PRIORITY_COLORS[priority];
+                  const title = taskTitle(item.task_id);
                   return (
                     <motion.div
                       key={`${item.task_id}-${i}`}
@@ -98,10 +109,12 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
                       className={`rounded-xl px-2.5 py-2 ${colors.bg}`}
                     >
                       <p className={`text-[11px] font-bold ${colors.text}`}>{item.time_slot}</p>
-                      <p className="text-xs font-semibold text-slate-700 dark:text-white truncate" title={moduleName(item.module)}>
-                        {moduleName(item.module)}
+                      <p className="text-xs font-semibold text-slate-700 dark:text-white truncate" title={title || moduleName(item.module)}>
+                        {title || moduleName(item.module)}
                       </p>
-                      <p className="text-[10px] text-slate-400">{item.duration_minutes} min</p>
+                      <p className="text-[10px] text-slate-400 truncate">
+                        {title ? `${moduleName(item.module)} · ` : ""}{item.duration_minutes} min
+                      </p>
                     </motion.div>
                   );
                 })}

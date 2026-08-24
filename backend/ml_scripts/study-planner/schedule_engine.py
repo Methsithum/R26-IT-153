@@ -138,12 +138,23 @@ class StudyScheduler:
         back into add_task() (all of add_task's required fields present),
         which the study-planner API's reschedule endpoint relies on to
         reconstruct a StudyScheduler across stateless HTTP requests.
+
+        Slot selection is load-balanced across days rather than pure
+        nearest-first: each task still prefers the earliest *eligible* date
+        when all days are equally loaded (so the very first task scheduled
+        still lands as soon as possible), but once a day has accumulated
+        minutes from earlier (higher-priority/closer-deadline) tasks, later
+        tasks prefer a lighter day instead of continuing to stack onto the
+        same one or two days - spreading real free time across the whole
+        week whenever the deadline allows it, without weakening the
+        priority/deadline ordering of which task gets first pick.
         """
         # Work on a fresh copy of remaining slot capacity so repeated calls
         # (e.g. via reschedule()) don't corrupt the original free-slot list.
         remaining_slots = [dict(slot) for slot in self.weekly_free_slots]
         schedule = {day: [] for day in DAY_ORDER}
         overload_warning = []
+        day_load_minutes = {day: 0 for day in DAY_ORDER}
 
         for task in self._sort_tasks():
             deadline = datetime.strptime(task["deadline_date"], "%Y-%m-%d")
@@ -155,8 +166,11 @@ class StudyScheduler:
                 s for s in remaining_slots
                 if s["duration_minutes"] > 0 and self._slot_date(s["day"]) <= deadline.date()
             ]
-            # Nearest-first: earliest date, then earliest by start_time.
-            eligible_slots.sort(key=lambda s: (self._slot_date(s["day"]), s["start_time"]))
+            # Least-loaded day first (spreads across the week), then
+            # earliest date, then earliest by start_time as tiebreakers.
+            eligible_slots.sort(
+                key=lambda s: (day_load_minutes[s["day"]], self._slot_date(s["day"]), s["start_time"])
+            )
 
             for slot in eligible_slots:
                 if minutes_needed <= 0:
@@ -173,6 +187,7 @@ class StudyScheduler:
                 slot["start_time"] = self._add_minutes(slot["start_time"], take)
                 slot["duration_minutes"] -= take
                 minutes_needed -= take
+                day_load_minutes[slot["day"]] += take
 
             if minutes_needed > 0:
                 overload_warning.append({

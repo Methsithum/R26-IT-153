@@ -286,6 +286,14 @@ export const useAcademicStore = create(
         get().recomputeNotifications();
       },
 
+      updateExamDate: (examId, newDate) => {
+        set((s) => ({
+          exams: s.exams.map((e) => (e.id === examId ? { ...e, date: newDate } : e)),
+        }));
+        get().recomputeSemesterAllocation();
+        get().recomputeNotifications();
+      },
+
       // --- Schedule (real /schedule + /reschedule responses persisted locally).
       // weeklyFreeSlots is generated from the student's real Settings
       // (preferredStudyTimes + maxDailyStudyHours) via buildWeeklyFreeSlots —

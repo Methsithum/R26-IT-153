@@ -8,7 +8,9 @@ const TODAY_NAME = new Date().toLocaleDateString(undefined, { weekday: "long" })
 
 export default function TodayTimeline({ schedule, tasksRegistry }) {
   const modules = useAcademicStore((s) => s.modules);
+  const assignments = useAcademicStore((s) => s.assignments);
   const moduleName = (code) => modules.find((m) => m.code === code)?.name || code;
+  const taskTitle = (taskId) => assignments.find((a) => a.taskId === taskId)?.title || null;
   const todaysItems = schedule?.[TODAY_NAME] || [];
 
   if (todaysItems.length === 0) {
@@ -28,6 +30,7 @@ export default function TodayTimeline({ schedule, tasksRegistry }) {
           const meta = tasksRegistry?.[item.task_id];
           const priority = meta?.priority_label || "Medium";
           const colors = PRIORITY_COLORS[priority];
+          const title = taskTitle(item.task_id);
           return (
             <motion.div
               key={`${item.task_id}-${i}`}
@@ -38,10 +41,12 @@ export default function TodayTimeline({ schedule, tasksRegistry }) {
             >
               <div className={`w-1.5 self-stretch rounded-full ${colors.solid}`} />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-700 dark:text-white truncate" title={moduleName(item.module)}>
-                  {moduleName(item.module)}
+                <p className="text-sm font-semibold text-slate-700 dark:text-white truncate" title={title || moduleName(item.module)}>
+                  {title || moduleName(item.module)}
                 </p>
-                <p className="text-xs text-slate-400">{item.time_slot} · {item.duration_minutes} min</p>
+                <p className="text-xs text-slate-400 truncate">
+                  {title ? `${moduleName(item.module)} · ` : ""}{item.time_slot} · {item.duration_minutes} min
+                </p>
               </div>
               <span className={`text-[11px] font-bold ${colors.text}`}>{priority}</span>
             </motion.div>
