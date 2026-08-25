@@ -1,8 +1,30 @@
 import { useEffect, useRef, useState } from "react";
-import { predictFocusState } from "../lib/focusApi";
+import { predictFocusState, resetFocusPredictWindow } from "../lib/focusApi";
 
 const PREDICT_INTERVAL_MS = 2500;
-const SMOOTH_N = 5; // majority vote over the last N predictions, avoids frame-to-frame flicker
+// 8 × 2.5s = 20s. Boredom flicker on a 5-frame (~12s) window was the live
+// counterpart of the 29.6% Focused→Boredom leak on the confusion matrix.
+const SMOOTH_N = 8;
+
+function majorityVote(hist) {
+  const counts = {};
+  for (const s of hist) counts[s] = (counts[s] || 0) + 1;
+  const ranked = Object.entries(counts).sort((a, b) => {
+    if (b[1] !== a[1]) return b[1] - a[1];
+    if (a[0] === "Focused") return -1;
+    if (b[0] === "Focused") return 1;
+    if (a[0] === "Boredom") return 1;
+    if (b[0] === "Boredom") return -1;
+    return 0;
+  });
+  let [winner, n] = ranked[0];
+  // Boredom needs a true majority, not a 3/8 plurality.
+  if (winner === "Boredom" && n <= hist.length / 2) {
+    const alt = ranked.find(([s]) => s !== "Boredom");
+    if (alt) winner = alt[0];
+  }
+  return winner;
+}
 
 // Published whenever no face is in frame. Nothing is being measured then, so every
 // class reads 0% rather than leaving the last reading on screen looking current.
@@ -60,6 +82,7 @@ export function useFocusCamera(active, onDetection) {
       streamRef.current = null;
       setStream(null);
       historyRef.current = [];
+      resetFocusPredictWindow();
       // A resumed session starts from nothing measured yet, so it reads 0% until
       // the first face is found rather than resurfacing the last session's numbers.
       setProbs(ZERO_PROBS);
@@ -96,14 +119,12 @@ export function useFocusCamera(active, onDetection) {
 
         setProbs(result.probs);
 
-        // Majority vote over recent predictions so a single noisy frame
-        // can't flip the whole app's state / retrigger the modal.
+        // Majority vote over ~20s so a single noisy frame can't flip the
+        // session timer / retrigger the modal. Boredom needs a true majority.
         const hist = historyRef.current;
         hist.push(result.state);
         if (hist.length > SMOOTH_N) hist.shift();
-        const counts = {};
-        for (const s of hist) counts[s] = (counts[s] || 0) + 1;
-        const smoothed = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+        const smoothed = majorityVote(hist);
         const smoothedConfidence = result.probs[smoothed] ?? result.confidence;
         setConfidence(smoothedConfidence); // must describe `smoothed` -- the state the UI actually shows
 

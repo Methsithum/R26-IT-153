@@ -34,3 +34,10 @@ def predict(req: PredictRequest):
     except inference.ModelNotReadyError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     return result
+
+
+@router.post("/predict/reset")
+def reset_predict_window():
+    """Drop the rolling blink/gaze/pose buffer when a session pauses."""
+    inference.reset_temporal_buffer()
+    return {"ok": True}

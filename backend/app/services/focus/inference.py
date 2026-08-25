@@ -23,15 +23,15 @@ import joblib
 import numpy as np
 
 from . import face_crop
+from .focus_config import CLASS_CONF_THRESHOLDS, CLASSES, TEMPORAL_FEATURE_NAMES
+from .temporal import TemporalFeatureBuffer, apply_temporal_gate
 
 BASE_DIR    = Path(__file__).resolve().parents[3]
 MODELS_PATH = BASE_DIR / "trained-models" / "focus"
 
-CLASSES        = ["Focused", "Fatigue", "Anxiety", "Boredom"]
-CONF_THRESHOLD = 0.50   # below this, report Focused rather than act on an uncertain guess
-
 _lock  = threading.Lock()
 _state = {}
+_temporal = TemporalFeatureBuffer()
 
 
 class ModelNotReadyError(RuntimeError):
@@ -52,12 +52,14 @@ def _load():
                 from tensorflow.keras.models import load_model
                 _state["kind"]  = "cnn"
                 _state["model"] = load_model(str(MODELS_PATH / "focus_mobilenetv2.keras"))
+                _state["columns"] = []
             else:
                 _state["kind"]    = "classical"
                 _state["model"]   = joblib.load(MODELS_PATH / "focus_classical_model.joblib")
                 _state["scaler"]  = joblib.load(MODELS_PATH / "feature_scaler.joblib")
                 _state["columns"] = summary["feature_columns"]
 
+            _state["uses_temporal"] = any(c in TEMPORAL_FEATURE_NAMES for c in _state["columns"])
             face_crop.get_landmarker()
         except Exception as exc:
             _state.clear()
@@ -69,8 +71,13 @@ def is_ready() -> bool:
     return bool(_state)
 
 
+def reset_temporal_buffer() -> None:
+    with _lock:
+        _temporal.clear()
+
+
 def _predict_classical(st, features: dict):
-    vec = np.array([[features[c] for c in st["columns"]]])
+    vec = np.array([[features.get(c, 0.0) for c in st["columns"]]])
     vec = st["scaler"].transform(vec)
     return st["model"].predict_proba(vec)[0]
 
@@ -84,6 +91,23 @@ def _predict_cnn(st, face_bgr):
     return st["model"].predict(np.expand_dims(img, axis=0), verbose=0)[0]
 
 
+def _apply_class_thresholds(probs: np.ndarray) -> str:
+    """Keep argmax only if it clears its own bar; otherwise try runners-up.
+
+    Uncertain distracted guesses become Focused, never Boredom — that was the
+    40% precision leak on the test confusion matrix.
+    """
+    order = np.argsort(probs)[::-1]
+    for idx in order:
+        cls = CLASSES[int(idx)]
+        if float(probs[idx]) >= CLASS_CONF_THRESHOLDS[cls]:
+            return cls
+    return "Focused"
+
+
+apply_class_thresholds = _apply_class_thresholds
+
+
 def predict_from_frame(frame_bgr):
     """Full pipeline: detect+crop -> features -> state. Returns a dict
     matching the PredictResponse schema."""
@@ -91,25 +115,47 @@ def predict_from_frame(frame_bgr):
 
     face = face_crop.detect_and_crop(frame_bgr)
     if face is None:
-        return {"face_detected": False, "state": None, "confidence": 0.0, "probs": {}}
+        return {
+            "face_detected": False,
+            "state": None,
+            "confidence": 0.0,
+            "probs": {},
+            "distracted": False,
+            "binary_label": None,
+        }
+
+    features = face_crop.extract_features(face)
+    with _lock:
+        temporal_stats = _temporal.add(features) if features else _temporal.stats()
+        n_frames = len(_temporal)
+
+    if features and st.get("uses_temporal"):
+        features = {**features, **temporal_stats}
 
     if st["kind"] == "cnn":
         probs = _predict_cnn(st, face)
     else:
-        features = face_crop.extract_features(face)
         if features is None:
-            return {"face_detected": False, "state": None, "confidence": 0.0, "probs": {}}
+            return {
+                "face_detected": False,
+                "state": None,
+                "confidence": 0.0,
+                "probs": {},
+                "distracted": False,
+                "binary_label": None,
+            }
         probs = _predict_classical(st, features)
 
-    pred_idx = int(np.argmax(probs))
-    state = CLASSES[pred_idx]
-    if float(probs[pred_idx]) < CONF_THRESHOLD:
-        state = "Focused"
-
     prob_map = {cls: float(p) for cls, p in zip(CLASSES, probs)}
+    state = _apply_class_thresholds(probs)
+    state = apply_temporal_gate(state, prob_map, temporal_stats, n_frames)
+
+    distracted = state != "Focused"
     return {
         "face_detected": True,
         "state": state,
-        "confidence": prob_map[state],
+        "confidence": prob_map.get(state, 0.0),
         "probs": prob_map,
+        "distracted": distracted,
+        "binary_label": "Distracted" if distracted else "Focused",
     }
