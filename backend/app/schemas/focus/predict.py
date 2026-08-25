@@ -10,5 +10,3 @@ class PredictResponse(BaseModel):
     state: str | None
     confidence: float
     probs: dict[str, float]
-    distracted: bool = False
-    binary_label: str | None = None

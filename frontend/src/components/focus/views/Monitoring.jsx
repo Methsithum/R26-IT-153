@@ -19,12 +19,6 @@ export default function TabMonitoring({ state, handleStateSelect, camera, sessio
   // State", so while nothing is detected it has to say so instead of that stale value.
   const showingNoFace = sessionOn && camStatus === "live" && !faceDetected;
   const shownCfg = showingNoFace ? STATE_CFG.NoFace : STATE_CFG[state];
-  const distPct = ((probs.Fatigue || 0) + (probs.Anxiety || 0) + (probs.Boredom || 0)) * 100;
-  const focusPct = (probs.Focused || 0) * 100;
-  const binaryFocused = state === "Focused" && !showingNoFace;
-  const binaryPct = showingNoFace ? 0 : binaryFocused ? focusPct : distPct;
-  const binaryColor = binaryFocused ? "#22c55e" : "#f59e0b";
-  const binaryLabel = showingNoFace ? "No face" : binaryFocused ? "Focused" : "Distracted";
 
   // Same MediaStream as the hidden capture <video> in FocusApp — a stream can be
   // attached to multiple <video> elements at once, each renders independently.
@@ -37,7 +31,7 @@ export default function TabMonitoring({ state, handleStateSelect, camera, sessio
       <PageHeader
         icon="📷"
         title="Live Monitoring"
-        subtitle="Live reading is smoothed over ~20s. Interventions wait 5 min at high confidence."
+        subtitle="Your webcam feed is analysed locally by the backend model, frame by frame"
         right={
           <Badge color={sessionOn ? "#22c55e" : "#94a3b8"}>
             {sessionOn ? "● Session active" : "○ Session paused"}
@@ -114,20 +108,9 @@ export default function TabMonitoring({ state, handleStateSelect, camera, sessio
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 1 }}>
             <SectionTitle
               title="State Confidence"
-              subtitle="Four-way split plus a more reliable Focused vs Distracted reading"
+              subtitle="Model probability across the four tracked states"
               className="mb-5"
             />
-            <div className="mb-5 pb-4 border-b border-slate-200">
-                  <div className="flex justify-between mb-1.5 text-sm">
-                    <span className="font-semibold" style={{ color: binaryColor }}>
-                      {binaryLabel}
-                    </span>
-                    <span className="text-xs text-slate-500">
-                      {showingNoFace ? "—" : `${Math.round(binaryPct)}%`}
-                    </span>
-                  </div>
-                  <Meter pct={binaryPct} color={binaryColor} height={10} glow />
-                </div>
             <div className="space-y-4">
               {CLASSES.map((cls) => {
                 const active = state === cls;

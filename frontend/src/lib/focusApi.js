@@ -6,15 +6,7 @@ export async function predictFocusState(base64Image) {
   const { data } = await axios.post(`${API_BASE}/focus/predict`, {
     image: base64Image,
   });
-  return data; // { face_detected, state, confidence, probs, distracted, binary_label }
-}
-
-export async function resetFocusPredictWindow() {
-  try {
-    await axios.post(`${API_BASE}/focus/predict/reset`);
-  } catch {
-    // session pause should not fail if the backend is already down
-  }
+  return data; // { face_detected, state, confidence, probs }
 }
 
 export async function saveFocusSession(payload) {

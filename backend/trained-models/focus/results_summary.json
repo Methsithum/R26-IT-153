@@ -7,27 +7,27 @@
   ],
   "comparison": [
     {
+      "model": "SVM",
+      "test_accuracy": 0.6539589442815249,
+      "test_macro_f1": 0.684555637647766
+    },
+    {
       "model": "XGBoost",
-      "test_accuracy": 0.6480938416422287,
-      "test_macro_f1": 0.5959875464300716
+      "test_accuracy": 0.6510263929618768,
+      "test_macro_f1": 0.6581732555918631
     },
     {
       "model": "Random Forest",
-      "test_accuracy": 0.6158357771260997,
-      "test_macro_f1": 0.604703293229605
-    },
-    {
-      "model": "SVM",
-      "test_accuracy": 0.6099706744868035,
-      "test_macro_f1": 0.5933700713524532
+      "test_accuracy": 0.6334310850439883,
+      "test_macro_f1": 0.6435780635296314
     },
     {
       "model": "MobileNetV2 CNN",
-      "test_accuracy": 0.4823091247672253,
-      "test_macro_f1": 0.5142540427379332
+      "test_accuracy": 0.6289473684210526,
+      "test_macro_f1": 0.6632458061641385
     }
   ],
-  "best_model": "XGBoost",
+  "best_model": "SVM",
   "boredom_threshold": 2,
   "feature_columns": [
     "ear_left",
@@ -94,53 +94,6 @@
     "bs_mouthUpperUpLeft",
     "bs_mouthUpperUpRight",
     "bs_noseSneerLeft",
-    "bs_noseSneerRight",
-    "ear_std",
-    "ear_blink_rate",
-    "gaze_x_std",
-    "gaze_y_std",
-    "head_pitch_std",
-    "head_yaw_std",
-    "head_roll_std",
-    "mar_yawn_count",
-    "ear_mean_window",
-    "mar_mean_window"
-  ],
-  "binary_focused_distracted_accuracy": 0.7214076246334311,
-  "inference": {
-    "class_conf_thresholds": {
-      "Focused": 0.45,
-      "Fatigue": 0.55,
-      "Anxiety": 0.7,
-      "Boredom": 0.7
-    },
-    "temporal_window_seconds": 45,
-    "majority_vote_seconds": 20,
-    "intervention_conf_thresholds": {
-      "Fatigue": 0.7,
-      "Anxiety": 0.75,
-      "Boredom": 0.8
-    }
-  },
-  "round3": {
-    "frames_per_clip": 5,
-    "boredom_fp_cost": {
-      "Focused": 1.6,
-      "Fatigue": 1.0,
-      "Anxiety": 1.8,
-      "Boredom": 0.7
-    },
-    "temporal_features": [
-      "ear_std",
-      "ear_blink_rate",
-      "gaze_x_std",
-      "gaze_y_std",
-      "head_pitch_std",
-      "head_yaw_std",
-      "head_roll_std",
-      "mar_yawn_count",
-      "ear_mean_window",
-      "mar_mean_window"
-    ]
-  }
+    "bs_noseSneerRight"
+  ]
 }

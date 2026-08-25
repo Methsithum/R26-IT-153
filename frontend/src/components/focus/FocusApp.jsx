@@ -14,7 +14,7 @@ import TabLeaderboard from "./views/Leaderboard";
 import TabReport from "./views/Report";
 
 const MANUAL_OVERRIDE_LOCK_MS = 5000;
-const INTERVENTION_CONFIDENCE = { Fatigue: 0.70, Anxiety: 0.75, Boredom: 0.80 };
+const HIGH_CONFIDENCE = 0.70;
 const CHALLENGE_SUSTAIN_MS = 5 * 60 * 1000;
 const SPRINT_STREAK_MIN = 25;
 const CHECKIN_INTERVAL_MS = 5 * 60 * 1000;
@@ -254,8 +254,7 @@ export default function FocusApp() {
     }
 
     const isDistracted = nextState !== "Focused";
-    const needed = INTERVENTION_CONFIDENCE[nextState] ?? 0.70;
-    const isHighConfidence = (confidence || 0) >= needed;
+    const isHighConfidence = (confidence || 0) >= HIGH_CONFIDENCE;
 
     if (isDistracted && isHighConfidence) {
       const dstreak = distractionStreakRef.current;
