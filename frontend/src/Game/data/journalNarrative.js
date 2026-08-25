@@ -42,8 +42,6 @@ function highlightsFromEntry(entry) {
     }
   }
 
-  if (entry?.xp) highlights.push(`XP earned: ${entry.xp}`);
-  if (entry?.score) highlights.push(`Score: ${entry.score}`);
   return highlights;
 }
 

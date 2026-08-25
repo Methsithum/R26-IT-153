@@ -16,8 +16,8 @@ const TABS = [
   { id: "open", label: "Open Journal" },
   { id: "roadmap", label: "Game Roadmap" },
   { id: "maps", label: "Campus Maps" },
-  { id: "reflect", label: "Reflections" },
   { id: "recent", label: "Recent Journals" },
+  { id: "reflect", label: "Reflections" },
   { id: "details", label: "Game Details" },
   { id: "stats", label: "Character Stats" },
 ];
@@ -427,18 +427,6 @@ function RecentJournalsContent({ focusDay }) {
             </ul>
           </div>
         )}
-        {(entry.xp || entry.score) ? (
-          <div className="flex gap-6 pt-3 border-t border-stone-300/60">
-            <div>
-              <div className="text-[10px] uppercase text-stone-500">XP earned</div>
-              <div className="text-lg font-bold text-amber-700">{entry.xp || 0}</div>
-            </div>
-            <div>
-              <div className="text-[10px] uppercase text-stone-500">Score</div>
-              <div className="text-lg font-bold text-stone-700">{entry.score || 0}</div>
-            </div>
-          </div>
-        ) : null}
         {canReplay && (
           <div className="mt-6 border-t border-stone-300/60 pt-4">
             <p className="mb-3 text-sm text-stone-600">
@@ -455,14 +443,11 @@ function RecentJournalsContent({ focusDay }) {
 function GameDetailsContent() {
   const xp = useGameStore((s) => s.xp);
   const level = useGameStore((s) => s.level);
-  const score = useGameStore((s) => s.score);
-  const lifetimeScore = useGameStore((s) => s.lifetimeScore);
   const streak = useGameStore((s) => s.currentStreak);
   const longestStreak = useGameStore((s) => s.longestStreak);
   const assignments = useGameStore((s) => s.assignments);
   const exams = useGameStore((s) => s.exams);
   const into = xpIntoLevel(xp);
-  const campusScore = Math.max(lifetimeScore || 0, score || 0);
 
   return (
     <div>
@@ -475,8 +460,13 @@ function GameDetailsContent() {
           <div className="flex-1 min-w-0">
             <div className="text-[11px] uppercase tracking-[0.22em] text-amber-800/70">Campus rank</div>
             <div className="text-2xl font-black text-amber-950 leading-tight">Level {level}</div>
-            <div className="mt-2 flex items-center justify-between text-[11px] text-stone-500">
-              <span>{into.toLocaleString()} / {XP_PER_LEVEL} XP</span>
+            <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-amber-700/15 bg-white/50 px-2.5 py-1 shadow-inner">
+              <span className="text-sm leading-none">⭐</span>
+              <span className="text-sm font-black tabular-nums text-amber-800">{xp.toLocaleString()}</span>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-800/55">total XP</span>
+            </div>
+            <div className="mt-2.5 flex items-center justify-between text-[11px] text-stone-500">
+              <span>{into.toLocaleString()} / {XP_PER_LEVEL} XP this rank</span>
               <span>{xpToNextLevel(xp)} to Lv {level + 1}</span>
             </div>
             <div className="mt-1 h-2.5 overflow-hidden rounded-full bg-amber-900/10 shadow-inner">
@@ -495,23 +485,6 @@ function GameDetailsContent() {
             {longestStreak > 0 && (
               <div className="mt-1 text-[9px] text-orange-800/70">best {longestStreak}</div>
             )}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        <div className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-800/10 px-3 py-2.5">
-          <span className="text-lg">⭐</span>
-          <div>
-            <div className="text-[10px] uppercase text-stone-500">Total XP</div>
-            <div className="text-base font-bold text-stone-800">{xp.toLocaleString()}</div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-800/10 px-3 py-2.5">
-          <span className="text-lg">🪙</span>
-          <div>
-            <div className="text-[10px] uppercase text-stone-500">Campus score</div>
-            <div className="text-base font-bold text-stone-800">{campusScore.toLocaleString()}</div>
           </div>
         </div>
       </div>
