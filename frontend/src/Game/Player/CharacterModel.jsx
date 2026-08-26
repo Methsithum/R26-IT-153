@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import { useFBX } from "@react-three/drei";
 import * as THREE from "three";
 import { useRunnerStore } from "../state/runnerStore";
+import { useGameStore } from "../state/GameStateManager";
 
 const MODEL_PATH = "/models/remy-running.fbx";
 const MODEL_SCALE = 0.0105;
@@ -35,6 +36,7 @@ export default function CharacterModel() {
   }, [fbx, mixer]);
 
   useFrame((_, delta) => {
+    if (useGameStore.getState().paused) return;
     const { isSliding, isJumping, isStumbling, speedScale } = useRunnerStore.getState();
     const rate = isStumbling ? 0.35 : isSliding ? 0.45 : isJumping ? 0.55 : 0.85 + speedScale * 0.35;
     mixer.update(delta * rate);
