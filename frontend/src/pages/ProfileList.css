@@ -1,0 +1,68 @@
+.pl-scroll {
+  overflow-x: auto;
+}
+
+.pl-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+  white-space: nowrap;
+}
+
+.pl-table th {
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--border);
+}
+
+.pl-table td {
+  padding: 11px 12px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+
+.pl-row {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.pl-row:hover,
+.pl-row:focus-visible {
+  background: var(--bg-panel-alt);
+  outline: none;
+}
+
+.pl-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.pl-badge-low {
+  color: var(--green);
+  background: rgba(34, 197, 94, 0.14);
+}
+
+.pl-badge-med {
+  color: var(--orange);
+  background: rgba(245, 158, 11, 0.14);
+}
+
+.pl-badge-high {
+  color: var(--red);
+  background: rgba(239, 68, 68, 0.14);
+}
+
+.pl-hint {
+  margin: 14px 0 0;
+  font-size: 0.76rem;
+  color: var(--text-faint);
+}

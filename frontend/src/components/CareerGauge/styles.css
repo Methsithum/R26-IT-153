@@ -1,0 +1,53 @@
+.cg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.cg-gauge {
+  width: 100%;
+  max-width: 210px;
+  margin: 4px auto 0;
+}
+
+.cg-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.cg-arc {
+  transition: stroke-dasharray 0.5s ease, stroke 0.3s ease;
+}
+
+.cg-num {
+  font-size: 2.1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.cg-unit {
+  font-size: 0.72rem;
+}
+
+.cg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 16px;
+}
+
+.cg-chip {
+  padding: 5px 11px;
+  font-size: 0.73rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: var(--bg-panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cg-arc { transition: none; }
+}

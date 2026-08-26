@@ -1,0 +1,35 @@
+.cp-navbar {
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.cp-tab {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+
+.cp-tab:hover {
+  background: var(--bg-panel-alt);
+  color: var(--text);
+}
+
+.cp-tab-active,
+.cp-tab-active:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+@media (max-width: 640px) {
+  .cp-tab { font-size: 0.76rem; padding: 9px 6px; }
+}

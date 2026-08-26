@@ -168,7 +168,8 @@ def get_model_metrics():
     metadata = _artifacts['model_metadata']
 
     try:
-        return {
+        # Headline winners (kept flat for simple consumers).
+        response = {
             "model_A_winner": metadata['model_A_winner'],
             "model_A_accuracy": round(metadata['model_A_xgb_accuracy'], 4),
             "model_A_f1": round(metadata['model_A_xgb_f1'], 4),
@@ -176,5 +177,35 @@ def get_model_metrics():
             "model_B_r2": round(metadata['model_B_ridge_r2'], 4),
             "model_B_mae": round(metadata['model_B_ridge_mae'], 4),
         }
+
+        # Per-algorithm rows so the UI can render full comparison tables
+        # without hard-coding any numbers.
+        response["model_A_rows"] = [
+            {
+                "algorithm": name,
+                "accuracy": round(metadata[f'model_A_{p}_accuracy'], 4),
+                "f1": round(metadata[f'model_A_{p}_f1'], 4),
+                "cv_score": round(metadata[f'model_A_{p}_cv_accuracy'], 4),
+                "winner": name == metadata['model_A_winner'],
+            }
+            for p, name in (('lr', 'Logistic Regression'),
+                            ('rf', 'Random Forest'),
+                            ('xgb', 'XGBoost'))
+        ]
+
+        response["model_B_rows"] = [
+            {
+                "algorithm": name,
+                "mae": round(metadata[f'model_B_{p}_mae'], 4),
+                "rmse": round(metadata[f'model_B_{p}_rmse'], 4),
+                "r2": round(metadata[f'model_B_{p}_r2'], 4),
+                "winner": name == metadata['model_B_winner'],
+            }
+            for p, name in (('ridge', 'Ridge Regression'),
+                            ('rf', 'Random Forest'),
+                            ('xgb', 'XGBoost'))
+        ]
+
+        return response
     except KeyError as exc:
         raise HTTPException(status_code=500, detail=f"Missing key in model_metadata.pkl: {exc}")

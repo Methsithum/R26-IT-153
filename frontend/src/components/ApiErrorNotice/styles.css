@@ -1,0 +1,64 @@
+.cp-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 40px 24px;
+  background: var(--bg-panel);
+  border: 1px solid var(--red);
+  border-radius: var(--radius);
+}
+
+.cp-error-icon {
+  font-size: 1.8rem;
+  color: var(--red);
+}
+
+.cp-error-title {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--text);
+}
+
+.cp-error-detail {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--red);
+  word-break: break-word;
+}
+
+.cp-error-hint {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.cp-error-cmd {
+  margin: 0;
+  padding: 12px 14px;
+  max-width: 100%;
+  overflow-x: auto;
+  text-align: left;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: var(--text);
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.cp-error-retry {
+  margin-top: 6px;
+  padding: 9px 22px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.cp-error-retry:hover { filter: brightness(1.1); }

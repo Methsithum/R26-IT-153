@@ -1,0 +1,52 @@
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px;
+  background: linear-gradient(90deg, #131c3d 0%, #0e1430 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.app-header-mark {
+  flex: none;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  font-size: 1.4rem;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 10px;
+}
+
+.app-header-text {
+  min-width: 0;
+}
+
+.app-header-eyebrow {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.app-header-title {
+  margin: 2px 0 4px;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.app-header-sub {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+@media (max-width: 640px) {
+  .app-header-title { font-size: 1.1rem; }
+  .app-header-sub { font-size: 0.78rem; }
+}
