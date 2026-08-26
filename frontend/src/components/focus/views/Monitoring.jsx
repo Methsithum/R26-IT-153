@@ -4,7 +4,19 @@ import { CLASSES, STATE_CFG } from "../focusData";
 import { PageHeader, SectionTitle, Meter, Badge, DataRow } from "../ui";
 import { formatHM } from "../../../lib/focusTime";
 
-export default function TabMonitoring({ state, handleStateSelect, camera, sessionOn, setSessionOn, distMin, focusMin }) {
+export default function TabMonitoring({
+  state,
+  handleStateSelect,
+  camera,
+  sessionStatus = "active",
+  sessionOn,
+  pauseSession,
+  resumeSession,
+  startSession,
+  endSession,
+  distMin,
+  focusMin,
+}) {
   const displayVideoRef = useRef(null);
   const { camStatus, stream, probs, confidence, faceDetected, predictError } = camera;
 
@@ -19,6 +31,11 @@ export default function TabMonitoring({ state, handleStateSelect, camera, sessio
   // State", so while nothing is detected it has to say so instead of that stale value.
   const showingNoFace = sessionOn && camStatus === "live" && !faceDetected;
   const shownCfg = showingNoFace ? STATE_CFG.NoFace : STATE_CFG[state];
+  const statusMeta = sessionStatus === "ended"
+    ? { label: "Ended", color: "#64748b", badge: "○ Session ended" }
+    : sessionOn
+      ? { label: "Active", color: "#22c55e", badge: "● Session active" }
+      : { label: "Paused", color: "#f59e0b", badge: "○ Session paused" };
 
   // Same MediaStream as the hidden capture <video> in FocusApp — a stream can be
   // attached to multiple <video> elements at once, each renders independently.
@@ -31,10 +48,16 @@ export default function TabMonitoring({ state, handleStateSelect, camera, sessio
       <PageHeader
         icon="📷"
         title="Live Monitoring"
-        subtitle="Your webcam feed is analysed locally by the backend model, frame by frame"
+        subtitle={
+          sessionStatus === "ended"
+            ? "Session ended — start a new one to keep tracking"
+            : sessionOn
+              ? "Your webcam feed is analysed locally by the backend model, frame by frame"
+              : "Paused — resume to continue from the same focus and distraction totals"
+        }
         right={
-          <Badge color={sessionOn ? "#22c55e" : "#94a3b8"}>
-            {sessionOn ? "● Session active" : "○ Session paused"}
+          <Badge color={statusMeta.color}>
+            {statusMeta.badge}
           </Badge>
         }
       />
@@ -60,7 +83,7 @@ export default function TabMonitoring({ state, handleStateSelect, camera, sessio
                   <span className="text-6xl opacity-30">📷</span>
                   <p className="text-slate-300 text-sm">
                     {camStatus === "starting" && "Starting camera..."}
-                    {camStatus === "idle" && "Session paused — resume to start monitoring"}
+                    {camStatus === "idle" && (sessionStatus === "ended" ? "Session ended — start to monitor again" : "Session paused — resume to continue monitoring")}
                     {camStatus === "denied" && "Camera access denied"}
                     {camStatus === "unsupported" && "Camera not supported in this browser"}
                   </p>
@@ -201,20 +224,38 @@ export default function TabMonitoring({ state, handleStateSelect, camera, sessio
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 4 }}>
             <SectionTitle title="Session Info" className="mb-2" />
             <div>
-              <DataRow icon="⚡" label="Session Status" value={sessionOn ? "Active" : "Paused"} color={sessionOn ? "#22c55e" : "#94a3b8"} />
+              <DataRow icon="⚡" label="Session Status" value={statusMeta.label} color={statusMeta.color} />
               <DataRow icon="⏱" label="This Session (focus)" value={formatHM(focusMin, { allowSeconds: true })} color="#22c55e" />
               <DataRow icon="😴" label="This Session (distraction)" value={formatHM(distMin, { allowSeconds: true })} color="#f97316" last />
             </div>
+            {sessionStatus === "ended" ? (
+              <button
+                onClick={startSession}
+                className="w-full mt-4 py-2.5 rounded-xl font-semibold text-sm border transition-all"
+                style={{ backgroundColor: "#22c55e15", borderColor: "#22c55e40", color: "#22c55e" }}
+              >
+                ▶ Start Session
+              </button>
+            ) : (
+              <button
+                onClick={sessionOn ? pauseSession : resumeSession}
+                className="w-full mt-4 py-2.5 rounded-xl font-semibold text-sm border transition-all"
+                style={{
+                  backgroundColor: sessionOn ? "#f59e0b15" : "#22c55e15",
+                  borderColor: sessionOn ? "#f59e0b40" : "#22c55e40",
+                  color: sessionOn ? "#d97706" : "#22c55e",
+                }}
+              >
+                {sessionOn ? "⏸ Pause Session" : "▶ Resume Session"}
+              </button>
+            )}
             <button
-              onClick={() => setSessionOn((s) => !s)}
-              className="w-full mt-4 py-2.5 rounded-xl font-semibold text-sm border transition-all"
-              style={{
-                backgroundColor: sessionOn ? "#ef444415" : "#22c55e15",
-                borderColor: sessionOn ? "#ef444440" : "#22c55e40",
-                color: sessionOn ? "#ef4444" : "#22c55e",
-              }}
+              onClick={endSession}
+              disabled={sessionStatus === "ended"}
+              className="w-full mt-2 py-2.5 rounded-xl font-semibold text-sm border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ backgroundColor: "#ef444415", borderColor: "#ef444440", color: "#ef4444" }}
             >
-              {sessionOn ? "⏸ Pause Session" : "▶ Resume Session"}
+              ⏹ End Session
             </button>
           </Card>
         </div>

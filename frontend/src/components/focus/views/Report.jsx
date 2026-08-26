@@ -8,7 +8,37 @@ const BREAKDOWN = [
   { key: "distraction", label: "Distraction", icon: "😴", color: "#f97316" },
 ];
 
-export default function TabReport({ focusMin, distMin, todayFocusMin = 0, todayDistMin = 0, todayGoal, week }) {
+export default function TabReport({
+  sessionEnded = false,
+  focusMin,
+  distMin,
+  todayFocusMin = 0,
+  todayDistMin = 0,
+  todayGoal,
+  week,
+}) {
+  const today = new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+
+  if (!sessionEnded) {
+    return (
+      <div className="fu-view">
+        <PageHeader
+          icon="📈"
+          title="Session Report"
+          subtitle="Analysis appears after you end a session"
+          right={<Badge color="#64748b">📅 {today}</Badge>}
+        />
+        <Card className="p-10">
+          <EmptyState
+            icon="⏹"
+            title="No ended session yet"
+            hint="Use End Session on Live Monitoring. Pause only freezes tracking — it does not generate this report."
+          />
+        </Card>
+      </div>
+    );
+  }
+
   const trackedTotal = focusMin + distMin;
   const hasData = trackedTotal > 0;
   const focusScore = hasData ? Math.round((focusMin / trackedTotal) * 100) : 0;
@@ -49,14 +79,12 @@ export default function TabReport({ focusMin, distMin, todayFocusMin = 0, todayD
       : { icon: "⏱", text: `${formatHM(Math.max(todayGoal - todayFocusMin, 0))} more focused time today to reach the daily goal (${formatHM(todayFocusMin)} so far today).`, color: "#3b82f6" },
   ].filter(Boolean);
 
-  const today = new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-
   return (
     <div className="fu-view">
       <PageHeader
         icon="📈"
         title="Session Report"
-        subtitle="This live session only — today's saved totals stay on the Dashboard"
+        subtitle="Last ended session — today's saved totals stay on the Dashboard"
         right={
           <>
             <Badge color="#64748b">📅 {today}</Badge>
@@ -140,7 +168,7 @@ export default function TabReport({ focusMin, distMin, todayFocusMin = 0, todayD
           </ProgressRing>
           <p className="text-xs font-semibold mt-4" style={{ color: scoreVerdict.color }}>{scoreVerdict.text}</p>
           <p className="text-[11px] text-slate-500 mt-1">
-            {fmt(focusMin)} focused of {fmt(trackedTotal)} this session
+            {fmt(focusMin)} focused of {fmt(trackedTotal)} last session
           </p>
         </Card>
 
@@ -188,7 +216,7 @@ export default function TabReport({ focusMin, distMin, todayFocusMin = 0, todayD
             <EmptyState
               icon="📷"
               title="No tracked time yet"
-              hint="Open Live Monitoring with your face in frame — this breakdown is this session only, starting at zero."
+              hint="This ended session had no tracked time. Keep your face in frame next time."
             />
           )}
         </Card>

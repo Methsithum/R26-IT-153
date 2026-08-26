@@ -2,7 +2,20 @@ import React from "react";
 import { TABS } from "./focusData";
 import { formatHM } from "../../lib/focusTime";
 
-export default function FocusHeader({ tab, setTab, cfg, focusMin, sessionOn, setSessionOn, setShowCheckIn }) {
+export default function FocusHeader({
+  tab,
+  setTab,
+  cfg,
+  focusMin,
+  sessionStatus = "active",
+  sessionOn,
+  pauseSession,
+  resumeSession,
+  startSession,
+  setShowCheckIn,
+}) {
+  const statusLabel = sessionStatus === "ended" ? "Ended" : sessionOn ? "Active" : "Paused";
+  const statusColor = sessionStatus === "ended" ? "#64748b" : sessionOn ? "#22c55e" : "#f59e0b";
   return (
     <div
       className="sticky top-0 z-40 border-b border-slate-200"
@@ -29,20 +42,30 @@ export default function FocusHeader({ tab, setTab, cfg, focusMin, sessionOn, set
 
           <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={() => setSessionOn((s) => !s)}
-              title={sessionOn ? "Pause the session" : "Resume the session"}
+              onClick={() => {
+                if (sessionStatus === "ended") startSession();
+                else if (sessionOn) pauseSession();
+                else resumeSession();
+              }}
+              title={
+                sessionStatus === "ended"
+                  ? "Start a new session"
+                  : sessionOn
+                    ? "Pause the session"
+                    : "Resume the session"
+              }
               className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all"
               style={{
                 backgroundColor: sessionOn ? "#22c55e15" : "rgba(0,0,0,0.04)",
-                borderColor: sessionOn ? "#22c55e50" : "rgba(0,0,0,0.1)",
-                color: sessionOn ? "#22c55e" : "#64748b",
+                borderColor: `${statusColor}50`,
+                color: statusColor,
               }}
             >
               <span
                 className={`w-1.5 h-1.5 rounded-full ${sessionOn ? "animate-pulse" : ""}`}
-                style={{ backgroundColor: sessionOn ? "#22c55e" : "#94a3b8" }}
+                style={{ backgroundColor: statusColor }}
               />
-              {sessionOn ? "Active" : "Paused"}
+              {statusLabel}
             </button>
 
             <div
@@ -53,8 +76,9 @@ export default function FocusHeader({ tab, setTab, cfg, focusMin, sessionOn, set
             </div>
 
             <button
-              onClick={() => setShowCheckIn(true)}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 text-slate-600 hover:text-slate-900 hover:border-slate-400 hover:bg-white/60 transition-all"
+              onClick={() => sessionOn && setShowCheckIn(true)}
+              disabled={!sessionOn}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 text-slate-600 hover:text-slate-900 hover:border-slate-400 hover:bg-white/60 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Check-in
             </button>

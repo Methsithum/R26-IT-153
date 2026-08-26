@@ -54,7 +54,9 @@ export default function FocusApp() {
   const [todayBaseFocus, setTodayBaseFocus] = useState(0);
   const [todayBaseDist, setTodayBaseDist] = useState(0);
   const [streak, setStreak] = useState(0);
-  const [sessionOn, setSessionOn] = useState(true);
+  const [sessionStatus, setSessionStatus] = useState("active"); // active | paused | ended
+  const [reportFocusMin, setReportFocusMin] = useState(null);
+  const [reportDistMin, setReportDistMin] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [checkInAns, setCheckInAns] = useState(null);
@@ -79,6 +81,12 @@ export default function FocusApp() {
   const firstHourRef = useRef(null);
   const calmQuestRef = useRef(0);
   useEffect(() => { showModalRef.current = showModal; }, [showModal]);
+
+  const sessionOn = sessionStatus === "active";
+
+  useEffect(() => {
+    countingRef.current = sessionOn;
+  }, [sessionOn]);
 
   useEffect(() => {
     if (!sessionOn) return;
@@ -167,7 +175,7 @@ export default function FocusApp() {
       } catch (err) {
         console.warn("Failed to load focus data", err);
       } finally {
-        if (!cancelled) countingRef.current = true;
+        if (!cancelled) countingRef.current = sessionStatus === "active";
       }
     })();
     return () => { cancelled = true; };
@@ -185,9 +193,44 @@ export default function FocusApp() {
     };
   }, [sessionOn, persistSession]);
 
-  useEffect(() => {
-    if (tab === "report" || tab === "leaderboard") persistSession();
-  }, [tab, persistSession]);
+  const pauseSession = useCallback(() => setSessionStatus("paused"), []);
+  const resumeSession = useCallback(() => {
+    if (sessionStatus === "ended") return;
+    setSessionStatus("active");
+  }, [sessionStatus]);
+
+  const startSession = useCallback(() => {
+    sessionFocusRef.current = 0;
+    sessionDistRef.current = 0;
+    setSessionFocusMin(0);
+    setSessionDistMin(0);
+    focusStreakRef.current = 0;
+    setStreak(0);
+    sprintBonusReadyRef.current = true;
+    setSessionStatus("active");
+  }, []);
+
+  const endSession = useCallback(async () => {
+    if (sessionStatus === "ended") return;
+    countingRef.current = false;
+    const focus = sessionFocusRef.current;
+    const dist = sessionDistRef.current;
+    setReportFocusMin(focus);
+    setReportDistMin(dist);
+    setShowCheckIn(false);
+    await persistSession();
+    todayBaseFocusRef.current += focus;
+    todayBaseDistRef.current += dist;
+    setTodayBaseFocus(todayBaseFocusRef.current);
+    setTodayBaseDist(todayBaseDistRef.current);
+    sessionFocusRef.current = 0;
+    sessionDistRef.current = 0;
+    setSessionFocusMin(0);
+    setSessionDistMin(0);
+    focusStreakRef.current = 0;
+    setStreak(0);
+    setSessionStatus("ended");
+  }, [sessionStatus, persistSession]);
 
   useEffect(() => {
     const onLeave = () => {
@@ -314,8 +357,12 @@ export default function FocusApp() {
         state={state}
         handleStateSelect={handleStateSelect}
         camera={camera}
+        sessionStatus={sessionStatus}
         sessionOn={sessionOn}
-        setSessionOn={setSessionOn}
+        pauseSession={pauseSession}
+        resumeSession={resumeSession}
+        startSession={startSession}
+        endSession={endSession}
         distMin={sessionDistMin}
         focusMin={sessionFocusMin}
       />
@@ -342,8 +389,9 @@ export default function FocusApp() {
     ),
     report: (
       <TabReport
-        focusMin={sessionFocusMin}
-        distMin={sessionDistMin}
+        sessionEnded={reportFocusMin != null}
+        focusMin={reportFocusMin ?? 0}
+        distMin={reportDistMin ?? 0}
         todayFocusMin={todayFocusMin}
         todayDistMin={todayDistMin}
         todayGoal={todayGoal}
@@ -361,7 +409,18 @@ export default function FocusApp() {
         <div className="absolute bottom-0 right-1/4 w-64 h-64 rounded-full blur-3xl" style={{ backgroundColor: "#22c55e", opacity: 0.06 }} />
       </div>
 
-      <FocusHeader tab={tab} setTab={setTab} cfg={headerCfg} focusMin={sessionFocusMin} sessionOn={sessionOn} setSessionOn={setSessionOn} setShowCheckIn={setShowCheckIn} />
+      <FocusHeader
+        tab={tab}
+        setTab={setTab}
+        cfg={headerCfg}
+        focusMin={sessionStatus === "ended" ? (reportFocusMin ?? 0) : sessionFocusMin}
+        sessionStatus={sessionStatus}
+        sessionOn={sessionOn}
+        pauseSession={pauseSession}
+        resumeSession={resumeSession}
+        startSession={startSession}
+        setShowCheckIn={setShowCheckIn}
+      />
 
       <video ref={captureVideoRef} autoPlay playsInline muted
         style={{ position: "fixed", top: 0, left: 0, width: 1, height: 1, opacity: 0, pointerEvents: "none" }} />
