@@ -269,6 +269,7 @@ export default function FocusApp() {
   const liveAchievements = ACHIEVEMENTS_LIST.map((a) => ({ ...a, earned: !!earnedByKey[a.key] }));
 
   const handleStateSelect = (nextState) => {
+    if (sessionStatus !== "active") return;
     lastManualRef.current = Date.now();
     setState(nextState);
     if (["Fatigue", "Anxiety", "Boredom"].includes(nextState)) setShowModal(true);

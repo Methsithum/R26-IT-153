@@ -199,20 +199,26 @@ export default function TabMonitoring({
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 3 }}>
             <SectionTitle
               title="Manual Override"
-              subtitle="Overrides live detection for a few seconds"
+              subtitle={
+                sessionOn
+                  ? "Overrides live detection for a few seconds"
+                  : "Start a session to choose a state"
+              }
               className="mb-4"
             />
             <div className="grid grid-cols-2 gap-2">
-              {Object.entries(STATE_CFG).map(([s, c]) => (
+              {Object.entries(STATE_CFG).filter(([s]) => s !== "NoFace").map(([s, c]) => (
                 <button
                   key={s}
+                  type="button"
+                  disabled={!sessionOn}
                   onClick={() => handleStateSelect(s)}
-                  className="py-3 px-4 rounded-xl text-sm font-semibold border transition-all"
+                  className="py-3 px-4 rounded-xl text-sm font-semibold border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{
-                    borderColor: state === s ? c.color : "rgba(0,0,0,0.08)",
-                    backgroundColor: state === s ? `${c.color}18` : "rgba(0,0,0,0.02)",
-                    color: state === s ? c.color : "#78716c",
-                    boxShadow: state === s ? `0 0 15px ${c.color}25` : "none",
+                    borderColor: sessionOn && state === s ? c.color : "rgba(0,0,0,0.08)",
+                    backgroundColor: sessionOn && state === s ? `${c.color}18` : "rgba(0,0,0,0.02)",
+                    color: sessionOn && state === s ? c.color : "#78716c",
+                    boxShadow: sessionOn && state === s ? `0 0 15px ${c.color}25` : "none",
                   }}
                 >
                   {c.icon} {c.label}
