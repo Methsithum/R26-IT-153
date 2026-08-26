@@ -21,6 +21,7 @@ const CHECKIN_INTERVAL_MS = 5 * 60 * 1000;
 const SAVE_INTERVAL_MS = 60 * 1000;
 const TODAY_GOAL = 120;
 const CHECKIN_PROMPT = "Are you focusing right now?";
+const CHECKIN_YES_REPLY = "Great! Keep going!";
 
 function speakCheckIn(text = CHECKIN_PROMPT) {
   if (typeof window === "undefined" || !window.speechSynthesis) return;
@@ -91,7 +92,15 @@ export default function FocusApp() {
   }, [sessionOn]);
 
   useEffect(() => {
-    if (!showCheckIn || checkInAns !== null) {
+    if (!showCheckIn) {
+      window.speechSynthesis?.cancel();
+      return;
+    }
+    if (checkInAns === true) {
+      speakCheckIn(CHECKIN_YES_REPLY);
+      return () => window.speechSynthesis?.cancel();
+    }
+    if (checkInAns !== null) {
       window.speechSynthesis?.cancel();
       return;
     }
@@ -372,7 +381,7 @@ export default function FocusApp() {
             </div>
             {checkInAns === null ? (
               <div className="flex gap-2">
-                <button onClick={() => { setCheckInAns(true); setTimeout(() => { setShowCheckIn(false); setCheckInAns(null); }, 2000); }} className="flex-1 py-2.5 rounded-xl font-semibold text-sm bg-green-500 text-white hover:bg-green-400 transition-all">✅ Yes</button>
+                <button onClick={() => { setCheckInAns(true); setTimeout(() => { setShowCheckIn(false); setCheckInAns(null); }, 2500); }} className="flex-1 py-2.5 rounded-xl font-semibold text-sm bg-green-500 text-white hover:bg-green-400 transition-all">✅ Yes</button>
                 <button onClick={() => { setCheckInAns(false); setTimeout(() => { setShowCheckIn(false); setShowModal(true); setCheckInAns(null); }, 2000); }} className="flex-1 py-2.5 rounded-xl font-semibold text-sm border border-slate-300 text-slate-700 hover:bg-slate-100 transition-all">😔 No</button>
               </div>
             ) : (
