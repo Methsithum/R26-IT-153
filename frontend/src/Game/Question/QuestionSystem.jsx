@@ -37,6 +37,7 @@ export default function QuestionSystem() {
   }, [activeQuestion]);
 
   useFrame(() => {
+    if (useGameStore.getState().paused) return;
     if (
       phase === PHASES.APPROACHING_FINISH ||
       phase === PHASES.DAY_CELEBRATION ||

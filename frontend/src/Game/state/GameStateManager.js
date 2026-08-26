@@ -7,7 +7,7 @@ import { getBuildingById } from "../data/buildings";
 import { missionLabel } from "../Environment/stationMap";
 import { mapBackendQuestion, serializeAnswer } from "../data/backendQuestion";
 import { levelFromXp } from "../data/progression";
-import { readStoredUser, storeUser } from "../../services/userApi";
+import { readStoredUser, storeUser, apiErrorMessage, loadUserWorld } from "../../services/userApi";
 import { startDailySession, submitDailyAnswer, deleteTodayJournal, finishDailyRun } from "../../services/journalApi";
 import { useJournalHistoryStore } from "./journalHistoryStore";
 import { useRunnerStore } from "./runnerStore";
@@ -37,6 +37,28 @@ export const PHASES = {
   DAILY_COMPLETION: "DAILY_COMPLETION",
   GAME_PAUSED: "GAME_PAUSED",
 };
+
+const UNPAUSABLE = new Set([
+  PHASES.GAME_START,
+  PHASES.DAY_CELEBRATION,
+  PHASES.DAILY_COMPLETION,
+]);
+
+export function isPausablePhase(phase) {
+  return Boolean(phase) && !UNPAUSABLE.has(phase);
+}
+
+function whenUnpaused(get, fn, delay = 0) {
+  const run = () => {
+    if (get().paused || get().restarting) {
+      setTimeout(run, 160);
+      return;
+    }
+    fn();
+  };
+  if (delay) setTimeout(run, delay);
+  else run();
+}
 
 function mapBackendTasks(tasks = []) {
   const submitted = new Set(["report_completed", "completed", "viva_pending"]);
@@ -179,6 +201,9 @@ export const useGameStore = create((set, get) => ({
   playDate: null,
   journalDate: null,
   finishLineZ: null,
+  paused: false,
+  restarting: false,
+  restartError: null,
 
   applyUserProgress: (user, { preserveRun = false } = {}) => {
     if (!user) return;
@@ -259,6 +284,9 @@ export const useGameStore = create((set, get) => ({
     const startLevel = get().level;
     set({
       phase: PHASES.RUNNING,
+      paused: false,
+      restarting: false,
+      restartError: null,
       selectedActivities: activities,
       lectureSubjects,
       assignmentSubjects,
@@ -288,11 +316,18 @@ export const useGameStore = create((set, get) => ({
       hitFlashAt: 0,
       ...xpPatch(get(), startXp + XP_RULES.GAME_START, { floatingTexts: [], leveledUpTo: null }),
     });
+    try {
+      const world = await loadUserWorld(user.id);
+      get().applyWorldRecords(world);
+    } catch {
+      // Keep local records if the world fetch fails.
+    }
   },
 
   takeHit: () => {
     const runner = useRunnerStore.getState();
     const now = performance.now();
+    if (get().paused) return;
     if (runner.invincibleUntil > now || runner.isStumbling) return;
     if (get().phase === PHASES.DAY_CELEBRATION || get().phase === PHASES.DAILY_COMPLETION) return;
 
@@ -401,7 +436,7 @@ export const useGameStore = create((set, get) => ({
     const { activeQuestion } = get();
     if (!activeQuestion) return;
     set({ phase: PHASES.CHECKING_DATA_REQUIREMENT });
-    setTimeout(() => {
+    whenUnpaused(get, () => {
       const targetLocation = activeQuestion.targetLocation ?? getBuildingById("library")?.id;
       get().beginBuildingVisit(targetLocation);
     }, 400);
@@ -456,7 +491,7 @@ export const useGameStore = create((set, get) => ({
       }
     }
 
-    setTimeout(() => get().evaluateDataRequirement(), 900);
+    whenUnpaused(get, () => get().evaluateDataRequirement(), 900);
   },
 
   evaluateDataRequirement: () => {
@@ -466,7 +501,7 @@ export const useGameStore = create((set, get) => ({
     const escalates = shouldEscalateToSpecialEntry(activeQuestion, pendingAnswer);
     const needsInteraction = activeQuestion.requiresSpecialInteraction || escalates;
 
-    setTimeout(() => {
+    whenUnpaused(get, () => {
       if (needsInteraction) {
         const targetLocation =
           activeQuestion.targetLocation ?? getBuildingById("library")?.id;
@@ -577,12 +612,12 @@ export const useGameStore = create((set, get) => ({
     });
 
     await get().ingestBackendAnswer(result.value);
-    setTimeout(() => set({ phase: PHASES.RETURNING_TO_CAMPUS }), 1600);
+    whenUnpaused(get, () => set({ phase: PHASES.RETURNING_TO_CAMPUS }), 1600);
   },
 
   returnTransitionComplete: () => {
     set({ phase: PHASES.RUNNING_RESUMED, targetBuildingId: null, objectiveText: "Continue your campus run" });
-    setTimeout(() => get().advanceQuestionQueue(), 300);
+    whenUnpaused(get, () => get().advanceQuestionQueue(), 300);
   },
 
   advanceQuestionQueue: () => {
@@ -718,6 +753,9 @@ export const useGameStore = create((set, get) => ({
   startNextDay: () => {
     set({
       phase: PHASES.GAME_START,
+      paused: false,
+      restarting: false,
+      restartError: null,
       sessionId: null,
       sessionCompleted: false,
       backendJournalEntry: null,
@@ -751,6 +789,9 @@ export const useGameStore = create((set, get) => ({
     const day = Math.max(1, data.current_day || get().day);
     set({
       phase: PHASES.GAME_START,
+      paused: Boolean(get().restarting),
+      restarting: get().restarting,
+      restartError: null,
       sessionId: null,
       sessionCompleted: false,
       backendJournalEntry: null,
@@ -780,10 +821,61 @@ export const useGameStore = create((set, get) => ({
 
   dismissControlHints: () => set({ showControlHints: false }),
 
-  togglePause: () =>
-    set((s) => ({
-      phase: s.phase === PHASES.GAME_PAUSED ? PHASES.RUNNING : PHASES.GAME_PAUSED,
-    })),
+  pause: () => {
+    const { phase, paused, restarting } = get();
+    if (paused || restarting || !isPausablePhase(phase)) return;
+    if (document.pointerLockElement) document.exitPointerLock();
+    useRunnerStore.getState().setLookLocked(false);
+    useRunnerStore.getState().setExploreInput(0, 0);
+    set({ paused: true, restartError: null });
+  },
+
+  resume: () => {
+    if (get().restarting) return;
+    set({ paused: false, restartError: null });
+  },
+
+  togglePause: () => {
+    if (get().paused) get().resume();
+    else get().pause();
+  },
+
+  restartRun: async () => {
+    if (get().restarting) return;
+    const {
+      selectedActivities,
+      lectureSubjects,
+      assignmentSubjects,
+      examSubjects,
+      examKinds,
+      sessionCompleted,
+      runStartXp,
+    } = get();
+    const startXp = Math.max(0, runStartXp ?? get().xp);
+    set({ restarting: true, restartError: null, paused: true });
+    try {
+      if (sessionCompleted) {
+        await get().discardTodayJournal();
+      }
+      set({
+        xp: startXp,
+        level: levelFromXp(startXp),
+      });
+      await get().startDailyGame({
+        activities: selectedActivities,
+        lectureSubjects,
+        assignmentSubjects,
+        examSubjects,
+        examKinds,
+      });
+    } catch (err) {
+      set({
+        paused: true,
+        restarting: false,
+        restartError: apiErrorMessage(err, "Could not restart this run. Try again."),
+      });
+    }
+  },
 
   setSpeed: (speed) => set({ speed }),
 

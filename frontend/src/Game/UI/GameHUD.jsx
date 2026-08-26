@@ -17,7 +17,7 @@ export default function GameHUD() {
       <HitFx />
       <LevelUpBurst />
 
-      <div className="absolute top-4 left-4">
+      <div className="absolute top-4 left-[4.35rem] sm:left-[4.6rem]">
         <DailyProgress />
       </div>
 

@@ -673,6 +673,19 @@ async def _revert_gamification(user: dict, xp_to_remove: int, remaining_sessions
     await reconcile_user_progress(user, remaining_sessions, total_xp=total_xp)
 
 
+async def _abandon_incomplete_session(session: dict) -> None:
+    """Drop an unfinished run and undo academic writes from that run."""
+    snapshot = session.get("record_snapshot")
+    user_id = session["user_id"]
+    if snapshot:
+        await _restore_record_snapshot(user_id, snapshot)
+    else:
+        await _clear_todays_structured_writes(
+            user_id, [session], _session_date_key(session.get("date"))
+        )
+    await DailySessionModel.delete(session["id"])
+
+
 async def _complete_session(session_id: str, session: dict, qa_list: list, task_updates: list, update_data: dict) -> dict:
     await _drop_stray_assignment_tasks(session["user_id"], session)
     context = await build_session_context(session)
@@ -746,6 +759,16 @@ async def start_daily_session(req: StartDailyRequest):
     today_subjects = groups["today_subjects"]
     exam_kinds = [k for k in (req.exam_kinds or []) if k in ("mid", "final")]
 
+    sessions = await DailySessionModel.find_user_sessions(req.user_id)
+    play_day = play_journal_date(sessions)
+    if play_day is None:
+        raise HTTPException(400, "Today's journal is already saved. Come back tomorrow.")
+    for existing in sessions:
+        if existing.get("completed"):
+            continue
+        if to_local_date(existing.get("date")) == play_day:
+            await _abandon_incomplete_session(existing)
+
     if "assignment_work" in selected_activities:
         for subject in assignment_subjects:
             await TaskModel.ensure_assignment(req.user_id, subject)
@@ -758,15 +781,6 @@ async def start_daily_session(req: StartDailyRequest):
     academic = await _academic_state(req.user_id)
     tasks = academic["tasks"]
     exams = await ExamModel.find_by_user(req.user_id)
-    sessions = await DailySessionModel.find_user_sessions(req.user_id)
-    play_day = play_journal_date(sessions)
-    if play_day is None:
-        raise HTTPException(400, "Today's journal is already saved. Come back tomorrow.")
-    for existing in sessions:
-        if existing.get("completed"):
-            continue
-        if to_local_date(existing.get("date")) == play_day:
-            await DailySessionModel.delete(existing["id"])
     date = calendar_datetime(play_day)
 
     max_questions = _calculate_max_questions(len(selected_activities))

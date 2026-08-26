@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { PHASES, useGameStore } from "../state/GameStateManager";
 import { useRunnerStore } from "../state/runnerStore";
-import { play, unlockAudio, startAmbient, stopAmbient, setRunWind, setMusic } from "./sfx";
+import { play, unlockAudio, startAmbient, stopAmbient, setRunWind, setMusic, setPausedAtmosphere } from "./sfx";
 
 const RUN_WIND_PHASES = new Set([
   PHASES.RUNNING,
@@ -58,7 +58,13 @@ export default function useGameAudio() {
     });
 
     const unsubGame = useGameStore.subscribe((state, prev) => {
-      if (state.phase !== prev.phase) {
+      if (state.paused !== prev.paused) {
+        setPausedAtmosphere(state.paused);
+        if (!state.restarting && !prev.restarting) {
+          play(state.paused ? "pauseHold" : "pauseLift");
+        }
+      }
+      if (state.phase !== prev.phase && !state.paused) {
         setRunWind(RUN_WIND_PHASES.has(state.phase));
         setMusic(musicFor(state.phase));
         if (state.phase === PHASES.RUNNING && prev.phase === PHASES.GAME_START) playStartChime();
@@ -76,7 +82,7 @@ export default function useGameAudio() {
           play("tape");
           play("fanfare");
         }
-        if (state.phase === PHASES.DAILY_COMPLETION || state.phase === PHASES.GAME_PAUSED) {
+        if (state.phase === PHASES.DAILY_COMPLETION) {
           setRunWind(false);
           setMusic("off");
         }
@@ -84,7 +90,7 @@ export default function useGameAudio() {
 
       const last = state.floatingTexts[state.floatingTexts.length - 1];
       const prevLast = prev.floatingTexts[prev.floatingTexts.length - 1];
-      if (last && last.id !== prevLast?.id) {
+      if (last && last.id !== prevLast?.id && !state.paused) {
         if (last.kind === "hit") play("hit");
         if (last.kind === "combo") play("combo");
         if (last.kind === "pickup") play("pickup");
@@ -93,6 +99,7 @@ export default function useGameAudio() {
     });
 
     const unsubRun = useRunnerStore.subscribe((state, prev) => {
+      if (useGameStore.getState().paused) return;
       if (state.isJumping && !prev.isJumping) play("jump");
       if (!state.isJumping && prev.isJumping) play("land");
       if (state.isSliding && !prev.isSliding) play("slide");

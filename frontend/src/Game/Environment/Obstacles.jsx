@@ -44,7 +44,7 @@ export default function Obstacle({ obstacle }) {
 
   useFrame(() => {
     const phase = useGameStore.getState().phase;
-    if (!RUN_PHASES.has(phase)) return;
+    if (useGameStore.getState().paused || !RUN_PHASES.has(phase)) return;
 
     const runner = useRunnerStore.getState();
     if (runner.isResolved(obstacle.id)) return;
