@@ -1,16 +1,2 @@
-.app-shell {
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap);
-}
-
-.app-main {
-  min-height: 40vh;
-}
-
-@media (max-width: 640px) {
-  .app-shell { padding: 12px; }
-}
+/* Shared app shell styles.
+   Feature-specific styling lives inside each feature folder. */
