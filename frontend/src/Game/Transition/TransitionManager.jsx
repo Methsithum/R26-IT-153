@@ -110,6 +110,7 @@ export default function TransitionManager() {
   const [ix, , iz] = interiorAnchor(transitionEntryZ);
 
   useFrame((_, delta) => {
+    if (useGameStore.getState().paused) return;
     if (lastPhase.current !== phase) {
       lastPhase.current = phase;
       elapsed.current = 0;

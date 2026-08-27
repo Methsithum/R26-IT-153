@@ -1,5 +1,5 @@
 import { Canvas } from "@react-three/fiber";
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import GameScene from "./GameScene";
 import GameHUD from "./UI/GameHUD";
 import StartScreen from "./UI/StartScreen";
@@ -7,24 +7,41 @@ import DailyCompletionScreen from "./UI/DailyCompletionScreen";
 import CelebrationOverlay from "./UI/CelebrationOverlay";
 import SpecialInteractionRouter from "./Building/SpecialInteractionRouter";
 import InteriorExploreHUD from "./UI/InteriorExploreHUD";
+import PauseButton from "./UI/PauseButton";
+import PauseOverlay from "./UI/PauseOverlay";
 import usePlayerControls from "./Player/usePlayerControls";
 import useGameAudio from "./audio/useGameAudio";
 import { PHASES, useGameStore } from "./state/GameStateManager";
 
 export default function MainGame() {
   const phase = useGameStore((s) => s.phase);
+  const paused = useGameStore((s) => s.paused);
   useGameAudio();
   usePlayerControls({
     run:
-      phase === PHASES.RUNNING ||
-      phase === PHASES.QUESTION_APPROACHING ||
-      phase === PHASES.ANSWER_SELECTION ||
-      phase === PHASES.ANSWER_CONFIRMED ||
-      phase === PHASES.CHECKING_DATA_REQUIREMENT ||
-      phase === PHASES.RUNNING_RESUMED ||
-      phase === PHASES.APPROACHING_FINISH,
-    explore: phase === PHASES.SPECIAL_INTERACTION_READY,
+      !paused &&
+      (phase === PHASES.RUNNING ||
+        phase === PHASES.QUESTION_APPROACHING ||
+        phase === PHASES.ANSWER_SELECTION ||
+        phase === PHASES.ANSWER_CONFIRMED ||
+        phase === PHASES.CHECKING_DATA_REQUIREMENT ||
+        phase === PHASES.RUNNING_RESUMED ||
+        phase === PHASES.APPROACHING_FINISH),
+    explore: !paused && phase === PHASES.SPECIAL_INTERACTION_READY,
   });
+
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.code !== "Escape" && e.key !== "Escape") return;
+      if (e.repeat) return;
+      const tag = e.target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || e.target?.isContentEditable) return;
+      e.preventDefault();
+      useGameStore.getState().togglePause();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const insideBuilding =
     phase === PHASES.TRANSITION_TO_BUILDING ||
@@ -47,6 +64,8 @@ export default function MainGame() {
       )}
       <InteriorExploreHUD />
       <SpecialInteractionRouter />
+      <PauseButton />
+      <PauseOverlay />
 
       {phase === PHASES.GAME_START && <StartScreen />}
       <CelebrationOverlay />

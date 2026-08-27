@@ -14,6 +14,7 @@ let nextNoteTime = 0;
 let beatCount = 0;
 let schedulerId = 0;
 let padNodes = null;
+let musicHeld = false;
 
 function audio() {
   if (typeof window === "undefined") return null;
@@ -448,6 +449,19 @@ const PLAY = {
     const t = c.currentTime;
     chord(c, [349.23, 440, 523.25], t, 0.42, 0.09);
   },
+  pauseHold() {
+    const c = audio();
+    if (!c) return;
+    const t = c.currentTime;
+    chord(c, [196, 246.94, 293.66], t, 0.55, 0.055);
+    tone(c, { type: "sine", freq: 392, start: t + 0.08, dur: 0.42, peak: 0.035, send: 0.28 });
+  },
+  pauseLift() {
+    const c = audio();
+    if (!c) return;
+    const t = c.currentTime;
+    chord(c, [261.63, 329.63, 392], t, 0.32, 0.05);
+  },
   step() {
     const c = audio();
     if (!c) return;
@@ -589,6 +603,21 @@ function scheduleBeat(time, beat) {
   const celebrate = musicMode === "celebrate";
   const interior = musicMode === "interior";
   const eighth = beat;
+
+  if (musicHeld) {
+    if (eighth % 32 === 4) {
+      const note = PLUCKS[(eighth / 4) % PLUCKS.length];
+      musicTone(c, musicOut(), {
+        type: "triangle",
+        freq: note,
+        start: time,
+        dur: 0.7,
+        peak: 0.022,
+        filterFreq: 1100,
+      });
+    }
+    return;
+  }
 
   if (!interior && eighth % 2 === 0) {
     const n = c.createBufferSource();
@@ -743,6 +772,19 @@ export function setMusic(mode) {
   }
   startPad(next);
   startScheduler();
+}
+
+export function setPausedAtmosphere(enabled) {
+  const c = audio();
+  if (!c || !graph) return;
+  musicHeld = Boolean(enabled);
+  if (enabled) {
+    lastStepSign = 0;
+  }
+  const base = MUSIC_LEVEL[musicMode] ?? 0.0001;
+  fadeGain(graph.musicGain, enabled ? Math.max(0.0001, base * 0.78) : base, 0.42);
+  fadeGain(graph.ambientGain, enabled ? 0.84 : 1, 0.42);
+  fadeGain(graph.reverbGain, enabled ? 0.34 : 0.22, 0.5);
 }
 
 export function startAmbient(kind = "library") {

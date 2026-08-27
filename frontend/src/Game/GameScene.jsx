@@ -11,8 +11,9 @@ import { useActiveMap } from "./state/mapStore";
 
 export default function GameScene() {
   const phase = useGameStore((s) => s.phase);
+  const paused = useGameStore((s) => s.paused);
   const map = useActiveMap();
-  const physicsPaused = phase === PHASES.GAME_PAUSED || phase === PHASES.GAME_START;
+  const physicsPaused = paused || phase === PHASES.GAME_PAUSED || phase === PHASES.GAME_START;
 
   return (
     <>

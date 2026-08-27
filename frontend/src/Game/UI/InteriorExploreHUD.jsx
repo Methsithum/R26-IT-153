@@ -88,7 +88,7 @@ export default function InteriorExploreHUD() {
       )}
       {(approaching || entering || exploring) && (
         <>
-      <div className="absolute left-1/2 top-5 w-[min(92vw,440px)] -translate-x-1/2">
+      <div className="absolute left-1/2 top-5 w-[min(calc(100%-5.75rem),440px)] -translate-x-1/2">
         <div className="rounded-2xl border border-white/40 bg-white/75 px-5 py-3 text-center shadow-xl backdrop-blur-md">
           <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">
             {building?.name ?? "Campus building"}

@@ -70,7 +70,7 @@ export default function SpecialInteractionRouter() {
         />
 
         <header className="pointer-events-none relative z-10 flex items-start justify-between px-5 pt-5 sm:px-8">
-          <div className="rounded-2xl border border-white/50 bg-white/70 px-4 py-3 shadow-lg backdrop-blur-md">
+          <div className="ml-14 rounded-2xl border border-white/50 bg-white/70 px-4 py-3 shadow-lg backdrop-blur-md sm:ml-16">
             <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">
               {building?.name ?? "Campus building"}
             </div>

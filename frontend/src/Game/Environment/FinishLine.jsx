@@ -205,7 +205,12 @@ export default function FinishLine() {
   useFrame((state) => {
     if (!visible || finishLineZ == null) return;
     const { posZ } = useRunnerStore.getState();
-    if (!crossed.current && phase === PHASES.APPROACHING_FINISH && posZ >= finishLineZ - 0.65) {
+    if (
+      !crossed.current &&
+      !useGameStore.getState().paused &&
+      phase === PHASES.APPROACHING_FINISH &&
+      posZ >= finishLineZ - 0.65
+    ) {
       crossed.current = true;
       useGameStore.getState().crossFinishLine();
     }

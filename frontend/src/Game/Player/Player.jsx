@@ -63,6 +63,7 @@ export default function Player() {
   const campusRun = useMemo(() => CAMPUS_PHASES.has(phase), [phase]);
 
   useFrame((_, delta) => {
+    if (useGameStore.getState().paused) return;
     const store = useRunnerStore.getState();
     const dt = Math.min(delta, 0.05);
     const now = performance.now();
