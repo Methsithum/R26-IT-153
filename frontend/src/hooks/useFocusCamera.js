@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { predictFocusState } from "../lib/focusApi";
 
-const PREDICT_INTERVAL_MS = 2500;
-const SMOOTH_N = 8; // majority vote over ~20s so Boredom FPs need a real majority
+const PREDICT_INTERVAL_MS = 2000;
+const SMOOTH_N = 4; // ~8s window so Fatigue / Anxiety can surface without a 20s wait
 
 // Published whenever no face is in frame. Nothing is being measured then, so every
 // class reads 0% rather than leaving the last reading on screen looking current.
@@ -105,7 +105,9 @@ export function useFocusCamera(active, onDetection) {
         for (const s of hist) counts[s] = (counts[s] || 0) + 1;
         const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
         let smoothed = ranked[0][0];
-        if (smoothed === "Boredom" && (counts.Boredom || 0) * 2 <= hist.length) {
+        const fatN = counts.Fatigue || 0;
+        if (fatN >= 2) smoothed = "Fatigue";
+        else if (smoothed === "Boredom" && (counts.Boredom || 0) * 2 <= hist.length) {
           smoothed = (ranked.find(([s]) => s !== "Boredom") || ["Focused"])[0];
         }
         const smoothedConfidence = result.probs[smoothed] ?? result.confidence;

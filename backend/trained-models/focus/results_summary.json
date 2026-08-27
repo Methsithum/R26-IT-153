@@ -8,8 +8,8 @@
   "comparison": [
     {
       "model": "SVM",
-      "test_accuracy": 0.6686217008797654,
-      "test_macro_f1": 0.6781049811228839
+      "test_accuracy": 0.7008797653958945,
+      "test_macro_f1": 0.727510858115637
     },
     {
       "model": "XGBoost",
@@ -97,15 +97,32 @@
     "bs_noseSneerRight"
   ],
   "class_thresholds": {
-    "Fatigue": 0.5,
-    "Anxiety": 0.35,
-    "Boredom": 0.4,
+    "Fatigue": 0.35,
+    "Anxiety": 0.24,
+    "Boredom": 0.32,
     "Focused": 0.0
   },
   "still_face_boredom_veto": false,
-  "test_accuracy": 0.6686217008797654,
-  "test_macro_f1": 0.6781049811228839,
-  "focused_to_boredom": 0.09565217391304348,
-  "anxiety_to_boredom": 0.16981132075471697,
-  "retrain": "constrained_thresholds_original"
+  "test_accuracy": 0.7008797653958945,
+  "test_macro_f1": 0.727510858115637,
+  "focused_to_boredom": 0.23478260869565218,
+  "anxiety_to_boredom": 0.22641509433962265,
+  "retrain": "focused_reclaim_hold_others",
+  "anxiety_margin": 0.34,
+  "boredom_margin": 0.0,
+  "eye_state": {
+    "model": "eye_state_model.joblib",
+    "val_accuracy": 0.985,
+    "test_accuracy": 0.985,
+    "sleepy_on": 0.48,
+    "sleepy_off": 0.22,
+    "ear_fatigue": 0.13,
+    "mapping": {
+      "sleepy": "Fatigue",
+      "low_ear": "Fatigue",
+      "awake": "not Fatigue"
+    },
+    "note": "Live webcam fuses eye-closed + low EAR to Fatigue. This matrix is the 4-class SVM on 341 face test images."
+  },
+  "focused_reclaim_threshold": 0.7
 }

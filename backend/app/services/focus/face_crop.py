@@ -154,3 +154,49 @@ def extract_features(face_bgr):
             features[f"bs_{bs.category_name}"] = bs.score
 
     return features
+
+
+EYE_PATCH_SIZE = 48
+
+
+def _eye_patch(face_bgr, lm, indices, pad=0.45, out_size=EYE_PATCH_SIZE):
+    h, w = face_bgr.shape[:2]
+    xs = [lm[i].x * w for i in indices]
+    ys = [lm[i].y * h for i in indices]
+    x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
+    bw, bh = max(x1 - x0, 1.0), max(y1 - y0, 1.0)
+    side = max(bw, bh)
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    x0, x1 = cx - side * (0.5 + pad), cx + side * (0.5 + pad)
+    y0, y1 = cy - side * (0.5 + pad), cy + side * (0.5 + pad)
+    x0, y0 = max(int(x0), 0), max(int(y0), 0)
+    x1, y1 = min(int(x1), w), min(int(y1), h)
+    if x1 <= x0 or y1 <= y0:
+        return None
+    crop = face_bgr[y0:y1, x0:x1]
+    if crop.size == 0:
+        return None
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY) if crop.ndim == 3 else crop
+    gray = cv2.resize(gray, (out_size, out_size), interpolation=cv2.INTER_AREA)
+    return cv2.equalizeHist(gray)
+
+
+def extract_eye_patches(face_bgr):
+    """Left/right 48x48 grayscale eye crops from a face image. Missing side is None."""
+    result = _detect(face_bgr)
+    if not result.face_landmarks:
+        return None, None
+    lm = result.face_landmarks[0]
+    return _eye_patch(face_bgr, lm, EYE_LEFT), _eye_patch(face_bgr, lm, EYE_RIGHT)
+
+
+def eye_vector(patch, size=EYE_PATCH_SIZE):
+    """Same 48x48 equalized vector the eye-state SVM was trained on."""
+    if patch is None:
+        return None
+    if patch.ndim == 3:
+        patch = cv2.cvtColor(patch, cv2.COLOR_BGR2GRAY)
+    if patch.shape[0] != size or patch.shape[1] != size:
+        patch = cv2.resize(patch, (size, size), interpolation=cv2.INTER_AREA)
+        patch = cv2.equalizeHist(patch)
+    return (patch.astype(np.float32) / 255.0).ravel()
