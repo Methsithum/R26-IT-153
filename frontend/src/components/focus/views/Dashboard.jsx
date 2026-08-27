@@ -43,7 +43,7 @@ export default function TabDashboard({
       <PageHeader
         icon="🌿"
         title="Dashboard"
-        subtitle="Your tree reacts live — happy when you focus, droopy when you drift"
+        subtitle="Your tree is happy when this session is mostly focused, droopy when distraction leads"
         right={<Badge color={cfg.color}>{mood.emoji} {cfg.label}</Badge>}
       />
 

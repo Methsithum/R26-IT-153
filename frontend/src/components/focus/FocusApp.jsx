@@ -242,6 +242,11 @@ export default function FocusApp() {
   }, [sessionPayload]);
 
   const cfg = STATE_CFG[state] || STATE_CFG.Focused;
+  const treeFocusMin = sessionStatus === "ended" ? (reportFocusMin ?? 0) : sessionFocusMin;
+  const treeDistMin = sessionStatus === "ended" ? (reportDistMin ?? 0) : sessionDistMin;
+  // Tree mood follows the session total, not the live frame: happy while
+  // focused time is ahead (or tied), sad once overall distraction overtakes it.
+  const treeState = treeFocusMin >= treeDistMin ? "Focused" : "Boredom";
   const lifetimeMin = lifetimeBaseMin + todayFocusMin;
   const lv = LEVEL_DATA.filter((l) => lifetimeMin >= l.min).length - 1;
 
@@ -342,7 +347,7 @@ export default function FocusApp() {
   const VIEWS = {
     dashboard: (
       <TabDashboard
-        state={state}
+        state={treeState}
         focusMin={todayFocusMin}
         streak={streak}
         ACHIEVEMENTS_LIST={liveAchievements}
@@ -370,7 +375,7 @@ export default function FocusApp() {
     ),
     tree: (
       <TabTree
-        state={state}
+        state={treeState}
         lifetimeMin={lifetimeMin}
         streak={streak}
         focusMin={todayFocusMin}

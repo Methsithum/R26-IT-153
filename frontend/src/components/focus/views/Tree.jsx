@@ -6,11 +6,8 @@ import { PageHeader, SectionTitle, StatTile, Meter, Badge, DataRow } from "../ui
 import { formatHM } from "../../../lib/focusTime";
 
 const STATE_BLURB = {
-  Focused: "Tree grows and sparkles with energy!",
-  Fatigue: "Tree droops and loses vibrancy...",
-  Anxiety: "Tree shakes and trembles nervously...",
-  Boredom: "Tree becomes sparse and still...",
-  NoFace: "Tree waits quietly until you're back in frame.",
+  Focused: "Tree grows and sparkles — this session is mostly focused.",
+  Boredom: "Tree becomes sparse and still — distraction is leading this session.",
 };
 
 const GROWTH_RULES = [
@@ -35,7 +32,7 @@ export default function TabTree({ state, lifetimeMin, streak, focusMin, LEVEL_DA
       <PageHeader
         icon="🌳"
         title="My Focus Tree"
-        subtitle="Grows from all-time focused hours and minutes saved in your report"
+        subtitle="Happy when this session is mostly focused — grows from all-time saved hours"
         right={<Badge color={lv === 3 ? "#f59e0b" : cfg.color}>{current.icon} {current.name}</Badge>}
       />
 
@@ -142,11 +139,12 @@ export default function TabTree({ state, lifetimeMin, streak, focusMin, LEVEL_DA
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 2 }}>
             <SectionTitle
               title="Tree State Guide"
-              subtitle="How your tree reacts to each detected state"
+              subtitle="Happy while this session is mostly focused; sad once distraction leads"
               className="mb-4"
             />
             <div className="space-y-2.5">
-              {Object.entries(STATE_CFG).map(([s, c]) => {
+              {["Focused", "Boredom"].map((s) => {
+                const c = STATE_CFG[s];
                 const isNow = state === s;
                 return (
                   <div
