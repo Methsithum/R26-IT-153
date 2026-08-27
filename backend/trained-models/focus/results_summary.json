@@ -8,8 +8,8 @@
   "comparison": [
     {
       "model": "SVM",
-      "test_accuracy": 0.6539589442815249,
-      "test_macro_f1": 0.684555637647766
+      "test_accuracy": 0.6686217008797654,
+      "test_macro_f1": 0.6781049811228839
     },
     {
       "model": "XGBoost",
@@ -95,5 +95,17 @@
     "bs_mouthUpperUpRight",
     "bs_noseSneerLeft",
     "bs_noseSneerRight"
-  ]
+  ],
+  "class_thresholds": {
+    "Fatigue": 0.5,
+    "Anxiety": 0.35,
+    "Boredom": 0.4,
+    "Focused": 0.0
+  },
+  "still_face_boredom_veto": false,
+  "test_accuracy": 0.6686217008797654,
+  "test_macro_f1": 0.6781049811228839,
+  "focused_to_boredom": 0.09565217391304348,
+  "anxiety_to_boredom": 0.16981132075471697,
+  "retrain": "constrained_thresholds_original"
 }

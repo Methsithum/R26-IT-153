@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { predictFocusState } from "../lib/focusApi";
 
 const PREDICT_INTERVAL_MS = 2500;
-const SMOOTH_N = 5; // majority vote over the last N predictions, avoids frame-to-frame flicker
+const SMOOTH_N = 8; // majority vote over ~20s so Boredom FPs need a real majority
 
 // Published whenever no face is in frame. Nothing is being measured then, so every
 // class reads 0% rather than leaving the last reading on screen looking current.
@@ -103,7 +103,11 @@ export function useFocusCamera(active, onDetection) {
         if (hist.length > SMOOTH_N) hist.shift();
         const counts = {};
         for (const s of hist) counts[s] = (counts[s] || 0) + 1;
-        const smoothed = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+        const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+        let smoothed = ranked[0][0];
+        if (smoothed === "Boredom" && (counts.Boredom || 0) * 2 <= hist.length) {
+          smoothed = (ranked.find(([s]) => s !== "Boredom") || ["Focused"])[0];
+        }
         const smoothedConfidence = result.probs[smoothed] ?? result.confidence;
         setConfidence(smoothedConfidence); // must describe `smoothed` -- the state the UI actually shows
 
