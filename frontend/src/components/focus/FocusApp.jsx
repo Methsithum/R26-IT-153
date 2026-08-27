@@ -22,6 +22,9 @@ const SAVE_INTERVAL_MS = 60 * 1000;
 const TODAY_GOAL = 120;
 const CHECKIN_PROMPT = "Are you focusing right now?";
 const CHECKIN_YES_REPLY = "Great! Keep going!";
+const CHECKIN_NO_REPLY = "Let's try a quick challenge!";
+const CHECKIN_PAUSE_REPLY = "Your session is paused. Resume when you are ready.";
+const CHECKIN_TIMEOUT_MS = 15 * 1000;
 
 function speakCheckIn(text = CHECKIN_PROMPT) {
   if (typeof window === "undefined" || !window.speechSynthesis) return;
@@ -60,6 +63,7 @@ export default function FocusApp() {
   const [showModal, setShowModal] = useState(false);
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [checkInAns, setCheckInAns] = useState(null);
+  const [showPauseNotice, setShowPauseNotice] = useState(false);
   const [interventionCounts, setInterventionCounts] = useState({ Fatigue: 0, Anxiety: 0, Boredom: 0 });
   const [everSprint25, setEverSprint25] = useState(false);
   const [weekly, setWeekly] = useState(null);
@@ -108,13 +112,31 @@ export default function FocusApp() {
       speakCheckIn(CHECKIN_YES_REPLY);
       return () => window.speechSynthesis?.cancel();
     }
-    if (checkInAns !== null) {
-      window.speechSynthesis?.cancel();
-      return;
+    if (checkInAns === false) {
+      speakCheckIn(CHECKIN_NO_REPLY);
+      return () => window.speechSynthesis?.cancel();
     }
     speakCheckIn(CHECKIN_PROMPT);
     return () => window.speechSynthesis?.cancel();
   }, [showCheckIn, checkInAns]);
+
+  useEffect(() => {
+    if (!showCheckIn || checkInAns !== null) return;
+    const id = setTimeout(() => {
+      setShowCheckIn(false);
+      setCheckInAns(null);
+      setShowModal(false);
+      setSessionStatus((s) => (s === "active" ? "paused" : s));
+      setShowPauseNotice(true);
+    }, CHECKIN_TIMEOUT_MS);
+    return () => clearTimeout(id);
+  }, [showCheckIn, checkInAns]);
+
+  useEffect(() => {
+    if (!showPauseNotice) return;
+    speakCheckIn(CHECKIN_PAUSE_REPLY);
+    return () => window.speechSynthesis?.cancel();
+  }, [showPauseNotice]);
 
   const todayGoal = TODAY_GOAL;
   const todayFocusMin = todayBaseFocus + sessionFocusMin;
@@ -447,11 +469,41 @@ export default function FocusApp() {
             {checkInAns === null ? (
               <div className="flex gap-2">
                 <button onClick={() => { setCheckInAns(true); setTimeout(() => { setShowCheckIn(false); setCheckInAns(null); }, 2500); }} className="flex-1 py-2.5 rounded-xl font-semibold text-sm bg-green-500 text-white hover:bg-green-400 transition-all">✅ Yes</button>
-                <button onClick={() => { setCheckInAns(false); setTimeout(() => { setShowCheckIn(false); setShowModal(true); setCheckInAns(null); }, 2000); }} className="flex-1 py-2.5 rounded-xl font-semibold text-sm border border-slate-300 text-slate-700 hover:bg-slate-100 transition-all">😔 No</button>
+                <button onClick={() => { setCheckInAns(false); setTimeout(() => { setShowCheckIn(false); setShowModal(true); setCheckInAns(null); }, 2500); }} className="flex-1 py-2.5 rounded-xl font-semibold text-sm border border-slate-300 text-slate-700 hover:bg-slate-100 transition-all">😔 No</button>
               </div>
             ) : (
               <p className={`text-sm font-semibold text-center py-1 ${checkInAns ? "text-green-600" : "text-orange-600"}`}>{checkInAns ? "Great! Keep going! 🌱" : "Let's try a quick challenge! 💪"}</p>
             )}
+          </div>
+        </div>
+      )}
+
+      {showPauseNotice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(15,23,42,0.35)", backdropFilter: "blur(8px)" }}>
+          <div className="w-full max-w-md rounded-3xl border p-6 shadow-2xl" style={{ backgroundColor: "rgba(255,255,255,0.96)", borderColor: "#f59e0b50" }}>
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">⏸</span>
+                <div>
+                  <p className="text-xs text-amber-600 uppercase tracking-widest">Session paused</p>
+                  <p className="text-xl font-bold text-slate-900">Still there?</p>
+                </div>
+              </div>
+              <button onClick={() => setShowPauseNotice(false)} className="text-slate-400 hover:text-slate-900 text-xl">✕</button>
+            </div>
+            <p className="text-slate-700 text-sm mb-5">
+              No check-in reply in 15 seconds, so tracking is paused. Your focus and distraction totals are saved. Resume when you are ready — this session is not ended.
+            </p>
+            <button
+              onClick={() => {
+                setShowPauseNotice(false);
+                resumeSession();
+              }}
+              className="w-full py-2.5 rounded-xl font-semibold text-sm border transition-all"
+              style={{ backgroundColor: "#22c55e15", borderColor: "#22c55e40", color: "#22c55e" }}
+            >
+              ▶ Resume Session
+            </button>
           </div>
         </div>
       )}
