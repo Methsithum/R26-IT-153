@@ -1,0 +1,34 @@
+.cpe-root .cpe-navbar {
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  background: var(--cpe-bg-panel);
+  border: 1px solid var(--cpe-border);
+  border-radius: var(--cpe-radius);
+}
+
+.cpe-root .cpe-tab {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--cpe-text-dim);
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+
+.cpe-root .cpe-tab:hover {
+  background: var(--cpe-bg-panel-alt);
+  color: var(--cpe-text);
+}
+
+.cpe-root .cpe-tab-active, .cpe-root .cpe-tab-active:hover {
+  background: var(--cpe-accent);
+  color: #fff;
+}
+
+@media (max-width: 640px) {
+  .cpe-root .cpe-tab { font-size: 0.76rem; padding: 9px 6px; }
+}

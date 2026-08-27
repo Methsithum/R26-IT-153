@@ -1,0 +1,67 @@
+.cpe-root .pl-scroll {
+  overflow-x: auto;
+}
+
+.cpe-root .pl-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+  white-space: nowrap;
+}
+
+.cpe-root .pl-table th {
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--cpe-text-faint);
+  border-bottom: 1px solid var(--cpe-border);
+}
+
+.cpe-root .pl-table td {
+  padding: 11px 12px;
+  color: var(--cpe-text);
+  border-bottom: 1px solid var(--cpe-border);
+  font-variant-numeric: tabular-nums;
+}
+
+.cpe-root .pl-row {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.cpe-root .pl-row:hover, .cpe-root .pl-row:focus-visible {
+  background: var(--cpe-bg-panel-alt);
+  outline: none;
+}
+
+.cpe-root .pl-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.cpe-root .pl-badge-low {
+  color: var(--cpe-green);
+  background: var(--cpe-green-soft);
+}
+
+.cpe-root .pl-badge-med {
+  color: var(--cpe-orange);
+  background: var(--cpe-orange-soft);
+}
+
+.cpe-root .pl-badge-high {
+  color: var(--cpe-red);
+  background: var(--cpe-red-soft);
+}
+
+.cpe-root .pl-hint {
+  margin: 14px 0 0;
+  font-size: 0.76rem;
+  color: var(--cpe-text-faint);
+}

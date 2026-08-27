@@ -1,0 +1,53 @@
+.cpe-root .cg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.cpe-root .cg-gauge {
+  width: 100%;
+  max-width: 210px;
+  margin: 4px auto 0;
+}
+
+.cpe-root .cg-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.cpe-root .cg-arc {
+  transition: stroke-dasharray 0.5s ease, stroke 0.3s ease;
+}
+
+.cpe-root .cg-num {
+  font-size: 2.1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.cpe-root .cg-unit {
+  font-size: 0.72rem;
+}
+
+.cpe-root .cg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 16px;
+}
+
+.cpe-root .cg-chip {
+  padding: 5px 11px;
+  font-size: 0.73rem;
+  font-weight: 600;
+  color: var(--cpe-text-dim);
+  background: var(--cpe-bg-panel-alt);
+  border: 1px solid var(--cpe-border);
+  border-radius: 999px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cpe-root .cg-arc { transition: none; }
+}

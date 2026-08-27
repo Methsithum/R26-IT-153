@@ -1,0 +1,61 @@
+.cpe-root .ai-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.cpe-root .ai-score {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--cpe-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.cpe-root .ai-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.cpe-root .ai-card {
+  padding: 15px;
+  border-radius: 10px;
+  border: 1px solid var(--cpe-border);
+  border-left: 3px solid;
+}
+
+.cpe-root .ai-card-blue {
+  border-left-color: var(--cpe-blue);
+  background: var(--cpe-accent-soft);
+}
+
+.cpe-root .ai-card-orange {
+  border-left-color: var(--cpe-orange);
+  background: var(--cpe-orange-soft);
+}
+
+.cpe-root .ai-card-red {
+  border-left-color: var(--cpe-red);
+  background: var(--cpe-red-soft);
+}
+
+.cpe-root .ai-card-title {
+  margin: 0 0 7px;
+  font-size: 0.83rem;
+  font-weight: 700;
+  color: var(--cpe-text);
+}
+
+.cpe-root .ai-card-body {
+  margin: 0;
+  font-size: 0.79rem;
+  line-height: 1.55;
+  color: var(--cpe-text-dim);
+}
+
+@media (max-width: 900px) {
+  .cpe-root .ai-grid { grid-template-columns: 1fr; }
+}
