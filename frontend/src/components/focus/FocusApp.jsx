@@ -26,6 +26,27 @@ const CHECKIN_NO_REPLY = "Let's try a quick challenge!";
 const CHECKIN_PAUSE_REPLY = "Your session is paused. Resume when you are ready.";
 const CHECKIN_TIMEOUT_MS = 15 * 1000;
 
+const FEMALE_VOICE_RE = /aria|jenny|zira|samantha|karen|moira|tessa|fiona|veena|raveena|susan|hazel|catherine|zosia|ana|linda|heera|google us english female|microsoft.*(aria|jenny|zira|sara)|female/i;
+const MALE_VOICE_RE = /\b(david|mark|guy|james|george|daniel|thomas|fred|male|man)\b/i;
+
+function pickClearFemaleVoice(voices) {
+  const english = voices.filter((v) => v.lang && v.lang.toLowerCase().startsWith("en"));
+  const pool = english.length ? english : voices;
+  const female = pool.filter((v) => FEMALE_VOICE_RE.test(v.name) && !MALE_VOICE_RE.test(v.name));
+  const rank = (v) => {
+    const n = v.name.toLowerCase();
+    const local = v.localService ? 2 : 0;
+    if (/aria|jenny/.test(n)) return 50 + local;
+    if (/zira/.test(n)) return 45 + local;
+    if (/samantha/.test(n)) return 40 + local;
+    if (/natural|online|neural/.test(n)) return 35 + local;
+    if (v.lang.toLowerCase() === "en-us") return 25 + local;
+    return 10 + local;
+  };
+  const ranked = (female.length ? female : pool).slice().sort((a, b) => rank(b) - rank(a));
+  return ranked[0] || null;
+}
+
 function speakCheckIn(text = CHECKIN_PROMPT) {
   if (typeof window === "undefined" || !window.speechSynthesis) return;
   const synth = window.speechSynthesis;
@@ -34,19 +55,25 @@ function speakCheckIn(text = CHECKIN_PROMPT) {
   const speak = () => {
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "en-US";
-    utter.rate = 1;
-    utter.pitch = 1;
-    const voices = synth.getVoices();
-    const en = voices.find((v) => v.lang.toLowerCase().startsWith("en"));
-    if (en) utter.voice = en;
+    utter.rate = 0.92;
+    utter.pitch = 1.08;
+    const voice = pickClearFemaleVoice(synth.getVoices());
+    if (voice) {
+      utter.voice = voice;
+      utter.lang = voice.lang || "en-US";
+    }
     synth.speak(utter);
   };
 
-  if (synth.getVoices().length) {
-    speak();
-    return;
-  }
-  synth.addEventListener("voiceschanged", speak, { once: true });
+  // Chrome often drops the first speak() if it runs in the same tick as cancel().
+  const run = () => {
+    if (synth.getVoices().length) {
+      setTimeout(speak, 60);
+      return;
+    }
+    synth.addEventListener("voiceschanged", () => setTimeout(speak, 60), { once: true });
+  };
+  run();
 }
 
 export default function FocusApp() {
