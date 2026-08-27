@@ -63,6 +63,8 @@
 
 @media print {
   .fu-no-print { display: none !important; }
+}
+
 html,
 body,
 #root {
