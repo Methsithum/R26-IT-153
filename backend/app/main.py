@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # --- Health check ---
 from app.routes.health import router as health_router
+from app.routes.focus import router as focus_router
 
 # --- User component (teammate's) ---
 from app.routes.user.user import router as user_router
@@ -44,6 +45,7 @@ def on_startup():
 
 # --- Register routers ---
 app.include_router(health_router)
+app.include_router(focus_router)
 
 # User
 app.include_router(user_router)

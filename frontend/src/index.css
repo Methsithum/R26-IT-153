@@ -1,5 +1,68 @@
 @import "tailwindcss";
 
+/* The tab strip in FocusHeader scrolls horizontally on mobile; Tailwind v4 has no
+   built-in utility to hide the bar, so it's defined here. */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes fu-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Applied to the tab panel wrapper so switching tabs reads as a transition
+   rather than an instant swap. */
+.fu-view {
+  animation: fu-rise 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Staggered entrance for grids of cards — set --fu-i on each child. */
+.fu-stagger {
+  animation: fu-rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--fu-i, 0) * 45ms);
+}
+
+@keyframes fu-sheen {
+  0%   { transform: translateX(-100%); }
+  60%  { transform: translateX(100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Light sweep across a filled progress bar. Uses white at low alpha only, so it
+   works over any bar color without introducing one. */
+.fu-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  animation: fu-sheen 2.6s ease-in-out infinite;
+}
+
+.fu-lift {
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease;
+}
+.fu-lift:hover {
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fu-view,
+  .fu-stagger,
+  .fu-sheen::after {
+    animation: none;
+  }
+  .fu-lift:hover {
+    transform: none;
+  }
+}
+
+@media print {
+  .fu-no-print { display: none !important; }
 html,
 body,
 #root {
