@@ -1,0 +1,65 @@
+[
+  {
+    "task_id": "T2",
+    "module": "DDD",
+    "priority_label": "High",
+    "deadline_date": "2026-08-24",
+    "days_remaining": 3,
+    "recommended_next_session": "Friday 13:00-15:00",
+    "reminder_message": "\ud83d\udccc High priority: DDD task due in 3 days \u2014 start soon."
+  },
+  {
+    "task_id": "T4",
+    "module": "FFF",
+    "priority_label": "High",
+    "deadline_date": "2026-08-26",
+    "days_remaining": 5,
+    "recommended_next_session": "Saturday 12:00-13:00",
+    "reminder_message": "\ud83d\udccc High priority: FFF task due in 5 days \u2014 start soon."
+  },
+  {
+    "task_id": "T1",
+    "module": "DDD",
+    "priority_label": "Medium",
+    "deadline_date": "2026-08-23",
+    "days_remaining": 2,
+    "recommended_next_session": "Not yet scheduled - insufficient free time before deadline",
+    "reminder_message": "\u23f3 DDD task due in 2 day(s) \u2014 make time soon."
+  },
+  {
+    "task_id": "T3",
+    "module": "BBB",
+    "priority_label": "Medium",
+    "deadline_date": "2026-08-25",
+    "days_remaining": 4,
+    "recommended_next_session": "Monday 09:00-11:00",
+    "reminder_message": "\ud83d\udcc5 BBB task due in 4 days \u2014 plan a session this week."
+  },
+  {
+    "task_id": "T5",
+    "module": "FFF",
+    "priority_label": "Medium",
+    "deadline_date": "2026-08-27",
+    "days_remaining": 6,
+    "recommended_next_session": "Monday 19:00-19:30",
+    "reminder_message": "\ud83d\udcc5 FFF task due in 6 days \u2014 plan a session this week."
+  },
+  {
+    "task_id": "T6",
+    "module": "CCC",
+    "priority_label": "Medium",
+    "deadline_date": "2026-08-28",
+    "days_remaining": 7,
+    "recommended_next_session": "Tuesday 14:30-16:00",
+    "reminder_message": "\ud83d\udcc5 CCC task due in 7 days \u2014 plan a session this week."
+  },
+  {
+    "task_id": "T7",
+    "module": "FFF",
+    "priority_label": "Low",
+    "deadline_date": "2026-08-29",
+    "days_remaining": 8,
+    "recommended_next_session": "Wednesday 09:30-10:00",
+    "reminder_message": "\u2139\ufe0f FFF task due in 8 days \u2014 no urgent action needed yet."
+  }
+]

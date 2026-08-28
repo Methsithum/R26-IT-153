@@ -1,5 +1,8 @@
 config.bat
 node_modules
+.env
 
-// Ignore the datasets directory
+# Datasets and large trained-model artifacts
 datasets
+/backend/datasets
+backend/trained-models/focus/features_cache.npz
