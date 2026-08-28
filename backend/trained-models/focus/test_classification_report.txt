@@ -1,0 +1,10 @@
+              precision    recall  f1-score   support
+
+     Focused      0.775     0.600     0.676       115
+     Fatigue      0.982     1.000     0.991        56
+     Anxiety      0.688     0.623     0.653       106
+     Boredom      0.485     0.750     0.589        64
+
+    accuracy                          0.701       341
+   macro avg      0.733     0.743     0.728       341
+weighted avg      0.728     0.701     0.705       341

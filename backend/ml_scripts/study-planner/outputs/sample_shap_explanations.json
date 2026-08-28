@@ -1,0 +1,110 @@
+[
+  {
+    "test_row_index": 71959,
+    "true_label": "Medium",
+    "predicted_label": "Medium",
+    "feature_values": {
+      "date": 194.0,
+      "weight": 18.0,
+      "num_of_prev_attempts": 0.0,
+      "studied_credits": 60.0,
+      "module_presentation_length": 234.0,
+      "date_registration": -75.0,
+      "prior_avg_score": 73.55555555555556,
+      "avg_weekly_clicks": 85.65714285714286,
+      "clicks_trend": -85.08823529411765,
+      "active_weeks_ratio": 1.0,
+      "has_vle_activity": 1.0,
+      "assessment_type_enc": 2.0,
+      "code_module_enc": 1.0
+    },
+    "shap_contributions": {
+      "date": 0.02676870860159397,
+      "weight": 1.0288515090942383,
+      "num_of_prev_attempts": 0.00472228042781353,
+      "studied_credits": 0.009986582212150097,
+      "module_presentation_length": -0.044442158192396164,
+      "date_registration": 0.07135198265314102,
+      "prior_avg_score": 0.006291108205914497,
+      "avg_weekly_clicks": 0.0588662326335907,
+      "clicks_trend": 0.026009278371930122,
+      "active_weeks_ratio": 7.048378029139712e-05,
+      "has_vle_activity": 0.0,
+      "assessment_type_enc": 0.16423459351062775,
+      "code_module_enc": 0.06673187762498856
+    },
+    "explanation_sentence": "Task flagged Medium priority mainly because of weight (+1.03 contribution) and assessment_type_enc (+0.16 contribution)."
+  },
+  {
+    "test_row_index": 143130,
+    "true_label": "Medium",
+    "predicted_label": "Medium",
+    "feature_values": {
+      "date": 158.0,
+      "weight": 22.0,
+      "num_of_prev_attempts": 0.0,
+      "studied_credits": 90.0,
+      "module_presentation_length": 269.0,
+      "date_registration": -79.0,
+      "prior_avg_score": 87.8,
+      "avg_weekly_clicks": 112.76923076923076,
+      "clicks_trend": -112.65789473684212,
+      "active_weeks_ratio": 1.0,
+      "has_vle_activity": 1.0,
+      "assessment_type_enc": 2.0,
+      "code_module_enc": 2.0
+    },
+    "shap_contributions": {
+      "date": -0.2274308055639267,
+      "weight": 1.1468888521194458,
+      "num_of_prev_attempts": -0.0016012996202334762,
+      "studied_credits": -0.0189523883163929,
+      "module_presentation_length": 0.03515094891190529,
+      "date_registration": 0.023647388443350792,
+      "prior_avg_score": 0.1933351755142212,
+      "avg_weekly_clicks": 0.07182501256465912,
+      "clicks_trend": 0.03672763332724571,
+      "active_weeks_ratio": -0.00014184160681907088,
+      "has_vle_activity": 0.0,
+      "assessment_type_enc": 0.1290469467639923,
+      "code_module_enc": -0.16093921661376953
+    },
+    "explanation_sentence": "Task flagged Medium priority mainly because of weight (+1.15 contribution) and date (-0.23 contribution)."
+  },
+  {
+    "test_row_index": 165845,
+    "true_label": "Medium",
+    "predicted_label": "Medium",
+    "feature_values": {
+      "date": 215.0,
+      "weight": 30.0,
+      "num_of_prev_attempts": 0.0,
+      "studied_credits": 60.0,
+      "module_presentation_length": 268.0,
+      "date_registration": -158.0,
+      "prior_avg_score": 58.5,
+      "avg_weekly_clicks": 32.666666666666664,
+      "clicks_trend": -23.375,
+      "active_weeks_ratio": 1.0,
+      "has_vle_activity": 1.0,
+      "assessment_type_enc": 2.0,
+      "code_module_enc": 0.0
+    },
+    "shap_contributions": {
+      "date": 0.06846688687801361,
+      "weight": 0.6393170952796936,
+      "num_of_prev_attempts": 0.0001077510169125162,
+      "studied_credits": 0.009078187867999077,
+      "module_presentation_length": 0.0251817237585783,
+      "date_registration": 0.10442251712083817,
+      "prior_avg_score": -0.4222988188266754,
+      "avg_weekly_clicks": 0.012699343264102936,
+      "clicks_trend": -0.029453253373503685,
+      "active_weeks_ratio": -8.338774205185473e-05,
+      "has_vle_activity": 0.0,
+      "assessment_type_enc": 0.10150294750928879,
+      "code_module_enc": 0.0527014322578907
+    },
+    "explanation_sentence": "Task flagged Medium priority mainly because of weight (+0.64 contribution) and prior_avg_score (-0.42 contribution)."
+  }
+]

@@ -1,0 +1,82 @@
+.cpe-root .rp-level {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-align: center;
+  margin-bottom: 18px;
+}
+
+.cpe-root .rp-track {
+  position: relative;
+  padding-top: 16px;
+}
+
+.cpe-root .rp-arrow {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-size: 0.65rem;
+  line-height: 1;
+  color: var(--cpe-text);
+  transition: left 0.45s ease;
+}
+
+.cpe-root .rp-gradient {
+  height: 9px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--cpe-green) 0%, var(--cpe-orange) 50%, var(--cpe-red) 100%);
+}
+
+.cpe-root .rp-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  font-size: 0.68rem;
+  color: var(--cpe-text-faint);
+}
+
+.cpe-root .rp-probs {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.cpe-root .rp-prob-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-size: 0.76rem;
+}
+
+.cpe-root .rp-prob-label { color: var(--cpe-text-dim); }
+
+.cpe-root .rp-prob-val {
+  color: var(--cpe-text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.cpe-root .rp-prob-track {
+  height: 6px;
+  background: var(--cpe-bg-panel-alt);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.cpe-root .rp-prob-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.45s ease;
+}
+
+.cpe-root .rp-desc {
+  margin: 18px 0 0;
+  font-size: 0.79rem;
+  line-height: 1.5;
+  color: var(--cpe-text-faint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cpe-root .rp-arrow, .cpe-root .rp-prob-fill { transition: none; }
+}

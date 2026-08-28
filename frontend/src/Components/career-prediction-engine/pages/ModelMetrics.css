@@ -1,0 +1,81 @@
+.cpe-root .mm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cpe-gap);
+}
+
+.cpe-root .mm-scroll {
+  overflow-x: auto;
+}
+
+.cpe-root .mm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+  white-space: nowrap;
+}
+
+.cpe-root .mm-table th {
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--cpe-text-faint);
+  border-bottom: 1px solid var(--cpe-border);
+}
+
+.cpe-root .mm-table td {
+  padding: 11px 12px;
+  color: var(--cpe-text);
+  border-bottom: 1px solid var(--cpe-border);
+  font-variant-numeric: tabular-nums;
+}
+
+.cpe-root .mm-winner td {
+  background: var(--cpe-green-soft);
+  font-weight: 600;
+}
+
+.cpe-root .mm-tag {
+  margin-left: 9px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--cpe-green);
+  background: var(--cpe-green-soft);
+}
+
+.cpe-root .mm-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.cpe-root .mm-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  background: var(--cpe-bg-panel-alt);
+  border-radius: 10px;
+}
+
+.cpe-root .mm-stat-val {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--cpe-green);
+  font-variant-numeric: tabular-nums;
+}
+
+.cpe-root .mm-stat-label {
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--cpe-text-dim);
+}
+
+@media (max-width: 860px) {
+  .cpe-root .mm-summary-grid { grid-template-columns: 1fr; }
+}

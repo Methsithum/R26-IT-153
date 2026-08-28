@@ -1,0 +1,32 @@
+/* Layout shell for the Career Prediction Engine feature. */
+
+.cpe-root {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--cpe-gap);
+
+  /* Paint our own surface so the feature looks correct regardless of
+     whatever background the host app uses. */
+  background: var(--cpe-bg-app);
+  color: var(--cpe-text);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.cpe-root *,
+.cpe-root *::before,
+.cpe-root *::after {
+  box-sizing: border-box;
+}
+
+.cpe-main {
+  min-height: 40vh;
+}
+
+@media (max-width: 640px) {
+  .cpe-root { padding: 12px; }
+}
