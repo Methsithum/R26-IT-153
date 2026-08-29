@@ -4,6 +4,36 @@
 // This file is the single place that translates model-speak into copy a
 // student would actually read.
 
+import { daysRemaining } from "./dateHelpers";
+
+// The model's `date` feature is NOT "days remaining from today" - in the
+// real OULAD training data (backend/ml_scripts/study-planner/outputs/
+// oulad_task_level_leakage_free.csv) it's "days from module presentation
+// start to the assessment's deadline", ranging 12-261 (mean ~131, median
+// ~129 - verified directly against the training CSV, not guessed). Feeding
+// the model a raw "days until deadline" value (typically single/double
+// digits) is badly out-of-distribution: the model has essentially never
+// seen a `date` below 12 in training, so small real-world values get
+// extrapolated unreliably - this was the root cause of a "due tomorrow"
+// task showing lower priority than one due weeks out (see bug report).
+//
+// The frontend has no real per-module "start date" to compute the same
+// figure OULAD used, so this maps the one signal we do have - real days
+// remaining until the deadline - linearly onto that same trained range,
+// preserving the same direction the training script's own inline comment
+// documents ("date... as the forward-looking urgency signal": smaller =
+// sooner/closer, larger = further off). CAP_DAYS (~6 months) is a generous
+// upper bound for "far in the future" - anything beyond it clamps to the
+// trained maximum rather than extrapolating further out of range.
+const TRAINED_DATE_MIN = 12;
+const TRAINED_DATE_MAX = 261;
+const CAP_DAYS = 180;
+
+export function buildDateFeatureFromDeadline(deadlineIsoDate, from = new Date()) {
+  const remaining = Math.max(0, Math.min(daysRemaining(deadlineIsoDate, from), CAP_DAYS));
+  return TRAINED_DATE_MIN + (remaining / CAP_DAYS) * (TRAINED_DATE_MAX - TRAINED_DATE_MIN);
+}
+
 export const FEATURE_LABELS = {
   date: "Time until deadline",
   weight: "Assignment weight",

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, AlertTriangle, Check, RefreshCw, Calendar, Percent, BookOpen } from "lucide-react";
+import { ArrowLeft, AlertTriangle, Check, RefreshCw, Calendar, Percent, BookOpen, Pencil } from "lucide-react";
 import Topbar from "../../Components/academic/Layout/Topbar";
 import PriorityBadge from "../../Components/academic/Shared/PriorityBadge";
 import ExplanationPanel from "../../Components/academic/Shared/ExplanationPanel";
@@ -18,7 +18,11 @@ export default function TaskDetails() {
   const completeTask = useAcademicStore((s) => s.completeTask);
   const bumpStreak = useAcademicStore((s) => s.bumpStreak);
   const scheduleResponse = useAcademicStore((s) => s.scheduleResponse);
+  const updateAssignmentWeight = useAcademicStore((s) => s.updateAssignmentWeight);
   const { runReschedule, loading: rescheduling } = useReschedule();
+
+  const [editingWeight, setEditingWeight] = useState(false);
+  const [weightDraft, setWeightDraft] = useState("");
 
   const [priorityResult, setPriorityResult] = useState(null);
   const [explanation, setExplanation] = useState(null);
@@ -104,7 +108,52 @@ export default function TaskDetails() {
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
             <Stat icon={Calendar} label="Deadline" value={formatDeadlineCopy(task.deadlineDate)} />
-            <Stat icon={Percent} label="Assignment Weight" value={`${task.weight}%`} />
+            <div className="flex items-start gap-2">
+              <div className="w-8 h-8 rounded-xl bg-slate-50 dark:bg-white/10 flex items-center justify-center shrink-0">
+                <Percent size={15} className="text-slate-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] text-slate-400 flex items-center gap-1">
+                  Assignment Weight
+                  {!task.hasRealWeight && (
+                    <span
+                      className="text-medium-600 dark:text-medium-500"
+                      title="Not recorded in your journal yet — this is a neutral placeholder used for the ML prediction until you set the real value."
+                    >
+                      (estimate)
+                    </span>
+                  )}
+                </p>
+                {editingWeight ? (
+                  <input
+                    autoFocus
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={weightDraft}
+                    onChange={(e) => setWeightDraft(e.target.value)}
+                    onBlur={() => {
+                      const n = Number(weightDraft);
+                      if (weightDraft !== "" && !Number.isNaN(n)) updateAssignmentWeight(task.taskId, Math.min(100, Math.max(0, n)));
+                      setEditingWeight(false);
+                    }}
+                    onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                    className="w-16 text-sm font-semibold text-slate-700 dark:text-white bg-transparent border-b border-brand-400 outline-none"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWeightDraft(String(task.weight));
+                      setEditingWeight(true);
+                    }}
+                    className="text-sm font-semibold text-slate-700 dark:text-white truncate inline-flex items-center gap-1 hover:text-brand-600"
+                  >
+                    {task.weight}% <Pencil size={11} className="text-slate-300" />
+                  </button>
+                )}
+              </div>
+            </div>
             <Stat icon={BookOpen} label="Module Grade" value={module ? `${module.currentGrade}%` : "—"} />
             <Stat icon={RefreshCw} label="Assessment Type" value={task.assessmentType} />
           </div>

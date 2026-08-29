@@ -7,10 +7,11 @@ import {
   MOCK_EXAMS,
   MOCK_SETTINGS,
 } from "../mocks/academicMocks";
-import { CODE_MODULE_ENCODING, ASSESSMENT_TYPE_ENCODING } from "../utils/featureNameMap";
+import { CODE_MODULE_ENCODING, ASSESSMENT_TYPE_ENCODING, buildDateFeatureFromDeadline } from "../utils/featureNameMap";
 import { buildWeeklyModuleAllocation } from "../utils/studyAllocation";
 import { buildWeeklyFreeSlots } from "../utils/freeSlotGenerator";
 import { buildNotificationsFromRealData } from "../utils/notificationBuilder";
+import { updateTaskWeight as apiUpdateTaskWeight, updateTaskDeadline as apiUpdateTaskDeadline } from "../services/academicApi";
 
 const MODULE_COLORS = ["brand", "teal", "pink", "orange"];
 // The trained model only knows 7 fixed OULAD module categories (AAA-GGG) —
@@ -97,9 +98,9 @@ function buildFromJournal({ tasks = [], exams = [], subjects = [] }) {
       const deadlineDate = t.deadline ? String(t.deadline).slice(0, 10) : null;
       const isMissed = !isCompleted && deadlineDate && deadlineDate < todayIso;
       const estimatedHoursNeeded = 4; // not tracked by the journal — neutral default
-      const daysUntilDeadline = deadlineDate
-        ? Math.round((new Date(`${deadlineDate}T00:00:00`) - new Date(`${todayIso}T00:00:00`)) / 86400000)
-        : 14;
+      const finalDeadlineDate = deadlineDate || new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+      const hasRealWeight = t.weight != null;
+      const weight = hasRealWeight ? Number(t.weight) : 20; // real once set via updateTaskWeight; 20 is a neutral placeholder until then
 
       return {
         taskId: t.id,
@@ -107,15 +108,19 @@ function buildFromJournal({ tasks = [], exams = [], subjects = [] }) {
         moduleName: t.subject,
         title: t.title || `${t.subject} assignment`,
         assessmentType: "TMA", // not tracked by the journal — neutral default
-        weight: 20, // not tracked by the journal — neutral default
-        deadlineDate: deadlineDate || new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+        weight,
+        hasRealWeight,
+        deadlineDate: finalDeadlineDate,
         estimatedHoursNeeded,
         status: isCompleted ? "completed" : isMissed ? "missed" : "pending",
         completedHours: isCompleted ? estimatedHoursNeeded : 0,
         notes: "",
         featureRow: {
-          date: daysUntilDeadline,
-          weight: 20,
+          // Real deadline mapped onto the model's actual trained `date`
+          // range (12-261) — see buildDateFeatureFromDeadline for why a raw
+          // "days remaining" value is wrong here.
+          date: buildDateFeatureFromDeadline(finalDeadlineDate),
+          weight,
           num_of_prev_attempts: 0,
           studied_credits: 60,
           module_presentation_length: 240,
@@ -280,10 +285,42 @@ export const useAcademicStore = create(
 
       updateAssignmentDeadline: (taskId, newDate) => {
         set((s) => ({
-          assignments: s.assignments.map((a) => (a.taskId === taskId ? { ...a, deadlineDate: newDate } : a)),
+          assignments: s.assignments.map((a) =>
+            a.taskId === taskId
+              ? {
+                  ...a,
+                  deadlineDate: newDate,
+                  // Recompute the ML feature too — deadlineDate (display)
+                  // and featureRow.date (model input) must never drift
+                  // apart, or /predict-priority silently keeps scoring
+                  // against the OLD deadline after the student moves it.
+                  featureRow: { ...a.featureRow, date: buildDateFeatureFromDeadline(newDate) },
+                }
+              : a
+          ),
         }));
         get().recomputeSemesterAllocation();
         get().recomputeNotifications();
+        // Writes back to the journal's real task doc so this edit survives
+        // the next login instead of being overwritten by syncFromJournal.
+        // Mock/manually-added assignments aren't real Mongo docs and will
+        // 404 here — harmless, the local edit above already applied.
+        apiUpdateTaskDeadline(taskId, newDate).catch(() => {});
+      },
+
+      // Real weight write-back so /predict-priority stops getting a fixed
+      // placeholder for this task from now on — see task_routes.py.
+      updateAssignmentWeight: (taskId, weight) => {
+        set((s) => ({
+          assignments: s.assignments.map((a) =>
+            a.taskId === taskId
+              ? { ...a, weight, hasRealWeight: true, featureRow: { ...a.featureRow, weight } }
+              : a
+          ),
+        }));
+        get().recomputeSemesterAllocation();
+        get().recomputeNotifications();
+        apiUpdateTaskWeight(taskId, weight).catch(() => {});
       },
 
       updateExamDate: (examId, newDate) => {
@@ -380,11 +417,21 @@ export const useAcademicStore = create(
         settings: s.settings,
         streak: s.streak,
       }),
-      // v6: notifications are now derived from real assignments/exams/
-      // modules (see recomputeNotifications) instead of MOCK_NOTIFICATIONS
-      // — discard any persisted mock notifications so they don't linger
-      // next to real ones; a fresh real list is rebuilt on next sync.
-      version: 6,
+      // v7: featureRow.date used to be a raw "days until deadline" value
+      // (out of the model's actual trained range, ~12-261 — see
+      // buildDateFeatureFromDeadline) and, separately, editing a deadline
+      // never recomputed it — so assignments persisted from before that fix
+      // are stuck holding a stale/wrong date feature no matter how many
+      // times syncFromJournal reruns (it only replaces `assignments` when
+      // the *set* of task ids changes, not when a feature value inside an
+      // unchanged task silently needed correcting). This migration
+      // recomputes date for every persisted assignment from its real
+      // deadlineDate, and clears every cache downstream of the old value
+      // (predictedPriorities; scheduleResponse/todoList, since a schedule
+      // generated before this fix baked in priority_labels predicted from
+      // the wrong feature) so the next load calls /schedule fresh with
+      // corrected inputs instead of serving stale cached output forever.
+      version: 7,
       migrate: (persisted, version) => {
         if (!persisted) return persisted;
         delete persisted.monthSessionsByKey;
@@ -398,6 +445,18 @@ export const useAcademicStore = create(
           persisted.todoList = [];
         }
         if (version < 6) persisted.notifications = [];
+        if (version < 7) {
+          if (Array.isArray(persisted.assignments)) {
+            persisted.assignments = persisted.assignments.map((a) =>
+              a.deadlineDate
+                ? { ...a, featureRow: { ...a.featureRow, date: buildDateFeatureFromDeadline(a.deadlineDate) } }
+                : a
+            );
+          }
+          persisted.predictedPriorities = {};
+          persisted.scheduleResponse = null;
+          persisted.todoList = [];
+        }
         return persisted;
       },
     }

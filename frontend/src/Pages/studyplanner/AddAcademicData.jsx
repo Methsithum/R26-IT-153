@@ -7,15 +7,21 @@ import PriorityBadge from "../../Components/academic/Shared/PriorityBadge";
 import ConfidenceMeter from "../../Components/academic/Shared/ConfidenceMeter";
 import { useAcademicStore } from "../../store/useAcademicStore";
 import { useReschedule } from "../../hooks/useAcademicData";
-import { predictPriority } from "../../services/academicApi";
-import { CODE_MODULE_ENCODING, ASSESSMENT_TYPE_ENCODING } from "../../utils/featureNameMap";
-import { daysRemaining } from "../../utils/dateHelpers";
+import { predictPriority, createRealTask } from "../../services/academicApi";
+import { CODE_MODULE_ENCODING, ASSESSMENT_TYPE_ENCODING, buildDateFeatureFromDeadline } from "../../utils/featureNameMap";
 
 const DIFFICULTY_TO_HOURS = { Easy: 2, Moderate: 4, Hard: 7, "Very Hard": 10 };
+// The trained model only knows 7 fixed OULAD categories (AAA-GGG) - a real
+// module's code is a slug (e.g. "algorithms"), not one of those, so it
+// can't be looked up in CODE_MODULE_ENCODING directly. Map by the module's
+// position in the student's module list instead, same positional mapping
+// useAcademicStore.js uses when building real assignments' feature rows.
+const MODEL_MODULE_CODES = Object.keys(CODE_MODULE_ENCODING);
 
 export default function AddAcademicData() {
   const navigate = useNavigate();
   const modules = useAcademicStore((s) => s.modules);
+  const profile = useAcademicStore((s) => s.profile);
   const addAssignment = useAcademicStore((s) => s.addAssignment);
   const { runReschedule } = useReschedule();
 
@@ -45,9 +51,13 @@ export default function AddAcademicData() {
     setError(null);
     setResult(null);
     try {
-      const days = Math.max(daysRemaining(form.deadline), 0);
+      const moduleIndex = Math.max(0, modules.findIndex((m) => m.code === form.module));
+      const modelCode = MODEL_MODULE_CODES[moduleIndex % MODEL_MODULE_CODES.length];
       const featureRow = {
-        date: days,
+        // Mapped onto the model's real trained `date` range (12-261) — a
+        // raw "days remaining" value would be badly out-of-distribution.
+        // See buildDateFeatureFromDeadline in utils/featureNameMap.js.
+        date: buildDateFeatureFromDeadline(form.deadline),
         weight: Number(form.weight),
         num_of_prev_attempts: 0,
         studied_credits: 60,
@@ -59,21 +69,42 @@ export default function AddAcademicData() {
         active_weeks_ratio: 0.7,
         has_vle_activity: 1,
         assessment_type_enc: ASSESSMENT_TYPE_ENCODING[form.assessmentType],
-        code_module_enc: CODE_MODULE_ENCODING[form.module],
+        code_module_enc: CODE_MODULE_ENCODING[modelCode],
       };
 
       const prediction = await predictPriority(featureRow);
       setResult(prediction);
 
       const module = modules.find((m) => m.code === form.module);
-      const taskId = `task-${form.module.toLowerCase()}-${Date.now()}`;
+      const title = form.title || `${form.assessmentType} — ${module?.name || form.module}`;
+
+      // Persist as a real task in the journal's tasks collection so it
+      // survives the next login/sync instead of only living in this
+      // browser's local state (see task_routes.py). Falls back to a
+      // local-only id if the write fails (e.g. offline) — the form still
+      // works, it just won't survive a refresh in that case.
+      let taskId = `task-${form.module.toLowerCase()}-${Date.now()}`;
+      try {
+        const created = await createRealTask({
+          userId: profile.id,
+          subject: module?.name || form.module,
+          title,
+          deadline: form.deadline,
+          weight: Number(form.weight),
+        });
+        taskId = created.id;
+      } catch {
+        // Local-only fallback id above still applies.
+      }
+
       const assignment = {
         taskId,
         module: form.module,
         moduleName: module?.name || form.module,
-        title: form.title || `${form.assessmentType} — ${module?.name || form.module}`,
+        title,
         assessmentType: form.assessmentType,
         weight: Number(form.weight),
+        hasRealWeight: true,
         deadlineDate: form.deadline,
         estimatedHoursNeeded: DIFFICULTY_TO_HOURS[form.difficulty] || 4,
         status: "pending",

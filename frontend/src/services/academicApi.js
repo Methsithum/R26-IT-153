@@ -56,4 +56,23 @@ export function getTodoList(scheduleResponse) {
   return unwrap(client.post("/todo", scheduleResponse));
 }
 
+/**
+ * PATCH /tasks/{id}/weight — writes a real assignment weight back into the
+ * journal's tasks collection, so /predict-priority stops getting a fixed
+ * placeholder (weight: 20) for this task on every future prediction.
+ */
+export function updateTaskWeight(taskId, weight) {
+  return unwrap(client.patch(`/tasks/${taskId}/weight`, { weight }));
+}
+
+/** PATCH /tasks/{id}/deadline — same real-write-back, for deadline edits (Month view). */
+export function updateTaskDeadline(taskId, deadline) {
+  return unwrap(client.patch(`/tasks/${taskId}/deadline`, { deadline }));
+}
+
+/** POST /tasks — creates a real assignment in the journal's tasks collection (Add Academic Data). */
+export function createRealTask({ userId, subject, title, deadline, weight }) {
+  return unwrap(client.post("/tasks", { user_id: userId, subject, title, deadline, weight }));
+}
+
 export default client;
