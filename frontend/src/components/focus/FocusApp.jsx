@@ -4,7 +4,6 @@ import { useFocusCamera } from "../../hooks/useFocusCamera";
 import { saveFocusSession, getDailyReport, getWeeklyReport, getFocusProfile, flushFocusSession, getLeaderboard, pingFocusPresence, leaveFocusPresence } from "../../lib/focusApi";
 import { combineHM, mergeLiveWeek } from "../../lib/focusTime";
 import FocusHeader from "./FocusHeader";
-import FocusFooter from "./FocusFooter";
 import IntModal from "./IntModal";
 import TreeSVG from "./TreeSVG";
 import TabDashboard from "./views/Dashboard";
@@ -676,8 +675,6 @@ export default function FocusApp() {
       )}
 
       <IntModal open={showModal} type={challengeType} onClose={() => { showModalRef.current = false; setShowModal(false); }} onComplete={handleInterventionComplete} />
-
-      <FocusFooter />
     </div>
   );
 }
