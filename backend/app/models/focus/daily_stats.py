@@ -1,12 +1,8 @@
 """
-Persistence model for a single day's focus-session stats. One document per
-calendar date -- single-user for now, since there's no auth on this branch
-yet. See services/focus/tracking.py for how documents are written and
-aggregated into daily/weekly reports and the leaderboard.
-
-Focus and distraction are stored as time (hours + leftover minutes), not
-points, and distraction is a single overall total rather than per-type
-(Fatigue / Anxiety / Boredom).
+Persistence model for a single day's focus-session stats. Documents are keyed
+by `user_id:date` so each user has their own history. Emotional-domain scores
+(stress_level, distraction_score, mood_stability) are stored on the day row
+and also upserted onto a per-user document (see models/focus/emotional.py).
 """
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -32,7 +28,11 @@ def compute_scores(focus_min: float, dist_min: float, today_goal: int) -> tuple[
 class FocusDailyStats(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
-    date: str  # YYYY-MM-DD, also the Mongo _id
+    date: str  # YYYY-MM-DD
+    user_id: str = "anonymous"
+    stress_level: int = 0
+    distraction_score: int = 0
+    mood_stability: int = 100
     focus_hours: int = 0
     focus_minutes: int = 0
     distraction_hours: int = 0
