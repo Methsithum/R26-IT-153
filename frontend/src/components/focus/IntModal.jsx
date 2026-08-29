@@ -1,15 +1,20 @@
 import React, { useEffect, useState } from "react";
-import { INTERVENTIONS } from "./focusData";
+import { pickIntervention } from "./focusData";
 
 export default function IntModal({ open, onClose, type, onComplete }) {
   const [done, setDone] = useState([]);
-
-  const cfg = INTERVENTIONS[type] || INTERVENTIONS.Focused;
-  const finished = cfg && done.length === cfg.steps.length;
+  const [cfg, setCfg] = useState(null);
 
   useEffect(() => {
-    if (open) setDone([]);
+    if (!open) {
+      setCfg(null);
+      return;
+    }
+    setDone([]);
+    setCfg(pickIntervention(type));
   }, [open, type]);
+
+  const finished = cfg && done.length === cfg.steps.length;
 
   if (!open || !cfg) return null;
 
@@ -34,7 +39,7 @@ export default function IntModal({ open, onClose, type, onComplete }) {
             const complete = done.includes(index);
             return (
               <button
-                key={step}
+                key={`${cfg.title}-${index}`}
                 onClick={() => setDone((current) => (current.includes(index) ? current.filter((item) => item !== index) : [...current, index]))}
                 className="w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all"
                 style={{ borderColor: complete ? cfg.color : "rgba(148,163,184,0.22)", backgroundColor: complete ? `${cfg.color}12` : "rgba(255,255,255,0.7)" }}

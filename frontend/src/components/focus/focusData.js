@@ -41,31 +41,277 @@ export const ACHIEVEMENTS_LIST = [
 ];
 
 export const INTERVENTIONS = {
-  Focused: {
-    title:"Keep It Up", emoji:"🎯", color:"#22c55e",
-    msg:"You're in the zone! Maintain this momentum.",
-    steps:["Continue your current task","Take a note of progress","Celebrate this focus time"],
-    reward:10, timer:30,
-  },
-  Fatigue: {
-    title:"Break Challenge", emoji:"😴", color:"#f97316",
-    msg:"Your tree needs energy! Rest your eyes for 2 minutes.",
-    steps:["Close your eyes gently","Take 3 deep breaths","Look 20 feet away"],
-    reward:20, timer:120,
-  },
-  Anxiety: {
-    title:"Calm Quest", emoji:"🌿", color:"#ef4444",
-    msg:"Your tree is unsettled. Let's bring calm together.",
-    steps:["Inhale for 4 seconds","Hold for 4 seconds","Exhale for 6 seconds"],
-    reward:15, timer:60,
-  },
-  Boredom: {
-    title:"Bonus Content", emoji:"🎯", color:"#3b82f6",
-    msg:"Unlock a new scene! Watch this quick example.",
-    steps:["Watch the 60-second video","Note one new thing learned","Apply it now"],
-    reward:25, timer:60,
-  },
+  Focused: [
+    {
+      title: "Keep going",
+      emoji: "🎯",
+      msg: "You are doing well. Stay with this task a bit longer.",
+      steps: ["Keep working on this task", "Write one thing you finished", "Give yourself a small smile"],
+      reward: 10,
+      timer: 30,
+    },
+  ],
+  Fatigue: [
+    {
+      title: "Look far away",
+      emoji: "👀",
+      msg: "Your body is tired. Rest your eyes, then come back.",
+      steps: ["Look at something far for 20 seconds", "Blink slowly 10 times", "Relax your jaw"],
+      reward: 20,
+      timer: 60,
+    },
+    {
+      title: "Rest your eyes",
+      emoji: "😴",
+      msg: "Give your eyes a short rest.",
+      steps: ["Rub your hands until they feel warm", "Cover your closed eyes for 20 seconds", "Open them and look at one thing"],
+      reward: 20,
+      timer: 45,
+    },
+    {
+      title: "Move your shoulders",
+      emoji: "💪",
+      msg: "A small stretch can wake you up.",
+      steps: ["Roll your shoulders 5 times", "Pull your chin in for 5 seconds", "Shake your hands"],
+      reward: 15,
+      timer: 45,
+    },
+    {
+      title: "Stand up",
+      emoji: "🧍",
+      msg: "Get out of your chair for a moment.",
+      steps: ["Stand up", "Stretch both arms up", "Sit down with both feet on the floor"],
+      reward: 20,
+      timer: 40,
+    },
+    {
+      title: "Drink water",
+      emoji: "💧",
+      msg: "A sip of water can help you feel less sleepy.",
+      steps: ["Take a sip of water", "Sit up straight", "Take one slow breath"],
+      reward: 15,
+      timer: 40,
+    },
+    {
+      title: "Close your eyes",
+      emoji: "😌",
+      msg: "A tiny rest, then back to work.",
+      steps: ["Close your eyes for 30 seconds", "Count 10 breaths", "Open them and say your next small task"],
+      reward: 20,
+      timer: 60,
+    },
+    {
+      title: "Find some light",
+      emoji: "☀️",
+      msg: "A bit of light can help you wake up.",
+      steps: ["Look toward a window or a lamp", "Blink 5 times", "Look back at the screen"],
+      reward: 15,
+      timer: 45,
+    },
+    {
+      title: "Ease your neck",
+      emoji: "🧘",
+      msg: "Loosen a stiff neck so you feel less tired.",
+      steps: ["Look left for 5 seconds", "Look right for 5 seconds", "Tilt your head to each shoulder"],
+      reward: 15,
+      timer: 50,
+    },
+    {
+      title: "Feel the floor",
+      emoji: "🦶",
+      msg: "Wake up your body with your feet.",
+      steps: ["Put both feet flat on the floor", "Press your toes, then your heels", "Feel the floor for 10 seconds"],
+      reward: 15,
+      timer: 40,
+    },
+    {
+      title: "Tiny restart",
+      emoji: "🔄",
+      msg: "Do one small bit, then check how you feel.",
+      steps: ["Set a 2-minute timer", "Do only the next line or problem", "Stop and check how you feel"],
+      reward: 25,
+      timer: 120,
+    },
+  ],
+  Anxiety: [
+    {
+      title: "Slow breathing",
+      emoji: "🌿",
+      msg: "You feel tense. Slow down for a minute.",
+      steps: ["Breathe in for 4 seconds", "Hold for 4 seconds", "Breathe out for 6 seconds. Do this 4 times"],
+      reward: 15,
+      timer: 60,
+    },
+    {
+      title: "Box breathing",
+      emoji: "📦",
+      msg: "Four slow sides. Your body can calm down.",
+      steps: ["Breathe in for 4 seconds", "Hold for 4 seconds", "Breathe out 4, hold 4. Do this 3 times"],
+      reward: 15,
+      timer: 60,
+    },
+    {
+      title: "Name what is here",
+      emoji: "👀",
+      msg: "Look around. You are safe right now.",
+      steps: ["Name 5 things you see", "Name 4 things you can touch", "Name 3 things you hear"],
+      reward: 15,
+      timer: 50,
+    },
+    {
+      title: "Say it out loud",
+      emoji: "💬",
+      msg: "Name the feeling so it feels smaller.",
+      steps: ["Say “I feel worried.”", "Say “This will pass.”", "Relax your stomach"],
+      reward: 15,
+      timer: 40,
+    },
+    {
+      title: "Hand on chest",
+      emoji: "❤️",
+      msg: "Feel your breath. You do not have to rush.",
+      steps: ["Put a hand on your chest", "Feel 5 heartbeats", "Breathe out longer than you breathe in"],
+      reward: 15,
+      timer: 45,
+    },
+    {
+      title: "Drop your shoulders",
+      emoji: "😮‍💨",
+      msg: "Let the tightness leave your shoulders.",
+      steps: ["Lift your shoulders for 3 seconds", "Drop them with a sigh", "Do this 3 times"],
+      reward: 15,
+      timer: 40,
+    },
+    {
+      title: "Cool your hands",
+      emoji: "🧊",
+      msg: "A cool touch can help you settle.",
+      steps: ["Put cool water or a cool object on your wrists", "Hold for 10 seconds", "Take one slow breath"],
+      reward: 15,
+      timer: 40,
+    },
+    {
+      title: "One small step",
+      emoji: "1️⃣",
+      msg: "You do not need the whole task. Just the next bit.",
+      steps: ["Write the next 2-minute task", "Do only that", "Ignore everything else for now"],
+      reward: 20,
+      timer: 90,
+    },
+    {
+      title: "Safe words",
+      emoji: "🛟",
+      msg: "A short reminder that you are okay.",
+      steps: ["Say “I am here. I am okay” three times", "Relax your forehead", "Relax your tongue"],
+      reward: 15,
+      timer: 40,
+    },
+    {
+      title: "Squeeze and let go",
+      emoji: "✊",
+      msg: "Squeeze, then release. Let the worry go with it.",
+      steps: ["Make fists for 5 seconds", "Open your hands", "Shake your fingers"],
+      reward: 15,
+      timer: 45,
+    },
+  ],
+  Boredom: [
+    {
+      title: "Two-minute race",
+      emoji: "⏱️",
+      msg: "This feels dull. Make the next bit smaller and more fun.",
+      steps: ["Pick one small part of the work", "Set 2 minutes", "Do only that until time is up"],
+      reward: 25,
+      timer: 120,
+    },
+    {
+      title: "Teach it",
+      emoji: "🗣️",
+      msg: "Say it in your own words. That makes it less boring.",
+      steps: ["Say the last idea in your own words", "Make it one sentence", "Write that sentence"],
+      reward: 20,
+      timer: 60,
+    },
+    {
+      title: "Ask “what if?”",
+      emoji: "❓",
+      msg: "A new question can make the work feel fresh.",
+      steps: ["Write one “what if…?” question", "Answer in one line", "Use that as your next step"],
+      reward: 20,
+      timer: 50,
+    },
+    {
+      title: "Switch how you work",
+      emoji: "🔀",
+      msg: "Change the way you study for one minute.",
+      steps: ["Switch: reading to writing, or writing to an example", "Do 1 minute this new way", "Write one new thing you noticed"],
+      reward: 20,
+      timer: 70,
+    },
+    {
+      title: "Earn a break",
+      emoji: "🎁",
+      msg: "Do one hard step, then you get a short break.",
+      steps: ["Name a 5-minute break you will take after", "Do the first hard step", "Tick it off"],
+      reward: 25,
+      timer: 60,
+    },
+    {
+      title: "Find one cool fact",
+      emoji: "✨",
+      msg: "Look for one interesting thing in this topic.",
+      steps: ["Find one interesting thing", "Say why it matters", "Keep going from there"],
+      reward: 20,
+      timer: 60,
+    },
+    {
+      title: "Mark the next bit",
+      emoji: "⭕",
+      msg: "See the next small piece. Start only that.",
+      steps: ["Circle the next heading or question", "Guess how many minutes it needs", "Start the first line"],
+      reward: 20,
+      timer: 45,
+    },
+    {
+      title: "Change your seat",
+      emoji: "🪑",
+      msg: "A new sitting way can make the work feel new.",
+      steps: ["Sit in a new way, or stand", "Look at your notes from this new spot", "Do 3 short bits only"],
+      reward: 20,
+      timer: 50,
+    },
+    {
+      title: "Beat 60 seconds",
+      emoji: "⭐",
+      msg: "Race the clock on one small chunk.",
+      steps: ["Count down 60 seconds", "Finish one small chunk", "Put a star next to it"],
+      reward: 25,
+      timer: 60,
+    },
+    {
+      title: "Make a new example",
+      emoji: "✏️",
+      msg: "Change one number or word and solve it again.",
+      steps: ["Take one example from your notes", "Change one number or word", "Solve this new one"],
+      reward: 25,
+      timer: 90,
+    },
+  ],
 };
+
+const lastPickedIndex = {};
+
+export function pickIntervention(type) {
+  const list = INTERVENTIONS[type] || INTERVENTIONS.Focused;
+  const color = STATE_CFG[type]?.color || STATE_CFG.Focused.color;
+  if (!Array.isArray(list) || list.length === 0) return null;
+  let idx = Math.floor(Math.random() * list.length);
+  if (list.length > 1 && idx === lastPickedIndex[type]) {
+    idx = (idx + 1) % list.length;
+  }
+  lastPickedIndex[type] = idx;
+  return { ...list[idx], color };
+}
 
 export const REPORT_TYPES = [
   { key:"focus", label:"Focus", color:"#22c55e" },
@@ -84,5 +330,5 @@ export const TABS = [
 ];
 
 export default {
-  CLASSES, STATE_CFG, TREE_MOOD, LEVEL_DATA, ACHIEVEMENTS_LIST, INTERVENTIONS, REPORT_TYPES, TABS
+  CLASSES, STATE_CFG, TREE_MOOD, LEVEL_DATA, ACHIEVEMENTS_LIST, INTERVENTIONS, pickIntervention, REPORT_TYPES, TABS
 };
