@@ -30,10 +30,11 @@ def presence_leave(user_id: str):
 
 @router.get("/leaderboard", response_model=list[LeaderboardEntry])
 def leaderboard(user_id: str):
-    """Students currently in the app, ranked by today's focused minutes."""
+    """Every registered student, ranked by today's focused minutes."""
     viewer = (user_id or "").strip() or tracking.DEFAULT_USER
-    UserModel.touch_last_seen(viewer)
-    people = UserModel.list_online(extra_ids=[viewer] if viewer != tracking.DEFAULT_USER else [])
+    if viewer != tracking.DEFAULT_USER:
+        UserModel.touch_last_seen(viewer)
+    people = UserModel.list_all_students()
     today = date_cls.today().isoformat()
     rows = []
     for person in people:

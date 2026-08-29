@@ -87,6 +87,24 @@ class UserModel:
         user_collection.update_one({"_id": oid}, {"$set": {"last_seen": None}})
 
     @staticmethod
+    def _person_from_doc(doc: dict, cutoff: datetime) -> dict:
+        last = doc.get("last_seen")
+        return {
+            "id": str(doc["_id"]),
+            "name": doc.get("name") or "Student",
+            "email": doc.get("email") or "",
+            "university_name": doc.get("university_name") or "",
+            "online": isinstance(last, datetime) and last >= cutoff,
+        }
+
+    @staticmethod
+    def list_all_students() -> list[dict]:
+        """Every registered account, with `online` from recent last_seen."""
+        cutoff = datetime.utcnow() - timedelta(seconds=ONLINE_WINDOW_SECONDS)
+        docs = list(user_collection.find({}, {"password_hash": 0}))
+        return [UserModel._person_from_doc(doc, cutoff) for doc in docs]
+
+    @staticmethod
     def list_online(extra_ids: list[str] | None = None) -> list[dict]:
         """Users whose last_seen is recent, plus any extra ids (current viewer)."""
         cutoff = datetime.utcnow() - timedelta(seconds=ONLINE_WINDOW_SECONDS)
@@ -99,7 +117,7 @@ class UserModel:
         query = {"$or": [{"last_seen": {"$gte": cutoff}}]}
         if oids:
             query["$or"].append({"_id": {"$in": oids}})
-        docs = list(user_collection.find(query))
+        docs = list(user_collection.find(query, {"password_hash": 0}))
         out = []
         seen = set()
         for doc in docs:
@@ -107,15 +125,7 @@ class UserModel:
             if uid in seen:
                 continue
             seen.add(uid)
-            last = doc.get("last_seen")
-            online = isinstance(last, datetime) and last >= cutoff
-            out.append({
-                "id": uid,
-                "name": doc.get("name") or "Student",
-                "email": doc.get("email") or "",
-                "university_name": doc.get("university_name") or "",
-                "online": online,
-            })
+            out.append(UserModel._person_from_doc(doc, cutoff))
         out.sort(key=lambda u: (not u["online"], u["name"].lower()))
         return out
 

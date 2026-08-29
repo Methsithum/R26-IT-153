@@ -1,7 +1,9 @@
-import React from "react";
+import { useMemo, useState } from "react";
 import Card from "../Card";
 import { PageHeader, SectionTitle, Meter, Badge, EmptyState } from "../ui";
 import { formatHM } from "../../../lib/focusTime";
+
+const TOP_N = 10;
 
 function medal(rank) {
   if (rank === 1) return "🥇";
@@ -22,30 +24,42 @@ export default function TabLeaderboard({
   distMin,
   lifetimeMin,
 }) {
+  const [expanded, setExpanded] = useState(false);
   const you = rows.find((r) => r.is_you);
   const topFocus = rows.reduce((max, r) => Math.max(max, (r.focus_hours || 0) * 60 + (r.focus_minutes || 0)), 0);
   const onlineCount = rows.filter((r) => r.online).length;
+  const hasMore = rows.length > TOP_N;
+  const visible = useMemo(() => {
+    if (expanded || !hasMore) return rows;
+    const top = rows.slice(0, TOP_N);
+    if (you && you.rank > TOP_N) return [...top, you];
+    return top;
+  }, [expanded, hasMore, rows, you]);
 
   return (
     <div className="fu-view">
       <PageHeader
         icon="🏆"
         title="Leaderboard"
-        subtitle="Students logged in right now, ranked by today's focused time"
-        right={<Badge color="#22c55e">{onlineCount} online</Badge>}
+        subtitle="All students in the system, ranked by today's focused time"
+        right={<Badge color="#22c55e">{rows.length} students</Badge>}
       />
 
       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-12 md:col-span-7">
           <Card className="p-6 fu-stagger" style={{ "--fu-i": 0 }}>
-            <SectionTitle title="Online now" subtitle="Updates while people have Focus open" className="mb-5" />
+            <SectionTitle
+              title={expanded || !hasMore ? "All students" : `Top ${TOP_N}`}
+              subtitle={onlineCount ? `${onlineCount} in the app right now` : "Ranked by today’s focus"}
+              className="mb-5"
+            />
             {loading && rows.length === 0 ? (
               <EmptyState icon="🏆" title="Loading…" />
             ) : rows.length === 0 ? (
-              <EmptyState icon="🏆" title="Nobody else is online" hint="You still appear here while this tab is open." />
+              <EmptyState icon="🏆" title="No students yet" hint="Accounts that sign up will appear here." />
             ) : (
               <div className="space-y-2.5">
-                {rows.map((r) => {
+                {visible.map((r) => {
                   const mins = (r.focus_hours || 0) * 60 + (r.focus_minutes || 0);
                   const isYou = r.is_you;
                   const color = isYou ? "#22c55e" : "#64748b";
@@ -83,6 +97,16 @@ export default function TabLeaderboard({
                     </div>
                   );
                 })}
+                {hasMore && (
+                  <button
+                    type="button"
+                    onClick={() => setExpanded((v) => !v)}
+                    className="w-full mt-1 py-2.5 rounded-xl text-sm font-semibold border transition-all"
+                    style={{ backgroundColor: "#22c55e12", borderColor: "#22c55e35", color: "#16a34a" }}
+                  >
+                    {expanded ? "Show less" : `Show more · ${rows.length - TOP_N} more students`}
+                  </button>
+                )}
               </div>
             )}
           </Card>
@@ -114,7 +138,8 @@ export default function TabLeaderboard({
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 2 }}>
             <SectionTitle title="How ranking works" className="mb-3" />
             <ul className="space-y-2 text-xs text-slate-600 leading-relaxed">
-              <li className="flex gap-2"><span>🟢</span><span>Only students with Focus open (last 2 minutes) are listed.</span></li>
+              <li className="flex gap-2"><span>👥</span><span>Every student with an account is listed, online or not.</span></li>
+              <li className="flex gap-2"><span>🟢</span><span>Green “online” means they have Focus open right now.</span></li>
               <li className="flex gap-2"><span>⏱</span><span>Rank is today’s focused time, then XP if times are equal.</span></li>
               <li className="flex gap-2"><span>👤</span><span>Names come from each student’s account, not dummy rows.</span></li>
             </ul>
