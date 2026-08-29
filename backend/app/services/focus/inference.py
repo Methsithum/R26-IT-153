@@ -146,14 +146,21 @@ def _reclaim_focused(st, features, state):
     return state
 
 
-def _still_face_boredom_veto(features: dict) -> bool:
+def _looking_at_camera(features: dict) -> bool:
+    """Frontal face, eyes open, gaze toward the camera/screen."""
+    if not features:
+        return False
     ear = float(features.get("ear_avg") or 0)
     mar = float(features.get("mar") or 0)
     gaze = abs(float(features.get("gaze_x_left") or 0)) + abs(float(features.get("gaze_x_right") or 0))
     gaze += abs(float(features.get("gaze_y_left") or 0)) + abs(float(features.get("gaze_y_right") or 0))
     yaw = abs(float(features.get("head_yaw") or 0))
     pitch = abs(float(features.get("head_pitch") or 0))
-    return ear >= 0.20 and mar <= 0.18 and gaze <= 0.40 and yaw <= 12 and pitch <= 12
+    return ear >= 0.18 and mar <= 0.35 and gaze <= 0.55 and yaw <= 18 and pitch <= 22
+
+
+def _still_face_boredom_veto(features: dict) -> bool:
+    return _looking_at_camera(features) and float(features.get("mar") or 0) <= 0.18
 
 
 def _sleepy_prob(st, face_bgr):
@@ -175,13 +182,19 @@ def _sleepy_prob(st, face_bgr):
 
 
 def apply_live_cues(state, probs, features=None, sleepy_p=None, sleepy_on=SLEEPY_ON, sleepy_off=SLEEPY_OFF, ear_fatigue=EAR_FATIGUE):
-    """Same rules live inference and the panel confusion matrix use."""
+    """Live webcam only. Closed eyes → Fatigue. Looking at the camera with
+    eyes open blocks the eye-crop Fatigue false positive, but keeps
+    Boredom / Anxiety from the face model."""
     ear = float((features or {}).get("ear_avg") or 99.0)
+    eyes_closed = ear <= ear_fatigue
+    looking = _looking_at_camera(features or {})
+    if eyes_closed:
+        return "Fatigue"
+    if looking:
+        return "Focused" if state == "Fatigue" else state
     if sleepy_p is not None and sleepy_p >= sleepy_on:
         return "Fatigue"
-    if ear <= ear_fatigue:
-        return "Fatigue"
-    if state == "Fatigue" and ear >= 0.22 and (sleepy_p is not None and sleepy_p <= sleepy_off):
+    if state == "Fatigue" and ear >= 0.22 and (sleepy_p is None or sleepy_p <= sleepy_off):
         order = np.argsort(probs)[::-1]
         for idx in order:
             name = CLASSES[int(idx)]
@@ -242,11 +255,24 @@ def predict_from_frame(frame_bgr):
         state = "Focused"
 
     prob_map = {cls: float(p) for cls, p in zip(CLASSES, probs)}
-    if state == "Fatigue":
-        extra = sleepy_p if sleepy_p is not None else 0.0
-        if features:
-            extra = max(extra, 0.72 if float(features.get("ear_avg") or 99) <= EAR_FATIGUE else extra)
-        prob_map["Fatigue"] = max(prob_map["Fatigue"], extra, 0.60)
+    ear = float((features or {}).get("ear_avg") or 99.0)
+    looking = _looking_at_camera(features or {}) and ear > EAR_FATIGUE
+    if looking and state != "Fatigue":
+        # Eye-crop sleepy scores must not steal the on-screen top-% from
+        # Focused / Boredom / Anxiety while the face is awake and frontal.
+        cap = max(prob_map[state] - 0.08, 0.0)
+        if prob_map["Fatigue"] >= prob_map[state]:
+            prob_map["Fatigue"] = cap
+        if state == "Focused":
+            prob_map["Focused"] = max(prob_map["Focused"], 0.72)
+    elif state == "Fatigue":
+        extra = 0.0
+        if ear <= EAR_FATIGUE:
+            extra = 0.72
+        elif sleepy_p is not None:
+            extra = sleepy_p
+        if extra:
+            prob_map["Fatigue"] = max(prob_map["Fatigue"], extra, 0.60)
     return {
         "face_detected": True,
         "state": state,
