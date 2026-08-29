@@ -1,14 +1,27 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Play, RotateCcw } from "lucide-react";
 import { useGameStore } from "../state/GameStateManager";
 
 export default function PauseOverlay() {
+  const navigate = useNavigate();
   const paused = useGameStore((s) => s.paused);
   const restarting = useGameStore((s) => s.restarting);
   const restartError = useGameStore((s) => s.restartError);
   const [confirmRestart, setConfirmRestart] = useState(false);
   const open = paused || restarting;
+
+  async function handleRestart() {
+    try {
+      const left = await useGameStore.getState().restartRun();
+      if (left === false) return;
+      navigate("/journal/activities");
+      useGameStore.setState({ restarting: false, paused: false });
+    } catch {
+      // restartError is shown on the overlay
+    }
+  }
 
   return (
     <AnimatePresence
@@ -55,7 +68,7 @@ export default function PauseOverlay() {
             <h2 className="mt-1 text-4xl font-black tracking-tight text-white">Paused</h2>
             <p className="mt-2 text-sm text-slate-400">
               {confirmRestart
-                ? "This run’s answers won’t be saved. You’ll start from the beginning."
+                ? "This run’s answers won’t be saved. You’ll go back to pick today’s activities."
                 : "The campus is on hold. Pick up where you left off, or start the run over."}
             </p>
 
@@ -86,7 +99,7 @@ export default function PauseOverlay() {
                   <button
                     type="button"
                     disabled={restarting}
-                    onClick={() => useGameStore.getState().restartRun()}
+                    onClick={handleRestart}
                     className="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-rose-500 to-amber-500 px-5 text-base font-black tracking-wide text-white shadow-[0_10px_28px_rgba(244,63,94,0.25)] transition hover:from-rose-400 hover:to-amber-400 disabled:opacity-50"
                   >
                     <RotateCcw className={`h-4 w-4 ${restarting ? "animate-spin" : ""}`} />

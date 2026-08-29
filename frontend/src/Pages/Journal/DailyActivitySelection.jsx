@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useGameStore } from "../../Game/state/GameStateManager";
@@ -30,6 +30,28 @@ export default function DailyActivitySelection() {
   const [selected, setSelected] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    useGameStore.setState({ restarting: false, paused: false });
+    const { sessionId, sessionCompleted } = useGameStore.getState();
+    if (!sessionId || sessionCompleted) return undefined;
+    let cancelled = false;
+    setBusy(true);
+    useGameStore
+      .getState()
+      .abandonCurrentRun()
+      .catch((err) => {
+        if (!cancelled) {
+          setError(apiErrorMessage(err, "Could not clear the previous run. Try again."));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function toggle(id) {
     unlockAudio();
