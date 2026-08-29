@@ -162,6 +162,40 @@ function buildFromJournal({ tasks = [], exams = [], subjects = [] }) {
   return { modules, assignments, exams: mappedExams };
 }
 
+// Extracted (not just inline in the `persist` config below) and exported
+// specifically so it's independently unit-testable - see
+// src/store/__tests__/useAcademicStore.migration.test.js - without it,
+// verifying migration behavior would require driving the whole Zustand
+// `persist` machinery instead of just calling a pure function with a mock
+// pre-migration state. No behavior change from the pre-extraction version.
+export function migrateAcademicStore(persisted, version) {
+  if (!persisted) return persisted;
+  delete persisted.monthSessionsByKey;
+  const prefs = persisted.settings?.studyPreferences;
+  if (prefs && !Array.isArray(prefs.preferredStudyTimes)) {
+    prefs.preferredStudyTimes = prefs.preferredStudyTime ? [prefs.preferredStudyTime] : ["evening"];
+    delete prefs.preferredStudyTime;
+    persisted.weeklyFreeSlots = buildWeeklyFreeSlots(prefs);
+    persisted.remainingFreeSlots = persisted.weeklyFreeSlots;
+    persisted.scheduleResponse = null;
+    persisted.todoList = [];
+  }
+  if (version < 6) persisted.notifications = [];
+  if (version < 7) {
+    if (Array.isArray(persisted.assignments)) {
+      persisted.assignments = persisted.assignments.map((a) =>
+        a.deadlineDate
+          ? { ...a, featureRow: { ...a.featureRow, date: buildDateFeatureFromDeadline(a.deadlineDate) } }
+          : a
+      );
+    }
+    persisted.predictedPriorities = {};
+    persisted.scheduleResponse = null;
+    persisted.todoList = [];
+  }
+  return persisted;
+}
+
 // Why Zustand (not React Context) for this store:
 // The schedule/task state here is written from many unrelated places (task
 // completion in My Tasks, reschedule flow in Task Details, regenerate in
@@ -455,33 +489,7 @@ export const useAcademicStore = create(
       // the wrong feature) so the next load calls /schedule fresh with
       // corrected inputs instead of serving stale cached output forever.
       version: 7,
-      migrate: (persisted, version) => {
-        if (!persisted) return persisted;
-        delete persisted.monthSessionsByKey;
-        const prefs = persisted.settings?.studyPreferences;
-        if (prefs && !Array.isArray(prefs.preferredStudyTimes)) {
-          prefs.preferredStudyTimes = prefs.preferredStudyTime ? [prefs.preferredStudyTime] : ["evening"];
-          delete prefs.preferredStudyTime;
-          persisted.weeklyFreeSlots = buildWeeklyFreeSlots(prefs);
-          persisted.remainingFreeSlots = persisted.weeklyFreeSlots;
-          persisted.scheduleResponse = null;
-          persisted.todoList = [];
-        }
-        if (version < 6) persisted.notifications = [];
-        if (version < 7) {
-          if (Array.isArray(persisted.assignments)) {
-            persisted.assignments = persisted.assignments.map((a) =>
-              a.deadlineDate
-                ? { ...a, featureRow: { ...a.featureRow, date: buildDateFeatureFromDeadline(a.deadlineDate) } }
-                : a
-            );
-          }
-          persisted.predictedPriorities = {};
-          persisted.scheduleResponse = null;
-          persisted.todoList = [];
-        }
-        return persisted;
-      },
+      migrate: migrateAcademicStore,
     }
   )
 );

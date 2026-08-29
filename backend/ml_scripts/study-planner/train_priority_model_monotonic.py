@@ -36,6 +36,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from xgboost import XGBClassifier
 
+from leakage_guard import LEAKAGE_SUSPECT_THRESHOLD, is_leakage_suspect
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 
@@ -61,7 +63,8 @@ ORIGINAL_MODEL_PATH = os.path.join(NEW_MODELS_DIR, "priority_model_v1_unconstrai
 ORIGINAL_LABEL_ENCODER_PATH = os.path.join(NEW_MODELS_DIR, "xgb_label_encoder_v1_unconstrained.joblib")
 
 RANDOM_STATE = 42
-LEAKAGE_SUSPECT_THRESHOLD = 0.97
+# LEAKAGE_SUSPECT_THRESHOLD imported from leakage_guard.py above (shared with
+# train_priority_model.py, and independently tested in tests/test_leakage_guard.py).
 
 
 def section(title):
@@ -256,7 +259,7 @@ comparison_df.to_csv(os.path.join(OUTPUTS_DIR, "monotonic_vs_original_comparison
 # ===========================================================================
 section("7. LEAKAGE GUARD (>=97% accuracy/F1 warning) - RE-CHECKED ON MONOTONIC MODEL")
 
-suspect = mono_results["accuracy"] > LEAKAGE_SUSPECT_THRESHOLD or mono_results["weighted_f1"] > LEAKAGE_SUSPECT_THRESHOLD
+suspect = is_leakage_suspect(mono_results["accuracy"], mono_results["weighted_f1"], LEAKAGE_SUSPECT_THRESHOLD)
 if suspect:
     print(f"*** WARNING: monotonic model exceeded {LEAKAGE_SUSPECT_THRESHOLD:.0%} Accuracy or Weighted F1 "
           f"(Accuracy={mono_results['accuracy']:.4f}, Weighted F1={mono_results['weighted_f1']:.4f}). "

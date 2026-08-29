@@ -377,3 +377,46 @@ In rough priority order:
 - The full page spec (Section 13) intentionally assumes backend features that don't exist yet (database, CRUD endpoints) — build those pages with clearly-structured mock data rather than waiting for backend expansion, per Section 10's confirmed approach.
 - Visual style is colorful/playful/fitness-app-inspired (Section 10) — this overrides any clean/minimal/corporate styling suggested by structure-reference documents; those were consulted for layout only, never for visual tone.
 - Read this file's "Next Steps" (Section 14) before assuming what to build next.
+- **Before merging any change touching the files listed in Section 16, run the automated test suite (`pytest` + `npm test`) and confirm it still passes in full.** These tests each encode a real, previously-found bug or an explicitly-stated design guarantee — a failing test after your change almost always means you've regressed something that was already investigated and fixed once, not that the test is wrong.
+
+---
+
+## 16. Automated Test Suite
+
+Until this suite existed, every bug documented in this file (the leakage issue, Section 4; the `date`-mapping inversion, Section 5c; the hybrid-layer clamp/floor behavior, Section 5d; the exam-prep no-data default, Section 8a) had been found through one-off manual investigation — `curl`, direct MongoDB queries, ad hoc Python scripts, Playwright sessions — with nothing left behind to catch a silent regression. This section is the fix for that gap: a real, repeatable, automated suite, run with `pytest` (backend/ML) and `npm test` (frontend, via Vitest — chosen because nothing was previously configured and it's the native fit for this Vite project).
+
+### How to run
+
+```bash
+# Backend/ML (from backend/, with the venv active — pytest and httpx were added as dev dependencies)
+venv/Scripts/python -m pytest tests/ -v
+
+# Frontend (from frontend/ — vitest and jsdom were added as devDependencies; jsdom is
+# only needed for the one store test that touches localStorage via zustand persist)
+npm test
+```
+
+**99 tests total, all passing against current production code** (57 backend/pytest + 42 frontend/vitest, as of this section being written). Every test maps to a specific, previously-found issue or an explicitly-documented design guarantee — none are generic coverage-for-its-own-sake.
+
+### What's covered, by section
+
+| Section | Coverage | File(s) |
+|---|---|---|
+| **4** — Leakage guard | The real check (factored out of the training scripts into `leakage_guard.py` so it's independently testable) fires on a deliberately-leaky toy dataset built from Section 4's documented anti-pattern (label derived only from features also used as inputs), and does NOT fire on the two real, saved production comparison tables (the original 8-model run and the monotonic-vs-original comparison). | `tests/test_leakage_guard.py` |
+| **5c** — Monotonicity | The single most important test in the suite: loads the **actually-deployed** `priority_model.joblib` (not a fresh retrain) and asserts P(High) is non-increasing / P(Low) is non-decreasing across the full trained `date` range [12, 261], for multiple fixed feature combinations, plus the exact original real-world case (near-term vs. 32-day-out task) that started the investigation. Also asserts the deployed artifact is still the `OrdinalMonotonicPriorityModel` wrapper, not a plain classifier. | `tests/test_monotonicity.py` |
+| **5d** — Hybrid priority layer | Base-tier thresholds (assignment + exam), the overdue-always-High override, the >30-day hard floor (including the literal "dddddd" 32-day case), and the ±1 tier clamp (including the 2-tier-gap-clamps-to-1 case and the clamp=0 sensitivity case from Phase 1) — tested twice: as pure-function unit tests directly against the canonical `priorityEngine.js` (fast, deterministic, in the frontend suite), and against the Python port those research scripts (`sensitivity_analysis.py`, `scheduler_baselines.py`) depend on staying faithful to it (backend suite) — so the two can't silently drift apart. | `frontend/src/utils/__tests__/priorityEngine.test.js`, `tests/test_hybrid_priority_layer.py` |
+| **5e/6** — Explainability | No raw model feature name (e.g. `assessment_type_enc`) can reach the UI unchanged for any of the 13 known features; the dev-mode "fail loudly" console warning for an unmapped feature actually fires; a dedicated `/explain` regression test against whichever model is currently deployed, guarding the ordinal-wrapper/SHAP-TreeExplainer compatibility fix specifically. | `frontend/src/utils/__tests__/featureNameMap.test.js`, `tests/test_api_endpoints.py::TestExplain` |
+| — | `buildDateFeatureFromDeadline`'s output always lands in the trained range [12, 261] across realistic inputs (0/1/30/180+ days) — the direct guard against the original date-mapping bug recurring. | `frontend/src/utils/__tests__/featureNameMap.test.js` |
+| — | The v7 zustand-persist migration correctly recomputes a stale, out-of-range `featureRow.date` for persisted assignments, leaves tasks with no real deadline alone, and clears every downstream cache — against a mock pre-migration store state. | `frontend/src/store/__tests__/useAcademicStore.migration.test.js` |
+| **8/8a/8b** — Exam-prep escalation | The escalating curve is non-decreasing (and strictly higher in the heavy window than the light window) as an exam approaches; the performance multiplier defaults to baseline (1.0) — never 1.4 nor 0.75 — when no marks exist (the exact real-sample-data case: all 4 sample exams show 0% because of absent data, not poor performance); the documented threshold bands (<50/50-70/>70) apply correctly. Tested on both the canonical JS (`examPrepConfig.js`) and its Python research-script port. | `frontend/src/utils/__tests__/examPrepConfig.test.js`, `tests/test_exam_prep.py` |
+| **8/8c** — Scheduler correctness | `generate_schedule()` never silently drops a task (every task ends up in the schedule, in `overload_warning`, or both); the task registry includes `weight` on every entry (regression test for a real bug that broke `reschedule()`'s stateless round-trip) and every registry entry round-trips straight back into `add_task()`; `reschedule()` correctly drops completed task ids and fits new tasks into only the genuinely-remaining free capacity; a lightweight regression test pins Phase 2's verified finding that the `typical` scenario fully schedules 100% of its High-priority tasks. | `tests/test_scheduler.py` |
+| **9** — API surface | One smoke test per endpoint (`/predict-priority`, `/explain`, `/predict-cluster`, `/schedule`, `/reschedule`, `/todo`) confirming a 200 response with a correctly-shaped body for a known-good input, using the real FastAPI app via `TestClient`. | `tests/test_api_endpoints.py` |
+
+### Shared test data
+
+Where relevant, tests reuse Phase 1/2's exact fixed `light`/`typical`/`heavy` scenarios (`sensitivity_analysis.py`'s `SCENARIOS`, imported via `scheduler_baselines.build_tasks_for_scenario`) rather than inventing new ad hoc data — this keeps the test suite's numbers directly comparable to the already-documented sensitivity/baseline analysis instead of a third, disconnected dataset.
+
+### Minor refactors made to enable this suite (behavior-preserving, verified via the tests themselves)
+
+- The leakage-suspicion check (Section 4) was factored out of `train_priority_model.py`'s inline script body into `leakage_guard.py`, and `train_priority_model_monotonic.py`'s equivalent inline check was switched to import and call the same function — both scripts' actual printed behavior is unchanged, but the check itself is now independently unit-testable without running the full multi-minute training pipeline.
+- `useAcademicStore.js`'s zustand-persist `migrate` function was extracted from an inline arrow function into a named, exported `migrateAcademicStore()` — same logic, now callable directly from a test with a mock pre-migration state instead of requiring the whole `persist` machinery to be driven.

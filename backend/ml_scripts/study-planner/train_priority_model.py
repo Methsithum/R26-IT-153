@@ -537,11 +537,13 @@ comparison_df.to_csv(os.path.join(OUTPUTS_DIR, "model_comparison_results.csv"), 
 # --- Leakage sanity check: Priority_Label is now built from real outcomes
 # (score/submitted_late), not from the model's own input features, so scores
 # this high are NOT expected. Flag loudly rather than silently reporting them.
-LEAKAGE_SUSPECT_THRESHOLD = 0.97
-suspect_rows = comparison_df[
-    (comparison_df["Accuracy"] > LEAKAGE_SUSPECT_THRESHOLD)
-    | (comparison_df["Weighted F1"] > LEAKAGE_SUSPECT_THRESHOLD)
-]
+# Factored into leakage_guard.py so it's independently unit-testable (see
+# tests/test_leakage_guard.py) against both a deliberately-leaky toy case and
+# this real production comparison table, instead of only ever running as
+# part of the full multi-minute training pipeline.
+from leakage_guard import LEAKAGE_SUSPECT_THRESHOLD, find_leakage_suspects  # noqa: E402
+
+suspect_rows = find_leakage_suspects(comparison_df, LEAKAGE_SUSPECT_THRESHOLD)
 if not suspect_rows.empty:
     print(f"\n*** WARNING: {len(suspect_rows)} model(s) exceeded {LEAKAGE_SUSPECT_THRESHOLD:.0%} "
           f"Accuracy or Weighted F1: {suspect_rows['Model'].tolist()}. ***")
