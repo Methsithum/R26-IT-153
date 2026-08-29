@@ -19,6 +19,7 @@ import {
   DEFAULT_TOTAL_BUDGET_HOURS,
   computeExamPrepHoursForDay,
   computePerformanceMultiplier,
+  computeExamTypeBudgetMultiplier,
   computeFinalBudgetHours,
   performanceAdjustmentNote,
 } from "./examPrepConfig";
@@ -55,7 +56,14 @@ export function buildExamPrepTasks(exams, modules, today = new Date()) {
       const module = modules.find((m) => m.code === exam.module);
       const { performance, hasData } = resolveModulePerformance(module);
       const multiplier = computePerformanceMultiplier(performance, hasData);
-      const finalBudgetHours = computeFinalBudgetHours(DEFAULT_TOTAL_BUDGET_HOURS, multiplier);
+      // exam.type carries the real `exam_type` field ("mid"/"final"/"lab"/
+      // "quiz" - see useAcademicStore.js's mappedExams) or the "Exam"
+      // display placeholder when genuinely blank - computeExamTypeBudgetMultiplier
+      // treats anything it doesn't recognize as neutral (1.0), so that
+      // placeholder never accidentally skews the budget.
+      const examTypeMultiplier = computeExamTypeBudgetMultiplier(exam.type);
+      const baseBudgetForType = DEFAULT_TOTAL_BUDGET_HOURS * examTypeMultiplier;
+      const finalBudgetHours = computeFinalBudgetHours(baseBudgetForType, multiplier);
 
       const windowEnd = Math.min(examDays, SCHEDULING_WINDOW_DAYS);
       let thisWeekHours = 0;
@@ -87,6 +95,8 @@ export function buildExamPrepTasks(exams, modules, today = new Date()) {
           examId: exam.id,
           moduleCode: exam.module,
           moduleName: exam.moduleName,
+          examType: exam.type,
+          examTypeMultiplier,
           daysRemaining: examDays,
           totalBudgetHours: DEFAULT_TOTAL_BUDGET_HOURS,
           performance,

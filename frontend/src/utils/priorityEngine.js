@@ -175,18 +175,54 @@ export function deadlineDominantSentence(result, daysRemainingValue) {
  *    model move the base tier, but the model wanted to move it further (a
  *    2-tier jump, clamped to 1) - both the deadline baseline and the model's
  *    push are genuinely part of the story. -> "blended".
+ *
+ * `options.hasPriorScoreData` / `options.hasRealWeight` (Section 17,
+ * cold-start investigation): when false, that feature's value in the
+ * feature row is a neutral fallback (DEFAULT_PRIOR_AVG_SCORE for
+ * prior_avg_score in featureNameMap.js; the 20 placeholder in
+ * useAcademicStore.js for weight, used when a real synced task - per the
+ * external Journal schema, which has NO weight field at all - hasn't had a
+ * weight set yet), not a real value for this student/task. Neither may be
+ * named as a headline "why" reason ("...mainly because of assignment
+ * weight" would be actively misleading when the weight isn't actually
+ * known yet - and weight is the model's single strongest feature overall,
+ * per Section 6's SHAP analysis, so this matters more than most). Both are
+ * excluded from the top-factor search in both the "shap" and "blended"
+ * cases below; if either would otherwise have been the single strongest
+ * contributor, an honest, feature-specific caveat sentence is appended
+ * instead of silently substituting the next-best factor with no explanation.
  */
-export function resolveExplanationDisplay(finalResult, daysRemainingValue, explanation) {
+const NO_DATA_CAVEATS = {
+  prior_avg_score: "Your performance history isn't available yet, so this estimate may be less certain.",
+  weight: "This task's weight isn't set yet — using a neutral default, so this estimate may be less certain.",
+};
+
+export function resolveExplanationDisplay(finalResult, daysRemainingValue, explanation, options = {}) {
   if (!finalResult || !explanation) return null;
+  const { hasPriorScoreData = true, hasRealWeight = true } = options;
+  const excludeKeys = [
+    ...(hasPriorScoreData ? [] : ["prior_avg_score"]),
+    ...(hasRealWeight ? [] : ["weight"]),
+  ];
 
   const rawLabel = explanation.predicted_priority;
   const finalLabel = finalResult.priorityLabel;
 
+  // Was one of the no-real-data features the single strongest contributor
+  // overall (before any exclusion)? If so, the caveat for THAT feature is
+  // worth surfacing - if some other, genuinely-real feature would have been
+  // named anyway, silently excluding a minor no-data contributor needs no
+  // extra caveat.
+  const allRanked = humanizeContributions(explanation.feature_contributions);
+  const topKey = allRanked[0]?.key;
+  const caveat = excludeKeys.includes(topKey) ? NO_DATA_CAVEATS[topKey] || null : null;
+
   if (finalLabel === rawLabel) {
     return {
       type: "shap",
-      sentence: buildShapSentence(finalLabel, explanation.feature_contributions),
+      sentence: buildShapSentence(finalLabel, explanation.feature_contributions, 2, excludeKeys),
       contributions: explanation.feature_contributions,
+      caveat,
     };
   }
 
@@ -210,8 +246,10 @@ export function resolveExplanationDisplay(finalResult, daysRemainingValue, expla
   // describe X as the reason for a change it was actually arguing against).
   // Only consider contributors whose sign actually supports the direction
   // of the shift: positive (pushed toward the raw label) when raised,
-  // negative (pushed away from it) when lowered.
-  const humanized = humanizeContributions(explanation.feature_contributions);
+  // negative (pushed away from it) when lowered. Also excludes any
+  // no-real-data feature here for the same cold-start reason as above.
+  const excludedSet = new Set(excludeKeys);
+  const humanized = allRanked.filter((c) => !excludedSet.has(c.key));
   const supporting = humanized.filter((c) => (raised ? c.value > 0 : c.value < 0));
   const topFactor = supporting[0] || humanized[0];
   const reason = topFactor ? lowerFirst(topFactor.label) : "the model's prediction";
@@ -220,6 +258,7 @@ export function resolveExplanationDisplay(finalResult, daysRemainingValue, expla
     type: "blended",
     sentence: `Normally this would be ${baseLabel} priority based on its deadline, but it's been ${direction} to ${finalLabel} priority because of ${reason}.`,
     contributions: explanation.feature_contributions,
+    caveat,
   };
 }
 

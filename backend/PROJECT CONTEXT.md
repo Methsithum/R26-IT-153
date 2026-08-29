@@ -420,3 +420,97 @@ Where relevant, tests reuse Phase 1/2's exact fixed `light`/`typical`/`heavy` sc
 
 - The leakage-suspicion check (Section 4) was factored out of `train_priority_model.py`'s inline script body into `leakage_guard.py`, and `train_priority_model_monotonic.py`'s equivalent inline check was switched to import and call the same function — both scripts' actual printed behavior is unchanged, but the check itself is now independently unit-testable without running the full multi-minute training pipeline.
 - `useAcademicStore.js`'s zustand-persist `migrate` function was extracted from an inline arrow function into a named, exported `migrateAcademicStore()` — same logic, now callable directly from a test with a mock pre-migration state instead of requiring the whole `persist` machinery to be driven.
+
+---
+
+## 17. Cold-Start Behavior (Brand-New Student, Zero History)
+
+Every engineered feature so far assumes some history exists: `prior_avg_score` (expanding mean of past scores), the three VLE-engagement features, the exam-prep performance multiplier (module marks), and the K-Means cluster (behavioral history). This section traces what actually happens for a genuinely new student — registered, zero completed tasks, zero recorded marks, zero engagement data — with one real assignment and one real exam added, verified end-to-end (real registration, real Mongo-backed task/exam, real `/predict-priority` + `/explain` + `/predict-cluster` calls, and a live Task Details screenshot), not just reasoned about.
+
+### Ground truth: the real external schema (re-scope)
+
+The `tasks` and `exams` MongoDB collections are owned and populated by a teammate's Journal/task-tracking component, not the Study Planner backend. Their real, authoritative schemas:
+
+- **Task**: `_id, user_id, title, subject, task_type, progress_stage, deadline, mark, last_mark_check, last_deadline_check, created_at, updated_at`
+- **Exam**: `_id, user_id, subject, exam_type, date, mark, last_mark_check, last_deadline_check, created_at, updated_at`
+
+**`weight` is not part of the canonical Task schema at all.** A task synced from the real Journal source arrives with `weight` completely absent — not `null`, not `0`, the key doesn't exist. Every task used in earlier ad hoc testing that showed `weight: 20.0` had been created through the Study Planner's own "Add Academic Data" form, not synced from the real source — that was an idealized case, not the common one. Given `weight` was identified via SHAP (Section 6) as the single strongest driver of the priority model's predictions, a real synced task with no weight is a genuine, **common-case** cold-start condition. Sections below were re-verified against a task literally shaped like the real schema (confirmed via `'weight' in doc` returning `False` on the actual inserted Mongo document), not a hypothetical.
+
+`exam_type` also exists on the real Exam schema with a real, fixed value set — `backend/app/services/journal/journal_constants.py`'s `EXAM_KINDS = {"mid", "final", "lab", "quiz"}` — and, before this investigation, was never read anywhere in the exam-prep escalation model (Section 8a).
+
+### `weight` field absence — a real bug found and fixed
+
+`hasRealWeight` (`useAcademicStore.js`: `t.weight != null`) already existed before this investigation and was already surfaced in the UI (the "(estimate)" badge next to Assignment Weight in `TaskDetails.jsx`) — but it was never threaded into the explanation layer. `resolveExplanationDisplay()` could still cite a fabricated `weight: 20` as the headline "why" reason, and since weight is the model's single strongest feature (Section 6), this was a bigger honesty gap than the `prior_avg_score` one below, not a smaller one.
+
+**Fixed**, generalizing the same mechanism used for `prior_avg_score`: `resolveExplanationDisplay()` now also accepts `options.hasRealWeight`, and the exclusion logic (previously hardcoded to just `prior_avg_score`) is now a data-driven `excludeKeys` list covering whichever of `{prior_avg_score, weight}` lack real data, each with its own caveat message (`NO_DATA_CAVEATS`), picked by whichever excluded feature actually ranked #1. The `20` placeholder itself was also promoted from an inline literal at each call site to a documented, named constant, `DEFAULT_ASSIGNMENT_WEIGHT` (`featureNameMap.js`), for the same discoverability reason as `DEFAULT_PRIOR_AVG_SCORE`.
+
+**Verified live** with a task inserted into Mongo with the `weight` key genuinely absent (real-schema-shaped, not `weight: null`): the badge correctly showed "20% (estimate)"; the explanation read *"High priority mainly because of assessment type and module length"* — `weight` (visually the #2-longest bar shown) was correctly never named as the reason, despite being a large contributor, because it isn't real data. No caveat was shown in this particular case because `assessment_type_enc` (not `weight`) was the actual #1-ranked SHAP contributor — confirming the "only caveat when the excluded feature was truly dominant" logic is scoped correctly, not overtriggering.
+
+### `exam_type` — a real gap found and fixed
+
+Confirmed via code inspection that `examPrepScheduling.js`'s `buildExamPrepTasks()` never referenced `exam.type`/`exam_type` before this investigation — every exam got the same `DEFAULT_TOTAL_BUDGET_HOURS` regardless of whether it was a full-syllabus final or a narrow-scope quiz. Decided to use it, not just document it as unused: a final plausibly warrants meaningfully more total prep time than a lab test.
+
+**Fixed**: `computeExamTypeBudgetMultiplier()` (`examPrepConfig.js`) maps the real `EXAM_KINDS` values to a budget multiplier — `final: 1.3, mid: 1.0, lab: 0.6, quiz: 0.5` — applied to the base budget *before* Part D's performance multiplier (`finalBudgetHours = DEFAULT_TOTAL_BUDGET_HOURS * examTypeMultiplier * performanceMultiplier`). An unrecognized or missing `exam_type` (including the `"Exam"` display placeholder `useAcademicStore.js` substitutes when the real field is blank) gets the neutral `1.0` — same "don't penalize/reward absent data" principle as the performance multiplier, not a guess.
+
+Verified numerically (same exam date, 14 days out, cold-start/no-marks student so performance multiplier = 1.0 in every row):
+
+| `exam_type` | multiplier | total budget | hours due this scheduling window |
+|---|---|---|---|
+| `final` | 1.3 | 15.6h | 4.78h |
+| `mid` | 1.0 | 12.0h | 3.67h |
+| `lab` | 0.6 | 7.2h | 2.20h |
+| `quiz` | 0.5 | 6.0h | 1.84h |
+| missing/unrecognized | 1.0 (neutral default) | 12.0h | 3.67h |
+
+### `prior_avg_score` — a real bug found and fixed
+
+The training-time fallback (`train_priority_model.py` Section 2, for a student's very first assessment with no prior rows) is the cohort mean, falling back to the **dataset-wide mean score, 76.452355** — verified directly against `oulad_task_level_leakage_free.csv`, not guessed. The app-level cold-start fallback (`useAcademicStore.js`'s `buildFromJournal`, `AddAcademicData.jsx`'s form pre-fill) was instead a hardcoded **65** — below the model's own trained notion of "average," despite looking like a plausible, deliberately-chosen number.
+
+This was not a theoretical concern — confirmed live, with the actual deployed model, holding every other feature fixed:
+
+| `prior_avg_score` | predicted priority | confidence | SHAP contribution for this feature |
+|---|---|---|---|
+| 65 (old fallback) | High | 83.7% | **+0.545** (pushed toward High — reads as "below-average past performance") |
+| 76.45 (dataset mean) | High | 71.7% | **-0.114** (mildly pushed away from High — reads as neutral) |
+
+The sign of the feature's own contribution flipped entirely. A cold-start student — with literally no performance history — was being scored as if they had already under-performed. **Fixed**: `DEFAULT_PRIOR_AVG_SCORE = 76.452355` is now a documented constant in `featureNameMap.js`, used at both call sites (`module?.hasGradeData ? module.currentGrade : DEFAULT_PRIOR_AVG_SCORE`), replacing the old `|| 65`. This also incidentally fixed a second latent bug: `||` treats a real, recorded `0` average as falsy and would have silently replaced it with the placeholder too — the new `hasGradeData`-gated check doesn't.
+
+### `/predict-priority` and confidence — reported honestly, not force-fixed
+
+Re-run against the real cold-start case (task due in 16 days, weight 20%, no marks): raw ML prediction **High, 73.7% confidence**; the hybrid layer (Section 5d) correctly lands it at **Medium** (base tier Low + ±1 clamp, `dominantMechanism: "ml"`) — unaffected by cold-start status, confirmed live and matching the screenshot.
+
+**Known, explicitly-not-fixed limitation**: confidence is not *explicitly* cold-start-aware. The 71.7%-vs-83.7% difference measured above is an incidental side effect of correcting the fallback *value*, not an intentional "be less confident when data is missing" mechanism — the model has no input that flags "this `prior_avg_score` is fabricated" (unlike `has_vle_activity`, which genuinely is such a flag for the engagement features). Building one would mean retraining with a new feature, out of scope here. Flagged rather than silently claimed as solved — do not read the confidence gap above as evidence the system "already handles" cold-start uncertainty; it doesn't, deliberately.
+
+### Explanation panel — a real bug found and fixed (both `prior_avg_score` and `weight`)
+
+Before this investigation, a cold-start prediction where `prior_avg_score` (or, per the re-scope above, `weight`) happened to be the SHAP-dominant factor could produce a sentence like *"...mainly because of your average score so far"* or *"...because of assignment weight"* — naming a fabricated number as the reason, the exact kind of misleading explanation Section 6/10's honesty principle exists to prevent. **Fixed**: `resolveExplanationDisplay()` (`priorityEngine.js`) takes `options.hasPriorScoreData` / `options.hasRealWeight` (sourced from signals the app already computes — `module.hasGradeData`, `task.hasRealWeight` — no new tracking invented) and excludes whichever features lack real data from the "top factor" search in both the `"shap"` and `"blended"` explanation branches, via `buildShapSentence()`'s `excludeKeys` parameter. When an excluded feature would otherwise have been the single strongest contributor, a feature-specific caveat line is appended instead of silently substituting the next-best factor with no explanation (`NO_DATA_CAVEATS`, one message per feature). Verified live twice: a cold-start task with a real weight but no prior-score data correctly cited "assignment weight" and skipped `prior_avg_score` (ranked #9 of 13, not dominant, so no caveat needed); a real-schema-shaped task with **no `weight` field at all** correctly cited "assessment type and module length," never `weight` (visually the #2 bar shown), and again needed no caveat since `weight` wasn't actually the #1-ranked contributor in that case.
+
+### K-Means cluster (`/predict-cluster`) — the -1 fallback works correctly, but is currently unreachable in practice
+
+`cluster_service.py`'s `has_vle_activity == 0` short-circuit to the fixed `-1` / "No VLE Engagement Data" cluster (Section 7) is generic rule-based logic, not an OULAD-training-time special case — confirmed directly: calling it with a genuinely-zero engagement payload correctly returns `{"cluster_id": -1, "cluster_label": "No VLE Engagement Data"}`.
+
+**Real, previously-undocumented finding**: it is never actually reached by the live app today, for ANY student, cold-start or not. `useAcademicStore.js`'s `buildFromJournal` hardcodes `avg_weekly_clicks: 15, active_weeks_ratio: 0.5, has_vle_activity: 1` as fixed neutral placeholders for every real assignment's `featureRow` — there is currently no real engagement-tracking pipeline in this app analogous to OULAD's VLE clicks, so these three fields never vary by actual student behavior yet. `ModuleDetail.jsx`'s cluster call reuses a task's `featureRow` verbatim, inheriting the same hardcoded values. Verified live: the cold-start test student (zero real engagement) was assigned real cluster 0 ("High-Performing Low-Engagement Light-Workload Studier"), not -1, purely because `has_vle_activity` is always sent as `1`. This is not a bug in the cold-start handling *of the cluster model itself* — it's an honest gap in what data currently feeds it, reported rather than silently patched (building real engagement tracking is a separate, larger feature).
+
+### Hybrid priority layer (`priorityEngine.js`) — confirmed unaffected, as expected
+
+`computeBaseTier`/`computeFinalPriority` take only `daysRemaining` and `taskType` — no history-dependent input. Confirmed both by code inspection and live: the cold-start task's base tier, clamp, and final label all matched a history-rich task with the same deadline/weight exactly. No change needed.
+
+### Side-finding, explicitly out of scope here: `currentGrade` display without a `hasGradeData` check
+
+While screenshotting the cold-start Task Details page, its "Module Grade" stat displayed a bare **"0%"** for a module with no recorded marks — indistinguishable from a genuine 0% grade. `MonthGrid.jsx` and `AcademicRiskSection.jsx` already guard this exact field with `hasGradeData` (documented there as a deliberate honesty rule: "a placeholder 0% must never read as a genuine low grade"); this one stat had been missed. **Fixed** (small, directly in scope since it was found on the very page being verified): `TaskDetails.jsx` now shows "No data yet" instead of "0%" when `!module.hasGradeData`.
+
+A broader grep found the same unguarded pattern in several other places (`ModuleCard.jsx`, `ModuleDetail.jsx`'s "Current Grade" stat, `Exams.jsx`'s "Current grade X%" line, `Dashboard.jsx`'s at-risk-module check, `AIRecommendationCard.jsx`'s urgency-score formula, `ModulePerformanceChart.jsx`). **Not fixed here** — auditing and correcting every `currentGrade` display/formula site across the app is a separate, larger UI-honesty sweep beyond this ML-pipeline cold-start investigation's scope, and is flagged here as a real, concrete follow-up item rather than silently left undiscovered or overclaimed as handled.
+
+### Summary of fallback values by feature (cold-start state)
+
+| Feature | Cold-start value used | Source |
+|---|---|---|
+| `prior_avg_score` | 76.452355 (dataset mean) | `DEFAULT_PRIOR_AVG_SCORE`, fixed this investigation |
+| `weight` | 20 (neutral placeholder) | `DEFAULT_ASSIGNMENT_WEIGHT`, promoted to a named constant this investigation; `hasRealWeight` now excludes it from the explanation panel too |
+| `avg_weekly_clicks` | 15 | Hardcoded neutral placeholder (always, not cold-start-specific) |
+| `clicks_trend` | 0 | Hardcoded neutral placeholder |
+| `active_weeks_ratio` | 0.5 | Hardcoded neutral placeholder |
+| `has_vle_activity` | 1 | Hardcoded — means the real `-1` cluster path is currently unreachable (see above) |
+| Exam-prep performance multiplier | 1.0 (baseline) | `computePerformanceMultiplier`'s `hasData=false` branch — already correct, re-confirmed live and in `tests/test_exam_prep.py` |
+| Exam-prep `exam_type` multiplier | 1.0 (neutral) for missing/unrecognized `exam_type` | `computeExamTypeBudgetMultiplier()`, added this investigation — real values (`final`/`mid`/`lab`/`quiz`) now scale the budget |
+| `/predict-priority` confidence | Not cold-start-aware | Known limitation, not fixed (see above) |

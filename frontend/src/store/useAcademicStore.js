@@ -7,7 +7,7 @@ import {
   MOCK_EXAMS,
   MOCK_SETTINGS,
 } from "../mocks/academicMocks";
-import { CODE_MODULE_ENCODING, ASSESSMENT_TYPE_ENCODING, buildDateFeatureFromDeadline } from "../utils/featureNameMap";
+import { CODE_MODULE_ENCODING, ASSESSMENT_TYPE_ENCODING, buildDateFeatureFromDeadline, DEFAULT_PRIOR_AVG_SCORE, DEFAULT_ASSIGNMENT_WEIGHT } from "../utils/featureNameMap";
 import { buildWeeklyModuleAllocation } from "../utils/studyAllocation";
 import { buildWeeklyFreeSlots } from "../utils/freeSlotGenerator";
 import { buildNotificationsFromRealData } from "../utils/notificationBuilder";
@@ -103,8 +103,11 @@ function buildFromJournal({ tasks = [], exams = [], subjects = [] }) {
       const isMissed = !isCompleted && deadlineDate && deadlineDate < todayIso;
       const estimatedHoursNeeded = 4; // not tracked by the journal — neutral default
       const finalDeadlineDate = deadlineDate || new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+      // The real external Task schema has NO weight field at all (see
+      // DEFAULT_ASSIGNMENT_WEIGHT's doc comment) - `!= null` correctly
+      // treats a genuinely-absent field the same as an explicit null.
       const hasRealWeight = t.weight != null;
-      const weight = hasRealWeight ? Number(t.weight) : 20; // real once set via updateTaskWeight; 20 is a neutral placeholder until then
+      const weight = hasRealWeight ? Number(t.weight) : DEFAULT_ASSIGNMENT_WEIGHT; // real once set via updateTaskWeight
 
       return {
         taskId: t.id,
@@ -128,6 +131,12 @@ function buildFromJournal({ tasks = [], exams = [], subjects = [] }) {
         status: isCompleted ? "completed" : isMissed ? "missed" : "pending",
         completedHours: isCompleted ? estimatedHoursNeeded : 0,
         notes: "",
+        // Cold-start flag (Section 17) mirroring the existing hasRealWeight
+        // pattern - lets the explanation layer (priorityEngine.js's
+        // resolveExplanationDisplay) know prior_avg_score below is a neutral
+        // fallback, not a real recorded average, so it never gets cited as
+        // "why" a prediction came out the way it did.
+        hasPriorScoreData: !!module?.hasGradeData,
         featureRow: {
           // Real deadline mapped onto the model's actual trained `date`
           // range (12-261) — see buildDateFeatureFromDeadline for why a raw
@@ -138,7 +147,9 @@ function buildFromJournal({ tasks = [], exams = [], subjects = [] }) {
           studied_credits: 60,
           module_presentation_length: 240,
           date_registration: -30,
-          prior_avg_score: module?.currentGrade || 65,
+          // See DEFAULT_PRIOR_AVG_SCORE's own doc comment (featureNameMap.js)
+          // for why this is the OULAD dataset mean, not an arbitrary number.
+          prior_avg_score: module?.hasGradeData ? module.currentGrade : DEFAULT_PRIOR_AVG_SCORE,
           avg_weekly_clicks: 15,
           clicks_trend: 0,
           active_weeks_ratio: 0.5,

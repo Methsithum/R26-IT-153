@@ -34,6 +34,43 @@ export function buildDateFeatureFromDeadline(deadlineIsoDate, from = new Date())
   return TRAINED_DATE_MIN + (remaining / CAP_DAYS) * (TRAINED_DATE_MAX - TRAINED_DATE_MIN);
 }
 
+// Cold-start fallback for `prior_avg_score` (PROJECT CONTEXT.md Section 17) -
+// a brand-new student, or one with no marks recorded yet for a given module,
+// has no real value for this feature. This is the OULAD training set's own
+// dataset-wide mean score (backend/ml_scripts/study-planner/outputs/
+// oulad_task_level_leakage_free.csv - verified directly, mean=76.452355,
+// not guessed), i.e. exactly the same neutral fallback
+// train_priority_model.py's own feature-engineering step (Section 2) uses
+// for a student's very first assessment with no prior rows yet. This used
+// to be a hardcoded `65` at both call sites, which is BELOW the model's own
+// notion of "average" (76.45) - confirmed live to matter, not just in
+// theory: at prior_avg_score=65 the model's SHAP contribution for this
+// feature was +0.55 (pushed toward High priority, reading as "below-average
+// past performance"); at the honest neutral value (76.45) the same feature's
+// contribution was -0.11 (mildly pushed away from High) - a sign flip, and
+// confidence dropped from 83.7% to 71.7% in that same comparison. A
+// cold-start student was being scored as if they'd already under-performed,
+// with no real data to justify it.
+export const DEFAULT_PRIOR_AVG_SCORE = 76.452355;
+
+// Cold-start fallback for `weight` (PROJECT CONTEXT.md Section 17). The
+// REAL external Task schema (owned by the Journal/task-tracking component -
+// _id, user_id, title, subject, task_type, progress_stage, deadline, mark,
+// last_mark_check, last_deadline_check, created_at, updated_at) has NO
+// weight field at all - every task synced from that real source arrives
+// with weight completely absent, not just blank, until a student sets it
+// via updateTaskWeight (see task_routes.py). This is the common case for a
+// real synced task, not a rare edge case. Previously this was an inline
+// literal `20` at each call site with no shared name - promoted to a named,
+// documented constant here specifically because weight is the single
+// strongest driver of the priority model's predictions (Section 6's SHAP
+// analysis), so an unexamined silent default here matters far more than for
+// most other features. `hasRealWeight` (useAcademicStore.js) is the
+// accompanying availability flag, threaded into resolveExplanationDisplay()
+// (priorityEngine.js) so the explanation panel never cites a fabricated
+// weight as the reason for a prediction.
+export const DEFAULT_ASSIGNMENT_WEIGHT = 20;
+
 export const FEATURE_LABELS = {
   date: "Time until deadline",
   weight: "Assignment weight",
@@ -101,8 +138,12 @@ export function lowerFirst(s) {
  * sentence here, from the same humanizeContributions() the factor bars
  * already use, is the fix: one code path, guaranteed humanized.
  */
-export function buildShapSentence(priorityLabel, contributions, topN = 2) {
-  const top = humanizeContributions(contributions).slice(0, topN).filter((c) => c.label);
+export function buildShapSentence(priorityLabel, contributions, topN = 2, excludeKeys = []) {
+  const excluded = new Set(excludeKeys);
+  const top = humanizeContributions(contributions)
+    .filter((c) => !excluded.has(c.key))
+    .slice(0, topN)
+    .filter((c) => c.label);
   if (top.length === 0) return `${priorityLabel} priority.`;
   const phrases = top.map((c) => lowerFirst(c.label));
   const joined =

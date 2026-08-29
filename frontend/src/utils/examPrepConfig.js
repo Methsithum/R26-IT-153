@@ -76,6 +76,37 @@ export function computeExamPrepHoursForDay(examDate, today, totalBudgetHours, fo
   return windowBudget / daysInWindow;
 }
 
+// --- exam_type-based budget multiplier ----------------------------------
+//
+// The real Exam schema (owned by the Journal/task-tracking component, see
+// PROJECT CONTEXT.md Section 17) carries a real `exam_type` field with a
+// fixed, canonical value set (backend/app/services/journal/journal_constants.py:
+// EXAM_KINDS = {"mid", "final", "lab", "quiz"}) that this module previously
+// never read - every exam got the same DEFAULT_TOTAL_BUDGET_HOURS regardless
+// of type. That's a real gap: a final plausibly covers a full semester's
+// material and warrants more total prep than a narrow-scope lab test or quiz.
+// Multiplier applied to the base budget BEFORE the Part D performance
+// multiplier (both are independent scaling factors on the same base number -
+// order doesn't matter mathematically, multiplication is commutative, but
+// exam-type is applied first here since it's the more "structural" of the
+// two). An unrecognized/missing exam_type (e.g. the "Exam" placeholder
+// MonthGrid.jsx/useAcademicStore.js use when the real field is blank) gets
+// the neutral 1.0 multiplier - same "don't penalize/reward absent data"
+// principle as the performance multiplier below, not a fixed guess.
+export const EXAM_TYPE_BUDGET_MULTIPLIER = {
+  final: 1.3, // typically cumulative/full-syllabus scope - more material to cover
+  mid: 1.0, // baseline - the number DEFAULT_TOTAL_BUDGET_HOURS was chosen around
+  lab: 0.6, // narrower, usually practical/applied scope
+  quiz: 0.5, // narrowest scope, lowest stakes
+};
+export const DEFAULT_EXAM_TYPE_MULTIPLIER = 1.0;
+
+/** examType: the real `exam_type` value ("mid"/"final"/"lab"/"quiz"), case-insensitive; anything else -> neutral 1.0. */
+export function computeExamTypeBudgetMultiplier(examType) {
+  const key = String(examType || "").trim().toLowerCase();
+  return EXAM_TYPE_BUDGET_MULTIPLIER[key] ?? DEFAULT_EXAM_TYPE_MULTIPLIER;
+}
+
 // --- Part D: performance-based multiplier -------------------------------
 
 export const PERFORMANCE_MULTIPLIER = {

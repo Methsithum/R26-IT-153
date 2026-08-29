@@ -8,7 +8,7 @@ import ConfidenceMeter from "../../Components/academic/Shared/ConfidenceMeter";
 import { useAcademicStore } from "../../store/useAcademicStore";
 import { useReschedule } from "../../hooks/useAcademicData";
 import { predictPriority, createRealTask } from "../../services/academicApi";
-import { CODE_MODULE_ENCODING, ASSESSMENT_TYPE_ENCODING, buildDateFeatureFromDeadline } from "../../utils/featureNameMap";
+import { CODE_MODULE_ENCODING, ASSESSMENT_TYPE_ENCODING, buildDateFeatureFromDeadline, DEFAULT_PRIOR_AVG_SCORE, DEFAULT_ASSIGNMENT_WEIGHT } from "../../utils/featureNameMap";
 
 const DIFFICULTY_TO_HOURS = { Easy: 2, Moderate: 4, Hard: 7, "Very Hard": 10 };
 // The trained model only knows 7 fixed OULAD categories (AAA-GGG) - a real
@@ -29,8 +29,11 @@ export default function AddAcademicData() {
     module: modules[0]?.code || "AAA",
     assessmentType: "TMA",
     title: "",
-    weight: 20,
-    currentGrade: modules[0]?.currentGrade || 65,
+    weight: DEFAULT_ASSIGNMENT_WEIGHT,
+    // Pre-fill with the module's real grade if known, else the model's own
+    // neutral "no data" value (Section 17) - not an arbitrary guess. Still
+    // student-editable, this is only the starting value shown in the field.
+    currentGrade: modules[0]?.hasGradeData ? modules[0].currentGrade : Math.round(DEFAULT_PRIOR_AVG_SCORE),
     deadline: "",
     difficulty: "Moderate",
     availableStudyHours: 10,

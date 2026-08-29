@@ -67,6 +67,16 @@ export default function ExplanationPanel({ display, confidence, loading }) {
 
       <p className="text-sm text-slate-500 dark:text-slate-300 leading-relaxed">{display.sentence}</p>
 
+      {/* Cold-start honesty caveat (Section 17) - only present when
+          prior_avg_score would otherwise have been named as the headline
+          reason but is actually a neutral no-data fallback, not a real
+          recorded average for this student. Separate line, not merged into
+          `sentence`, so it reads as a clarifying note rather than part of
+          the main explanation. */}
+      {display.caveat && (
+        <p className="text-xs text-slate-400 dark:text-slate-500 italic leading-relaxed">{display.caveat}</p>
+      )}
+
       {contributions.length > 0 && (
         <div className="space-y-2">
           {contributions.map((c) => (

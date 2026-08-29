@@ -4,7 +4,7 @@
 // lower priority than one due weeks out, traced to date values outside the
 // model's trained range).
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { humanizeFeatureName, buildDateFeatureFromDeadline, FEATURE_LABELS } from "../featureNameMap";
+import { humanizeFeatureName, buildDateFeatureFromDeadline, buildShapSentence, FEATURE_LABELS, DEFAULT_PRIOR_AVG_SCORE } from "../featureNameMap";
 
 const ALL_13_FEATURES = [
   "date", "weight", "num_of_prev_attempts", "studied_credits",
@@ -88,5 +88,36 @@ describe("buildDateFeatureFromDeadline: output always within the trained range [
     const nearer = buildDateFeatureFromDeadline("2026-09-01", from);
     const further = buildDateFeatureFromDeadline("2026-09-15", from);
     expect(further).toBeGreaterThan(nearer);
+  });
+});
+
+describe("DEFAULT_PRIOR_AVG_SCORE: cold-start fallback (Section 17)", () => {
+  it("matches the OULAD training set's real dataset-wide mean, not an arbitrary guess", () => {
+    // Verified directly against oulad_task_level_leakage_free.csv (mean=76.452355).
+    expect(DEFAULT_PRIOR_AVG_SCORE).toBeCloseTo(76.452355, 3);
+  });
+
+  it("is NOT the old arbitrary fallback (65), which sits below the model's own trained average", () => {
+    expect(DEFAULT_PRIOR_AVG_SCORE).not.toBe(65);
+    expect(DEFAULT_PRIOR_AVG_SCORE).toBeGreaterThan(65);
+  });
+});
+
+describe("buildShapSentence: excludeKeys (cold-start honesty fix, Section 17)", () => {
+  const contributions = {
+    prior_avg_score: 0.9, // largest magnitude - would normally be cited first
+    weight: 0.5,
+    date: 0.1,
+  };
+
+  it("cites the top contributor by default", () => {
+    const sentence = buildShapSentence("High", contributions, 1);
+    expect(sentence).toContain("average score");
+  });
+
+  it("excludes a given key from being cited, falling through to the next real contributor", () => {
+    const sentence = buildShapSentence("High", contributions, 1, ["prior_avg_score"]);
+    expect(sentence).not.toContain("average score");
+    expect(sentence).toContain("weight");
   });
 });

@@ -3,7 +3,7 @@
 // design guarantee or a specific bug that was found and fixed during
 // development, not generic coverage.
 import { describe, it, expect } from "vitest";
-import { computeBaseTier, computeFinalPriority, PRIORITY_LEVELS } from "../priorityEngine";
+import { computeBaseTier, computeFinalPriority, resolveExplanationDisplay, PRIORITY_LEVELS } from "../priorityEngine";
 
 describe("computeBaseTier (assignment thresholds)", () => {
   it("assigns High at <=2 days", () => {
@@ -104,5 +104,89 @@ describe("computeFinalPriority: ±1 tier clamp (Section 5d cross-task dominance)
     const result = computeFinalPriority(5, "assignment", null);
     expect(result.dominantMechanism).toBe("deadline");
     expect(result.priorityLabel).toBe("Medium");
+  });
+});
+
+describe("resolveExplanationDisplay: cold-start honesty (Section 17)", () => {
+  // 20 days -> base Low(0), ML=Medium(1) -> clamps to Medium(1), which equals
+  // the raw ML label itself -> finalLabel===rawLabel -> the "shap" branch.
+  const finalResult = computeFinalPriority(20, "assignment", "Medium");
+  const explanationPriorAvgScoreDominant = {
+    predicted_priority: finalResult.priorityLabel,
+    feature_contributions: {
+      prior_avg_score: 0.9, // largest magnitude
+      weight: 0.3,
+      date: 0.1,
+    },
+  };
+
+  it("with real prior-score data: cites prior_avg_score normally, no caveat", () => {
+    const display = resolveExplanationDisplay(finalResult, 20, explanationPriorAvgScoreDominant, { hasPriorScoreData: true });
+    expect(display.sentence).toContain("average score");
+    expect(display.caveat).toBeNull();
+  });
+
+  it("cold-start (no prior-score data): excludes prior_avg_score from the sentence and adds a caveat", () => {
+    const display = resolveExplanationDisplay(finalResult, 20, explanationPriorAvgScoreDominant, { hasPriorScoreData: false });
+    expect(display.sentence).not.toContain("average score");
+    expect(display.sentence).toContain("weight"); // falls through to the next real contributor
+    expect(display.caveat).toBe("Your performance history isn't available yet, so this estimate may be less certain.");
+  });
+
+  it("cold-start but prior_avg_score wasn't the top factor anyway: no caveat needed", () => {
+    const explanationWeightDominant = {
+      predicted_priority: finalResult.priorityLabel,
+      feature_contributions: { weight: 0.9, prior_avg_score: 0.2, date: 0.1 },
+    };
+    const display = resolveExplanationDisplay(finalResult, 20, explanationWeightDominant, { hasPriorScoreData: false });
+    expect(display.caveat).toBeNull();
+  });
+
+  it("defaults hasPriorScoreData to true when options are omitted (backward compatible)", () => {
+    const display = resolveExplanationDisplay(finalResult, 20, explanationPriorAvgScoreDominant);
+    expect(display.sentence).toContain("average score");
+    expect(display.caveat).toBeNull();
+  });
+
+  // weight is the model's single strongest feature (Section 6 SHAP) - a
+  // real synced task (external Journal schema has no `weight` field at all)
+  // must never have a fabricated weight cited as the reason for its priority.
+  const explanationWeightDominant = {
+    predicted_priority: finalResult.priorityLabel,
+    feature_contributions: { weight: 0.9, prior_avg_score: 0.2, date: 0.1 },
+  };
+
+  it("with a real weight: cites weight normally, no caveat", () => {
+    const display = resolveExplanationDisplay(finalResult, 20, explanationWeightDominant, { hasRealWeight: true });
+    expect(display.sentence).toContain("weight");
+    expect(display.caveat).toBeNull();
+  });
+
+  it("no real weight (real synced task, weight field absent): excludes weight, adds the weight-specific caveat", () => {
+    const display = resolveExplanationDisplay(finalResult, 20, explanationWeightDominant, { hasRealWeight: false });
+    expect(display.sentence).not.toContain("assignment weight");
+    expect(display.sentence).toContain("average score"); // falls through to the next real contributor
+    expect(display.caveat).toBe("This task's weight isn't set yet — using a neutral default, so this estimate may be less certain.");
+  });
+
+  it("both prior score and weight missing: excludes both, caveat matches whichever was actually top-ranked", () => {
+    const explanationBothMissingWeightTop = {
+      predicted_priority: finalResult.priorityLabel,
+      feature_contributions: { weight: 0.9, prior_avg_score: 0.8, date: 0.1 },
+    };
+    const display = resolveExplanationDisplay(finalResult, 20, explanationBothMissingWeightTop, {
+      hasPriorScoreData: false,
+      hasRealWeight: false,
+    });
+    expect(display.sentence).not.toContain("assignment weight");
+    expect(display.sentence).not.toContain("average score");
+    expect(display.sentence).toContain("time until deadline"); // falls through past both fabricated features
+    expect(display.caveat).toContain("weight"); // weight was ranked #1 (0.9 > 0.8), so its caveat wins
+  });
+
+  it("defaults hasRealWeight to true when options are omitted (backward compatible)", () => {
+    const display = resolveExplanationDisplay(finalResult, 20, explanationWeightDominant);
+    expect(display.sentence).toContain("weight");
+    expect(display.caveat).toBeNull();
   });
 });

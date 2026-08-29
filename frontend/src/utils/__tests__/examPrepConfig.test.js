@@ -8,6 +8,9 @@ import {
   computeExamPrepHoursForDay,
   computePerformanceMultiplier,
   computeFinalBudgetHours,
+  computeExamTypeBudgetMultiplier,
+  EXAM_TYPE_BUDGET_MULTIPLIER,
+  DEFAULT_EXAM_TYPE_MULTIPLIER,
   PERFORMANCE_MULTIPLIER,
   DEFAULT_TOTAL_BUDGET_HOURS,
 } from "../examPrepConfig";
@@ -86,5 +89,32 @@ describe("computePerformanceMultiplier: documented threshold bands", () => {
     expect(computeFinalBudgetHours(DEFAULT_TOTAL_BUDGET_HOURS, 1.4)).toBeCloseTo(16.8);
     expect(computeFinalBudgetHours(DEFAULT_TOTAL_BUDGET_HOURS, 1.0)).toBe(12);
     expect(computeFinalBudgetHours(DEFAULT_TOTAL_BUDGET_HOURS, 0.75)).toBe(9);
+  });
+});
+
+describe("computeExamTypeBudgetMultiplier: real exam_type values (Section 17 re-scope)", () => {
+  it("applies the documented multiplier for each real canonical exam_type", () => {
+    expect(computeExamTypeBudgetMultiplier("final")).toBe(EXAM_TYPE_BUDGET_MULTIPLIER.final);
+    expect(computeExamTypeBudgetMultiplier("mid")).toBe(EXAM_TYPE_BUDGET_MULTIPLIER.mid);
+    expect(computeExamTypeBudgetMultiplier("lab")).toBe(EXAM_TYPE_BUDGET_MULTIPLIER.lab);
+    expect(computeExamTypeBudgetMultiplier("quiz")).toBe(EXAM_TYPE_BUDGET_MULTIPLIER.quiz);
+  });
+
+  it("a final exam gets a strictly larger multiplier than a mid, lab, or quiz", () => {
+    expect(computeExamTypeBudgetMultiplier("final")).toBeGreaterThan(computeExamTypeBudgetMultiplier("mid"));
+    expect(computeExamTypeBudgetMultiplier("final")).toBeGreaterThan(computeExamTypeBudgetMultiplier("lab"));
+    expect(computeExamTypeBudgetMultiplier("final")).toBeGreaterThan(computeExamTypeBudgetMultiplier("quiz"));
+  });
+
+  it("is case-insensitive", () => {
+    expect(computeExamTypeBudgetMultiplier("FINAL")).toBe(EXAM_TYPE_BUDGET_MULTIPLIER.final);
+    expect(computeExamTypeBudgetMultiplier("Mid")).toBe(EXAM_TYPE_BUDGET_MULTIPLIER.mid);
+  });
+
+  it("defaults to neutral (1.0) for an unrecognized or missing exam_type - the 'Exam' display placeholder must never skew the budget", () => {
+    expect(computeExamTypeBudgetMultiplier("Exam")).toBe(DEFAULT_EXAM_TYPE_MULTIPLIER);
+    expect(computeExamTypeBudgetMultiplier(undefined)).toBe(DEFAULT_EXAM_TYPE_MULTIPLIER);
+    expect(computeExamTypeBudgetMultiplier(null)).toBe(DEFAULT_EXAM_TYPE_MULTIPLIER);
+    expect(computeExamTypeBudgetMultiplier("")).toBe(DEFAULT_EXAM_TYPE_MULTIPLIER);
   });
 });

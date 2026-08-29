@@ -73,7 +73,10 @@ export default function TaskDetails() {
   // explaining `explanation.predicted_priority` instead of the final,
   // post-priorityEngine label the badge shows.
   const explanationDisplay = finalPriorityResult && explanation
-    ? resolveExplanationDisplay(finalPriorityResult, days, explanation)
+    ? resolveExplanationDisplay(finalPriorityResult, days, explanation, {
+        hasPriorScoreData: !!task?.hasPriorScoreData,
+        hasRealWeight: !!task?.hasRealWeight,
+      })
     : null;
 
   const remainingHours = task ? Math.max(task.estimatedHoursNeeded - task.completedHours, 0) : 0;
@@ -190,7 +193,15 @@ export default function TaskDetails() {
                 )}
               </div>
             </div>
-            <Stat icon={BookOpen} label="Module Grade" value={module ? `${module.currentGrade}%` : "—"} />
+            <Stat
+              icon={BookOpen}
+              label="Module Grade"
+              // hasGradeData=false means no marks recorded yet - the 0%
+              // placeholder underneath must never display as if it were a
+              // real grade (same honesty rule MonthGrid.jsx already applies
+              // to this exact field; this stat had been missing it - Section 17).
+              value={module ? (module.hasGradeData ? `${module.currentGrade}%` : "No data yet") : "—"}
+            />
             <Stat icon={RefreshCw} label="Assessment Type" value={task.assessmentType} />
           </div>
 
