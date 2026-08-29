@@ -91,7 +91,7 @@ export default function FocusApp() {
   const [todayBaseFocus, setTodayBaseFocus] = useState(0);
   const [todayBaseDist, setTodayBaseDist] = useState(0);
   const [streak, setStreak] = useState(0);
-  const [sessionStatus, setSessionStatus] = useState("active"); // active | paused | ended
+  const [sessionStatus, setSessionStatus] = useState("ended"); // active | paused | ended
   const [reportFocusMin, setReportFocusMin] = useState(null);
   const [reportDistMin, setReportDistMin] = useState(null);
   const [showModal, setShowModal] = useState(false);
