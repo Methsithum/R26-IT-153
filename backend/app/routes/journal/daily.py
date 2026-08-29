@@ -34,7 +34,7 @@ import re
 from datetime import datetime, time
 from typing import Any, Dict, List, Optional
 
-from app.services.time_utils import calendar_datetime, local_today_iso, to_local_date
+from app.services.time_utils import as_of_day, calendar_datetime, local_today_iso, to_local_date
 
 router = APIRouter(prefix="/daily", tags=["daily"])
 logger = logging.getLogger(__name__)
@@ -321,15 +321,16 @@ def _exam_rows(exams: List[Dict]) -> List[Dict]:
     ]
 
 
-async def _academic_state(user_id: str) -> dict:
+async def _academic_state(user_id: str, as_of=None) -> dict:
     tasks = await TaskModel.find_by_user(user_id)
     memory = await _picker_memory(user_id)
+    as_of = as_of_day(as_of)
     return {
         "tasks": tasks,
         "tasks_data": _task_rows(tasks),
-        "missing_exams": await ExamModel.missing(user_id),
-        "unmarked_exams": await ExamModel.missing_marks(user_id),
-        "unmarked_assignments": await TaskModel.assignments_needing_mark(user_id),
+        "missing_exams": await ExamModel.missing(user_id, as_of=as_of),
+        "unmarked_exams": await ExamModel.missing_marks(user_id, as_of=as_of),
+        "unmarked_assignments": await TaskModel.assignments_needing_mark(user_id, as_of=as_of),
         "dated_exam_kinds": await ExamModel.dated_kinds(user_id),
         "marked_exam_kinds": await ExamModel.marked_kinds(user_id),
         **memory,
@@ -816,7 +817,7 @@ async def start_daily_session(req: StartDailyRequest):
             for kind in kinds:
                 await ExamModel.ensure(req.user_id, subject, kind)
 
-    academic = await _academic_state(req.user_id)
+    academic = await _academic_state(req.user_id, as_of=play_day)
     tasks = academic["tasks"]
     exams = await ExamModel.find_by_user(req.user_id)
     date = calendar_datetime(play_day)
@@ -959,7 +960,7 @@ async def answer_question(req: AnswerRequest):
     assignment_subjects = session.get("assignment_subjects") or []
     exam_subjects = session.get("exam_subjects") or []
     exam_kinds = [k for k in (session.get("exam_kinds") or []) if k in ("mid", "final")]
-    academic = await _academic_state(session["user_id"])
+    academic = await _academic_state(session["user_id"], as_of=to_local_date(session.get("date")))
     qa_list = [
         {
             "question": q["question"],

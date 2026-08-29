@@ -1,6 +1,6 @@
 from app.config.database import db
 from app.services.journal.journal_constants import MARK_RECEIVED_STAGES, is_mark_check_due
-from app.services.time_utils import local_today_iso
+from app.services.time_utils import as_of_day, local_today_iso
 from bson import ObjectId
 from datetime import datetime
 
@@ -138,8 +138,9 @@ class TaskModel:
         })
 
     @staticmethod
-    async def assignments_needing_mark(user_id: str):
+    async def assignments_needing_mark(user_id: str, as_of=None):
         docs = list(task_collection.find({"user_id": user_id, "task_type": "assignment"}))
+        as_of = as_of_day(as_of)
         ready = []
         for doc in docs:
             task = TaskModel._serialize(doc)
@@ -148,7 +149,7 @@ class TaskModel:
                 continue
             if task.get("mark") not in (None, ""):
                 continue
-            if is_mark_check_due(task.get("last_mark_check")):
+            if is_mark_check_due(task.get("last_mark_check"), today=as_of):
                 ready.append(task)
         return ready
 

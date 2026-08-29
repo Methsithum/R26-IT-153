@@ -10,7 +10,7 @@ from app.services.journal.llm_service import pick_question_id
 from app.services.journal.journal_constants import MARK_RECEIVED_STAGES, is_mark_check_due
 from app.models.journal.question import QuestionModel
 from app.services.journal.question_bank import QUESTION_BANK, get_question, get_questions, pad_options
-from app.services.time_utils import local_today, to_local_date
+from app.services.time_utils import as_of_day, to_local_date
 
 SHORTLIST_SIZE = 20
 KIND_ORDER = ("mid", "final", "lab", "quiz")
@@ -157,13 +157,13 @@ def _current_assignment_by_subject(tasks: List[Dict]) -> Dict[str, Dict]:
     return current
 
 
-def assignment_deadline_passed(task: Optional[Dict]) -> bool:
+def assignment_deadline_passed(task: Optional[Dict], as_of=None) -> bool:
     if not task:
         return False
     day = to_local_date(task.get("deadline"))
     if not day:
         return False
-    return day < local_today()
+    return day < as_of_day(as_of)
 
 
 def _open_assignment_subjects(tasks: List[Dict], assignment_subjects: List[str]) -> List[str]:
@@ -181,6 +181,7 @@ def _subjects_needing_next_assignment(
     tasks: List[Dict],
     assignment_subjects: List[str],
     asked: Optional[List[str]] = None,
+    as_of=None,
 ) -> List[str]:
     already = set(asked or [])
     current = _current_assignment_by_subject(tasks)
@@ -188,27 +189,27 @@ def _subjects_needing_next_assignment(
     for subject in assignment_subjects or []:
         if not subject or subject in already:
             continue
-        if assignment_deadline_passed(current.get(subject)):
+        if assignment_deadline_passed(current.get(subject), as_of):
             needed.append(subject)
     return needed
 
 
-def _progress_bucket(task: Dict) -> int:
+def _progress_bucket(task: Dict, as_of=None) -> int:
     due = to_local_date(task.get("deadline"))
-    today = local_today()
-    if due and due <= today:
+    as_of = as_of_day(as_of)
+    if due and due <= as_of:
         return 0
-    if to_local_date(task.get("created_at")) == today:
+    if to_local_date(task.get("created_at")) == as_of:
         return 1
     return 2
 
 
-def _assignment_progress_variant(task: Dict) -> str:
+def _assignment_progress_variant(task: Dict, as_of=None) -> str:
     due = to_local_date(task.get("deadline"))
-    today = local_today()
-    if due and due <= today:
+    as_of = as_of_day(as_of)
+    if due and due <= as_of:
         return "due"
-    if to_local_date(task.get("created_at")) == today:
+    if to_local_date(task.get("created_at")) == as_of:
         return "new"
     return "status"
 
@@ -217,6 +218,7 @@ def _assignments_needing_progress(
     tasks: List[Dict],
     assignment_subjects: List[str],
     asked_ids: Optional[List[str]] = None,
+    as_of=None,
 ) -> List[Dict]:
     wanted = {subject for subject in (assignment_subjects or []) if subject}
     already = set(asked_ids or [])
@@ -233,7 +235,7 @@ def _assignments_needing_progress(
     subject_rank = {subject: index for index, subject in enumerate(assignment_subjects or [])}
     needed.sort(
         key=lambda task: (
-            _progress_bucket(task),
+            _progress_bucket(task, as_of),
             subject_rank.get(task.get("subject"), 99),
             _assignment_created_key(task),
         )
@@ -241,19 +243,24 @@ def _assignments_needing_progress(
     return needed
 
 
-def _subjects_needing_deadline(tasks: List[Dict], today_subjects: List[str]) -> List[str]:
+def _subjects_needing_deadline(tasks: List[Dict], today_subjects: List[str], as_of=None) -> List[str]:
     current = _current_assignment_by_subject(tasks)
+    as_of = as_of_day(as_of)
     needed: List[str] = []
     for subject in today_subjects or []:
         task = current.get(subject)
         if not task or not task.get("deadline"):
-            if subject and is_mark_check_due((task or {}).get("last_deadline_check")) and subject not in needed:
+            if (
+                subject
+                and is_mark_check_due((task or {}).get("last_deadline_check"), today=as_of)
+                and subject not in needed
+            ):
                 needed.append(subject)
     for subject, task in current.items():
         if (
             subject
             and not task.get("deadline")
-            and is_mark_check_due(task.get("last_deadline_check"))
+            and is_mark_check_due(task.get("last_deadline_check"), today=as_of)
             and subject not in needed
         ):
             needed.append(subject)
@@ -407,6 +414,7 @@ def hydrate(
     deadline: Optional[str] = None,
     task_id: Optional[str] = None,
     assignment_variant: Optional[str] = None,
+    as_of=None,
 ) -> Optional[dict]:
     if not question:
         return None
@@ -417,9 +425,9 @@ def hydrate(
     if subject:
         if question.get("stage") == "assignment_progress":
             due = to_local_date(deadline)
-            today = local_today()
+            as_of = as_of_day(as_of)
             if assignment_variant == "due" and due:
-                due_label = "today" if due == today else due.isoformat()
+                due_label = "today" if due == as_of else due.isoformat()
                 text = f"Did you submit the {subject} assignment due {due_label}?"
                 options = ["Yes, submitted", "Almost done", "Still in progress", "Not started"]
             elif assignment_variant == "new":
@@ -504,11 +512,12 @@ def _forced_next_assignment(
     tasks: List[Dict],
     assignment_subjects: List[str],
     asked_next_assignment_subjects: Optional[List[str]] = None,
+    as_of=None,
 ) -> Optional[Dict[str, Any]]:
     if "assignment_work" not in (selected or []):
         return None
     needed = _subjects_needing_next_assignment(
-        tasks, assignment_subjects, asked_next_assignment_subjects
+        tasks, assignment_subjects, asked_next_assignment_subjects, as_of=as_of
     )
     if not needed:
         return None
@@ -525,11 +534,12 @@ def _forced_assignment_progress(
     tasks: List[Dict],
     assignment_subjects: List[str],
     asked_assignment_progress_ids: Optional[List[str]] = None,
+    as_of=None,
 ) -> Optional[Dict[str, Any]]:
     if "assignment_work" not in (selected or []):
         return None
     needed = _assignments_needing_progress(
-        tasks, assignment_subjects, asked_assignment_progress_ids
+        tasks, assignment_subjects, asked_assignment_progress_ids, as_of=as_of
     )
     if not needed:
         return None
@@ -539,7 +549,7 @@ def _forced_assignment_progress(
         "subject": task.get("subject"),
         "deadline": task.get("deadline"),
         "task_id": task.get("id"),
-        "assignment_variant": _assignment_progress_variant(task),
+        "assignment_variant": _assignment_progress_variant(task, as_of),
         "missing_exams": None,
         "subject_options": None,
     }
@@ -554,12 +564,13 @@ def _forced_date_followup(
     asked_exam_date_kinds: Optional[List[str]] = None,
     pending_exam_date_kind: Optional[str] = None,
     dated_exam_kinds: Optional[Sequence[str]] = None,
+    as_of=None,
 ) -> Optional[Dict[str, Any]]:
     already_checked = set(asked_deadline_subjects or [])
     dated_kinds = {str(k).lower() for k in (dated_exam_kinds or [])}
     needed = [
         subject
-        for subject in _subjects_needing_deadline(tasks, assignment_subjects)
+        for subject in _subjects_needing_deadline(tasks, assignment_subjects, as_of=as_of)
         if subject not in already_checked
     ]
     if needed:
@@ -717,7 +728,7 @@ def _prefer_followup(shortlist: List[dict], qa_history: List[Dict], uncovered: L
     return follow + [q for q in shortlist if q not in follow]
 
 
-def _hydrate_forced(payload: Dict[str, Any]) -> dict:
+def _hydrate_forced(payload: Dict[str, Any], as_of=None) -> dict:
     return hydrate(
         payload["question"],
         subject=payload.get("subject"),
@@ -728,6 +739,7 @@ def _hydrate_forced(payload: Dict[str, Any]) -> dict:
         deadline=payload.get("deadline"),
         task_id=payload.get("task_id"),
         assignment_variant=payload.get("assignment_variant"),
+        as_of=as_of,
     )
 
 
@@ -789,6 +801,7 @@ async def pick_next_question(
     recent_intent_ids = recent_intent_ids or []
     asked_next_assignment_subjects = asked_next_assignment_subjects or []
     asked_assignment_progress_ids = asked_assignment_progress_ids or []
+    as_of = as_of_day((session_context or {}).get("journal_date"))
 
     forced = _forced_setup_question(
         selected_activities,
@@ -812,9 +825,10 @@ async def pick_next_question(
         tasks,
         assignment_subjects,
         asked_next_assignment_subjects,
+        as_of=as_of,
     )
     if next_assignment and next_assignment.get("question"):
-        return {"end_session": False, "question": _hydrate_forced(next_assignment), "task_updates": []}
+        return {"end_session": False, "question": _hydrate_forced(next_assignment, as_of), "task_updates": []}
 
     date_followup = _forced_date_followup(
         selected_activities,
@@ -825,18 +839,20 @@ async def pick_next_question(
         asked_exam_date_kinds,
         pending_exam_date_kind,
         dated_exam_kinds,
+        as_of=as_of,
     )
     if date_followup and date_followup.get("question"):
-        return {"end_session": False, "question": _hydrate_forced(date_followup), "task_updates": []}
+        return {"end_session": False, "question": _hydrate_forced(date_followup, as_of), "task_updates": []}
 
     progress_followup = _forced_assignment_progress(
         selected_activities,
         tasks,
         assignment_subjects,
         asked_assignment_progress_ids,
+        as_of=as_of,
     )
     if progress_followup and progress_followup.get("question"):
-        return {"end_session": False, "question": _hydrate_forced(progress_followup), "task_updates": []}
+        return {"end_session": False, "question": _hydrate_forced(progress_followup, as_of), "task_updates": []}
 
     mark_followup = _forced_mark_followup(
         unmarked_exams,
@@ -850,7 +866,7 @@ async def pick_next_question(
         confirmed_assignment_marks,
     )
     if mark_followup and mark_followup.get("question"):
-        return {"end_session": False, "question": _hydrate_forced(mark_followup), "task_updates": []}
+        return {"end_session": False, "question": _hydrate_forced(mark_followup, as_of), "task_updates": []}
 
     uncovered = uncovered_activities(
         selected_activities,
@@ -931,6 +947,7 @@ async def pick_next_question(
             subject=subject,
             missing_exams=exams_for_q,
             subject_options=registered_subjects,
+            as_of=as_of,
         ),
         "task_updates": task_updates,
     }
