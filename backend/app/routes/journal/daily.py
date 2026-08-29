@@ -1,5 +1,11 @@
 from fastapi import APIRouter, HTTPException, Query
-from app.schemas.journal.daily import StartDailyRequest, AnswerRequest, FinishRunRequest, NextQuestionResponse
+from app.schemas.journal.daily import (
+    StartDailyRequest,
+    AnswerRequest,
+    FinishRunRequest,
+    AbandonSessionRequest,
+    NextQuestionResponse,
+)
 from app.models.journal.daily_session import DailySessionModel
 from app.models.journal.question import QuestionModel
 from app.models.journal.task import TaskModel
@@ -686,6 +692,38 @@ async def _abandon_incomplete_session(session: dict) -> None:
     await DailySessionModel.delete(session["id"])
 
 
+async def _user_world_payload(user_id: str) -> dict:
+    user = await UserModel.find_by_id(user_id)
+    if not user:
+        raise HTTPException(404, "User not found")
+    remaining = await DailySessionModel.find_user_sessions(user_id)
+    bundle = progress_bundle(remaining)
+    return {
+        "id": str(user.get("id") or user_id),
+        "email": user.get("email"),
+        "name": user.get("name"),
+        "age": user.get("age"),
+        "university_name": user.get("university_name"),
+        "degree_name": user.get("degree_name"),
+        "campus_year": user.get("campus_year"),
+        "semester": user.get("semester"),
+        "gpa": user.get("gpa"),
+        "subjects": user.get("subjects") or [],
+        "total_xp": user.get("total_xp", 0),
+        "current_streak": user.get("current_streak", 0),
+        "longest_streak": user.get("longest_streak", 0),
+        "badges": user.get("badges") or [],
+        "current_day": bundle["current_day"],
+        "daily_completed": bundle["daily_completed"],
+        "missed_dates": bundle["missed_dates"],
+        "play_date": bundle["play_date"],
+        "level": level_from_xp(user.get("total_xp", 0)),
+        "sessions": remaining,
+        "tasks": await TaskModel.find_by_user(user_id),
+        "exams": await ExamModel.find_by_user(user_id),
+    }
+
+
 async def _complete_session(session_id: str, session: dict, qa_list: list, task_updates: list, update_data: dict) -> dict:
     await _drop_stray_assignment_tasks(session["user_id"], session)
     context = await build_session_context(session)
@@ -1064,32 +1102,23 @@ async def delete_today_journal(user_id: str, date: Optional[str] = Query(default
 
     remaining = await DailySessionModel.find_user_sessions(user_id)
     await _revert_gamification(user, xp_to_remove, remaining)
-    user = await UserModel.find_by_id(user_id)
-    bundle = progress_bundle(remaining)
-    return {
-        "id": str(user.get("id") or user_id),
-        "email": user.get("email"),
-        "name": user.get("name"),
-        "age": user.get("age"),
-        "university_name": user.get("university_name"),
-        "degree_name": user.get("degree_name"),
-        "campus_year": user.get("campus_year"),
-        "semester": user.get("semester"),
-        "gpa": user.get("gpa"),
-        "subjects": user.get("subjects") or [],
-        "total_xp": user.get("total_xp", 0),
-        "current_streak": user.get("current_streak", 0),
-        "longest_streak": user.get("longest_streak", 0),
-        "badges": user.get("badges") or [],
-        "current_day": bundle["current_day"],
-        "daily_completed": bundle["daily_completed"],
-        "missed_dates": bundle["missed_dates"],
-        "play_date": bundle["play_date"],
-        "level": level_from_xp(user.get("total_xp", 0)),
-        "sessions": remaining,
-        "tasks": await TaskModel.find_by_user(user_id),
-        "exams": await ExamModel.find_by_user(user_id),
-    }
+    return await _user_world_payload(user_id)
+
+
+@router.post("/abandon")
+async def abandon_daily_session(req: AbandonSessionRequest):
+    user = await UserModel.find_by_id(req.user_id)
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    session = await DailySessionModel.find_by_id(req.session_id)
+    if not session or session.get("user_id") != req.user_id:
+        return await _user_world_payload(req.user_id)
+    if session.get("completed"):
+        raise HTTPException(400, "This run is already saved. Delete today's journal to replay.")
+
+    await _abandon_incomplete_session(session)
+    return await _user_world_payload(req.user_id)
 
 
 @router.get("/{session_id}")

@@ -27,6 +27,11 @@ class FinishRunRequest(BaseModel):
     xp_earned: int
     score: int = 0
 
+
+class AbandonSessionRequest(BaseModel):
+    session_id: str
+    user_id: str
+
 class MissingExam(BaseModel):
     id: str
     subject: str
