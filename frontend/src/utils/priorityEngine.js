@@ -70,6 +70,27 @@ export function computeBaseTier(daysRemaining, taskType = "assignment") {
  * no matter what the model says.
  */
 export function computeFinalPriority(daysRemainingValue, taskType, mlPriorityLabel) {
+  // Hard floor, checked FIRST and before any base-tier/modifier math: a task
+  // or exam more than a month out (> 30 days) is always Low, full stop - the
+  // ML modifier is not applied at all here, no matter how strongly the
+  // model's weight-driven signal argues otherwise. Without this, a
+  // high-weight/low-performance task 32+ days out could still climb to
+  // Medium via the ±1 modifier (base Low + modifier +1 = Medium) - legal
+  // under the bound, but still reads as "this needs attention soon" to a
+  // student for something over a month away, undermining the whole point of
+  // making the deadline the dominant signal. Applies to both taskType values
+  // equally. Does not affect the overdue rule at the other end of the range
+  // (daysRemaining < 0 is handled below and always wins there regardless).
+  if (daysRemainingValue > 30) {
+    return {
+      priorityLabel: "Low",
+      baseTierLevel: PRIORITY_LEVELS.Low,
+      mlTierLevel: mlPriorityLabel != null ? PRIORITY_LEVELS[mlPriorityLabel] : null,
+      modifier: 0,
+      dominantMechanism: "deadline",
+    };
+  }
+
   const base = computeBaseTier(daysRemainingValue, taskType);
   const overdue = daysRemainingValue < 0;
   const mlLevel = mlPriorityLabel != null ? PRIORITY_LEVELS[mlPriorityLabel] : null;
