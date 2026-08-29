@@ -68,13 +68,51 @@ class TaskModel:
         return TaskModel._serialize(TaskModel._newest(docs))
 
     @staticmethod
+    def assignment_title(subject: str, number: int = 1, total: int = 1) -> str:
+        if total <= 1:
+            return f"{subject} assignment"
+        return f"{subject} assignment {number}"
+
+    @staticmethod
+    def _is_open_assignment(task: dict | None) -> bool:
+        if not task:
+            return False
+        stage = str(task.get("progress_stage") or "").lower()
+        return stage not in MARK_RECEIVED_STAGES
+
+    @staticmethod
+    async def sync_assignment_titles(user_id: str, subject: str | None = None):
+        """Number titles when a subject has more than one assignment."""
+        if subject:
+            groups = {subject: await TaskModel.find_assignments(user_id, subject)}
+        else:
+            groups: dict[str, list] = {}
+            for task in await TaskModel.find_by_user(user_id):
+                if (task.get("task_type") or "assignment") != "assignment":
+                    continue
+                name = task.get("subject")
+                if not name:
+                    continue
+                groups.setdefault(name, []).append(task)
+            for items in groups.values():
+                items.sort(key=lambda task: (str(task.get("created_at") or ""), str(task.get("id") or "")))
+        for name, items in groups.items():
+            total = len(items)
+            for index, task in enumerate(items, start=1):
+                title = TaskModel.assignment_title(name, index, total)
+                if task.get("id") and task.get("title") != title:
+                    await TaskModel.update(task["id"], {"title": title})
+                    task["title"] = title
+
+    @staticmethod
     async def ensure_assignment(user_id: str, subject: str):
         existing = await TaskModel.find_assignment(user_id, subject)
         if existing:
+            await TaskModel.sync_assignment_titles(user_id, subject)
             return existing
-        return await TaskModel.create({
+        created = await TaskModel.create({
             "user_id": user_id,
-            "title": f"{subject} assignment",
+            "title": TaskModel.assignment_title(subject),
             "subject": subject,
             "task_type": "assignment",
             "progress_stage": "in_progress",
@@ -83,15 +121,21 @@ class TaskModel:
             "last_mark_check": None,
             "last_deadline_check": None,
         })
+        await TaskModel.sync_assignment_titles(user_id, subject)
+        return created
 
     @staticmethod
     async def start_next_assignment(user_id: str, subject: str):
         existing = await TaskModel.find_assignments(user_id, subject)
+        open_ones = [task for task in existing if TaskModel._is_open_assignment(task)]
+        if open_ones:
+            await TaskModel.sync_assignment_titles(user_id, subject)
+            return open_ones[-1]
         number = len(existing) + 1
-        title = f"{subject} assignment {number}" if number > 1 else f"{subject} assignment"
-        return await TaskModel.create({
+        total = number
+        created = await TaskModel.create({
             "user_id": user_id,
-            "title": title,
+            "title": TaskModel.assignment_title(subject, number, total),
             "subject": subject,
             "task_type": "assignment",
             "progress_stage": "in_progress",
@@ -100,6 +144,8 @@ class TaskModel:
             "last_mark_check": None,
             "last_deadline_check": None,
         })
+        await TaskModel.sync_assignment_titles(user_id, subject)
+        return created
 
     @staticmethod
     async def set_progress(user_id: str, subject: str, progress_stage: str, task_id: str | None = None):

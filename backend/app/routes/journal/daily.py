@@ -321,8 +321,13 @@ def _exam_rows(exams: List[Dict]) -> List[Dict]:
     ]
 
 
+async def _numbered_assignment_tasks(user_id: str) -> list:
+    await TaskModel.sync_assignment_titles(user_id)
+    return await TaskModel.find_by_user(user_id)
+
+
 async def _academic_state(user_id: str, as_of=None) -> dict:
-    tasks = await TaskModel.find_by_user(user_id)
+    tasks = await _numbered_assignment_tasks(user_id)
     memory = await _picker_memory(user_id)
     as_of = as_of_day(as_of)
     return {
@@ -720,7 +725,7 @@ async def _user_world_payload(user_id: str) -> dict:
         "play_date": bundle["play_date"],
         "level": level_from_xp(user.get("total_xp", 0)),
         "sessions": remaining,
-        "tasks": await TaskModel.find_by_user(user_id),
+        "tasks": await _numbered_assignment_tasks(user_id),
         "exams": await ExamModel.find_by_user(user_id),
     }
 

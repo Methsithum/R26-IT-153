@@ -139,6 +139,30 @@ def _assignment_created_key(task: Dict) -> tuple:
     return (str(task.get("created_at") or ""), str(task.get("id") or ""))
 
 
+def _assignments_for_subject(tasks: List[Dict], subject: Optional[str]) -> List[Dict]:
+    items = [task for task in _assignment_tasks(tasks) if task.get("subject") == subject]
+    items.sort(key=_assignment_created_key)
+    return items
+
+
+def _assignment_ordinal(tasks: List[Dict], task: Dict) -> tuple[int, int]:
+    siblings = _assignments_for_subject(tasks, task.get("subject"))
+    total = len(siblings)
+    number = next(
+        (index for index, item in enumerate(siblings, start=1) if item.get("id") == task.get("id")),
+        1,
+    )
+    return number, total
+
+
+def _assignment_ref(subject: Optional[str], number: int = 1, total: int = 1) -> str:
+    if not subject:
+        return "assignment"
+    if total <= 1:
+        return f"{subject} assignment"
+    return f"{subject} assignment {number}"
+
+
 def _assignment_tasks(tasks: List[Dict]) -> List[Dict]:
     return [
         task
@@ -188,6 +212,12 @@ def _subjects_needing_next_assignment(
     needed: List[str] = []
     for subject in assignment_subjects or []:
         if not subject or subject in already:
+            continue
+        siblings = _assignments_for_subject(tasks, subject)
+        if any(
+            str(task.get("progress_stage") or "").lower() not in MARK_RECEIVED_STAGES
+            for task in siblings
+        ):
             continue
         if assignment_deadline_passed(current.get(subject), as_of):
             needed.append(subject)
@@ -414,6 +444,7 @@ def hydrate(
     deadline: Optional[str] = None,
     task_id: Optional[str] = None,
     assignment_variant: Optional[str] = None,
+    assignment_ref: Optional[str] = None,
     as_of=None,
 ) -> Optional[dict]:
     if not question:
@@ -422,17 +453,20 @@ def hydrate(
     options = question.get("options")
     kind = exam_kind or (_exam_kind(missing_exams[0]) if missing_exams else None)
     phrase = _kind_phrase(kind)
+    assignment_name = assignment_ref or (f"{subject} assignment" if subject else "assignment")
     if subject:
         if question.get("stage") == "assignment_progress":
             due = to_local_date(deadline)
             as_of = as_of_day(as_of)
             if assignment_variant == "due" and due:
                 due_label = "today" if due == as_of else due.isoformat()
-                text = f"Did you submit the {subject} assignment due {due_label}?"
+                text = f"Did you submit the {assignment_name} due {due_label}?"
                 options = ["Yes, submitted", "Almost done", "Still in progress", "Not started"]
             elif assignment_variant == "new":
-                text = f"Is this new {subject} assignment still in progress?"
+                text = f"Is this new {assignment_name} still in progress?"
                 options = ["Yes, in progress", "Almost done", "Submitted", "Not started"]
+            elif "{subject} assignment" in text:
+                text = text.replace("{subject} assignment", assignment_name)
             elif "{subject}" in text:
                 text = text.replace("{subject}", subject)
         elif "{subject}" in text:
@@ -477,6 +511,7 @@ def hydrate(
         "exam_kind": kind,
         "task_id": task_id,
         "deadline": deadline,
+        "assignment_ref": assignment_name if subject else None,
     }
 
 
@@ -544,12 +579,14 @@ def _forced_assignment_progress(
     if not needed:
         return None
     task = needed[0]
+    number, total = _assignment_ordinal(tasks, task)
     return {
         "question": get_question("asg-status"),
         "subject": task.get("subject"),
         "deadline": task.get("deadline"),
         "task_id": task.get("id"),
         "assignment_variant": _assignment_progress_variant(task, as_of),
+        "assignment_ref": _assignment_ref(task.get("subject"), number, total),
         "missing_exams": None,
         "subject_options": None,
     }
@@ -739,6 +776,7 @@ def _hydrate_forced(payload: Dict[str, Any], as_of=None) -> dict:
         deadline=payload.get("deadline"),
         task_id=payload.get("task_id"),
         assignment_variant=payload.get("assignment_variant"),
+        assignment_ref=payload.get("assignment_ref"),
         as_of=as_of,
     )
 
