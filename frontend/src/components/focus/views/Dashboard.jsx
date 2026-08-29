@@ -15,6 +15,7 @@ export default function TabDashboard({
   distMin,
   week,
   challengePoints = 100,
+  userName,
 }) {
   const cfg = STATE_CFG[state] || STATE_CFG.Focused;
   const mood = TREE_MOOD[state] || TREE_MOOD.Focused;
@@ -43,7 +44,7 @@ export default function TabDashboard({
       <PageHeader
         icon="🌿"
         title="Dashboard"
-        subtitle="Your tree is happy when this session is mostly focused, droopy when distraction leads"
+        subtitle={userName ? `Hi ${userName} — your tree is happy when this session is mostly focused` : "Your tree is happy when this session is mostly focused, droopy when distraction leads"}
         right={<Badge color={cfg.color}>{mood.emoji} {cfg.label}</Badge>}
       />
 

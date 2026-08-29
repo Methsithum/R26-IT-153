@@ -345,6 +345,7 @@ export const TABS = [
   { id:"achievements",label:"Achievements",    icon:"🏅" },
   { id:"leaderboard", label:"Leaderboard",     icon:"🏆" },
   { id:"report",      label:"Report",          icon:"📈" },
+  { id:"profile",     label:"Profile",         icon:"👤" },
 ];
 
 export default {

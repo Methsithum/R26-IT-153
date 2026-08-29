@@ -14,6 +14,8 @@ export default function FocusHeader({
   startSession,
   setShowCheckIn,
   challengePoints = 100,
+  userName,
+  onOpenProfile,
 }) {
   const statusLabel = sessionStatus === "ended" ? "Ended" : sessionOn ? "Active" : "Paused";
   const statusColor = sessionStatus === "ended" ? "#64748b" : sessionOn ? "#22c55e" : "#f59e0b";
@@ -31,7 +33,21 @@ export default function FocusHeader({
             >
               🌱
             </span>
-            <span className="font-bold text-slate-900 tracking-tight">FocusForest</span>
+            <span className="font-bold text-slate-900 tracking-tight hidden sm:inline">FocusForest</span>
+            {userName && (
+              <button
+                type="button"
+                onClick={onOpenProfile}
+                className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold border max-w-[160px]"
+                style={{ backgroundColor: "#22c55e12", borderColor: "#22c55e35", color: "#15803d" }}
+                title="Open profile"
+              >
+                <span className="w-5 h-5 rounded-full bg-green-600 text-white flex items-center justify-center text-[10px] shrink-0">
+                  {String(userName).trim().split(/\s+/).filter(Boolean).map((p) => p[0]).join("").slice(0, 2).toUpperCase() || "S"}
+                </span>
+                <span className="truncate">{userName.split(" ")[0]}</span>
+              </button>
+            )}
             <div
               className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all duration-500"
               style={{ backgroundColor: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }}
@@ -91,6 +107,18 @@ export default function FocusHeader({
             >
               Check-in
             </button>
+
+            {userName && (
+              <button
+                type="button"
+                onClick={onOpenProfile}
+                className="sm:hidden w-8 h-8 rounded-lg text-[10px] font-bold text-white"
+                style={{ background: "linear-gradient(135deg,#22c55e,#16a34a)" }}
+                title="Profile"
+              >
+                {String(userName).trim().split(/\s+/).filter(Boolean).map((p) => p[0]).join("").slice(0, 2).toUpperCase() || "S"}
+              </button>
+            )}
           </div>
         </div>
 

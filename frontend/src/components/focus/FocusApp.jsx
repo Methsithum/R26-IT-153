@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { STATE_CFG, LEVEL_DATA, ACHIEVEMENTS_LIST, pickChallengeType, challengePointsFor, levelIndexFromPoints } from "./focusData";
 import { useFocusCamera } from "../../hooks/useFocusCamera";
-import { saveFocusSession, getDailyReport, getWeeklyReport, getFocusProfile, flushFocusSession } from "../../lib/focusApi";
+import { saveFocusSession, getDailyReport, getWeeklyReport, getFocusProfile, flushFocusSession, getLeaderboard, pingFocusPresence, leaveFocusPresence } from "../../lib/focusApi";
 import { combineHM, mergeLiveWeek } from "../../lib/focusTime";
 import FocusHeader from "./FocusHeader";
 import FocusFooter from "./FocusFooter";
@@ -12,6 +12,8 @@ import TabTree from "./views/Tree";
 import TabAchievements from "./views/Achievements";
 import TabLeaderboard from "./views/Leaderboard";
 import TabReport from "./views/Report";
+import TabProfile from "./views/Profile";
+import { readStoredUser } from "../../services/userApi";
 
 const MANUAL_OVERRIDE_LOCK_MS = 5000;
 const HIGH_CONFIDENCE = 0.70;
@@ -24,7 +26,8 @@ const CHECKIN_PROMPT = "Are you focusing right now?";
 const CHECKIN_YES_REPLY = "Great! Keep going!";
 const CHECKIN_NO_REPLY = "Let's try a quick challenge!";
 const CHECKIN_PAUSE_REPLY = "Your session is paused. Resume when you are ready.";
-const CHECKIN_TIMEOUT_MS = 15 * 1000;
+const HEARTBEAT_MS = 20 * 1000;
+const LEADERBOARD_POLL_MS = 15 * 1000;
 
 const FEMALE_VOICE_RE = /aria|jenny|zira|samantha|karen|moira|tessa|fiona|veena|raveena|susan|hazel|catherine|zosia|ana|linda|heera|google us english female|microsoft.*(aria|jenny|zira|sara)|female/i;
 const MALE_VOICE_RE = /\b(david|mark|guy|james|george|daniel|thomas|fred|male|man)\b/i;
@@ -98,6 +101,9 @@ export default function FocusApp() {
   const [weekly, setWeekly] = useState(null);
   const [savedAchievements, setSavedAchievements] = useState([]);
   const [lifetimeBaseMin, setLifetimeBaseMin] = useState(0);
+  const [account] = useState(() => readStoredUser());
+  const [boardRows, setBoardRows] = useState([]);
+  const [boardLoading, setBoardLoading] = useState(true);
 
   const showModalRef = useRef(showModal);
   const lastManualRef = useRef(0);
@@ -248,6 +254,48 @@ export default function FocusApp() {
       persistSession();
     };
   }, [sessionOn, persistSession]);
+
+  useEffect(() => {
+    const beat = async () => {
+      try {
+        await pingFocusPresence();
+      } catch {
+        // ignore
+      }
+    };
+    beat();
+    const id = setInterval(beat, HEARTBEAT_MS);
+    const onLeave = () => leaveFocusPresence();
+    window.addEventListener("pagehide", onLeave);
+    window.addEventListener("beforeunload", onLeave);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("pagehide", onLeave);
+      window.removeEventListener("beforeunload", onLeave);
+      leaveFocusPresence();
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadBoard = async () => {
+      try {
+        const rows = await getLeaderboard();
+        if (!cancelled) {
+          setBoardRows(Array.isArray(rows) ? rows : []);
+          setBoardLoading(false);
+        }
+      } catch {
+        if (!cancelled) setBoardLoading(false);
+      }
+    };
+    loadBoard();
+    const id = setInterval(loadBoard, LEADERBOARD_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
 
   const pauseSession = useCallback(() => setSessionStatus("paused"), []);
   const resumeSession = useCallback(() => {
@@ -424,6 +472,7 @@ export default function FocusApp() {
         distMin={todayDistMin}
         week={liveWeek}
         challengePoints={challengePoints}
+        userName={account?.name}
       />
     ),
     monitoring: (
@@ -453,12 +502,11 @@ export default function FocusApp() {
     achievements: <TabAchievements ACHIEVEMENTS_LIST={liveAchievements} />,
     leaderboard: (
       <TabLeaderboard
+        rows={boardRows}
+        loading={boardLoading}
         focusMin={todayFocusMin}
         distMin={todayDistMin}
-        streak={streak}
-        longestStreak={longestStreakRef.current}
         lifetimeMin={lifetimeMin}
-        week={liveWeek}
       />
     ),
     report: (
@@ -470,6 +518,17 @@ export default function FocusApp() {
         todayDistMin={todayDistMin}
         todayGoal={todayGoal}
         week={liveWeek}
+      />
+    ),
+    profile: (
+      <TabProfile
+        user={account}
+        focusMin={todayFocusMin}
+        distMin={todayDistMin}
+        challengePoints={challengePoints}
+        streak={streak}
+        lifetimeMin={lifetimeMin}
+        ACHIEVEMENTS_LIST={liveAchievements}
       />
     ),
   };
@@ -495,6 +554,8 @@ export default function FocusApp() {
         startSession={startSession}
         setShowCheckIn={setShowCheckIn}
         challengePoints={challengePoints}
+        userName={account?.name}
+        onOpenProfile={() => setTab("profile")}
       />
 
       <video ref={captureVideoRef} autoPlay playsInline muted

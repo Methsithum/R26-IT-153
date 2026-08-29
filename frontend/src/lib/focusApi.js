@@ -63,6 +63,22 @@ export async function getEmotionalStats() {
   return data;
 }
 
+export async function pingFocusPresence() {
+  const uid = getFocusUserId();
+  if (!uid || uid === "anonymous") return;
+  await axios.post(`${API_BASE}/focus/presence`, null, { params: { user_id: uid } });
+}
+
+export function leaveFocusPresence() {
+  const uid = getFocusUserId();
+  if (!uid || uid === "anonymous") return;
+  try {
+    navigator.sendBeacon(`${API_BASE}/focus/presence/leave?user_id=${encodeURIComponent(uid)}`);
+  } catch {
+    // ignore
+  }
+}
+
 /** Best-effort flush on tab close. Periodic save is the reliable path. */
 export function flushFocusSession(payload) {
   try {

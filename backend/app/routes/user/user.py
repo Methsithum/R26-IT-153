@@ -59,6 +59,7 @@ async def login_user(payload: UserLogin):
         raise HTTPException(401, "Invalid email or password")
     if not verify_password(payload.password, user["password_hash"]):
         raise HTTPException(401, "Invalid email or password")
+    UserModel.touch_last_seen(user["id"])
     sessions = await DailySessionModel.find_user_sessions(user["id"])
     user = await reconcile_user_progress(user, sessions)
     return _to_response(user, sessions)
