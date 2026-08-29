@@ -504,7 +504,12 @@ function GameDetailsContent() {
               <span className="text-lg">{badge.icon}</span>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-stone-800 truncate">{a.title}</div>
-                <div className="text-[10px] text-stone-500">{a.subject}</div>
+                <div className="text-[10px] text-stone-500">
+                  {a.deadline
+                    ? formatCampusDate(a.deadline, { weekday: "short", month: "short", day: "numeric" })
+                    : "No date set"}
+                  {a.mark != null && a.mark !== "" ? ` · ${a.mark}%` : ""}
+                </div>
               </div>
               <span
                 className="text-[10px] font-semibold px-2 py-1 rounded-full shrink-0"
