@@ -105,9 +105,7 @@ export function useFocusCamera(active, onDetection) {
         for (const s of hist) counts[s] = (counts[s] || 0) + 1;
         const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
         let smoothed = ranked[0][0];
-        const fatN = counts.Fatigue || 0;
-        if (fatN >= 2) smoothed = "Fatigue";
-        else if (smoothed === "Boredom" && (counts.Boredom || 0) * 2 <= hist.length) {
+        if (smoothed === "Boredom" && (counts.Boredom || 0) * 2 <= hist.length) {
           smoothed = (ranked.find(([s]) => s !== "Boredom") || ["Focused"])[0];
         }
         const smoothedConfidence = result.probs[smoothed] ?? result.confidence;
