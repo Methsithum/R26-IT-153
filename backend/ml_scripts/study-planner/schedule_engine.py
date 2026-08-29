@@ -107,12 +107,24 @@ class StudyScheduler:
         task: dict with keys
             task_id, module, deadline_date (ISO "YYYY-MM-DD"), weight,
             priority_label ("High"/"Medium"/"Low"), estimated_hours_needed
+        task_type ("assignment"/"exam") is optional and defaults to
+        "assignment" - it doesn't change the greedy allocation ORDER (that's
+        still driven entirely by priority_label + deadline, see _sort_tasks),
+        it's carried through purely so callers (the study-planner API, then
+        the frontend) can round-trip it back out via the tasks registry -
+        see PROJECT CONTEXT.md Section 8's exam-prep subsection for why an
+        exam-prep task competing for slots is done by giving it the
+        appropriate priority_label up front (computed client-side from days-
+        until-exam, the same base-tier logic used for assignments), not by
+        adding a second, parallel priority system here.
         """
         required = {"task_id", "module", "deadline_date", "weight", "priority_label", "estimated_hours_needed"}
         missing = required - task.keys()
         if missing:
             raise ValueError(f"Task {task.get('task_id', '?')} missing required fields: {missing}")
-        self.tasks.append(dict(task))
+        task = dict(task)
+        task.setdefault("task_type", "assignment")
+        self.tasks.append(task)
 
     def _sort_tasks(self):
         def sort_key(t):
@@ -196,6 +208,7 @@ class StudyScheduler:
                     "priority_label": task["priority_label"],
                     "deadline_date": task["deadline_date"],
                     "hours_short": round(minutes_needed / 60, 2),
+                    "task_type": task.get("task_type", "assignment"),
                 })
 
         # Keep only slots with remaining capacity for the next reschedule() call.
@@ -211,6 +224,7 @@ class StudyScheduler:
                 "priority_label": t["priority_label"],
                 "deadline_date": t["deadline_date"],
                 "estimated_hours_needed": t["estimated_hours_needed"],
+                "task_type": t.get("task_type", "assignment"),
             }
             for t in self.tasks
         }

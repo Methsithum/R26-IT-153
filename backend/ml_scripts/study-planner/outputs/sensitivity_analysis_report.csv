@@ -1,0 +1,52 @@
+constant_group,varied_value,scenario,pct_high_priority_scheduled_before_deadline,avg_lead_time_high_priority,daily_load_variance,overload_total_hours
+base_tier_thresholds,delta=-5,light,1.0,3,1.263,0
+base_tier_thresholds,delta=-5,typical,1.0,1,0.0,6.75
+base_tier_thresholds,delta=-5,heavy,0.0,n/a,0.0,26.25
+base_tier_thresholds,delta=-2,light,1.0,3,1.263,0
+base_tier_thresholds,delta=-2,typical,1.0,5.5,0.0,6.75
+base_tier_thresholds,delta=-2,heavy,0.0,n/a,0.0,26.25
+base_tier_thresholds,delta=0 (CURRENT),light,1.0,3,1.263,0
+base_tier_thresholds,delta=0 (CURRENT),typical,1.0,5.5,0.0,6.75
+base_tier_thresholds,delta=0 (CURRENT),heavy,0.0,n/a,0.0,26.25
+base_tier_thresholds,delta=+2,light,1.0,3,1.263,0
+base_tier_thresholds,delta=+2,typical,1.0,3.333,0.0,6.75
+base_tier_thresholds,delta=+2,heavy,0.0,n/a,0.0,26.25
+base_tier_thresholds,delta=+5,light,1.0,3,1.263,0
+base_tier_thresholds,delta=+5,typical,1.0,3.333,0.0,6.75
+base_tier_thresholds,delta=+5,heavy,0.0,n/a,0.0,26.25
+ml_modifier_clamp,clamp=0 (pure rule),light,n/a,n/a,1.263,0
+ml_modifier_clamp,clamp=0 (pure rule),typical,1.0,1,0.0,6.75
+ml_modifier_clamp,clamp=0 (pure rule),heavy,0.0,n/a,0.0,26.25
+ml_modifier_clamp,clamp=1 (CURRENT),light,1.0,3,1.263,0
+ml_modifier_clamp,clamp=1 (CURRENT),typical,1.0,5.5,0.0,6.75
+ml_modifier_clamp,clamp=1 (CURRENT),heavy,0.0,n/a,0.0,26.25
+ml_modifier_clamp,clamp=2 (more ML),light,1.0,3,1.263,0
+ml_modifier_clamp,clamp=2 (more ML),typical,1.0,5.5,0.0,6.75
+ml_modifier_clamp,clamp=2 (more ML),heavy,0.0,n/a,0.0,26.25
+exam_budget_hours,8h,light,1.0,3,1.276,0
+exam_budget_hours,8h,typical,1.0,5.5,0.0,1.5
+exam_budget_hours,8h,heavy,0.0,n/a,0.0,17.5
+exam_budget_hours,12h (CURRENT),light,1.0,3,1.263,0
+exam_budget_hours,12h (CURRENT),typical,1.0,5.5,0.0,6.75
+exam_budget_hours,12h (CURRENT),heavy,0.0,n/a,0.0,26.25
+exam_budget_hours,16h,light,1.0,3,1.283,0
+exam_budget_hours,16h,typical,1.0,5.5,0.0,11.75
+exam_budget_hours,16h,heavy,0.0,n/a,0.0,34.75
+exam_prep_curve,flatter (25/40/35),light,1.0,3,1.316,0
+exam_prep_curve,flatter (25/40/35),typical,1.0,5.5,0.0,6.25
+exam_prep_curve,flatter (25/40/35),heavy,0.0,n/a,0.0,25.75
+exam_prep_curve,current (15/35/50),light,1.0,3,1.263,0
+exam_prep_curve,current (15/35/50),typical,1.0,5.5,0.0,6.75
+exam_prep_curve,current (15/35/50),heavy,0.0,n/a,0.0,26.25
+exam_prep_curve,front-loaded (30/40/30),light,1.0,3,1.365,0
+exam_prep_curve,front-loaded (30/40/30),typical,1.0,5.5,0.0,5.5
+exam_prep_curve,front-loaded (30/40/30),heavy,0.0,n/a,0.0,24.75
+performance_multiplier_range,narrower (1.2/1.0/0.9),light,1.0,3,1.265,0
+performance_multiplier_range,narrower (1.2/1.0/0.9),typical,1.0,5.5,0.0,5.0
+performance_multiplier_range,narrower (1.2/1.0/0.9),heavy,0.0,n/a,0.0,25.25
+performance_multiplier_range,current (1.4/1.0/0.75),light,1.0,3,1.263,0
+performance_multiplier_range,current (1.4/1.0/0.75),typical,1.0,5.5,0.0,6.75
+performance_multiplier_range,current (1.4/1.0/0.75),heavy,0.0,n/a,0.0,26.25
+performance_multiplier_range,wider (1.6/1.0/0.6),light,1.0,3,1.263,0
+performance_multiplier_range,wider (1.6/1.0/0.6),typical,1.0,5.5,0.0,8.25
+performance_multiplier_range,wider (1.6/1.0/0.6),heavy,0.0,n/a,0.0,27.0

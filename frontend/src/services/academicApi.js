@@ -75,4 +75,14 @@ export function createRealTask({ userId, subject, title, deadline, weight }) {
   return unwrap(client.post("/tasks", { user_id: userId, subject, title, deadline, weight }));
 }
 
+/**
+ * PATCH /tasks/{id}/complete — writes real completion (progress_stage:
+ * "completed" + completed_at) back into the journal's tasks collection, so
+ * "Complete" in the UI actually persists past the next login/sync instead
+ * of only living in this browser's Zustand state.
+ */
+export function completeTask(taskId) {
+  return unwrap(client.patch(`/tasks/${taskId}/complete`));
+}
+
 export default client;

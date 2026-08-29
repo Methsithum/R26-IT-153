@@ -9,7 +9,7 @@ import { useAcademicStore } from "../../store/useAcademicStore";
 import { useReschedule } from "../../hooks/useAcademicData";
 import { predictPriority, explainTask } from "../../services/academicApi";
 import { formatDeadlineCopy, daysRemaining } from "../../utils/dateHelpers";
-import { computeFinalPriority, deadlineDominantSentence } from "../../utils/priorityEngine";
+import { computeFinalPriority, resolveExplanationDisplay } from "../../utils/priorityEngine";
 
 export default function TaskDetails() {
   const { taskId } = useParams();
@@ -30,6 +30,8 @@ export default function TaskDetails() {
   const [loadingExplain, setLoadingExplain] = useState(true);
   const [celebration, setCelebration] = useState(null);
   const [rescheduleInfo, setRescheduleInfo] = useState(null);
+  const [completing, setCompleting] = useState(false);
+  const [completeError, setCompleteError] = useState(null);
 
   const module = modules.find((m) => m.code === task?.module);
 
@@ -65,6 +67,15 @@ export default function TaskDetails() {
     : null;
   const priority = finalPriorityResult?.priorityLabel || scheduleResponse?.tasks?.[taskId]?.priority_label;
 
+  // Decides which explanation (SHAP / deadline / blended) actually matches
+  // `priority` above - see resolveExplanationDisplay()'s docstring. Passing
+  // the raw /explain response straight to ExplanationPanel would risk
+  // explaining `explanation.predicted_priority` instead of the final,
+  // post-priorityEngine label the badge shows.
+  const explanationDisplay = finalPriorityResult && explanation
+    ? resolveExplanationDisplay(finalPriorityResult, days, explanation)
+    : null;
+
   const remainingHours = task ? Math.max(task.estimatedHoursNeeded - task.completedHours, 0) : 0;
 
   async function handleReschedule() {
@@ -77,11 +88,23 @@ export default function TaskDetails() {
     });
   }
 
-  function handleComplete() {
-    completeTask(taskId);
-    bumpStreak();
-    setCelebration({ priority, title: task.title });
-    runReschedule({ completedTaskIds: [taskId] }).catch(() => {});
+  // Real database write FIRST (see useAcademicStore.js's completeTask) -
+  // only on success do we celebrate/bump the streak/reschedule. On failure,
+  // surface a retryable error rather than showing "completed" while the
+  // database still shows the task open.
+  async function handleComplete() {
+    setCompleting(true);
+    setCompleteError(null);
+    try {
+      await completeTask(taskId);
+      bumpStreak();
+      setCelebration({ priority, title: task.title });
+      runReschedule({ completedTaskIds: [taskId] }).catch(() => {});
+    } catch (e) {
+      setCompleteError(e.message || "Could not mark this task complete.");
+    } finally {
+      setCompleting(false);
+    }
   }
 
   if (!task) {
@@ -191,9 +214,11 @@ export default function TaskDetails() {
             {task.status !== "completed" && (
               <button
                 onClick={handleComplete}
-                className="inline-flex items-center gap-2 bg-low-500 hover:bg-low-600 text-white font-semibold rounded-2xl px-5 py-2.5 text-sm transition-colors"
+                disabled={completing}
+                className="inline-flex items-center gap-2 bg-low-500 hover:bg-low-600 text-white font-semibold rounded-2xl px-5 py-2.5 text-sm transition-colors disabled:opacity-60"
               >
-                <Check size={16} /> Mark Complete
+                {completing ? <RefreshCw size={16} className="animate-spin" /> : <Check size={16} />}
+                {completing ? "Saving…" : "Mark Complete"}
               </button>
             )}
             {task.status === "missed" && (
@@ -207,6 +232,12 @@ export default function TaskDetails() {
             )}
           </div>
 
+          {completeError && (
+            <div className="mt-4 card p-4 border-l-4 border-high-500 bg-high-50/60 dark:bg-high-500/10">
+              <p className="text-sm text-high-600">Couldn't mark this task complete — {completeError} The task is still open.</p>
+            </div>
+          )}
+
           {rescheduleInfo && (
             <div className="mt-4 card p-4 bg-brand-50 dark:bg-brand-500/10 border border-brand-100 dark:border-brand-500/20">
               <p className="text-sm font-semibold text-brand-600">
@@ -218,10 +249,9 @@ export default function TaskDetails() {
         </div>
 
         <ExplanationPanel
-          explanation={explanation}
+          display={explanationDisplay}
           confidence={priorityResult?.confidence}
           loading={loadingExplain}
-          deadlineSentence={finalPriorityResult ? deadlineDominantSentence(finalPriorityResult, days) : null}
         />
       </div>
 

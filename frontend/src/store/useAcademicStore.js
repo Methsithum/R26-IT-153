@@ -11,7 +11,11 @@ import { CODE_MODULE_ENCODING, ASSESSMENT_TYPE_ENCODING, buildDateFeatureFromDea
 import { buildWeeklyModuleAllocation } from "../utils/studyAllocation";
 import { buildWeeklyFreeSlots } from "../utils/freeSlotGenerator";
 import { buildNotificationsFromRealData } from "../utils/notificationBuilder";
-import { updateTaskWeight as apiUpdateTaskWeight, updateTaskDeadline as apiUpdateTaskDeadline } from "../services/academicApi";
+import {
+  updateTaskWeight as apiUpdateTaskWeight,
+  updateTaskDeadline as apiUpdateTaskDeadline,
+  completeTask as apiCompleteTask,
+} from "../services/academicApi";
 
 const MODULE_COLORS = ["brand", "teal", "pink", "orange"];
 // The trained model only knows 7 fixed OULAD module categories (AAA-GGG) —
@@ -282,7 +286,17 @@ export const useAcademicStore = create(
         get().recomputeNotifications();
       },
 
-      completeTask: (taskId) => {
+      // Real database write FIRST (PATCH /tasks/{id}/complete - writes
+      // progress_stage: "completed" into the journal's real `tasks`
+      // collection), local Zustand state updated only after that succeeds.
+      // Previously this only ever touched local state - a completion the
+      // student saw on screen could vanish on the next login/sync because
+      // nothing durable ever recorded it. Callers (Tasks.jsx, TaskDetails.jsx)
+      // must await this and handle rejection (show an error/retry state)
+      // rather than assuming success, since the UI must never show
+      // "completed" while the database still disagrees.
+      completeTask: async (taskId) => {
+        await apiCompleteTask(taskId);
         set((s) => ({
           assignments: s.assignments.map((a) =>
             a.taskId === taskId ? { ...a, status: "completed", completedHours: a.estimatedHoursNeeded } : a

@@ -20,6 +20,7 @@
 // entirely; the monotonic model's only points the "wrong" amount.
 
 import { daysRemaining } from "./dateHelpers";
+import { buildShapSentence, humanizeContributions, lowerFirst } from "./featureNameMap";
 
 export const PRIORITY_LEVELS = { Low: 0, Medium: 1, High: 2 };
 export const LEVEL_TO_PRIORITY = ["Low", "Medium", "High"];
@@ -149,6 +150,80 @@ export function deadlineDominantSentence(result, daysRemainingValue) {
 }
 
 /**
+ * Decides WHICH explanation to show for a task's "Why this priority?" panel,
+ * and builds it - the single place this decision is made, so no screen has
+ * to reimplement it (mirrors the "apply consistently" rule from Section 5d).
+ *
+ * The bug this fixes: the badge shows `finalResult.priorityLabel` (post
+ * priorityEngine), but a naive "always show /explain's own sentence" would
+ * describe `explanation.predicted_priority` - the RAW ML label - which can
+ * differ from what's on screen whenever the base tier or hard floor
+ * overrode or partially clamped the model. Showing an explanation for a
+ * priority the student isn't looking at is worse than showing none.
+ *
+ * Three cases, decided by comparing final vs. raw vs. base (all already on
+ * `finalResult` from computeFinalPriority):
+ *  - final === raw ML label: the hybrid layer's modifier either agreed with
+ *    the ML label outright, or moved the base exactly onto it - either way,
+ *    what's on screen IS the model's own prediction, so its SHAP reasoning
+ *    is accurate. -> "shap" (rebuilt with buildShapSentence, so no raw
+ *    feature-name leak makes it through - see featureNameMap.js).
+ *  - final !== raw AND dominantMechanism === "deadline": the base tier or
+ *    the >30-day hard floor overrode the model's raw label entirely
+ *    (modifier had zero net effect on the displayed tier). -> "deadline".
+ *  - final !== raw AND dominantMechanism === "ml": the ±1 clamp let the
+ *    model move the base tier, but the model wanted to move it further (a
+ *    2-tier jump, clamped to 1) - both the deadline baseline and the model's
+ *    push are genuinely part of the story. -> "blended".
+ */
+export function resolveExplanationDisplay(finalResult, daysRemainingValue, explanation) {
+  if (!finalResult || !explanation) return null;
+
+  const rawLabel = explanation.predicted_priority;
+  const finalLabel = finalResult.priorityLabel;
+
+  if (finalLabel === rawLabel) {
+    return {
+      type: "shap",
+      sentence: buildShapSentence(finalLabel, explanation.feature_contributions),
+      contributions: explanation.feature_contributions,
+    };
+  }
+
+  if (finalResult.dominantMechanism === "deadline") {
+    return {
+      type: "deadline",
+      sentence: deadlineDominantSentence(finalResult, daysRemainingValue),
+    };
+  }
+
+  const baseLabel = LEVEL_TO_PRIORITY[finalResult.baseTierLevel];
+  const raised = PRIORITY_LEVELS[finalLabel] > finalResult.baseTierLevel;
+  const direction = raised ? "raised" : "lowered";
+
+  // The top factor by raw magnitude isn't necessarily what argued FOR this
+  // shift - SHAP's contributions are signed relative to the model's own raw
+  // prediction (explanation.predicted_priority), and the single strongest
+  // factor can easily be one that argued AGAINST it (e.g. the largest-
+  // magnitude factor pushing toward Low while a smaller one pushed toward
+  // High - picking the former for a "raised because of X" sentence would
+  // describe X as the reason for a change it was actually arguing against).
+  // Only consider contributors whose sign actually supports the direction
+  // of the shift: positive (pushed toward the raw label) when raised,
+  // negative (pushed away from it) when lowered.
+  const humanized = humanizeContributions(explanation.feature_contributions);
+  const supporting = humanized.filter((c) => (raised ? c.value > 0 : c.value < 0));
+  const topFactor = supporting[0] || humanized[0];
+  const reason = topFactor ? lowerFirst(topFactor.label) : "the model's prediction";
+
+  return {
+    type: "blended",
+    sentence: `Normally this would be ${baseLabel} priority based on its deadline, but it's been ${direction} to ${finalLabel} priority because of ${reason}.`,
+    contributions: explanation.feature_contributions,
+  };
+}
+
+/**
  * Applies the hybrid layer to every task in a /schedule or /reschedule
  * response's `tasks` registry (and, for internal consistency, its
  * `overload_warning` entries) IN PLACE OF the raw ML `priority_label`
@@ -157,23 +232,32 @@ export function deadlineDominantSentence(result, daysRemainingValue) {
  * (Dashboard, TodayTimeline, DayView, WeekGrid, MonthGrid, Tasks) see the
  * hybrid result automatically, without reimplementing this logic in each
  * of them - see useWeeklySchedule()/useReschedule() in useAcademicData.js.
- * Every task reaching /schedule today is an assignment (exams are
- * deliberately never sent through the ML pipeline - see MonthGrid.jsx), so
- * taskType is fixed to "assignment" here; this will need to read a real
- * per-task taskType once exams start flowing through /schedule too.
+ *
+ * Reads each entry's real `task_type` (now round-tripped by the backend -
+ * see PROJECT CONTEXT.md Section 5d's plumbing fix and Section 8's exam-prep
+ * subsection) rather than assuming "assignment" for everything. This matters
+ * now that exam-prep pseudo-tasks flow through /schedule too: they arrive
+ * with a priority_label already computed from the SAME base-tier table this
+ * function would otherwise recompute (computeBaseTier(days, "exam")), so
+ * re-running it with the wrong ("assignment") thresholds would silently
+ * mis-tier them. Passing the real task_type through makes this a safe no-op
+ * for exam entries (same table in, same table out) while staying exactly as
+ * before for real assignments.
  */
 export function applyPriorityEngineToScheduleResult(scheduleResult, from = new Date()) {
   if (!scheduleResult?.tasks) return scheduleResult;
 
   const tasks = Object.fromEntries(
     Object.entries(scheduleResult.tasks).map(([taskId, entry]) => {
-      const result = computeFinalPriorityFromDeadline(entry.deadline_date, "assignment", entry.priority_label, from);
+      const taskType = entry.task_type || "assignment";
+      const result = computeFinalPriorityFromDeadline(entry.deadline_date, taskType, entry.priority_label, from);
       return [taskId, { ...entry, priority_label: result.priorityLabel }];
     })
   );
 
   const overload_warning = (scheduleResult.overload_warning || []).map((w) => {
-    const result = computeFinalPriorityFromDeadline(w.deadline_date, "assignment", w.priority_label, from);
+    const taskType = w.task_type || "assignment";
+    const result = computeFinalPriorityFromDeadline(w.deadline_date, taskType, w.priority_label, from);
     return { ...w, priority_label: result.priorityLabel };
   });
 

@@ -38,6 +38,7 @@ class OverloadWarningItem(BaseModel):
     priority_label: Literal["High", "Medium", "Low"]
     deadline_date: str
     hours_short: float
+    task_type: Literal["assignment", "exam"] = "assignment"
 
 
 class TaskRegistryEntry(BaseModel):
@@ -48,6 +49,10 @@ class TaskRegistryEntry(BaseModel):
     priority_label: Literal["High", "Medium", "Low"]
     deadline_date: str
     estimated_hours_needed: float
+    # Round-tripped from TaskInput.task_type (see task_schemas.py) so the
+    # frontend can tell exam-prep sessions apart from assignment sessions
+    # purely from schedule.tasks[taskId] - see PROJECT CONTEXT.md Section 5d.
+    task_type: Literal["assignment", "exam"] = "assignment"
 
 
 class ScheduleResponse(BaseModel):

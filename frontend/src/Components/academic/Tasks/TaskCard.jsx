@@ -1,10 +1,10 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { Check, AlertTriangle, Clock } from "lucide-react";
+import { Check, AlertTriangle, Clock, Loader2 } from "lucide-react";
 import PriorityBadge from "../Shared/PriorityBadge";
 import { formatDeadlineCopy } from "../../../utils/dateHelpers";
 
-export default function TaskCard({ task, priority, onComplete, index = 0 }) {
+export default function TaskCard({ task, priority, onComplete, completing = false, index = 0 }) {
   const progress = task.estimatedHoursNeeded > 0 ? Math.min(1, task.completedHours / task.estimatedHoursNeeded) : 0;
   const isMissed = task.status === "missed";
   const isCompleted = task.status === "completed";
@@ -51,9 +51,11 @@ export default function TaskCard({ task, priority, onComplete, index = 0 }) {
         {!isCompleted && (
           <button
             onClick={() => onComplete(task.taskId)}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold bg-low-50 dark:bg-low-500/15 text-low-600 hover:bg-low-100 dark:hover:bg-low-500/25 rounded-full px-3 py-1.5 transition-colors"
+            disabled={completing}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold bg-low-50 dark:bg-low-500/15 text-low-600 hover:bg-low-100 dark:hover:bg-low-500/25 rounded-full px-3 py-1.5 transition-colors disabled:opacity-60"
           >
-            <Check size={13} /> Complete
+            {completing ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+            {completing ? "Saving…" : "Complete"}
           </button>
         )}
         <Link

@@ -23,6 +23,8 @@ export default function Tasks() {
   const [moduleFilter, setModuleFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [celebration, setCelebration] = useState(null);
+  const [completingId, setCompletingId] = useState(null);
+  const [completeError, setCompleteError] = useState(null);
 
   // schedule.tasks[taskId].priority_label already reflects the hybrid
   // deadline+ML priority (priorityEngine.js, PROJECT CONTEXT.md Section 5d)
@@ -42,12 +44,25 @@ export default function Tasks() {
     return true;
   });
 
-  function handleComplete(taskId) {
+  // completeTask() now writes to the real database FIRST (see
+  // useAcademicStore.js) - only once that succeeds do we celebrate/bump the
+  // streak/kick off a reschedule. On failure the UI must NOT show
+  // "completed" while the database still disagrees, so this surfaces a
+  // retryable error instead of updating anything optimistically.
+  async function handleComplete(taskId) {
     const task = assignments.find((a) => a.taskId === taskId);
-    completeTask(taskId);
-    bumpStreak();
-    setCelebration({ priority: schedule?.tasks?.[taskId]?.priority_label, title: task?.title });
-    runReschedule({ completedTaskIds: [taskId] }).catch(() => {});
+    setCompletingId(taskId);
+    setCompleteError(null);
+    try {
+      await completeTask(taskId);
+      bumpStreak();
+      setCelebration({ priority: schedule?.tasks?.[taskId]?.priority_label, title: task?.title });
+      runReschedule({ completedTaskIds: [taskId] }).catch(() => {});
+    } catch (e) {
+      setCompleteError({ taskId, title: task?.title, message: e.message || "Could not mark this task complete." });
+    } finally {
+      setCompletingId(null);
+    }
   }
 
   return (
@@ -65,6 +80,21 @@ export default function Tasks() {
           modules={modules}
         />
 
+        {completeError && (
+          <div className="card p-3 border-l-4 border-high-500 bg-high-50/60 dark:bg-high-500/10 flex items-center justify-between gap-3">
+            <p className="text-sm text-high-600">
+              Couldn't mark "{completeError.title || "this task"}" complete — {completeError.message} The task is still
+              open.
+            </p>
+            <button
+              onClick={() => handleComplete(completeError.taskId)}
+              className="shrink-0 text-xs font-semibold text-high-600 hover:underline"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {loading ? (
           <SkeletonList rows={4} />
         ) : filtered.length === 0 ? (
@@ -73,7 +103,14 @@ export default function Tasks() {
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             <AnimatePresence>
               {filtered.map((task, i) => (
-                <TaskCard key={task.taskId} task={task} priority={task.priority} onComplete={handleComplete} index={i} />
+                <TaskCard
+                  key={task.taskId}
+                  task={task}
+                  priority={task.priority}
+                  onComplete={handleComplete}
+                  completing={completingId === task.taskId}
+                  index={i}
+                />
               ))}
             </AnimatePresence>
           </div>

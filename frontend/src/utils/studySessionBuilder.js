@@ -1,7 +1,54 @@
-// Shared by WeekGrid and DayView so "today" and "this week" always agree on
-// what a module study session looks like and where it lands.
+// Shared by WeekGrid, DayView, MonthGrid and TodayTimeline so "today" and
+// "this week" always agree on what a module study session looks like, where
+// it lands, and (see resolveSessionDisplay below) what it's called.
 
 export const MODULE_COLOR_HEX = { brand: "#7c3aed", teal: "#14b8a6", pink: "#ec4899", orange: "#fb923c" };
+
+// Fixed accent for exam-prep session cards - deliberately distinct from
+// every module color above so "this is exam prep" reads as its own visual
+// category at a glance, regardless of which module it's for (PROJECT
+// CONTEXT.md Section 8's exam-prep subsection / Part A of that work).
+export const EXAM_PREP_ACCENT_HEX = "#2563eb";
+
+/**
+ * SINGLE source of truth for "what does this scheduled task session look
+ * like" - title text, whether it's exam prep, and which module it's for -
+ * used everywhere a real (non-suggested) session card is rendered
+ * (WeekGrid, DayView, MonthGrid, TodayTimeline) instead of each component
+ * re-deriving `title || moduleName(item.module)` and separately checking
+ * task_type inline. taskType comes from schedule.tasks[taskId].task_type
+ * (round-tripped by the backend - see PROJECT CONTEXT.md Section 5d) so
+ * this works even without a matching local `assignments` entry, which is
+ * exactly the case for exam-prep task_ids ("exam-<examId>") - they were
+ * never real assignment documents, so `assignments.find(...)` would never
+ * find them.
+ */
+export function resolveSessionDisplay(item, { tasksRegistry, assignments, moduleName }) {
+  const registryEntry = tasksRegistry?.[item.task_id];
+  const taskType = registryEntry?.task_type || "assignment";
+  const resolvedModuleName = moduleName(item.module);
+
+  if (taskType === "exam") {
+    // No subtitle - the module name is already in the title itself
+    // ("Exam Prep: X"), so repeating it on a second line would be redundant
+    // (unlike the assignment case below, where the title is the assignment's
+    // own name and the module is genuinely new information).
+    return {
+      title: `Exam Prep: ${resolvedModuleName}`,
+      subtitle: null,
+      isExamPrep: true,
+      moduleName: resolvedModuleName,
+    };
+  }
+
+  const assignmentTitle = assignments.find((a) => a.taskId === item.task_id)?.title || null;
+  return {
+    title: assignmentTitle || resolvedModuleName,
+    subtitle: assignmentTitle ? resolvedModuleName : null,
+    isExamPrep: false,
+    moduleName: resolvedModuleName,
+  };
+}
 
 // Suggested self-study blocks — one per module that has real hours left
 // this week (see utils/studyAllocation.js), dropped into the student's real

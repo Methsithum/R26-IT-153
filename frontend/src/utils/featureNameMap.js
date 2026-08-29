@@ -50,8 +50,25 @@ export const FEATURE_LABELS = {
   code_module_enc: "Module",
 };
 
+// Bug fix (see PROJECT CONTEXT.md Section 6 follow-up): this used to fall
+// back silently to a raw-key-derived guess with no signal that the map was
+// incomplete, which is how "assessment_type_enc" ended up on screen even
+// though that exact key WAS in FEATURE_LABELS elsewhere - the actual leak
+// was a different code path (explain_service.py's server-built sentence)
+// bypassing this function entirely, not this fallback. Warning here now so
+// a genuinely-missing key (e.g. a new feature added later without updating
+// FEATURE_LABELS) is loud in development instead of quietly reaching a
+// student as a snake_case string in production.
 export function humanizeFeatureName(key) {
-  return FEATURE_LABELS[key] || key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const label = FEATURE_LABELS[key];
+  if (label) return label;
+  if (typeof import.meta !== "undefined" && import.meta.env?.DEV) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `featureNameMap: no FEATURE_LABELS entry for "${key}" - add one so this never reaches a student as a raw model feature name.`
+    );
+  }
+  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 /**
@@ -69,13 +86,44 @@ export function humanizeContributions(contributions = {}) {
     .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
 }
 
-/** Softens copy when the model isn't very confident, per Section 10. */
+export function lowerFirst(s) {
+  return s.charAt(0).toLowerCase() + s.slice(1);
+}
+
+/**
+ * Builds the "Task flagged X priority mainly because of ..." sentence
+ * CLIENT-SIDE from humanized contributions, instead of trusting
+ * /explain's own `explanation_sentence` field. explain_service.py builds
+ * that sentence with the model's raw FEATURE_ORDER keys (e.g.
+ * "assessment_type_enc (-0.92 contribution)") - it was never run through
+ * this file's humanizer at all, which is how a raw feature name reached the
+ * UI despite FEATURE_LABELS already having an entry for it. Rebuilding the
+ * sentence here, from the same humanizeContributions() the factor bars
+ * already use, is the fix: one code path, guaranteed humanized.
+ */
+export function buildShapSentence(priorityLabel, contributions, topN = 2) {
+  const top = humanizeContributions(contributions).slice(0, topN).filter((c) => c.label);
+  if (top.length === 0) return `${priorityLabel} priority.`;
+  const phrases = top.map((c) => lowerFirst(c.label));
+  const joined =
+    phrases.length > 1 ? `${phrases.slice(0, -1).join(", ")} and ${phrases[phrases.length - 1]}` : phrases[0];
+  return `${priorityLabel} priority mainly because of ${joined}.`;
+}
+
+// Softens copy when the model isn't very confident, per Section 10.
+// Bands were originally 0.85 / 0.6, which read oddly in practice - 81%
+// landed in "moderate" even though most people read 81% as fairly high
+// confidence. Lowered to 0.8 / 0.55: 80%+ reads as genuinely confident,
+// 55-80% as a real-but-imperfect signal ("moderate"), and below 55% - closer
+// to a 3-class coin flip (baseline ~33%) than a real signal - as a rough
+// guess. Tone set (confident/moderate/low) is unchanged; only the cutoffs
+// moved.
 export function confidenceCopy(confidence) {
   const pct = Math.round(confidence * 100);
-  if (confidence >= 0.85) {
+  if (confidence >= 0.8) {
     return { pct, tone: "confident", label: "The model is quite confident about this." };
   }
-  if (confidence >= 0.6) {
+  if (confidence >= 0.55) {
     return { pct, tone: "moderate", label: "The model has moderate confidence here." };
   }
   return { pct, tone: "low", label: "This is more of an educated guess — treat it as a rough steer." };

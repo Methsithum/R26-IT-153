@@ -38,3 +38,4 @@ class TaskResponse(BaseModel):
     deadline: Optional[str] = None
     weight: Optional[float] = None
     mark: Optional[float] = None
+    completed_at: Optional[str] = None

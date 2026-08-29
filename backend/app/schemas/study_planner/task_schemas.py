@@ -45,3 +45,14 @@ class TaskInput(BaseModel):
     feature_row: Optional[TaskFeatures] = Field(
         None, description="The 13 model features, required only when priority_label is omitted."
     )
+    # "assignment" | "exam" - see PROJECT CONTEXT.md Section 5d for where this
+    # field originates (frontend task/assignment data model) and Section 8's
+    # exam-prep subsection for why the scheduler needs it: exam-prep pseudo-
+    # tasks (built client-side from the student's real exam dates, never from
+    # /predict-priority - exams deliberately never get an ML priority) must
+    # round-trip through /schedule and /reschedule with this intact so the
+    # frontend can label their sessions "Exam Prep: ..." instead of just the
+    # module name, and so the scheduler can weight them appropriately.
+    task_type: Literal["assignment", "exam"] = Field(
+        "assignment", description="Whether this task is regular assignment work or exam-preparation time."
+    )

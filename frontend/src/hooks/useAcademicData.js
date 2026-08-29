@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAcademicStore } from "../store/useAcademicStore";
 import { createSchedule, rescheduleSchedule, getTodoList } from "../services/academicApi";
 import { applyPriorityEngineToScheduleResult } from "../utils/priorityEngine";
+import { buildExamPrepTasks, toApiTaskInput } from "../utils/examPrepScheduling";
 
 // The backend's /todo rejects a schedule whose `tasks` registry is empty
 // (422 "schedule_result has no 'tasks' registry") instead of just returning
@@ -22,6 +23,8 @@ async function fetchTodoSafely(scheduleResult) {
 export function useWeeklySchedule() {
   const assignments = useAcademicStore((s) => s.assignments);
   const weeklyFreeSlots = useAcademicStore((s) => s.weeklyFreeSlots);
+  const exams = useAcademicStore((s) => s.exams);
+  const modules = useAcademicStore((s) => s.modules);
   const scheduleResponse = useAcademicStore((s) => s.scheduleResponse);
   const setSchedule = useAcademicStore((s) => s.setSchedule);
   const setRemainingFreeSlots = useAcademicStore((s) => s.setRemainingFreeSlots);
@@ -42,14 +45,27 @@ export function useWeeklySchedule() {
         weight: a.weight,
         estimated_hours_needed: Math.max(a.estimatedHoursNeeded - a.completedHours, 0.5),
         feature_row: a.featureRow,
+        task_type: a.taskType || "assignment",
       }));
+      // Exam-prep pseudo-tasks (PROJECT CONTEXT.md Section 8) - built fresh
+      // from real exam dates + real module performance every time a full
+      // schedule is generated (not on every /reschedule call, which reuses
+      // the DEPLETED remaining-free-slot pool from the previous generation -
+      // recomputing escalating hours there would just manufacture spurious
+      // overload warnings instead of actually finding more capacity). This
+      // is also where the escalating curve actually "refreshes": each fresh
+      // /schedule call reflects the CURRENT day, so an exam that's crept
+      // from 10 days out to 6 gets recomputed into its heavier window here.
+      const examPrepTasks = buildExamPrepTasks(exams, modules).map(toApiTaskInput);
       // Hybrid priority layer (PROJECT CONTEXT.md Section 5d) applied ONCE,
       // right at the API boundary, so every screen reading
       // schedule.tasks[taskId].priority_label downstream (Dashboard,
       // TodayTimeline, DayView, WeekGrid, MonthGrid, Tasks) already sees the
       // deadline-dominant final result instead of the raw ML label - no
       // per-screen reimplementation needed.
-      const result = applyPriorityEngineToScheduleResult(await createSchedule(weeklyFreeSlots, tasks));
+      const result = applyPriorityEngineToScheduleResult(
+        await createSchedule(weeklyFreeSlots, [...tasks, ...examPrepTasks])
+      );
       setSchedule(result);
       setRemainingFreeSlots(weeklyFreeSlots);
       setTodoList(await fetchTodoSafely(result));
@@ -60,7 +76,7 @@ export function useWeeklySchedule() {
     } finally {
       setLoading(false);
     }
-  }, [assignments, weeklyFreeSlots, setSchedule, setRemainingFreeSlots, setTodoList]);
+  }, [assignments, weeklyFreeSlots, exams, modules, setSchedule, setRemainingFreeSlots, setTodoList]);
 
   useEffect(() => {
     if (!scheduleResponse) {

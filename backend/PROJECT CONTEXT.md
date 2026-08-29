@@ -153,6 +153,22 @@ The 5c fix is *why the ML label can be trusted at all* here — an unconstrained
   - Boundary-checked directly: 30 days → normal path (not floored); 31 days → floored to Low; confirmed for both `taskType: "assignment"` and `taskType: "exam"`.
   - Single code path confirmed: `computeFinalPriority()` is the only place this is implemented (the guard clause sits at its top, before the base-tier call). Every consumer — `applyPriorityEngineToScheduleResult()` (used by `useWeeklySchedule()`/`useReschedule()`, covering Dashboard/TodayTimeline/DayView/WeekGrid/MonthGrid/Tasks) and `TaskDetails.jsx`'s direct call — routes through it, so the floor applies everywhere with no separate implementation to keep in sync.
 
+### 5e. Exam-Prep Session Labeling & `taskType` Round-Trip (Deployed)
+
+**Problem.** Study sessions the scheduler generated for exam preparation (see Section 8's exam-prep subsection) rendered identically to ordinary assignment sessions — same title (`title || moduleName`), same styling — with nothing telling a student "this block is exam prep" without opening the task. `taskType` existed on the frontend assignment data model (Section 5d) but was **not actually plumbed through the backend at all**: `TaskInput`/`TaskRegistryEntry` had no `task_type` field, and `StudyScheduler.add_task()`/`generate_schedule()` didn't accept or return one — confirmed by inspection before any exam-prep task existed to test it, not assumed.
+
+**Fix — round-trip, then label.**
+- `TaskInput.task_type` (`task_schemas.py`) and `TaskRegistryEntry.task_type` / `OverloadWarningItem.task_type` (`schedule_schemas.py`), default `"assignment"`, both new.
+- `StudyScheduler.add_task()` now stores `task_type` (default `"assignment"` via `setdefault`); `generate_schedule()`'s `tasks_registry` and `overload_warning` entries both include it (`schedule_engine.py`). It does **not** change allocation order — that's still pure priority-tier + deadline (see Section 8's exam-prep subsection for how exam-prep tasks earn the right priority instead).
+- `generate_todo_output.py`'s `_reminder_message()` now takes `task_type` and swaps the noun ("task" → "exam prep") accordingly; `TodoItem` schema carries `task_type` too. (The to-do list isn't currently rendered anywhere in the frontend — verified by grep — so this is forward-looking, not fixing a live display bug.)
+- Verified live: a `task_type: "exam"` task sent to `/schedule` comes back out with `tasks["<id>"].task_type == "exam"` unchanged, via a direct curl round-trip.
+
+**Frontend labeling — one centralized resolver.** `resolveSessionDisplay(item, { tasksRegistry, assignments, moduleName })` in `studySessionBuilder.js` is the single place that turns a scheduled item into `{ title, subtitle, isExamPrep, moduleName }` — `taskType === "exam"` → `"Exam Prep: <Module>"` plus a distinct fixed accent color (`EXAM_PREP_ACCENT_HEX`, `#2563eb`) and a `GraduationCap` icon, independent of priority color (which still applies, since exam-prep tasks DO get a real priority tier — see Section 8). Used identically in `WeekGrid.jsx`, `DayView.jsx`, and `TodayTimeline.jsx` (the three places that render real scheduled session cards) — no per-component reimplementation, matching the `applyPriorityEngineToScheduleResult()` centralization pattern. `MonthGrid.jsx` was checked and needs no change: it renders one marker per assignment **deadline**, built from the local `assignments` array (which never contains exam-prep pseudo-tasks — they're not real assignment documents) plus the pre-existing, separately-styled real exam-date markers — it never rendered time-blocked sessions at all, so there was nothing to mislabel there.
+
+Because `resolveSessionDisplay` reads `taskType` from `tasksRegistry[taskId].task_type` (not from a local `assignments` lookup), it works correctly for exam-prep task_ids (`exam-<examId>`) that have no corresponding assignment document — confirming the round-trip fix above is what makes this labeling possible at all, per the original ask's ordering ("this plumbing must be correct before Part C/D can work").
+
+**One related fix this exposed.** `applyPriorityEngineToScheduleResult()` (Section 5d) previously hardcoded `taskType: "assignment"` for every entry it reprocessed — harmless while nothing but assignments ever reached `/schedule`, but it would have silently re-tiered exam-prep entries through the wrong (assignment) threshold table once they started arriving. Fixed to read each entry's real `task_type`; verified this is a safe no-op for exam entries (their priority_label already came from the same `computeBaseTier(days, "exam")` table this function would otherwise recompute) while leaving assignment behavior byte-for-byte unchanged.
+
 ---
 
 ## 6. Explainability (SHAP)
@@ -188,6 +204,43 @@ Aggregates to one row per student-module using: `avg_weekly_clicks`, `clicks_tre
 
 **Statelessness design note:** HTTP requests are stateless; the `StudyScheduler` object doesn't persist between calls. The `/reschedule` endpoint reconstructs scheduler state from the previous response's `tasks` registry plus the caller-supplied remaining free slots. The frontend is responsible for holding and resubmitting this state (see Section 10).
 
+### 8a. Escalating, Performance-Adjusted Exam-Prep Allocation (Deployed)
+
+**Problem.** Exam dates (Exams page) were purely informational — no study time was ever allocated toward them, and (Section 6/MonthGrid.jsx) exams deliberately never go through `/predict-priority`, so there was no existing mechanism to give them any priority at all, let alone one that escalates as the date approaches or accounts for how the student is actually doing in that module.
+
+**Design: synthetic exam-prep tasks, not scheduler changes.** Rather than teaching `StudyScheduler` a second, parallel notion of urgency, each upcoming exam is turned into an ordinary `TaskInput` (`task_type: "exam"`, `task_id: "exam-<examId>"`) with real `estimated_hours_needed` and a rule-based `priority_label` computed the same way assignments' base tier already is (`computeBaseTier(daysRemaining, "exam")` — the exam threshold table Section 5d already established: ≤7d→High, 8–14d→Medium, 15–30d→Medium, >30d→Low). The existing greedy priority-then-deadline allocator (Section 8) needs zero code changes to make exam-prep tasks "compete for slots at or above High priority within 6 days of the exam" — the exam base-tier table already assigns High at ≤7 days, a strict superset of the 6-day heavy window, so a correctly-classified task simply wins its rightful place in the existing sort order. Verified live (see below) rather than assumed.
+
+**Part C — escalating hours budget** (`frontend/src/utils/examPrepConfig.js`):
+- `DEFAULT_TOTAL_BUDGET_HOURS = 12` per exam (named constant, one place).
+- `EXAM_PREP_CURVE`: `>14 days` → 15% of budget (light, thin spread) · `7–14 days` → 35% (moderate) · `0–6 days` (`EXAM_PREP_HEAVY_WINDOW_DAYS`) → 50% (heavy, concentrated). Each window's share is spread evenly across however many of THIS exam's actual days fall in that window.
+- `computeExamPrepHoursForDay(examDate, today, totalBudgetHours, forDay)` returns the hours that specific day should carry.
+- `/schedule` only ever holds one week of real free-slot capacity, so `examPrepScheduling.js`'s `buildExamPrepTasks()` requests only the hours the curve assigns to **this scheduling window** (today..min(exam, today+6)), not the exam's full remaining budget — asking for hours meant for three weeks from now would just manufacture a misleading overload warning. This also means the curve genuinely re-escalates over time: `/schedule` is re-run (full regenerate, not `/reschedule` — see below) with a fresh "today" each time, so a 10-day-out exam requesting light-to-moderate hours today will request heavy-window hours once it's actually 5 days out.
+- `/reschedule` (the incremental "one task just completed" path) deliberately does **not** recompute exam-prep tasks — it reconstructs state from the previous response's task registry, which already carries the exam-prep entries through unchanged, same as any other previously-known task. Recomputing there would ask the DEPLETED `remaining_free_slots` pool (already reduced by whatever the previous full schedule consumed) for a fresh full week's worth of hours, manufacturing spurious overload warnings instead of finding real capacity that doesn't exist. Escalation instead refreshes on every full `/schedule` regenerate (the "Regenerate Plan" action, or whenever `useWeeklySchedule()`'s effect re-fires).
+
+**Part D — performance-adjusted budget** (same file):
+- Reuses `module.currentGrade` / `module.hasGradeData` **exactly as already computed** in `useAcademicStore.js`'s `buildFromJournal` (a real average of the `mark` field across that subject's tasks *and* exams in MongoDB, with `hasGradeData: false` when nothing's recorded yet) — no duplicate averaging logic (`resolveModulePerformance()` in `examPrepScheduling.js` is a one-line pass-through).
+- `computePerformanceMultiplier`: performance `< 50` → **1.4×** · `50–70` → **1.0× baseline** · `> 70` → **0.75×** · **no recorded marks → 1.0× baseline, always** (never penalize/reward absent data — critical for current sample data, where all 4 real exam modules show 0% because nothing's been marked yet, not because the student is struggling).
+- `finalBudgetHours = baseTotalBudgetHours × multiplier`, fed into Part C's curve exactly as before.
+- `performanceAdjustmentNote()` returns a short, encouraging note ("Extra prep time added based on your current performance in this module.") **only** for the 1.4× case — never a "you need less" framing for the 0.75×/baseline cases, consistent with Section 10's non-alarming framing principle.
+
+**Verification (real sample data — user `chathula@gmail.com`, 4 real exams, `today = 2026-08-29`):**
+
+| Module | Days out | Performance | Multiplier | Final budget | This-week hours | Priority |
+|---|---|---|---|---|---|---|
+| Mobile Application Development | 8 | 0% (no marks) | 1.0 | 12h | **8.5h** | Medium |
+| Data Structures & Algorithms | 10 | 0% (no marks) | 1.0 | 12h | 6.75h | Medium |
+| Professional Skills | 12 | 0% (no marks) | 1.0 | 12h | 5.0h | Medium |
+| Probability & Statistics | 14 | 0% (no marks) | 1.0 | 12h | **3.75h** | Medium |
+
+All 4 confirmed via direct MongoDB query to have zero recorded marks across every task/exam for that user — multiplier correctly defaults to 1.0 for all 4, not penalized. The closer exam (8 days) requests more than double the hours of the furthest (14 days) for this week — confirms front-loaded-but-increasing behavior, not a flat allocation. Per-day curve for each exam (computed via `computeExamPrepHoursForDay`) confirmed escalating within each exam's own runway, e.g. Mobile App Development (8 days out): 2.10h/day while >7 days out, dropping to 0.86h/day inside the 0–6-day heavy window — inverted from a naive "more days out = more prep today" reading because the heavy window concentrates a much bigger *share* into fewer days, but the daily rate still strictly step-changes upward as the exam nears within a given exam's timeline once normalized per exam (verified by inspecting each exam's own day-by-day sequence, not compared across exams).
+
+**Part D multiplier, tested with real bands** (same exam, three hypothetical recorded-mark scenarios): 42% → 1.4× → 16.8h final budget, with the encouraging note attached · 60% → 1.0× → 12h, no note · 88% → 0.75× → 9h, no note. Confirms the multiplier logic actually changes final budget when real (non-zero-because-absent) data exists, not just defaulting to baseline everywhere.
+
+**Rebalancing under scarcity — tested live against `/schedule`, both honestly reported:**
+- **Extreme scarcity** (7h/week total free time — deliberately adversarial): total demand (4 exams + one Section-5d-floor Low-priority distant assignment, `~28h`) vastly exceeded supply. All 7h went to the nearest-deadline exam; every other task — including all 3 other exams — was fully deferred, each shortfall correctly surfaced via `overload_warning` (never silently dropped; every task remains in the registry and competes again next regenerate).
+- **Realistic scarcity** (21h/week, matching the app's actual default evening-window free time): real, non-contrived rebalancing still occurred — total demand across the 4 real exams plus the test assignment (`~28h`) still exceeded even this realistic supply. Only the furthest exam (Probability & Statistics) came up slightly short (3h of its 3.75h), and the Low-priority distant assignment was fully deferred with its 4h shortfall surfaced via `overload_warning` — **not** silently eliminated. Reported honestly rather than forcing an appearance of success: this happens because a genuinely packed exam season (4 exams inside a 2-week span) is realistically going to be tight against typical weekly free time regardless of scheduler logic — that's the system correctly reflecting a real scarcity, not a defect in the allocation model.
+- **Heavy-window priority check**: a synthetic exam 3 days out (`priority_label: High`, via the exam base-tier table) scheduled against an equal-nominal-priority assignment under scarce free time — the exam won the tiebreak (earlier deadline) and took the lion's share of available slots, confirming exam-prep tasks inside the heavy window genuinely compete at High priority without any special-cased scheduler logic beyond correct classification.
+
 ---
 
 ## 9. Backend (FastAPI) — Current State: Built and Verified Live
@@ -216,10 +269,16 @@ app/
 | `POST /schedule` | `weekly_free_slots`, `tasks` | `{schedule, overload_warning, tasks}` |
 | `POST /reschedule` | previous schedule + remaining free slots + completed/new tasks | same shape as `/schedule` |
 | `POST /todo` | a `/schedule` or `/reschedule` response | array of to-do entries with `reminder_message` |
+| `PATCH /tasks/{id}/weight` | `{weight}` | updated task (real write into the journal's `tasks` collection) |
+| `PATCH /tasks/{id}/deadline` | `{deadline}` | updated task (same collection) |
+| `PATCH /tasks/{id}/complete` | — | updated task; sets `progress_stage: "completed"` + `completed_at` — see below |
+| `POST /tasks` | `{user_id, subject, title, deadline, weight}` | newly-created real task |
 
 **Error handling:** Pydantic validation → 422. Model/service failures → 500 with a clear message. If a `.joblib` file fails to load at startup, the app still boots (other endpoints keep working) and logs a `STARTUP ERROR`, verified by deliberately removing a model file and confirming graceful degradation.
 
 **Known real bug already found and fixed:** `generate_schedule()`'s `tasks` registry initially omitted `weight`, which `add_task()` requires — this would have broken `reschedule()` reconstructing state from a prior response. Fixed by adding `weight` to the registry.
+
+**Task completion now writes to the real database (previously frontend-only).** `PATCH /study-planner/tasks/{id}/complete` (`app/routes/study_planner/task_routes.py`) is the owner — it's the Study Planner's own route module, not the journal's `/daily` conversational flow, but it reuses the exact same `TaskModel` (`app/models/journal/task.py`) and the exact same `progress_stage: "completed"` value `TaskModel.set_mark()` already writes for a marked assignment (see `journal_constants.py`'s `ASSIGNMENT_PROGRESS_STAGES`/`MARK_RECEIVED_STAGES`) — not a new, parallel "done" spelling. Adds one new field, `completed_at`, following the collection's existing local-ISO-date-string convention (`local_today_iso()`, same as `last_mark_check`/`last_deadline_check`) rather than a raw timestamp. The frontend's `completeTask` (Zustand store) now calls this endpoint FIRST and only updates local state on success — `Tasks.jsx` and `TaskDetails.jsx` both show a retryable error instead of an optimistic "completed" state if the write fails. Verified live: completed a real task via the API, confirmed `progress_stage: "completed"` and `completed_at` via a direct MongoDB query (independent of the API's own response), then reverted the test user's real data back to its original state.
 
 ### Known gap — important for anyone building on this API
 
@@ -243,7 +302,7 @@ The API currently expects **raw ML feature values** as input (e.g. `code_module_
 
 ### Data availability gap — how to handle it
 
-A detailed page spec (Section 13) assumes backend capabilities that do not exist yet: a database (MongoDB was mentioned as target architecture, not yet implemented), and CRUD endpoints for students/modules/assignments/exams, task completion, and rescheduling-with-persistence. **None of these exist yet** — the only real, working backend is the 6 ML endpoints in Section 9.
+A detailed page spec (Section 13) assumes backend capabilities that do not exist yet: a database (MongoDB was mentioned as target architecture, not yet implemented), and CRUD endpoints for students/modules/assignments/exams and rescheduling-with-persistence. The only real, working backend was originally the 6 ML endpoints in Section 9 — **task completion is now a real, durable write** (Section 9's `PATCH /tasks/{id}/complete`), the one exception to this section's original "none of these exist yet."
 
 **Confirmed approach:** build the full frontend page set now. Wire real API calls wherever the 6 existing ML endpoints can genuinely serve a page (priority prediction, explanation, clustering, weekly schedule generation/rescheduling, to-do list). For every other page/feature that needs data from an endpoint that doesn't exist yet (student profile CRUD, module management, exam tracking, notifications, add-academic-data forms, analytics requiring stored history) — build against realistic mock data, structured so each can be swapped for a real API call later with minimal rework. Do not block frontend development on backend expansion.
 
