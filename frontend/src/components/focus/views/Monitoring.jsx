@@ -25,6 +25,10 @@ export default function TabMonitoring({
   // "State Confidence" bar identical by construction -- including after a manual
   // override, where `state` is the user's pick and `confidence` is still the model's.
   const displayConfidence = probs[state] ?? confidence;
+  const topClass = CLASSES.reduce(
+    (best, cls) => ((probs[cls] || 0) > (probs[best] || 0) ? cls : best),
+    CLASSES[0],
+  );
 
   // Head turned away => the frontal Haar cascade finds nothing => no prediction runs
   // at all, and `state` still holds the last reading. This card claims "Detected
@@ -136,22 +140,22 @@ export default function TabMonitoring({
             />
             <div className="space-y-4">
               {CLASSES.map((cls) => {
-                const active = state === cls;
-                const pct = (probs[cls] || 0) * 100;
+                const isHighest = cls === topClass;
+                const pct = isHighest ? (probs[cls] || 0) * 100 : 0;
                 return (
                   <div key={cls}>
                     <div className="flex justify-between mb-1.5">
                       <span
                         className="flex items-center gap-2 text-sm"
-                        style={{ color: active ? STATE_CFG[cls].color : "#78716c", fontWeight: active ? 700 : 400 }}
+                        style={{ color: isHighest ? STATE_CFG[cls].color : "#78716c", fontWeight: isHighest ? 700 : 400 }}
                       >
                         {STATE_CFG[cls].icon} {cls}
-                        {active && (
+                        {isHighest && (
                           <span
                             className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
                             style={{ backgroundColor: `${STATE_CFG[cls].color}18`, color: STATE_CFG[cls].color }}
                           >
-                            current
+                            highest
                           </span>
                         )}
                       </span>
@@ -159,7 +163,7 @@ export default function TabMonitoring({
                         {Math.round(pct)}%
                       </span>
                     </div>
-                    <Meter pct={pct} color={STATE_CFG[cls].color} height={12} glow={active} />
+                    <Meter pct={pct} color={STATE_CFG[cls].color} height={12} glow={isHighest} />
                   </div>
                 );
               })}
