@@ -146,17 +146,68 @@ def _reclaim_focused(st, features, state):
     return state
 
 
+def _gaze_offset(features: dict) -> float:
+    return (
+        abs(float(features.get("gaze_x_left") or 0))
+        + abs(float(features.get("gaze_x_right") or 0))
+        + abs(float(features.get("gaze_y_left") or 0))
+        + abs(float(features.get("gaze_y_right") or 0))
+    )
+
+
 def _looking_at_camera(features: dict) -> bool:
-    """Frontal face, eyes open, gaze toward the camera/screen."""
+    """Face toward the webcam/screen — not turned away."""
+    if not features:
+        return False
+    mar = float(features.get("mar") or 0)
+    yaw = abs(float(features.get("head_yaw") or 0))
+    pitch = abs(float(features.get("head_pitch") or 0))
+    return mar <= 0.40 and _gaze_offset(features) <= 0.50 and yaw <= 16 and pitch <= 28
+
+
+def _bored_pose(features: dict) -> bool:
+    """Clear disengagement: head turned, gaze off-camera, or chin-down.
+
+    A blank stare locked on the webcam looks like Focused and must not
+    count as Boredom. Hold this pose for a couple of seconds.
+    """
     if not features:
         return False
     ear = float(features.get("ear_avg") or 0)
-    mar = float(features.get("mar") or 0)
-    gaze = abs(float(features.get("gaze_x_left") or 0)) + abs(float(features.get("gaze_x_right") or 0))
-    gaze += abs(float(features.get("gaze_y_left") or 0)) + abs(float(features.get("gaze_y_right") or 0))
+    if ear <= EAR_FATIGUE:
+        return False
     yaw = abs(float(features.get("head_yaw") or 0))
     pitch = abs(float(features.get("head_pitch") or 0))
-    return ear >= 0.18 and mar <= 0.35 and gaze <= 0.55 and yaw <= 18 and pitch <= 22
+    gaze = _gaze_offset(features)
+    return yaw >= 18 or gaze >= 0.55 or pitch >= 30
+
+
+def _bs(features: dict, name: str) -> float:
+    return float(features.get(f"bs_{name}") or 0)
+
+
+def _anxious_pose(features: dict) -> bool:
+    """Worry / tension: inner brows up or knitted, frown, or wide eyes.
+
+    Face can still be toward the camera — unlike Boredom this is an
+    expression, not a head-turn.
+    """
+    if not features:
+        return False
+    if float(features.get("ear_avg") or 0) <= EAR_FATIGUE:
+        return False
+    brow_inner = _bs(features, "browInnerUp")
+    brow_down = max(_bs(features, "browDownLeft"), _bs(features, "browDownRight"))
+    frown = max(_bs(features, "mouthFrownLeft"), _bs(features, "mouthFrownRight"))
+    wide = max(_bs(features, "eyeWideLeft"), _bs(features, "eyeWideRight"))
+    stretch = max(_bs(features, "mouthStretchLeft"), _bs(features, "mouthStretchRight"))
+    return (
+        brow_inner >= 0.22
+        or brow_down >= 0.18
+        or (frown >= 0.18 and brow_inner >= 0.10)
+        or wide >= 0.22
+        or (stretch >= 0.20 and frown >= 0.10)
+    )
 
 
 def _still_face_boredom_veto(features: dict) -> bool:
@@ -182,16 +233,28 @@ def _sleepy_prob(st, face_bgr):
 
 
 def apply_live_cues(state, probs, features=None, sleepy_p=None, sleepy_on=SLEEPY_ON, sleepy_off=SLEEPY_OFF, ear_fatigue=EAR_FATIGUE):
-    """Live webcam only. Closed eyes → Fatigue. Looking at the camera with
-    eyes open blocks the eye-crop Fatigue false positive, but keeps
-    Boredom / Anxiety from the face model."""
+    """Live webcam poses:
+    - eyes closed → Fatigue
+    - worried brows / frown (even facing the camera) → Anxiety
+    - face toward camera, relaxed → Focused
+    - head turned / gaze off / chin down → Boredom
+    """
     ear = float((features or {}).get("ear_avg") or 99.0)
-    eyes_closed = ear <= ear_fatigue
     looking = _looking_at_camera(features or {})
+    bored = _bored_pose(features or {})
+    anxious = _anxious_pose(features or {})
+    if sleepy_p is not None:
+        eyes_closed = ear <= ear_fatigue and sleepy_p >= sleepy_on
+    else:
+        eyes_closed = ear <= min(ear_fatigue, 0.10)
     if eyes_closed:
         return "Fatigue"
+    if anxious:
+        return "Anxiety"
     if looking:
-        return "Focused" if state == "Fatigue" else state
+        return "Focused"
+    if bored:
+        return "Boredom"
     if sleepy_p is not None and sleepy_p >= sleepy_on:
         return "Fatigue"
     if state == "Fatigue" and ear >= 0.22 and (sleepy_p is None or sleepy_p <= sleepy_off):
@@ -255,19 +318,25 @@ def predict_from_frame(frame_bgr):
         state = "Focused"
 
     prob_map = {cls: float(p) for cls, p in zip(CLASSES, probs)}
-    ear = float((features or {}).get("ear_avg") or 99.0)
-    looking = _looking_at_camera(features or {}) and ear > EAR_FATIGUE
-    if looking and state != "Fatigue":
-        # Eye-crop sleepy scores must not steal the on-screen top-% from
-        # Focused / Boredom / Anxiety while the face is awake and frontal.
-        cap = max(prob_map[state] - 0.08, 0.0)
-        if prob_map["Fatigue"] >= prob_map[state]:
-            prob_map["Fatigue"] = cap
-        if state == "Focused":
-            prob_map["Focused"] = max(prob_map["Focused"], 0.72)
+    if state == "Focused" and _looking_at_camera(features or {}):
+        prob_map["Focused"] = max(prob_map["Focused"], 0.72)
+        for other in ("Fatigue", "Anxiety", "Boredom"):
+            if prob_map[other] >= prob_map["Focused"]:
+                prob_map[other] = max(prob_map["Focused"] - 0.10, 0.0)
+    elif state == "Anxiety" and _anxious_pose(features or {}):
+        prob_map["Anxiety"] = max(prob_map["Anxiety"], 0.72)
+        for other in ("Focused", "Fatigue", "Boredom"):
+            if prob_map[other] >= prob_map["Anxiety"]:
+                prob_map[other] = max(prob_map["Anxiety"] - 0.10, 0.0)
+    elif state == "Boredom" and _bored_pose(features or {}):
+        prob_map["Boredom"] = max(prob_map["Boredom"], 0.72)
+        for other in ("Focused", "Fatigue", "Anxiety"):
+            if prob_map[other] >= prob_map["Boredom"]:
+                prob_map[other] = max(prob_map["Boredom"] - 0.10, 0.0)
     elif state == "Fatigue":
         extra = 0.0
-        if ear <= EAR_FATIGUE:
+        ear = float((features or {}).get("ear_avg") or 99.0)
+        if ear <= EAR_FATIGUE and (sleepy_p is None or sleepy_p >= SLEEPY_ON):
             extra = 0.72
         elif sleepy_p is not None:
             extra = sleepy_p
