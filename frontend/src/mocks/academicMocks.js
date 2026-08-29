@@ -107,6 +107,7 @@ export const MOCK_ASSIGNMENTS = [
     module: "AAA",
     moduleName: "Database Systems",
     title: "TMA03 — Normalization & Indexing",
+    taskType: "assignment", // see priorityEngine.js / PROJECT CONTEXT.md Section 5d
     assessmentType: "TMA",
     weight: 25,
     deadlineDate: "2026-08-27",
@@ -124,6 +125,7 @@ export const MOCK_ASSIGNMENTS = [
     module: "BBB",
     moduleName: "Software Engineering",
     title: "CMA02 — Requirements & UML",
+    taskType: "assignment",
     assessmentType: "CMA",
     weight: 10,
     deadlineDate: "2026-09-02",
@@ -141,6 +143,7 @@ export const MOCK_ASSIGNMENTS = [
     module: "CCC",
     moduleName: "Operating Systems",
     title: "TMA01 — Scheduling Algorithms",
+    taskType: "assignment",
     assessmentType: "TMA",
     weight: 20,
     deadlineDate: "2026-09-05",
@@ -158,6 +161,12 @@ export const MOCK_ASSIGNMENTS = [
     module: "DDD",
     moduleName: "Web Application Development",
     title: "Practical Exam — React & REST",
+    // taskType (priorityEngine.js) != assessmentType (ML feature) below -
+    // this is still an assignment-flow task (goes through /schedule like
+    // the rest of MOCK_ASSIGNMENTS), just with assessment_type_enc="Exam".
+    // Real calendar exams live in MOCK_EXAMS instead and never get a
+    // taskType at all (see MonthGrid.jsx - they never get an ML priority).
+    taskType: "assignment",
     assessmentType: "Exam",
     weight: 40,
     deadlineDate: "2026-09-10",
@@ -175,6 +184,7 @@ export const MOCK_ASSIGNMENTS = [
     module: "AAA",
     moduleName: "Database Systems",
     title: "CMA02 — SQL Query Practice",
+    taskType: "assignment",
     assessmentType: "CMA",
     weight: 8,
     deadlineDate: "2026-08-24",
@@ -192,6 +202,7 @@ export const MOCK_ASSIGNMENTS = [
     module: "BBB",
     moduleName: "Software Engineering",
     title: "TMA01 — Agile Retrospective Report",
+    taskType: "assignment",
     assessmentType: "TMA",
     weight: 15,
     deadlineDate: "2026-08-15",

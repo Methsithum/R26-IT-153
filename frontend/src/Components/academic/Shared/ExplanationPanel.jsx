@@ -1,9 +1,16 @@
 import { motion } from "framer-motion";
-import { Brain } from "lucide-react";
+import { Brain, CalendarClock } from "lucide-react";
 import { humanizeContributions } from "../../../utils/featureNameMap";
 import ConfidenceMeter from "./ConfidenceMeter";
 
-export default function ExplanationPanel({ explanation, confidence, loading }) {
+// deadlineSentence (from priorityEngine.js's deadlineDominantSentence) is
+// non-null exactly when the rule-based deadline layer (PROJECT CONTEXT.md
+// Section 5d) - not the ML model - determined the displayed priority. In
+// that case the SHAP feature-contribution bars below would be explaining a
+// DIFFERENT label than the one on screen (the model's raw prediction, which
+// the deadline layer overrode), so showing both would blend two different
+// explanations into one misleading picture. Show exactly one.
+export default function ExplanationPanel({ explanation, confidence, loading, deadlineSentence }) {
   if (loading) {
     return (
       <div className="card p-4 animate-pulse space-y-2">
@@ -11,6 +18,24 @@ export default function ExplanationPanel({ explanation, confidence, loading }) {
         <div className="h-3 w-full bg-slate-100 dark:bg-white/10 rounded" />
         <div className="h-3 w-2/3 bg-slate-100 dark:bg-white/10 rounded" />
       </div>
+    );
+  }
+
+  if (deadlineSentence) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="card p-4 space-y-3"
+      >
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-xl bg-brand-50 dark:bg-brand-500/15 flex items-center justify-center">
+            <CalendarClock size={16} className="text-brand-500" />
+          </div>
+          <p className="text-sm font-semibold text-slate-700 dark:text-white">Why this priority?</p>
+        </div>
+        <p className="text-sm text-slate-500 dark:text-slate-300 leading-relaxed">{deadlineSentence}</p>
+      </motion.div>
     );
   }
 

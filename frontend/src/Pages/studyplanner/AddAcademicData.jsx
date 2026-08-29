@@ -102,6 +102,7 @@ export default function AddAcademicData() {
         module: form.module,
         moduleName: module?.name || form.module,
         title,
+        taskType: "assignment", // see priorityEngine.js / PROJECT CONTEXT.md Section 5d
         assessmentType: form.assessmentType,
         weight: Number(form.weight),
         hasRealWeight: true,

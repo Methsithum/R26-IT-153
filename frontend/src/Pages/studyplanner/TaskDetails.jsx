@@ -9,6 +9,7 @@ import { useAcademicStore } from "../../store/useAcademicStore";
 import { useReschedule } from "../../hooks/useAcademicData";
 import { predictPriority, explainTask } from "../../services/academicApi";
 import { formatDeadlineCopy, daysRemaining } from "../../utils/dateHelpers";
+import { computeFinalPriority, deadlineDominantSentence } from "../../utils/priorityEngine";
 
 export default function TaskDetails() {
   const { taskId } = useParams();
@@ -49,8 +50,20 @@ export default function TaskDetails() {
     };
   }, [task]);
 
-  const priority = priorityResult?.priority_label || scheduleResponse?.tasks?.[taskId]?.priority_label;
   const days = task ? daysRemaining(task.deadlineDate) : 0;
+
+  // TaskDetails calls /predict-priority directly (below) rather than reading
+  // the /schedule response, so - unlike Dashboard/Tasks/MonthGrid, which all
+  // get the hybrid layer for free via useWeeklySchedule/useReschedule (see
+  // priorityEngine.js) - the raw ML label from that direct call needs to go
+  // through computeFinalPriority here explicitly. The scheduleResponse
+  // fallback already carries the hybrid result (applied at the API
+  // boundary), so it's used as-is.
+  const rawMlLabel = priorityResult?.priority_label;
+  const finalPriorityResult = task && rawMlLabel
+    ? computeFinalPriority(days, task.taskType || "assignment", rawMlLabel)
+    : null;
+  const priority = finalPriorityResult?.priorityLabel || scheduleResponse?.tasks?.[taskId]?.priority_label;
 
   const remainingHours = task ? Math.max(task.estimatedHoursNeeded - task.completedHours, 0) : 0;
 
@@ -204,7 +217,12 @@ export default function TaskDetails() {
           )}
         </div>
 
-        <ExplanationPanel explanation={explanation} confidence={priorityResult?.confidence} loading={loadingExplain} />
+        <ExplanationPanel
+          explanation={explanation}
+          confidence={priorityResult?.confidence}
+          loading={loadingExplain}
+          deadlineSentence={finalPriorityResult ? deadlineDominantSentence(finalPriorityResult, days) : null}
+        />
       </div>
 
       <CompletionCelebration active={!!celebration} priority={celebration?.priority} taskTitle={celebration?.title} onDone={() => setCelebration(null)} />

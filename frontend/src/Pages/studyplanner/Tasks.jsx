@@ -24,6 +24,10 @@ export default function Tasks() {
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [celebration, setCelebration] = useState(null);
 
+  // schedule.tasks[taskId].priority_label already reflects the hybrid
+  // deadline+ML priority (priorityEngine.js, PROJECT CONTEXT.md Section 5d)
+  // - applied once at the API boundary in useWeeklySchedule() - so no
+  // separate computeFinalPriority call is needed here.
   const withPriority = useMemo(
     () => assignments.map((a) => ({ ...a, priority: schedule?.tasks?.[a.taskId]?.priority_label })),
     [assignments, schedule]

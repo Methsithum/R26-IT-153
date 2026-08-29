@@ -26,6 +26,7 @@ Run from the backend/ directory (or anywhere) with:
 """
 
 import os
+import sys
 
 import joblib
 import numpy as np
@@ -35,15 +36,29 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from xgboost import XGBClassifier
 
-from ordinal_monotonic_model import CLASS_ORDER, OrdinalMonotonicPriorityModel
-
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 
+# The wrapper class must be imported from its canonical, deployed location
+# (app/services/study_planner/) rather than a local copy here - joblib pickles
+# a reference to the class's *import path*, and priority_service.py /
+# explain_service.py will unpickle app/models/study_planner/priority_model.joblib
+# by importing app.services.study_planner.ordinal_monotonic_model. Training
+# against any other copy would silently produce an artifact the live app
+# cannot load.
+if BACKEND_DIR not in sys.path:
+    sys.path.insert(0, BACKEND_DIR)
+from app.services.study_planner.ordinal_monotonic_model import CLASS_ORDER, OrdinalMonotonicPriorityModel
+
 OUTPUTS_DIR = os.path.join(BACKEND_DIR, "ml_scripts", "study-planner", "outputs")
-ORIGINAL_MODELS_DIR = os.path.join(BACKEND_DIR, "app", "models", "study_planner")
 NEW_MODELS_DIR = os.path.join(BACKEND_DIR, "trained-models", "stuyd-planner")
 os.makedirs(NEW_MODELS_DIR, exist_ok=True)
+# The unconstrained baseline was deployed at app/models/study_planner/priority_model.joblib
+# until the monotonic model replaced it there (PROJECT CONTEXT.md Section 5c) - it was
+# backed up here rather than deleted, since it's still the documented baseline for the
+# Section 5b model-comparison table.
+ORIGINAL_MODEL_PATH = os.path.join(NEW_MODELS_DIR, "priority_model_v1_unconstrained.joblib")
+ORIGINAL_LABEL_ENCODER_PATH = os.path.join(NEW_MODELS_DIR, "xgb_label_encoder_v1_unconstrained.joblib")
 
 RANDOM_STATE = 42
 LEAKAGE_SUSPECT_THRESHOLD = 0.97
@@ -182,8 +197,8 @@ print("Trained model_medium (P(>=Medium)) and model_high (P(>=High)), both with 
 # ===========================================================================
 section("5. LOAD ORIGINAL DEPLOYED MODEL FOR COMPARISON")
 
-original_model = joblib.load(os.path.join(ORIGINAL_MODELS_DIR, "priority_model.joblib"))
-original_xgb_label_encoder = joblib.load(os.path.join(ORIGINAL_MODELS_DIR, "xgb_label_encoder.joblib"))
+original_model = joblib.load(ORIGINAL_MODEL_PATH)
+original_xgb_label_encoder = joblib.load(ORIGINAL_LABEL_ENCODER_PATH)
 print(f"Loaded original model: {type(original_model).__name__}, "
       f"label classes (encoder order): {list(original_xgb_label_encoder.classes_)}")
 
@@ -368,7 +383,7 @@ section("10. SAVE priority_model_monotonic.joblib (NOT deployed - review first)"
 monotonic_model_path = os.path.join(NEW_MODELS_DIR, "priority_model_monotonic.joblib")
 joblib.dump(monotonic_model, monotonic_model_path)
 print(f"Saved: {monotonic_model_path}")
-print(f"NOTE: {os.path.join(ORIGINAL_MODELS_DIR, 'priority_model.joblib')} was NOT modified. "
-      f"Bring section 6/8/9 results back for review before deciding whether to deploy this model.")
+print(f"NOTE: this script does not touch app/models/study_planner/priority_model.joblib - "
+      f"deployment is a separate, explicit step. Bring section 6/8/9 results back for review first.")
 
 print("\nDone.")

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAcademicStore } from "../store/useAcademicStore";
 import { createSchedule, rescheduleSchedule, getTodoList } from "../services/academicApi";
+import { applyPriorityEngineToScheduleResult } from "../utils/priorityEngine";
 
 // The backend's /todo rejects a schedule whose `tasks` registry is empty
 // (422 "schedule_result has no 'tasks' registry") instead of just returning
@@ -42,7 +43,13 @@ export function useWeeklySchedule() {
         estimated_hours_needed: Math.max(a.estimatedHoursNeeded - a.completedHours, 0.5),
         feature_row: a.featureRow,
       }));
-      const result = await createSchedule(weeklyFreeSlots, tasks);
+      // Hybrid priority layer (PROJECT CONTEXT.md Section 5d) applied ONCE,
+      // right at the API boundary, so every screen reading
+      // schedule.tasks[taskId].priority_label downstream (Dashboard,
+      // TodayTimeline, DayView, WeekGrid, MonthGrid, Tasks) already sees the
+      // deadline-dominant final result instead of the raw ML label - no
+      // per-screen reimplementation needed.
+      const result = applyPriorityEngineToScheduleResult(await createSchedule(weeklyFreeSlots, tasks));
       setSchedule(result);
       setRemainingFreeSlots(weeklyFreeSlots);
       setTodoList(await fetchTodoSafely(result));
@@ -88,12 +95,14 @@ export function useReschedule() {
       setLoading(true);
       setError(null);
       try {
-        const result = await rescheduleSchedule({
-          previousSchedule: scheduleResponse,
-          remainingFreeSlots,
-          completedTaskIds,
-          newTasks,
-        });
+        const result = applyPriorityEngineToScheduleResult(
+          await rescheduleSchedule({
+            previousSchedule: scheduleResponse,
+            remainingFreeSlots,
+            completedTaskIds,
+            newTasks,
+          })
+        );
         setSchedule(result);
         setTodoList(await fetchTodoSafely(result));
         return result;

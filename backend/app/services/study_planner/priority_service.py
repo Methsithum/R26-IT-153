@@ -1,12 +1,20 @@
 """
 priority_service.py
 
-Loads the trained Priority classifier (XGBoost) and its label encoder ONCE
-at module import time, and exposes predict_priority() for the study-planner
-API routes to call per request.
+Loads the trained Priority classifier ONCE at module import time, and
+exposes predict_priority() for the study-planner API routes to call per
+request.
 
-Reuses the exact artifacts produced by ml_scripts/study-planner/train_priority_model.py -
-this module does not retrain or re-derive anything, it only runs inference.
+Reuses the exact artifact produced by
+ml_scripts/study-planner/train_priority_model_monotonic.py (see PROJECT
+CONTEXT.md Section 5c) - this module does not retrain or re-derive anything,
+it only runs inference. priority_model.joblib is an OrdinalMonotonicPriorityModel
+(app/services/study_planner/ordinal_monotonic_model.py), not a plain
+XGBClassifier - its .predict() already returns an index into CLASS_ORDER
+(Low/Medium/High), so no separate label-encoder artifact is needed anymore.
+Do NOT swap this back for a plain unconstrained XGBClassifier without reading
+that file's docstring first - doing so reintroduces the documented date-vs-
+priority inversion bug this model was retrained to fix.
 """
 
 import logging
@@ -14,6 +22,8 @@ import os
 
 import joblib
 import pandas as pd
+
+from app.services.study_planner.ordinal_monotonic_model import CLASS_ORDER
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +35,6 @@ MODELS_DIR = os.path.join(BACKEND_DIR, "app", "models", "study_planner")
 
 MODEL_PATH = os.path.join(MODELS_DIR, "priority_model.joblib")
 LABEL_ENCODERS_PATH = os.path.join(MODELS_DIR, "label_encoders.joblib")
-XGB_LABEL_ENCODER_PATH = os.path.join(MODELS_DIR, "xgb_label_encoder.joblib")
 
 # The exact 13 features and order the model was trained on - see
 # train_priority_model.py sections 4 & 6 (model_feature_cols). Any caller of
@@ -49,20 +58,16 @@ class PriorityServiceError(Exception):
 # turn into a proper 500 with a clear message.
 # ---------------------------------------------------------------------------
 _model = None
-_xgb_label_encoder = None
 _label_encoders = None
 
 try:
     _model = joblib.load(MODEL_PATH)
     _label_encoders = joblib.load(LABEL_ENCODERS_PATH)
-    if os.path.exists(XGB_LABEL_ENCODER_PATH):
-        _xgb_label_encoder = joblib.load(XGB_LABEL_ENCODER_PATH)
-    logger.info("priority_service: loaded priority_model.joblib, label_encoders.joblib"
-                + (", xgb_label_encoder.joblib" if _xgb_label_encoder is not None else ""))
+    logger.info("priority_service: loaded priority_model.joblib (OrdinalMonotonicPriorityModel), label_encoders.joblib")
 except FileNotFoundError as e:
     logger.error(
         "priority_service: STARTUP ERROR - missing model artifact: %s. "
-        "Run ml_scripts/study-planner/train_priority_model.py to generate it. "
+        "Run ml_scripts/study-planner/train_priority_model_monotonic.py to generate it. "
         "predict_priority() will raise PriorityServiceError until this is fixed.",
         e,
     )
@@ -105,14 +110,10 @@ def predict_priority(task_features: dict) -> dict:
 
     row_df = validate_and_build_feature_row(task_features)
 
-    pred_num = _model.predict(row_df)[0]
+    pred_idx = int(_model.predict(row_df)[0])
     proba = _model.predict_proba(row_df)[0]
 
-    if _xgb_label_encoder is not None:
-        priority_label = _xgb_label_encoder.inverse_transform([pred_num])[0]
-    else:
-        priority_label = pred_num
-
-    confidence = float(proba[int(pred_num)])
+    priority_label = CLASS_ORDER[pred_idx]
+    confidence = float(proba[pred_idx])
 
     return {"priority_label": str(priority_label), "confidence": confidence}

@@ -7,10 +7,13 @@ import { useAcademicStore } from "../../../store/useAcademicStore";
 import { useWeeklySchedule } from "../../../hooks/useAcademicData";
 
 // Real data: each cell is built from the student's actual assignments
-// (real deadlineDate, real module) with the priority the backend's
-// /predict-priority model already assigned via the current /schedule call
-// (schedule.tasks[taskId].priority_label) — the same source Tasks.jsx uses,
-// so priority is consistent across the whole app. Assignments with no
+// (real deadlineDate, real module) with the priority already assigned via
+// the current /schedule call (schedule.tasks[taskId].priority_label) — the
+// same source Tasks.jsx uses, so priority is consistent across the whole
+// app. That value is already the hybrid deadline+ML priority (priorityEngine.js,
+// PROJECT CONTEXT.md Section 5d), applied once at the API boundary in
+// useWeeklySchedule() — no separate computeFinalPriority call needed here.
+// Assignments with no
 // prediction yet (e.g. completed/missed tasks not sent to /schedule) get
 // `isPredicted: false` and a "Medium" placeholder that must never be styled
 // like a real result — a fallback default and a real ML prediction should
