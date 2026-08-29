@@ -9,10 +9,10 @@ router = APIRouter(prefix="/focus", tags=["focus"])
 
 
 @router.get("/leaderboard", response_model=list[LeaderboardEntry])
-def leaderboard():
+def leaderboard(user_id: str):
     """Real saved time for the current user. Shaped as a list so adding
     real accounts later doesn't change the response shape — no dummy rows."""
-    today = tracking.get_daily_stats(date_cls.today().isoformat())
+    today = tracking.get_daily_stats(date_cls.today().isoformat(), user_id)
     if today.total_focus_minutes <= 0 and today.total_distraction_minutes <= 0:
         return []
     return [
@@ -30,5 +30,5 @@ def leaderboard():
 
 
 @router.get("/profile", response_model=ProfileResponse)
-def profile():
-    return ProfileResponse(**tracking.build_profile())
+def profile(user_id: str):
+    return ProfileResponse(**tracking.build_profile(user_id=user_id))
