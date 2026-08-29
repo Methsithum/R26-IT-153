@@ -20,11 +20,16 @@ export const TREE_MOOD = {
 };
 
 export const LEVEL_DATA = [
-  { name:"Seedling",      min:0,    max:50,   icon:"🌱" },
-  { name:"Growing Plant", min:50,   max:150,  icon:"🌿" },
-  { name:"Focus Tree",    min:150,  max:300,  icon:"🌳" },
-  { name:"Golden Tree",   min:300,  max:9999, icon:"✨" },
+  { name: "Seedling",      min: 0,  max: 30,  icon: "🌱" },
+  { name: "Growing Plant", min: 30, max: 60,  icon: "🌿" },
+  { name: "Focus Tree",    min: 60, max: 85,  icon: "🌳" },
+  { name: "Golden Tree",   min: 85, max: 100, icon: "✨" },
 ];
+
+export function levelIndexFromPoints(points) {
+  const xp = Math.max(0, Number(points) || 0);
+  return Math.max(0, LEVEL_DATA.filter((l) => xp >= l.min).length - 1);
+}
 
 // Achievement definitions only — `earned` is computed from persisted Mongo
 // history (weekly days, streaks, interventions) in FocusApp, not hardcoded.
@@ -35,7 +40,7 @@ export const ACHIEVEMENTS_LIST = [
   { id:4, key:"earlyBird",    name:"Early Bird",      icon:"🌅", desc:"Study before 7 AM",           pts:40  },
   { id:5, key:"nightOwl",     name:"Night Owl",       icon:"🦉", desc:"Study after 9 PM",            pts:25  },
   { id:6, key:"teamPlayer",   name:"Team Player",     icon:"🤝", desc:"Top 2 in leaderboard",        pts:60  },
-  { id:7, key:"treeWhisperer",name:"Tree Whisperer",  icon:"🌲", desc:"Reach Focus Tree level",      pts:80  },
+  { id:7, key:"treeWhisperer",name:"Tree Whisperer",  icon:"🌲", desc:"Reach Focus Tree level (60 XP)", pts:80  },
   { id:8, key:"unbreakable",  name:"Unbreakable",     icon:"💎", desc:"7-day focus streak",          pts:150 },
   { id:9, key:"zenMaster",    name:"Zen Master",      icon:"☯️", desc:"10 Calm Quests completed",    pts:70  },
 ];
@@ -343,5 +348,5 @@ export const TABS = [
 ];
 
 export default {
-  CLASSES, STATE_CFG, TREE_MOOD, LEVEL_DATA, ACHIEVEMENTS_LIST, INTERVENTIONS, pickIntervention, pickChallengeType, CHALLENGE_POINT_COST, DAILY_CHALLENGE_POINTS, challengePointsFor, REPORT_TYPES, TABS
+  CLASSES, STATE_CFG, TREE_MOOD, LEVEL_DATA, levelIndexFromPoints, ACHIEVEMENTS_LIST, INTERVENTIONS, pickIntervention, pickChallengeType, CHALLENGE_POINT_COST, DAILY_CHALLENGE_POINTS, challengePointsFor, REPORT_TYPES, TABS
 };

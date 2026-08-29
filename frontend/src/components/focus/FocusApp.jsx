@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { STATE_CFG, LEVEL_DATA, ACHIEVEMENTS_LIST, pickChallengeType, challengePointsFor } from "./focusData";
+import { STATE_CFG, LEVEL_DATA, ACHIEVEMENTS_LIST, pickChallengeType, challengePointsFor, levelIndexFromPoints } from "./focusData";
 import { useFocusCamera } from "../../hooks/useFocusCamera";
 import { saveFocusSession, getDailyReport, getWeeklyReport, getFocusProfile, flushFocusSession } from "../../lib/focusApi";
 import { combineHM, mergeLiveWeek } from "../../lib/focusTime";
@@ -304,7 +304,8 @@ export default function FocusApp() {
   // focused time is ahead (or tied), sad once overall distraction overtakes it.
   const treeState = treeFocusMin >= treeDistMin ? "Focused" : "Boredom";
   const lifetimeMin = lifetimeBaseMin + todayFocusMin;
-  const lv = LEVEL_DATA.filter((l) => lifetimeMin >= l.min).length - 1;
+  const challengePoints = challengePointsFor(challengesTaken);
+  const lv = levelIndexFromPoints(challengePoints);
 
   const liveWeek = useMemo(
     () => mergeLiveWeek(weekly, todayFocusMin, todayDistMin),
@@ -421,9 +422,8 @@ export default function FocusApp() {
         LEVEL_DATA={LEVEL_DATA}
         todayGoal={todayGoal}
         distMin={todayDistMin}
-        lifetimeMin={lifetimeMin}
         week={liveWeek}
-        challengePoints={challengePointsFor(challengesTaken)}
+        challengePoints={challengePoints}
       />
     ),
     monitoring: (
@@ -444,10 +444,10 @@ export default function FocusApp() {
     tree: (
       <TabTree
         state={treeState}
-        lifetimeMin={lifetimeMin}
         streak={streak}
         focusMin={todayFocusMin}
         LEVEL_DATA={LEVEL_DATA}
+        challengePoints={challengePoints}
       />
     ),
     achievements: <TabAchievements ACHIEVEMENTS_LIST={liveAchievements} />,
@@ -494,7 +494,7 @@ export default function FocusApp() {
         resumeSession={resumeSession}
         startSession={startSession}
         setShowCheckIn={setShowCheckIn}
-        challengePoints={challengePointsFor(challengesTaken)}
+        challengePoints={challengePoints}
       />
 
       <video ref={captureVideoRef} autoPlay playsInline muted
