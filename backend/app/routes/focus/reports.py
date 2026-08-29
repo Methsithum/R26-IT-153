@@ -25,7 +25,8 @@ def _daily_payload(stats) -> DailyReport:
         longest_streak_minutes=stats.longest_streak_minutes,
         calm_quest_count=stats.calm_quest_count,
         challenges_taken=stats.challenges_taken,
-        challenge_points=challenge_points_for(stats.challenges_taken),
+        focus_boosts=stats.focus_boosts,
+        challenge_points=challenge_points_for(stats.challenges_taken, stats.focus_boosts),
         first_hour=stats.first_hour,
         achievements_unlocked=stats.achievements_unlocked,
     )

@@ -6,6 +6,7 @@ import { combineHM, mergeLiveWeek } from "../../lib/focusTime";
 import FocusHeader from "./FocusHeader";
 import FocusFooter from "./FocusFooter";
 import IntModal from "./IntModal";
+import TreeSVG from "./TreeSVG";
 import TabDashboard from "./views/Dashboard";
 import TabMonitoring from "./views/Monitoring";
 import TabTree from "./views/Tree";
@@ -19,7 +20,10 @@ const MANUAL_OVERRIDE_LOCK_MS = 5000;
 const HIGH_CONFIDENCE = 0.70;
 const CHALLENGE_SUSTAIN_MS = 5 * 60 * 1000;
 const SPRINT_STREAK_MIN = 25;
+const FOCUS_BOOST_STREAK_MIN = 5;
+const TREE_FX_MS = 2000;
 const CHECKIN_INTERVAL_MS = 5 * 60 * 1000;
+const CHECKIN_TIMEOUT_MS = 15 * 1000;
 const SAVE_INTERVAL_MS = 60 * 1000;
 const TODAY_GOAL = 120;
 const CHECKIN_PROMPT = "Are you focusing right now?";
@@ -93,6 +97,9 @@ export default function FocusApp() {
   const [showModal, setShowModal] = useState(false);
   const [challengeType, setChallengeType] = useState("Fatigue");
   const [challengesTaken, setChallengesTaken] = useState(0);
+  const [focusBoosts, setFocusBoosts] = useState(0);
+  const [treeFx, setTreeFx] = useState(null);
+  const [treeFxNonce, setTreeFxNonce] = useState(0);
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [checkInAns, setCheckInAns] = useState(null);
   const [showPauseNotice, setShowPauseNotice] = useState(false);
@@ -120,7 +127,25 @@ export default function FocusApp() {
   const firstHourRef = useRef(null);
   const calmQuestRef = useRef(0);
   const challengesTakenRef = useRef(0);
+  const focusBoostsRef = useRef(0);
+  const boostTierRef = useRef(0);
+  const treeFxTimerRef = useRef(null);
+  const persistSessionRef = useRef(async () => {});
   useEffect(() => { showModalRef.current = showModal; }, [showModal]);
+
+  const playTreeFx = useCallback((kind) => {
+    setTreeFx(kind);
+    setTreeFxNonce((n) => n + 1);
+    if (treeFxTimerRef.current) clearTimeout(treeFxTimerRef.current);
+    treeFxTimerRef.current = setTimeout(() => {
+      setTreeFx(null);
+      treeFxTimerRef.current = null;
+    }, TREE_FX_MS);
+  }, []);
+
+  useEffect(() => () => {
+    if (treeFxTimerRef.current) clearTimeout(treeFxTimerRef.current);
+  }, []);
 
   const sessionOn = sessionStatus === "active";
 
@@ -185,6 +210,7 @@ export default function FocusApp() {
     today_goal: todayGoal,
     calm_quest_count: calmQuestRef.current,
     challenges_taken: challengesTakenRef.current,
+    focus_boosts: focusBoostsRef.current,
     first_hour: firstHourRef.current,
   }), [todayGoal]);
 
@@ -197,6 +223,8 @@ export default function FocusApp() {
       console.warn("Failed to save focus session", err);
     }
   }, [sessionPayload]);
+
+  useEffect(() => { persistSessionRef.current = persistSession; }, [persistSession]);
 
   useEffect(() => {
     let cancelled = false;
@@ -226,6 +254,9 @@ export default function FocusApp() {
         const taken = report.challenges_taken || 0;
         challengesTakenRef.current = taken;
         setChallengesTaken(taken);
+        const boosts = report.focus_boosts || 0;
+        focusBoostsRef.current = boosts;
+        setFocusBoosts(boosts);
         setInterventionCounts((c) => ({ ...c, Anxiety: calm }));
         if ((report.longest_streak_minutes || 0) >= SPRINT_STREAK_MIN || (profile.achievements_unlocked || []).includes("sprint25")) {
           setEverSprint25(true);
@@ -309,6 +340,7 @@ export default function FocusApp() {
     setSessionFocusMin(0);
     setSessionDistMin(0);
     focusStreakRef.current = 0;
+    boostTierRef.current = 0;
     setStreak(0);
     sprintBonusReadyRef.current = true;
     setSessionStatus("active");
@@ -332,6 +364,7 @@ export default function FocusApp() {
     setSessionFocusMin(0);
     setSessionDistMin(0);
     focusStreakRef.current = 0;
+    boostTierRef.current = 0;
     setStreak(0);
     setSessionStatus("ended");
   }, [sessionStatus, persistSession]);
@@ -352,7 +385,7 @@ export default function FocusApp() {
   // focused time is ahead (or tied), sad once overall distraction overtakes it.
   const treeState = treeFocusMin >= treeDistMin ? "Focused" : "Boredom";
   const lifetimeMin = lifetimeBaseMin + todayFocusMin;
-  const challengePoints = challengePointsFor(challengesTaken);
+  const challengePoints = challengePointsFor(challengesTaken, focusBoosts);
   const lv = levelIndexFromPoints(challengePoints);
 
   const liveWeek = useMemo(
@@ -385,8 +418,9 @@ export default function FocusApp() {
     setShowModal(true);
     challengesTakenRef.current += 1;
     setChallengesTaken(challengesTakenRef.current);
+    playTreeFx("wilt");
     persistSession();
-  }, [persistSession]);
+  }, [persistSession, playTreeFx]);
 
   const handleStateSelect = (nextState) => {
     if (sessionStatus !== "active") return;
@@ -418,8 +452,20 @@ export default function FocusApp() {
         sprintBonusReadyRef.current = false;
         setEverSprint25(true);
       }
+
+      const streakMin = focusStreakRef.current / 60000;
+      const tier = Math.floor(streakMin / FOCUS_BOOST_STREAK_MIN);
+      if (tier > boostTierRef.current) {
+        const gained = tier - boostTierRef.current;
+        boostTierRef.current = tier;
+        focusBoostsRef.current += gained;
+        setFocusBoosts(focusBoostsRef.current);
+        playTreeFx("water");
+        persistSessionRef.current();
+      }
     } else {
       focusStreakRef.current = 0;
+      boostTierRef.current = 0;
       sprintBonusReadyRef.current = true;
       setStreak(0);
       sessionDistRef.current += minutes;
@@ -441,7 +487,7 @@ export default function FocusApp() {
     } else {
       distractionStreakRef.current = { state: null, ms: 0 };
     }
-  }, [openChallenge]);
+  }, [openChallenge, playTreeFx]);
 
   const handleInterventionComplete = useCallback((type) => {
     setInterventionCounts((c) => {
@@ -472,6 +518,8 @@ export default function FocusApp() {
         distMin={todayDistMin}
         week={liveWeek}
         challengePoints={challengePoints}
+        treeFx={treeFx}
+        treeFxNonce={treeFxNonce}
         userName={account?.name}
       />
     ),
@@ -497,6 +545,8 @@ export default function FocusApp() {
         focusMin={todayFocusMin}
         LEVEL_DATA={LEVEL_DATA}
         challengePoints={challengePoints}
+        treeFx={treeFx}
+        treeFxNonce={treeFxNonce}
       />
     ),
     achievements: <TabAchievements ACHIEVEMENTS_LIST={liveAchievements} />,
@@ -563,6 +613,15 @@ export default function FocusApp() {
       <canvas ref={canvasRef} style={{ display: "none" }} />
 
       <div key={tab} className="max-w-7xl mx-auto px-4 py-6">{VIEWS[tab]}</div>
+
+      {treeFx && tab !== "dashboard" && tab !== "tree" && (
+        <div
+          className="fixed bottom-24 right-6 z-40 pointer-events-none rounded-3xl px-3 pt-2 pb-1 border shadow-xl"
+          style={{ background: "rgba(255,255,255,0.94)", borderColor: "rgba(148,163,184,0.35)", backdropFilter: "blur(12px)" }}
+        >
+          <TreeSVG state={treeState} points={challengePoints} size={132} fx={treeFx} fxKey={treeFxNonce} />
+        </div>
+      )}
 
       {showCheckIn && (
         <div className="fixed bottom-6 right-6 z-50 w-80 fu-view">

@@ -12,13 +12,14 @@ const STATE_BLURB = {
 
 const GROWTH_RULES = [
   { action: "You start the day with 100 XP", icon: "✦", value: "100", color: "#a855f7" },
+  { action: "5 min focused waters the tree (+5 XP)", icon: "💧", value: "+5", color: "#38bdf8" },
   { action: "Each challenge costs 5 XP", icon: "📉", value: "−5", color: "#ef4444" },
   { action: "Level follows today's XP, not minutes", icon: "🌳", value: "XP", color: "#22c55e" },
   { action: "25-min continuous focus", icon: "⚡", value: "Sprint", color: "#f59e0b" },
   { action: "Complete a Calm Quest", icon: "🌿", value: "Calm", color: "#ef4444" },
 ];
 
-export default function TabTree({ state, streak, focusMin, LEVEL_DATA: LD = LEVEL_DATA, challengePoints = 100 }) {
+export default function TabTree({ state, streak, focusMin, LEVEL_DATA: LD = LEVEL_DATA, challengePoints = 100, treeFx = null, treeFxNonce = 0 }) {
   const cfg = STATE_CFG[state] || STATE_CFG.Focused;
   const lv = levelIndexFromPoints(challengePoints);
   const current = LD[lv];
@@ -51,7 +52,7 @@ export default function TabTree({ state, streak, focusMin, LEVEL_DATA: LD = LEVE
               style={{ width: 260, height: 260, top: -40, backgroundColor: cfg.color, opacity: 0.12 }}
             />
             <div className="relative">
-              <TreeSVG state={state} points={challengePoints} size={220} />
+              <TreeSVG state={state} points={challengePoints} size={220} fx={treeFx} fxKey={treeFxNonce} />
             </div>
 
             <div className="text-center mt-4 relative">

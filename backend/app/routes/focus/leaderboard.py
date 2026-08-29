@@ -42,7 +42,7 @@ def leaderboard(user_id: str):
             "person": person,
             "stats": stats,
             "focus": stats.total_focus_minutes,
-            "xp": challenge_points_for(stats.challenges_taken),
+            "xp": challenge_points_for(stats.challenges_taken, stats.focus_boosts),
         })
     rows.sort(key=lambda r: (r["focus"], r["xp"]), reverse=True)
     out = []

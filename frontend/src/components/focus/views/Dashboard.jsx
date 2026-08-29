@@ -15,6 +15,8 @@ export default function TabDashboard({
   distMin,
   week,
   challengePoints = 100,
+  treeFx = null,
+  treeFxNonce = 0,
   userName,
 }) {
   const cfg = STATE_CFG[state] || STATE_CFG.Focused;
@@ -64,7 +66,7 @@ export default function TabDashboard({
               style={{ background: `radial-gradient(circle at 50% 40%, ${cfg.color}22, transparent 62%)` }}
             />
             <div className="relative">
-              <TreeSVG state={state} points={challengePoints} size={240} />
+              <TreeSVG state={state} points={challengePoints} size={240} fx={treeFx} fxKey={treeFxNonce} />
               <div
                 className="absolute -right-2 top-6 px-3 py-2 rounded-2xl rounded-bl-md text-sm font-semibold shadow-sm border"
                 style={{

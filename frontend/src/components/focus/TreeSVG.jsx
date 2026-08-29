@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useId } from "react";
 import { STATE_CFG, TREE_MOOD, levelIndexFromPoints } from "./focusData";
 
-export default function TreeSVG({ state, points, size = 220 }) {
+export default function TreeSVG({ state, points, size = 220, fx = null, fxKey = 0 }) {
+  const uid = useId().replace(/:/g, "");
   const cfg = STATE_CFG[state] || STATE_CFG.Focused;
   const mood = TREE_MOOD[state] || TREE_MOOD.Focused;
   const lv = levelIndexFromPoints(points);
@@ -11,13 +12,18 @@ export default function TreeSVG({ state, points, size = 220 }) {
   const canopy = isGolden ? "#f59e0b" : cfg.color;
   const canopyDeep = isGolden ? "#d97706" : cfg.color;
   const faceY = [168, 118, 86, 58][lv] || 86;
+  const watering = fx === "water";
+  const wilting = fx === "wilt";
 
-  const motion =
-    state === "Anxiety"
-      ? "treeShake 0.45s ease-in-out infinite alternate"
-      : isSad
-        ? "treeDroop 2.6s ease-in-out infinite alternate"
-        : "treeBob 3.2s ease-in-out infinite";
+  const motion = watering
+    ? "treeBob 0.6s ease-in-out infinite"
+    : wilting
+      ? "treeWiltHit 0.35s ease-in 2"
+      : state === "Anxiety"
+        ? "treeShake 0.45s ease-in-out infinite alternate"
+        : isSad
+          ? "treeDroop 2.6s ease-in-out infinite alternate"
+          : "treeBob 3.2s ease-in-out infinite";
 
   return (
     <svg
@@ -27,16 +33,16 @@ export default function TreeSVG({ state, points, size = 220 }) {
       style={{ filter: `drop-shadow(0 10px 22px ${cfg.color}40)`, animation: motion }}
     >
       <defs>
-        <radialGradient id="soil" cx="50%" cy="40%" r="70%">
+        <radialGradient id={`${uid}-soil`} cx="50%" cy="40%" r="70%">
           <stop offset="0%" stopColor="#c4a574" />
           <stop offset="100%" stopColor="#8b6914" stopOpacity="0.55" />
         </radialGradient>
-        <radialGradient id="canopyG" cx="40%" cy="35%" r="70%">
+        <radialGradient id={`${uid}-canopyG`} cx="40%" cy="35%" r="70%">
           <stop offset="0%" stopColor={isGolden ? "#fde68a" : "#ffffff"} stopOpacity={isGolden ? 0.55 : 0.28} />
           <stop offset="55%" stopColor={canopy} />
           <stop offset="100%" stopColor={canopyDeep} />
         </radialGradient>
-        <linearGradient id="bark" x1="0" y1="0" x2="1" y2="0">
+        <linearGradient id={`${uid}-bark`} x1="0" y1="0" x2="1" y2="0">
           <stop offset="0%" stopColor="#6b4226" />
           <stop offset="45%" stopColor="#a16207" />
           <stop offset="100%" stopColor="#5c3a1e" />
@@ -45,7 +51,7 @@ export default function TreeSVG({ state, points, size = 220 }) {
 
       {/* ground */}
       <ellipse cx="110" cy="238" rx="72" ry="14" fill={cfg.color} opacity="0.14" />
-      <ellipse cx="110" cy="236" rx="54" ry="10" fill="url(#soil)" opacity="0.85" />
+      <ellipse cx="110" cy="236" rx="54" ry="10" fill={`url(#${uid}-soil)`} opacity="0.85" />
 
       {lv >= 1 && (
         <g opacity="0.45" fill="#6b4226">
@@ -56,14 +62,14 @@ export default function TreeSVG({ state, points, size = 220 }) {
 
       {/* trunk grows with level */}
       {lv === 0 ? (
-        <path d="M108 228 C107 210 109 196 110 184 C111 196 113 210 112 228 Z" fill="url(#bark)" />
+        <path d="M108 228 C107 210 109 196 110 184 C111 196 113 210 112 228 Z" fill={`url(#${uid}-bark)`} />
       ) : (
         <>
           <path
             d={lv >= 2
               ? "M99 232 C96 190 98 150 104 118 L116 118 C122 150 124 190 121 232 Z"
               : "M102 232 C100 200 102 168 107 142 L113 142 C118 168 120 200 118 232 Z"}
-            fill="url(#bark)"
+            fill={`url(#${uid}-bark)`}
           />
           {lv >= 2 && (
             <g stroke="#6b4226" strokeWidth="7" fill="none" strokeLinecap="round">
@@ -86,7 +92,7 @@ export default function TreeSVG({ state, points, size = 220 }) {
       {/* Growing plant */}
       {lv === 1 && (
         <g opacity={isSad ? 0.78 : 1}>
-          <ellipse cx="110" cy="128" rx="42" ry="34" fill="url(#canopyG)" style={{ animation: "leafSway 4s ease-in-out infinite" }} />
+          <ellipse cx="110" cy="128" rx="42" ry="34" fill={`url(#${uid}-canopyG)`} style={{ animation: "leafSway 4s ease-in-out infinite" }} />
           <ellipse cx="86" cy="142" rx="24" ry="18" fill={canopy} opacity="0.92" />
           <ellipse cx="136" cy="140" rx="24" ry="18" fill={canopy} opacity="0.92" />
         </g>
@@ -95,7 +101,7 @@ export default function TreeSVG({ state, points, size = 220 }) {
       {/* Focus tree canopy */}
       {lv >= 2 && (
         <g opacity={isSad ? 0.8 : 1}>
-          <ellipse cx="110" cy="88" rx="58" ry="46" fill="url(#canopyG)" style={{ animation: "leafSway 4s ease-in-out infinite" }} />
+          <ellipse cx="110" cy="88" rx="58" ry="46" fill={`url(#${uid}-canopyG)`} style={{ animation: "leafSway 4s ease-in-out infinite" }} />
           <ellipse cx="62" cy="104" rx="32" ry="26" fill={canopy} opacity="0.95" style={{ animation: "leafSway 3.6s ease-in-out infinite 0.2s" }} />
           <ellipse cx="158" cy="100" rx="34" ry="28" fill={canopy} opacity="0.95" style={{ animation: "leafSway 3.2s ease-in-out infinite 0.4s" }} />
           <ellipse cx="88" cy="62" rx="28" ry="22" fill={canopy} />
@@ -144,6 +150,30 @@ export default function TreeSVG({ state, points, size = 220 }) {
         {mood.emoji}
       </text>
 
+      {watering && (
+        <g key={`water-${fxKey}`}>
+          <g style={{ transformOrigin: "178px 52px", animation: "canPour 1.8s ease-in-out forwards" }}>
+            <ellipse cx="178" cy="48" rx="16" ry="11" fill="#38bdf8" stroke="#0369a1" strokeWidth="2" />
+            <rect x="188" y="44" width="14" height="7" rx="2" fill="#0284c7" />
+            <path d="M162 50 Q154 58 150 70" stroke="#0284c7" strokeWidth="4" fill="none" strokeLinecap="round" />
+          </g>
+          <circle cx="148" cy="78" r="3.2" fill="#38bdf8" style={{ animation: "dropFall 1.1s ease-in 0.15s forwards" }} />
+          <circle cx="140" cy="70" r="2.6" fill="#7dd3fc" style={{ animation: "dropFall 1.15s ease-in 0.28s forwards" }} />
+          <circle cx="156" cy="74" r="2.8" fill="#0ea5e9" style={{ animation: "dropFall 1.05s ease-in 0.4s forwards" }} />
+          <ellipse cx="110" cy="228" rx="18" ry="5" fill="#38bdf8" opacity="0" style={{ animation: "puddle 1.6s ease-out 0.7s forwards" }} />
+          <text x="42" y="48" fontSize="16" fontWeight="700" fill="#16a34a" style={{ animation: "floatLabel 1.8s ease-out forwards" }}>+5</text>
+        </g>
+      )}
+
+      {wilting && (
+        <g key={`wilt-${fxKey}`}>
+          <ellipse cx="92" cy="100" rx="8" ry="5" fill={canopy} style={{ animation: "leafFall 1.5s ease-in forwards" }} />
+          <ellipse cx="130" cy="88" rx="7" ry="4.5" fill={canopyDeep} style={{ animation: "leafFall 1.65s ease-in 0.12s forwards" }} />
+          <ellipse cx="70" cy="110" rx="6" ry="4" fill="#a16207" style={{ animation: "leafFall 1.4s ease-in 0.22s forwards" }} />
+          <text x="158" y="64" fontSize="16" fontWeight="700" fill="#dc2626" style={{ animation: "floatLabel 1.8s ease-out forwards" }}>−5</text>
+        </g>
+      )}
+
       <style>{`
         @keyframes treeBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
         @keyframes treeDroop{0%{transform:translateY(2px) rotate(-1.2deg)}100%{transform:translateY(7px) rotate(1.8deg)}}
@@ -153,6 +183,12 @@ export default function TreeSVG({ state, points, size = 220 }) {
         @keyframes sparkle{0%,100%{opacity:0.35;transform:translateY(0)}50%{opacity:1;transform:translateY(-5px)}}
         @keyframes zzz{0%,100%{opacity:0.4;transform:translateY(0)}50%{opacity:1;transform:translateY(-9px)}}
         @keyframes facePop{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+        @keyframes canPour{0%{transform:translate(8px,-6px) rotate(-18deg);opacity:0}18%{opacity:1}45%{transform:translate(0,0) rotate(28deg)}100%{transform:translate(0,0) rotate(22deg);opacity:0.2}}
+        @keyframes dropFall{0%{opacity:0;transform:translateY(0)}12%{opacity:1}100%{opacity:0;transform:translateY(148px)}}
+        @keyframes puddle{0%{opacity:0;transform:scaleX(0.2)}40%{opacity:0.45}100%{opacity:0;transform:scaleX(1.2)}}
+        @keyframes leafFall{0%{opacity:1;transform:translate(0,0) rotate(0)}100%{opacity:0;transform:translate(18px,120px) rotate(50deg)}}
+        @keyframes floatLabel{0%{opacity:0;transform:translateY(8px)}25%{opacity:1}100%{opacity:0;transform:translateY(-22px)}}
+        @keyframes treeWiltHit{0%{transform:rotate(0)}40%{transform:rotate(-4deg) scale(0.97)}100%{transform:rotate(0)}}
       `}</style>
     </svg>
   );

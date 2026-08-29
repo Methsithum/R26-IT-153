@@ -57,6 +57,7 @@ def save_session(req: SaveSessionRequest):
         longest_streak_minutes=max(req.longest_streak_minutes, existing.longest_streak_minutes),
         calm_quest_count=max(req.calm_quest_count, existing.calm_quest_count),
         challenges_taken=max(req.challenges_taken, existing.challenges_taken),
+        focus_boosts=max(req.focus_boosts, existing.focus_boosts),
         first_hour=first_hour,
     )
     all_stats = tracking.all_saved_stats(user_id)
@@ -77,6 +78,7 @@ def save_session(req: SaveSessionRequest):
         distraction_score=stats.distraction_score,
         mood_stability=stats.mood_stability,
         challenges_taken=stats.challenges_taken,
-        challenge_points=challenge_points_for(stats.challenges_taken),
+        focus_boosts=stats.focus_boosts,
+        challenge_points=challenge_points_for(stats.challenges_taken, stats.focus_boosts),
         achievements_unlocked=stats.achievements_unlocked,
     )

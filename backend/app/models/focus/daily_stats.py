@@ -29,8 +29,9 @@ CHALLENGE_POINT_COST = 5
 DAILY_CHALLENGE_POINTS = 100
 
 
-def challenge_points_for(taken: int) -> int:
-    return max(0, DAILY_CHALLENGE_POINTS - CHALLENGE_POINT_COST * max(0, int(taken or 0)))
+def challenge_points_for(taken: int, boosts: int = 0) -> int:
+    raw = DAILY_CHALLENGE_POINTS - CHALLENGE_POINT_COST * max(0, int(taken or 0)) + CHALLENGE_POINT_COST * max(0, int(boosts or 0))
+    return max(0, min(DAILY_CHALLENGE_POINTS, raw))
 
 
 class FocusDailyStats(BaseModel):
@@ -50,6 +51,7 @@ class FocusDailyStats(BaseModel):
     longest_streak_minutes: int = 0
     calm_quest_count: int = 0
     challenges_taken: int = 0
+    focus_boosts: int = 0
     first_hour: int | None = None
     achievements_unlocked: list[str] = Field(default_factory=list)
 
