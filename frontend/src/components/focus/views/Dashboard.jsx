@@ -15,6 +15,7 @@ export default function TabDashboard({
   distMin,
   lifetimeMin,
   week,
+  challengePoints = 100,
 }) {
   const cfg = STATE_CFG[state] || STATE_CFG.Focused;
   const mood = TREE_MOOD[state] || TREE_MOOD.Focused;
@@ -34,7 +35,7 @@ export default function TabDashboard({
   const stats = [
     { label: "Focus today", value: formatHM(focusMin), icon: "⏱", color: "#22c55e" },
     { label: "Streak", value: `${streak}m`, icon: "🔥", color: "#f97316" },
-    { label: "All-time", value: formatHM(lifetimeMin), icon: "🌳", color: "#a855f7" },
+    { label: "Points today", value: `${challengePoints}`, icon: "✦", color: "#a855f7" },
     { label: "Off-task", value: formatHM(distMin), icon: "😔", color: "#64748b" },
   ];
 

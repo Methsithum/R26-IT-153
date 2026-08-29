@@ -299,6 +299,19 @@ export const INTERVENTIONS = {
   ],
 };
 
+export const CHALLENGE_POINT_COST = 5;
+export const DAILY_CHALLENGE_POINTS = 100;
+export const DISTRACTION_TYPES = ["Fatigue", "Anxiety", "Boredom"];
+
+export function challengePointsFor(taken) {
+  return Math.max(0, DAILY_CHALLENGE_POINTS - CHALLENGE_POINT_COST * Math.max(0, taken || 0));
+}
+
+export function pickChallengeType(current) {
+  if (DISTRACTION_TYPES.includes(current)) return current;
+  return DISTRACTION_TYPES[Math.floor(Math.random() * DISTRACTION_TYPES.length)];
+}
+
 const lastPickedIndex = {};
 
 export function pickIntervention(type) {
@@ -330,5 +343,5 @@ export const TABS = [
 ];
 
 export default {
-  CLASSES, STATE_CFG, TREE_MOOD, LEVEL_DATA, ACHIEVEMENTS_LIST, INTERVENTIONS, pickIntervention, REPORT_TYPES, TABS
+  CLASSES, STATE_CFG, TREE_MOOD, LEVEL_DATA, ACHIEVEMENTS_LIST, INTERVENTIONS, pickIntervention, pickChallengeType, CHALLENGE_POINT_COST, DAILY_CHALLENGE_POINTS, challengePointsFor, REPORT_TYPES, TABS
 };

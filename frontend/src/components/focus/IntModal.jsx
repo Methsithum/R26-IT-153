@@ -32,7 +32,8 @@ export default function IntModal({ open, onClose, type, onComplete }) {
           <button onClick={onClose} className="text-slate-400 hover:text-slate-900 text-xl">✕</button>
         </div>
 
-        <p className="text-slate-700 text-sm mb-4">{cfg.msg}</p>
+        <p className="text-slate-700 text-sm mb-2">{cfg.msg}</p>
+        <p className="text-xs font-semibold mb-4" style={{ color: cfg.color }}>This challenge costs 5 points.</p>
 
         <div className="space-y-2 mb-4">
           {cfg.steps.map((step, index) => {
@@ -58,7 +59,7 @@ export default function IntModal({ open, onClose, type, onComplete }) {
             Close
           </button>
           <button onClick={() => onComplete && onComplete(type)} disabled={!finished} className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-50" style={{ backgroundColor: cfg.color }}>
-            {finished ? `✓ Claim +${cfg.reward} pts` : "Complete steps to claim reward"}
+            {finished ? "Done" : "Tick all steps to finish"}
           </button>
         </div>
       </div>

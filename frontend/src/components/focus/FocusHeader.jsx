@@ -13,6 +13,7 @@ export default function FocusHeader({
   resumeSession,
   startSession,
   setShowCheckIn,
+  challengePoints = 100,
 }) {
   const statusLabel = sessionStatus === "ended" ? "Ended" : sessionOn ? "Active" : "Paused";
   const statusColor = sessionStatus === "ended" ? "#64748b" : sessionOn ? "#22c55e" : "#f59e0b";
@@ -73,6 +74,14 @@ export default function FocusHeader({
               style={{ backgroundColor: "#f59e0b10", color: "#f59e0b", borderColor: "#f59e0b40" }}
             >
               ⏱ {formatHM(focusMin, { allowSeconds: true })}
+            </div>
+
+            <div
+              className="px-3 py-1.5 rounded-lg text-xs font-bold border"
+              style={{ backgroundColor: "#a855f710", color: "#7c3aed", borderColor: "#a855f740" }}
+              title="Today's points. Each challenge costs 5."
+            >
+              {challengePoints} pts
             </div>
 
             <button

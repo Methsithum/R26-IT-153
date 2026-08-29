@@ -9,6 +9,7 @@ class SaveSessionRequest(BaseModel):
     today_goal: int = Field(default=120, ge=1)
     calm_quest_count: int = 0
     first_hour: int | None = Field(default=None, ge=0, le=23)
+    challenges_taken: int = Field(default=0, ge=0)
     stress_level: int | None = Field(default=None, ge=0, le=100)
     distraction_score: int | None = Field(default=None, ge=0, le=25)
     mood_stability: int | None = Field(default=None, ge=0, le=100)
@@ -27,4 +28,6 @@ class SaveSessionResponse(BaseModel):
     stress_level: int
     distraction_score: int
     mood_stability: int
+    challenges_taken: int
+    challenge_points: int
     achievements_unlocked: list[str]

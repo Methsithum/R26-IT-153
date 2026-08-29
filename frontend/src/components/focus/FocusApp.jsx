@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { STATE_CFG, LEVEL_DATA, ACHIEVEMENTS_LIST } from "./focusData";
+import { STATE_CFG, LEVEL_DATA, ACHIEVEMENTS_LIST, pickChallengeType, challengePointsFor } from "./focusData";
 import { useFocusCamera } from "../../hooks/useFocusCamera";
 import { saveFocusSession, getDailyReport, getWeeklyReport, getFocusProfile, flushFocusSession } from "../../lib/focusApi";
 import { combineHM, mergeLiveWeek } from "../../lib/focusTime";
@@ -88,6 +88,8 @@ export default function FocusApp() {
   const [reportFocusMin, setReportFocusMin] = useState(null);
   const [reportDistMin, setReportDistMin] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [challengeType, setChallengeType] = useState("Fatigue");
+  const [challengesTaken, setChallengesTaken] = useState(0);
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [checkInAns, setCheckInAns] = useState(null);
   const [showPauseNotice, setShowPauseNotice] = useState(false);
@@ -111,6 +113,7 @@ export default function FocusApp() {
   const sprintBonusReadyRef = useRef(true);
   const firstHourRef = useRef(null);
   const calmQuestRef = useRef(0);
+  const challengesTakenRef = useRef(0);
   useEffect(() => { showModalRef.current = showModal; }, [showModal]);
 
   const sessionOn = sessionStatus === "active";
@@ -175,6 +178,7 @@ export default function FocusApp() {
     longest_streak_minutes: longestStreakRef.current,
     today_goal: todayGoal,
     calm_quest_count: calmQuestRef.current,
+    challenges_taken: challengesTakenRef.current,
     first_hour: firstHourRef.current,
   }), [todayGoal]);
 
@@ -213,6 +217,9 @@ export default function FocusApp() {
         firstHourRef.current = report.first_hour ?? null;
         const calm = report.calm_quest_count || 0;
         calmQuestRef.current = calm;
+        const taken = report.challenges_taken || 0;
+        challengesTakenRef.current = taken;
+        setChallengesTaken(taken);
         setInterventionCounts((c) => ({ ...c, Anxiety: calm }));
         if ((report.longest_streak_minutes || 0) >= SPRINT_STREAK_MIN || (profile.achievements_unlocked || []).includes("sprint25")) {
           setEverSprint25(true);
@@ -322,11 +329,21 @@ export default function FocusApp() {
   };
   const liveAchievements = ACHIEVEMENTS_LIST.map((a) => ({ ...a, earned: !!earnedByKey[a.key] }));
 
+  const openChallenge = useCallback((type) => {
+    if (showModalRef.current) return;
+    showModalRef.current = true;
+    setChallengeType(pickChallengeType(type));
+    setShowModal(true);
+    challengesTakenRef.current += 1;
+    setChallengesTaken(challengesTakenRef.current);
+    persistSession();
+  }, [persistSession]);
+
   const handleStateSelect = (nextState) => {
     if (sessionStatus !== "active") return;
     lastManualRef.current = Date.now();
     setState(nextState);
-    if (["Fatigue", "Anxiety", "Boredom"].includes(nextState)) setShowModal(true);
+    if (["Fatigue", "Anxiety", "Boredom"].includes(nextState)) openChallenge(nextState);
   };
 
   const handleDetection = useCallback((nextState, _probs, elapsedMs, confidence) => {
@@ -369,13 +386,13 @@ export default function FocusApp() {
       dstreak.state = nextState;
 
       if (dstreak.ms >= CHALLENGE_SUSTAIN_MS && !showModalRef.current) {
-        setShowModal(true);
+        openChallenge(nextState);
         dstreak.ms = 0;
       }
     } else {
       distractionStreakRef.current = { state: null, ms: 0 };
     }
-  }, []);
+  }, [openChallenge]);
 
   const handleInterventionComplete = useCallback((type) => {
     setInterventionCounts((c) => {
@@ -384,6 +401,7 @@ export default function FocusApp() {
       return next;
     });
     setShowModal(false);
+    showModalRef.current = false;
   }, []);
 
   const camera = useFocusCamera(sessionOn, handleDetection);
@@ -405,6 +423,7 @@ export default function FocusApp() {
         distMin={todayDistMin}
         lifetimeMin={lifetimeMin}
         week={liveWeek}
+        challengePoints={challengePointsFor(challengesTaken)}
       />
     ),
     monitoring: (
@@ -475,6 +494,7 @@ export default function FocusApp() {
         resumeSession={resumeSession}
         startSession={startSession}
         setShowCheckIn={setShowCheckIn}
+        challengePoints={challengePointsFor(challengesTaken)}
       />
 
       <video ref={captureVideoRef} autoPlay playsInline muted
@@ -496,7 +516,7 @@ export default function FocusApp() {
             {checkInAns === null ? (
               <div className="flex gap-2">
                 <button onClick={() => { setCheckInAns(true); setTimeout(() => { setShowCheckIn(false); setCheckInAns(null); }, 2500); }} className="flex-1 py-2.5 rounded-xl font-semibold text-sm bg-green-500 text-white hover:bg-green-400 transition-all">✅ Yes</button>
-                <button onClick={() => { setCheckInAns(false); setTimeout(() => { setShowCheckIn(false); setShowModal(true); setCheckInAns(null); }, 2500); }} className="flex-1 py-2.5 rounded-xl font-semibold text-sm border border-slate-300 text-slate-700 hover:bg-slate-100 transition-all">😔 No</button>
+                <button onClick={() => { setCheckInAns(false); setTimeout(() => { setShowCheckIn(false); setCheckInAns(null); openChallenge(state); }, 2500); }} className="flex-1 py-2.5 rounded-xl font-semibold text-sm border border-slate-300 text-slate-700 hover:bg-slate-100 transition-all">😔 No</button>
               </div>
             ) : (
               <p className={`text-sm font-semibold text-center py-1 ${checkInAns ? "text-green-600" : "text-orange-600"}`}>{checkInAns ? "Great! Keep going! 🌱" : "Let's try a quick challenge! 💪"}</p>
@@ -535,9 +555,7 @@ export default function FocusApp() {
         </div>
       )}
 
-      {["Fatigue", "Anxiety", "Boredom"].includes(state) && (
-        <IntModal open={showModal} type={state} onClose={() => setShowModal(false)} onComplete={handleInterventionComplete} />
-      )}
+      <IntModal open={showModal} type={challengeType} onClose={() => { showModalRef.current = false; setShowModal(false); }} onComplete={handleInterventionComplete} />
 
       <FocusFooter />
     </div>
