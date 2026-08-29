@@ -77,6 +77,47 @@
   color: var(--cpe-text-faint);
 }
 
+.cpe-root .rp-explain {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--cpe-border);
+}
+
+.cpe-root .rp-explain summary {
+  cursor: pointer;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--cpe-text-dim);
+  list-style: none;
+}
+
+.cpe-root .rp-explain summary::-webkit-details-marker {
+  display: none;
+}
+
+.cpe-root .rp-explain summary::before {
+  content: '▸ ';
+}
+
+.cpe-root .rp-explain[open] summary::before {
+  content: '▾ ';
+}
+
+.cpe-root .rp-explain-summary {
+  margin: 8px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--cpe-text-faint);
+}
+
+.cpe-root .rp-explain-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  color: var(--cpe-text-dim);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cpe-root .rp-arrow, .cpe-root .rp-prob-fill { transition: none; }
 }

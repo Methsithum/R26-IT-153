@@ -117,6 +117,7 @@ export default function Dashboard() {
           prob_low={prediction?.prob_low}
           prob_medium={prediction?.prob_medium}
           prob_high={prediction?.prob_high}
+          studentData={features}
         />
       </div>
 

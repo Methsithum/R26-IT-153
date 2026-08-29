@@ -1,4 +1,5 @@
 import { getCareerRecommendations } from '../../../../utils/careerRecommendations';
+import { explainCareerScore } from '../../../../utils/predictionExplain';
 import './styles.css';
 
 /**
@@ -29,6 +30,7 @@ export default function CareerGauge({ score, studentData }) {
   const stroke = hasScore ? colorForScore(score) : 'var(--cpe-border)';
 
   const recommendations = studentData ? getCareerRecommendations(studentData) : [];
+  const { topDrivers, summary } = explainCareerScore(studentData);
 
   return (
     <section className="cpe-panel cg">
@@ -70,6 +72,26 @@ export default function CareerGauge({ score, studentData }) {
           </span>
         ))}
       </div>
+
+      {topDrivers.length > 0 && (
+        <details className="cg-explain">
+          <summary>How is this calculated?</summary>
+          <p className="cg-explain-summary">{summary}</p>
+          <ul className="cg-explain-list">
+            {topDrivers.map((d) => (
+              <li key={d.label}>
+                <span>{d.label}</span>
+                <span className="cg-explain-bar">
+                  <span
+                    className="cg-explain-bar-fill"
+                    style={{ width: `${Math.max(0, Math.min(100, (d.contribution / 20) * 100))}%` }}
+                  />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </section>
   );
 }

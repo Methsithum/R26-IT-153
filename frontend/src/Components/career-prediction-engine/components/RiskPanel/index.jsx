@@ -1,3 +1,4 @@
+import { explainAcademicRisk } from '../../../../utils/predictionExplain';
 import './styles.css';
 
 /** Colour + copy per risk level. */
@@ -25,6 +26,7 @@ const RISK_META = {
  * @param {number} prob_low - probability of Low, as a percentage (0-100)
  * @param {number} prob_medium - probability of Medium, as a percentage
  * @param {number} prob_high - probability of High, as a percentage
+ * @param {object} [studentData] - the 15 raw feature values, for the explanation panel
  */
 export default function RiskPanel({
   risk_level,
@@ -32,6 +34,7 @@ export default function RiskPanel({
   prob_low,
   prob_medium,
   prob_high,
+  studentData,
 }) {
   if (!risk_level) {
     return (
@@ -58,6 +61,8 @@ export default function RiskPanel({
     { label: 'Medium', value: prob_medium ?? 0, color: 'var(--cpe-orange)' },
     { label: 'High', value: prob_high ?? 0, color: 'var(--cpe-red)' },
   ];
+
+  const { flags, summary: riskSummary } = explainAcademicRisk(studentData);
 
   return (
     <section className="cpe-panel rp">
@@ -97,6 +102,20 @@ export default function RiskPanel({
       </div>
 
       <p className="rp-desc">{meta.text}</p>
+
+      {studentData && (
+        <details className="rp-explain">
+          <summary>How is this calculated?</summary>
+          <p className="rp-explain-summary">{riskSummary}</p>
+          {flags.length > 0 && (
+            <ul className="rp-explain-list">
+              {flags.map((flag) => (
+                <li key={flag}>{flag}</li>
+              ))}
+            </ul>
+          )}
+        </details>
+      )}
     </section>
   );
 }
