@@ -309,7 +309,7 @@ export const DAILY_CHALLENGE_POINTS = 100;
 export const DISTRACTION_TYPES = ["Fatigue", "Anxiety", "Boredom"];
 
 export function challengePointsFor(taken, boosts = 0) {
-  const raw = DAILY_CHALLENGE_POINTS - CHALLENGE_POINT_COST * Math.max(0, taken || 0) + CHALLENGE_POINT_COST * Math.max(0, boosts || 0);
+  const raw = CHALLENGE_POINT_COST * Math.max(0, boosts || 0) - CHALLENGE_POINT_COST * Math.max(0, taken || 0);
   return Math.max(0, Math.min(DAILY_CHALLENGE_POINTS, raw));
 }
 

@@ -30,7 +30,8 @@ DAILY_CHALLENGE_POINTS = 100
 
 
 def challenge_points_for(taken: int, boosts: int = 0) -> int:
-    raw = DAILY_CHALLENGE_POINTS - CHALLENGE_POINT_COST * max(0, int(taken or 0)) + CHALLENGE_POINT_COST * max(0, int(boosts or 0))
+    """Start at 0 XP (Seedling). Focus boosts add, challenges subtract, cap 100."""
+    raw = CHALLENGE_POINT_COST * max(0, int(boosts or 0)) - CHALLENGE_POINT_COST * max(0, int(taken or 0))
     return max(0, min(DAILY_CHALLENGE_POINTS, raw))
 
 

@@ -13,7 +13,7 @@ export default function FocusHeader({
   resumeSession,
   startSession,
   setShowCheckIn,
-  challengePoints = 100,
+  challengePoints = 0,
   userName,
   onOpenProfile,
 }) {

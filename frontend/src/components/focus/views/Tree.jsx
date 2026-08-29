@@ -11,7 +11,7 @@ const STATE_BLURB = {
 };
 
 const GROWTH_RULES = [
-  { action: "You start the day with 100 XP", icon: "✦", value: "100", color: "#a855f7" },
+  { action: "New students start at Seedling (0 XP)", icon: "🌱", value: "Lv 1", color: "#22c55e" },
   { action: "5 min focused waters the tree (+5 XP)", icon: "💧", value: "+5", color: "#38bdf8" },
   { action: "Each challenge costs 5 XP", icon: "📉", value: "−5", color: "#ef4444" },
   { action: "Level follows today's XP, not minutes", icon: "🌳", value: "XP", color: "#22c55e" },
@@ -19,7 +19,7 @@ const GROWTH_RULES = [
   { action: "Complete a Calm Quest", icon: "🌿", value: "Calm", color: "#ef4444" },
 ];
 
-export default function TabTree({ state, streak, focusMin, LEVEL_DATA: LD = LEVEL_DATA, challengePoints = 100, treeFx = null, treeFxNonce = 0 }) {
+export default function TabTree({ state, streak, focusMin, LEVEL_DATA: LD = LEVEL_DATA, challengePoints = 0, treeFx = null, treeFxNonce = 0 }) {
   const cfg = STATE_CFG[state] || STATE_CFG.Focused;
   const lv = levelIndexFromPoints(challengePoints);
   const current = LD[lv];

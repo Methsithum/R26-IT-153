@@ -13,7 +13,7 @@ class LeaderboardEntry(BaseModel):
     distraction_minutes: int
     longest_streak_minutes: int
     focus_score: int
-    challenge_points: int = 100
+    challenge_points: int = 0
 
 
 class ProfileResponse(BaseModel):

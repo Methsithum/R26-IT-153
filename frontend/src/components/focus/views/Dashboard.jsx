@@ -14,7 +14,7 @@ export default function TabDashboard({
   todayGoal,
   distMin,
   week,
-  challengePoints = 100,
+  challengePoints = 0,
   treeFx = null,
   treeFxNonce = 0,
   userName,

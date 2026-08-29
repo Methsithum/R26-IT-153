@@ -92,7 +92,7 @@ export default function TabLeaderboard({
                       </div>
                       <div className="text-right shrink-0">
                         <p className="font-bold leading-none" style={{ color }}>{formatHM(mins)}</p>
-                        <p className="text-[11px] text-slate-500 mt-1">{r.challenge_points ?? 100} XP</p>
+                        <p className="text-[11px] text-slate-500 mt-1">{r.challenge_points ?? 0} XP</p>
                       </div>
                     </div>
                   );
