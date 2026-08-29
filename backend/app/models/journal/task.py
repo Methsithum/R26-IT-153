@@ -204,15 +204,24 @@ class TaskModel:
         return ready
 
     @staticmethod
-    async def set_mark(user_id: str, subject: str, mark):
+    async def set_mark(user_id: str, subject: str, mark, task_id: str | None = None):
         today = local_today_iso()
-        needing = [
-            task
-            for task in await TaskModel.assignments_needing_mark(user_id)
-            if task.get("subject") == subject
-        ]
-        needing.sort(key=lambda task: str(task.get("created_at") or ""), reverse=True)
-        existing = needing[0] if needing else await TaskModel.find_assignment(user_id, subject)
+        existing = None
+        if task_id:
+            existing = await TaskModel.find_by_id(task_id)
+            if existing and (
+                existing.get("user_id") != user_id
+                or (existing.get("task_type") or "assignment") != "assignment"
+            ):
+                existing = None
+        if not existing:
+            needing = [
+                task
+                for task in await TaskModel.assignments_needing_mark(user_id)
+                if task.get("subject") == subject
+            ]
+            needing.sort(key=lambda task: str(task.get("created_at") or ""), reverse=True)
+            existing = needing[0] if needing else await TaskModel.find_assignment(user_id, subject)
         if existing:
             await TaskModel.update(
                 existing["id"],
