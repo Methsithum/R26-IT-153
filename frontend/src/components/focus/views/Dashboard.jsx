@@ -64,7 +64,7 @@ export default function TabDashboard({
               style={{ background: `radial-gradient(circle at 50% 40%, ${cfg.color}22, transparent 62%)` }}
             />
             <div className="relative">
-              <TreeSVG state={state} points={challengePoints} size={220} />
+              <TreeSVG state={state} points={challengePoints} size={240} />
               <div
                 className="absolute -right-2 top-6 px-3 py-2 rounded-2xl rounded-bl-md text-sm font-semibold shadow-sm border"
                 style={{

@@ -1,75 +1,157 @@
 import React from "react";
-import { STATE_CFG, LEVEL_DATA, TREE_MOOD } from "./focusData";
+import { STATE_CFG, TREE_MOOD, levelIndexFromPoints } from "./focusData";
 
-export default function TreeSVG({ state, points, size = 200 }) {
+export default function TreeSVG({ state, points, size = 220 }) {
   const cfg = STATE_CFG[state] || STATE_CFG.Focused;
   const mood = TREE_MOOD[state] || TREE_MOOD.Focused;
-  const lv = Math.max(0, LEVEL_DATA.filter((l) => (points || 0) >= l.min).length - 1);
-  const isGolden = lv === 3;
-  const leafFill = isGolden ? "#f59e0b" : cfg.color;
+  const lv = levelIndexFromPoints(points);
+  const isGolden = lv >= 3;
   const isHappy = state === "Focused";
   const isSad = state === "Boredom" || state === "Fatigue";
-  const faceY = lv >= 3 ? 52 : lv >= 2 ? 80 : lv >= 1 ? 116 : 155;
-  const faceSize = lv >= 2 ? 34 : 30;
+  const canopy = isGolden ? "#f59e0b" : cfg.color;
+  const canopyDeep = isGolden ? "#d97706" : cfg.color;
+  const faceY = [168, 118, 86, 58][lv] || 86;
+
+  const motion =
+    state === "Anxiety"
+      ? "treeShake 0.45s ease-in-out infinite alternate"
+      : isSad
+        ? "treeDroop 2.6s ease-in-out infinite alternate"
+        : "treeBob 3.2s ease-in-out infinite";
 
   return (
-    <svg width={size} height={size * 1.12} viewBox="0 0 200 224"
-      style={{
-        filter: `drop-shadow(0 0 18px ${cfg.color}55)`,
-        animation: state === "Anxiety" ? "treeShake 0.4s ease-in-out infinite alternate"
-          : isSad ? "treeDroop 2.4s ease-in-out infinite alternate"
-          : "treeBob 3s ease-in-out infinite",
-      }}>
-      <ellipse cx="100" cy="214" rx="40" ry="7" fill={cfg.color} opacity="0.18" />
-      <rect x="90" y="150" width="20" height="64" rx="7"
-        fill="#8B5E3C"
-        style={{ transformOrigin: "100px 214px",
-          animation: isSad ? "trunkDroop 2s ease-in-out infinite alternate" : "none"
-        }} />
-      {lv >= 0 && <ellipse cx="100" cy="155" rx="46" ry="38" fill={leafFill} opacity={isSad ? 0.72 : 0.92}
-        style={{ transformOrigin: "100px 155px", animation: "leafSway 4s ease-in-out infinite" }} />}
-      {lv >= 1 && <ellipse cx="100" cy="114" rx="38" ry="30" fill={leafFill} opacity={isSad ? 0.75 : 0.94}
-        style={{ transformOrigin: "100px 114px", animation: "leafSway 3.5s ease-in-out infinite 0.3s" }} />}
-      {lv >= 2 && <ellipse cx="100" cy="78" rx="29" ry="23" fill={leafFill} opacity="0.9"
-        style={{ transformOrigin: "100px 78px", animation: "leafSway 3s ease-in-out infinite 0.6s" }} />}
-      {lv >= 3 && <>
-        <ellipse cx="100" cy="50" rx="18" ry="15" fill="#fbbf24"
-          style={{ animation: "leafSway 2.5s ease-in-out infinite 0.9s" }} />
-        <path d="M100,28 L102,36 L110,36 L104,41 L106,49 L100,44 L94,49 L96,41 L90,36 L98,36 Z"
-          fill="#fbbf24" style={{ animation: "starPulse 1.5s ease-in-out infinite" }} />
-      </>}
+    <svg
+      width={size}
+      height={size * 1.18}
+      viewBox="0 0 220 260"
+      style={{ filter: `drop-shadow(0 10px 22px ${cfg.color}40)`, animation: motion }}
+    >
+      <defs>
+        <radialGradient id="soil" cx="50%" cy="40%" r="70%">
+          <stop offset="0%" stopColor="#c4a574" />
+          <stop offset="100%" stopColor="#8b6914" stopOpacity="0.55" />
+        </radialGradient>
+        <radialGradient id="canopyG" cx="40%" cy="35%" r="70%">
+          <stop offset="0%" stopColor={isGolden ? "#fde68a" : "#ffffff"} stopOpacity={isGolden ? 0.55 : 0.28} />
+          <stop offset="55%" stopColor={canopy} />
+          <stop offset="100%" stopColor={canopyDeep} />
+        </radialGradient>
+        <linearGradient id="bark" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#6b4226" />
+          <stop offset="45%" stopColor="#a16207" />
+          <stop offset="100%" stopColor="#5c3a1e" />
+        </linearGradient>
+      </defs>
+
+      {/* ground */}
+      <ellipse cx="110" cy="238" rx="72" ry="14" fill={cfg.color} opacity="0.14" />
+      <ellipse cx="110" cy="236" rx="54" ry="10" fill="url(#soil)" opacity="0.85" />
+
+      {lv >= 1 && (
+        <g opacity="0.45" fill="#6b4226">
+          <path d="M96 226 Q78 232 62 240" stroke="#6b4226" strokeWidth="3" fill="none" strokeLinecap="round" />
+          <path d="M124 226 Q144 232 160 240" stroke="#6b4226" strokeWidth="3" fill="none" strokeLinecap="round" />
+        </g>
+      )}
+
+      {/* trunk grows with level */}
+      {lv === 0 ? (
+        <path d="M108 228 C107 210 109 196 110 184 C111 196 113 210 112 228 Z" fill="url(#bark)" />
+      ) : (
+        <>
+          <path
+            d={lv >= 2
+              ? "M99 232 C96 190 98 150 104 118 L116 118 C122 150 124 190 121 232 Z"
+              : "M102 232 C100 200 102 168 107 142 L113 142 C118 168 120 200 118 232 Z"}
+            fill="url(#bark)"
+          />
+          {lv >= 2 && (
+            <g stroke="#6b4226" strokeWidth="7" fill="none" strokeLinecap="round">
+              <path d="M108 150 Q78 132 58 118" />
+              <path d="M112 148 Q146 128 168 112" />
+            </g>
+          )}
+        </>
+      )}
+
+      {/* Seedling leaves */}
+      {lv === 0 && (
+        <g style={{ transformOrigin: "110px 180px", animation: "leafSway 3.4s ease-in-out infinite" }}>
+          <ellipse cx="96" cy="176" rx="16" ry="10" fill={canopy} transform="rotate(-28 96 176)" />
+          <ellipse cx="124" cy="174" rx="16" ry="10" fill={canopy} transform="rotate(26 124 174)" />
+          <circle cx="110" cy="168" r="7" fill={canopy} />
+        </g>
+      )}
+
+      {/* Growing plant */}
+      {lv === 1 && (
+        <g opacity={isSad ? 0.78 : 1}>
+          <ellipse cx="110" cy="128" rx="42" ry="34" fill="url(#canopyG)" style={{ animation: "leafSway 4s ease-in-out infinite" }} />
+          <ellipse cx="86" cy="142" rx="24" ry="18" fill={canopy} opacity="0.92" />
+          <ellipse cx="136" cy="140" rx="24" ry="18" fill={canopy} opacity="0.92" />
+        </g>
+      )}
+
+      {/* Focus tree canopy */}
+      {lv >= 2 && (
+        <g opacity={isSad ? 0.8 : 1}>
+          <ellipse cx="110" cy="88" rx="58" ry="46" fill="url(#canopyG)" style={{ animation: "leafSway 4s ease-in-out infinite" }} />
+          <ellipse cx="62" cy="104" rx="32" ry="26" fill={canopy} opacity="0.95" style={{ animation: "leafSway 3.6s ease-in-out infinite 0.2s" }} />
+          <ellipse cx="158" cy="100" rx="34" ry="28" fill={canopy} opacity="0.95" style={{ animation: "leafSway 3.2s ease-in-out infinite 0.4s" }} />
+          <ellipse cx="88" cy="62" rx="28" ry="22" fill={canopy} />
+          <ellipse cx="132" cy="58" rx="30" ry="24" fill={canopy} />
+          {!isSad && (
+            <>
+              <circle cx="78" cy="96" r="4" fill="#f43f5e" opacity="0.9" />
+              <circle cx="148" cy="90" r="4" fill="#f43f5e" opacity="0.85" />
+              <circle cx="112" cy="70" r="3.5" fill="#fb7185" />
+            </>
+          )}
+        </g>
+      )}
+
+      {isGolden && (
+        <g>
+          <ellipse cx="110" cy="42" rx="22" ry="16" fill="#fbbf24" style={{ animation: "leafSway 2.6s ease-in-out infinite" }} />
+          <path d="M110 18 L113 30 L126 30 L116 38 L119 50 L110 42 L101 50 L104 38 L94 30 L107 30 Z" fill="#fde68a" style={{ animation: "starPulse 1.6s ease-in-out infinite" }} />
+        </g>
+      )}
 
       {isHappy && (
         <g opacity="0.95" style={{ animation: "sparkle 1.6s ease-in-out infinite" }}>
-          <text x="52" y="88" fontSize="14">✨</text>
-          <text x="138" y="72" fontSize="12">✨</text>
-          <text x="148" y="128" fontSize="11">🌿</text>
+          <text x="38" y="92" fontSize="16">✨</text>
+          <text x="168" y="78" fontSize="13">✨</text>
+          {lv >= 2 && <text x="172" y="142" fontSize="13">🌿</text>}
         </g>
       )}
-      {state === "Fatigue" && <text x="142" y="96" fontSize="16" style={{ animation: "zzz 1.8s ease-in-out infinite" }}>💤</text>}
-      {state === "Anxiety" && <text x="146" y="100" fontSize="14">💦</text>}
-      {state === "Boredom" && <text x="44" y="120" fontSize="14" opacity="0.8">🍂</text>}
+      {state === "Fatigue" && <text x="164" y="96" fontSize="18" style={{ animation: "zzz 1.8s ease-in-out infinite" }}>💤</text>}
+      {state === "Anxiety" && <text x="166" y="102" fontSize="15">💦</text>}
+      {state === "Boredom" && (
+        <g opacity="0.85">
+          <text x="36" y="128" fontSize="15">🍂</text>
+          <text x="48" y="148" fontSize="12">🍂</text>
+        </g>
+      )}
 
       <text
-        x="100"
+        x="110"
         y={faceY}
         textAnchor="middle"
         dominantBaseline="central"
-        fontSize={faceSize}
+        fontSize={lv >= 2 ? 32 : 28}
         style={{ animation: isHappy ? "facePop 2.2s ease-in-out infinite" : "none" }}
       >
         {mood.emoji}
       </text>
 
       <style>{`
-        @keyframes treeBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
-        @keyframes treeDroop{0%{transform:translateY(2px) rotate(-1deg)}100%{transform:translateY(6px) rotate(1.5deg)}}
-        @keyframes treeShake{0%{transform:rotate(-2.5deg)}100%{transform:rotate(2.5deg)}}
-        @keyframes leafSway{0%,100%{transform:rotate(-2deg)scale(1)}50%{transform:rotate(2deg)scale(1.03)}}
-        @keyframes trunkDroop{0%{transform:rotate(0)}100%{transform:rotate(3deg)}}
-        @keyframes starPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.6;transform:scale(1.2)}}
-        @keyframes sparkle{0%,100%{opacity:0.35;transform:translateY(0)}50%{opacity:1;transform:translateY(-4px)}}
-        @keyframes zzz{0%,100%{opacity:0.4;transform:translateY(0)}50%{opacity:1;transform:translateY(-8px)}}
+        @keyframes treeBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+        @keyframes treeDroop{0%{transform:translateY(2px) rotate(-1.2deg)}100%{transform:translateY(7px) rotate(1.8deg)}}
+        @keyframes treeShake{0%{transform:rotate(-2.8deg)}100%{transform:rotate(2.8deg)}}
+        @keyframes leafSway{0%,100%{transform:rotate(-2deg) scale(1)}50%{transform:rotate(2.4deg) scale(1.04)}}
+        @keyframes starPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.65;transform:scale(1.18)}}
+        @keyframes sparkle{0%,100%{opacity:0.35;transform:translateY(0)}50%{opacity:1;transform:translateY(-5px)}}
+        @keyframes zzz{0%,100%{opacity:0.4;transform:translateY(0)}50%{opacity:1;transform:translateY(-9px)}}
         @keyframes facePop{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
       `}</style>
     </svg>
