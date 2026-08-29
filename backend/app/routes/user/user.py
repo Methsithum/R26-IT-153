@@ -93,6 +93,7 @@ async def get_user_tasks(user_id: str):
     user = await UserModel.find_by_id(user_id)
     if not user:
         raise HTTPException(404, "User not found")
+    await TaskModel.sync_assignment_titles(user_id)
     tasks = await TaskModel.find_by_user(user_id)
     return {"user_id": user_id, "tasks": tasks}
 

@@ -139,6 +139,44 @@ def _assignment_created_key(task: Dict) -> tuple:
     return (str(task.get("created_at") or ""), str(task.get("id") or ""))
 
 
+def _assignments_for_subject(tasks: List[Dict], subject: Optional[str]) -> List[Dict]:
+    items = [task for task in _assignment_tasks(tasks) if task.get("subject") == subject]
+    items.sort(key=_assignment_created_key)
+    return items
+
+
+def _assignment_ordinal(tasks: List[Dict], task: Dict) -> tuple[int, int]:
+    siblings = _assignments_for_subject(tasks, task.get("subject"))
+    total = len(siblings)
+    number = next(
+        (index for index, item in enumerate(siblings, start=1) if item.get("id") == task.get("id")),
+        1,
+    )
+    return number, total
+
+
+def _assignment_ref(subject: Optional[str], number: int = 1, total: int = 1) -> str:
+    if not subject:
+        return "assignment"
+    if total <= 1:
+        return f"{subject} assignment"
+    return f"{subject} assignment {number}"
+
+
+def _mark_assignment_rows(unmarked_assignments: List[Dict], tasks: Optional[List[Dict]] = None) -> List[Dict]:
+    rows: List[Dict] = []
+    catalog = tasks or unmarked_assignments
+    for task in unmarked_assignments or []:
+        task_id = task.get("id")
+        subject = task.get("subject")
+        if not task_id or not subject:
+            continue
+        number, total = _assignment_ordinal(catalog, task)
+        title = task.get("title") or _assignment_ref(subject, number, total)
+        rows.append({"id": str(task_id), "subject": subject, "title": title})
+    return rows
+
+
 def _assignment_tasks(tasks: List[Dict]) -> List[Dict]:
     return [
         task
@@ -188,6 +226,12 @@ def _subjects_needing_next_assignment(
     needed: List[str] = []
     for subject in assignment_subjects or []:
         if not subject or subject in already:
+            continue
+        siblings = _assignments_for_subject(tasks, subject)
+        if any(
+            str(task.get("progress_stage") or "").lower() not in MARK_RECEIVED_STAGES
+            for task in siblings
+        ):
             continue
         if assignment_deadline_passed(current.get(subject), as_of):
             needed.append(subject)
@@ -414,6 +458,8 @@ def hydrate(
     deadline: Optional[str] = None,
     task_id: Optional[str] = None,
     assignment_variant: Optional[str] = None,
+    assignment_ref: Optional[str] = None,
+    mark_assignments: Optional[List[Dict]] = None,
     as_of=None,
 ) -> Optional[dict]:
     if not question:
@@ -422,17 +468,30 @@ def hydrate(
     options = question.get("options")
     kind = exam_kind or (_exam_kind(missing_exams[0]) if missing_exams else None)
     phrase = _kind_phrase(kind)
+    assignment_name = assignment_ref or (f"{subject} assignment" if subject else "assignment")
+    mark_assignments = [
+        {
+            "id": str(item.get("id")),
+            "subject": item.get("subject"),
+            "title": item.get("title") or item.get("subject"),
+        }
+        for item in (mark_assignments or [])
+        if item.get("id") and item.get("subject")
+    ]
+    option_labels = subject_options or [item["title"] for item in mark_assignments] or None
     if subject:
         if question.get("stage") == "assignment_progress":
             due = to_local_date(deadline)
             as_of = as_of_day(as_of)
             if assignment_variant == "due" and due:
                 due_label = "today" if due == as_of else due.isoformat()
-                text = f"Did you submit the {subject} assignment due {due_label}?"
+                text = f"Did you submit the {assignment_name} due {due_label}?"
                 options = ["Yes, submitted", "Almost done", "Still in progress", "Not started"]
             elif assignment_variant == "new":
-                text = f"Is this new {subject} assignment still in progress?"
+                text = f"Is this new {assignment_name} still in progress?"
                 options = ["Yes, in progress", "Almost done", "Submitted", "Not started"]
+            elif "{subject} assignment" in text:
+                text = text.replace("{subject} assignment", assignment_name)
             elif "{subject}" in text:
                 text = text.replace("{subject}", subject)
         elif "{subject}" in text:
@@ -458,8 +517,8 @@ def hydrate(
     if question.get("stage") == "exam_mark_subject_needed" and missing_exams:
         labels = [_exam_label(e) for e in missing_exams]
         text = f"Which {phrase} result do you want to log? {', '.join(labels)}."
-    if question.get("stage") == "mark_subject_needed" and subject_options:
-        text = f"Which assignment do you want to log a mark for? {', '.join(subject_options)}."
+    if question.get("stage") == "mark_subject_needed" and option_labels:
+        text = f"Which assignment do you want to log a mark for? {', '.join(option_labels)}."
     if question.get("stage") == "exam_mark_review" and kind:
         if remaining:
             text = f"Did {phrase} results come out for the other subjects too?"
@@ -473,10 +532,12 @@ def hydrate(
         "options": pad_options(options),
         "subject": subject,
         "missing_exams": missing_exams or None,
-        "subject_options": subject_options or None,
+        "subject_options": option_labels,
         "exam_kind": kind,
         "task_id": task_id,
         "deadline": deadline,
+        "assignment_ref": assignment_name if subject else None,
+        "mark_assignments": mark_assignments or None,
     }
 
 
@@ -544,12 +605,14 @@ def _forced_assignment_progress(
     if not needed:
         return None
     task = needed[0]
+    number, total = _assignment_ordinal(tasks, task)
     return {
         "question": get_question("asg-status"),
         "subject": task.get("subject"),
         "deadline": task.get("deadline"),
         "task_id": task.get("id"),
         "assignment_variant": _assignment_progress_variant(task, as_of),
+        "assignment_ref": _assignment_ref(task.get("subject"), number, total),
         "missing_exams": None,
         "subject_options": None,
     }
@@ -614,6 +677,8 @@ def _forced_mark_followup(
     marked_exam_kinds: Optional[Sequence[str]] = None,
     asked_ids: Optional[List[str]] = None,
     confirmed_assignment_marks: bool = False,
+    pending_mark_task_id: Optional[str] = None,
+    tasks: Optional[List[Dict]] = None,
 ) -> Optional[Dict[str, Any]]:
     marked_kinds = {str(k).lower() for k in (marked_exam_kinds or [])}
 
@@ -661,46 +726,66 @@ def _forced_mark_followup(
             "remaining": kind in marked_kinds,
         }
 
-    if pending_mark_subject:
+    ready = _mark_assignment_rows(unmarked_assignments, tasks)
+    labels = [item["title"] for item in ready]
+
+    if pending_mark_task_id:
         match = next(
-            (task for task in unmarked_assignments if task.get("subject") == pending_mark_subject),
+            (item for item in ready if item["id"] == str(pending_mark_task_id)),
             None,
         )
         if match:
             return {
                 "question": get_question("asg-mark-enter"),
                 "missing_exams": None,
-                "subject": pending_mark_subject,
+                "subject": match["subject"],
+                "task_id": match["id"],
                 "subject_options": None,
+                "mark_assignments": [match],
             }
 
-    if unmarked_assignments:
-        subjects = list(
-            dict.fromkeys(task.get("subject") for task in unmarked_assignments if task.get("subject"))
+    if pending_mark_subject:
+        match = next(
+            (item for item in ready if item.get("subject") == pending_mark_subject),
+            None,
         )
-        if not subjects:
-            return None
+        if match:
+            return {
+                "question": get_question("asg-mark-enter"),
+                "missing_exams": None,
+                "subject": match["subject"],
+                "task_id": match["id"],
+                "subject_options": None,
+                "mark_assignments": [match],
+            }
+
+    if ready:
         asked = set(asked_ids or [])
         already_confirmed = confirmed_assignment_marks or "asg-mark-check" in asked
         if already_confirmed:
-            if len(subjects) > 1:
+            if len(ready) > 1:
                 return {
                     "question": get_question("asg-mark-pick"),
                     "missing_exams": None,
                     "subject": None,
-                    "subject_options": subjects,
+                    "subject_options": labels,
+                    "mark_assignments": ready,
                 }
             return {
                 "question": get_question("asg-mark-enter"),
                 "missing_exams": None,
-                "subject": subjects[0],
+                "subject": ready[0]["subject"],
+                "task_id": ready[0]["id"],
                 "subject_options": None,
+                "mark_assignments": ready,
             }
         return {
             "question": get_question("asg-mark-check"),
             "missing_exams": None,
-            "subject": subjects[0] if len(subjects) == 1 else None,
-            "subject_options": subjects if len(subjects) > 1 else None,
+            "subject": ready[0]["subject"] if len(ready) == 1 else None,
+            "task_id": ready[0]["id"] if len(ready) == 1 else None,
+            "subject_options": labels if len(ready) > 1 else None,
+            "mark_assignments": ready,
         }
     return None
 
@@ -739,6 +824,8 @@ def _hydrate_forced(payload: Dict[str, Any], as_of=None) -> dict:
         deadline=payload.get("deadline"),
         task_id=payload.get("task_id"),
         assignment_variant=payload.get("assignment_variant"),
+        assignment_ref=payload.get("assignment_ref"),
+        mark_assignments=payload.get("mark_assignments"),
         as_of=as_of,
     )
 
@@ -766,6 +853,7 @@ async def pick_next_question(
     unmarked_assignments: Optional[List[Dict]] = None,
     pending_mark_exam_id: Optional[str] = None,
     pending_mark_subject: Optional[str] = None,
+    pending_mark_task_id: Optional[str] = None,
     pending_exam_date_kind: Optional[str] = None,
     pending_exam_mark_kind: Optional[str] = None,
     confirmed_assignment_marks: bool = False,
@@ -864,6 +952,8 @@ async def pick_next_question(
         marked_exam_kinds,
         asked_ids,
         confirmed_assignment_marks,
+        pending_mark_task_id,
+        tasks,
     )
     if mark_followup and mark_followup.get("question"):
         return {"end_session": False, "question": _hydrate_forced(mark_followup, as_of), "task_updates": []}
@@ -928,6 +1018,18 @@ async def pick_next_question(
         chosen = get_question(chosen_id) if chosen_id else None
         if chosen is None:
             chosen = shortlist[0]
+
+    mark_qids = {"asg-mark-pick", "asg-mark-enter", "asg-mark-check"}
+    if chosen and chosen.get("id") in mark_qids:
+        if mark_followup and mark_followup.get("question"):
+            return {
+                "end_session": False,
+                "question": _hydrate_forced(mark_followup, as_of),
+                "task_updates": task_updates,
+            }
+        chosen = next((question for question in shortlist if question.get("id") not in mark_qids), None)
+        if not chosen:
+            return {"end_session": True, "question": None, "task_updates": task_updates}
 
     subject = None
     exams_for_q = None

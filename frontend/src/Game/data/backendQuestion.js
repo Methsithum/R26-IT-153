@@ -6,6 +6,11 @@ export function mapBackendQuestion(res) {
     subject: exam.subject,
     examType: exam.exam_type,
   }));
+  const markAssignments = (res.mark_assignments || []).map((item) => ({
+    id: item.id,
+    subject: item.subject,
+    title: item.title || item.subject,
+  }));
   return {
     id: res.question_id || `q-${Date.now()}`,
     questionText: res.question,
@@ -21,7 +26,9 @@ export function mapBackendQuestion(res) {
       field: res.context_field || null,
       subject: res.subject || null,
       missingExams,
-      subjectOptions: res.subject_options || [],
+      markAssignments,
+      subjectOptions: res.subject_options || markAssignments.map((item) => item.title),
+      assignmentId: res.task_id || markAssignments[0]?.id || null,
     },
   };
 }

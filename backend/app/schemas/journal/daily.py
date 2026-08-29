@@ -37,6 +37,12 @@ class MissingExam(BaseModel):
     subject: str
     exam_type: str
 
+
+class MarkAssignment(BaseModel):
+    id: str
+    subject: str
+    title: str
+
 class NextQuestionResponse(BaseModel):
     session_id: str
     question_id: Optional[str] = None
@@ -49,7 +55,9 @@ class NextQuestionResponse(BaseModel):
     target_location: Optional[str] = None
     context_field: Optional[str] = None
     subject: Optional[str] = None
+    task_id: Optional[str] = None
     subject_options: Optional[List[str]] = None
+    mark_assignments: Optional[List[MarkAssignment]] = None
     missing_exams: Optional[List[MissingExam]] = None
     completed: bool = False
     journal_entry: Optional[str] = None
