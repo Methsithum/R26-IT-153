@@ -30,22 +30,30 @@
   font-size: 0.72rem;
 }
 
-.cpe-root .cg-chips {
+.cpe-root .career-chips-row {
   display: flex;
+  gap: 6px;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 7px;
-  margin-top: 16px;
+  margin-top: 10px;
 }
 
-.cpe-root .cg-chip {
-  padding: 5px 11px;
-  font-size: 0.73rem;
+.cpe-root .career-chip {
+  font-size: 11px;
+  border: 0.5px solid #ddd;
+  border-radius: 20px;
+  padding: 3px 10px;
+  color: #555;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #f9f9f9;
+}
+
+.cpe-root .career-chip-match {
   font-weight: 600;
-  color: var(--cpe-text-dim);
-  background: var(--cpe-bg-panel-alt);
-  border: 1px solid var(--cpe-border);
-  border-radius: 999px;
+  color: #185FA5;
+  font-size: 11px;
 }
 
 @media (prefers-reduced-motion: reduce) {

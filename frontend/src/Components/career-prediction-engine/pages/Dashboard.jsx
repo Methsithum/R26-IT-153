@@ -111,7 +111,7 @@ export default function Dashboard() {
       {/* Row 1 - inputs, career gauge, risk */}
       <div className="dash-row dash-row-3">
         <InputDataPanel features={features} />
-        <CareerGauge score={prediction?.career_score} />
+        <CareerGauge score={prediction?.career_score} studentData={features} />
         <RiskPanel
           risk_level={prediction?.academic_risk}
           prob_low={prediction?.prob_low}

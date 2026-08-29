@@ -1,7 +1,5 @@
+import { getCareerRecommendations } from '../../../../utils/careerRecommendations';
 import './styles.css';
-
-/** Career domains shown as chips under the gauge. */
-const DOMAINS = ['Data Science', 'Software Eng', 'UX Research'];
 
 /**
  * Pick the arc colour from the score band.
@@ -14,10 +12,12 @@ function colorForScore(score) {
 }
 
 /**
- * Circular SVG gauge showing career readiness out of 100.
+ * Circular SVG gauge showing career readiness out of 100, plus the top 3
+ * career domain matches computed from the student's feature values.
  * @param {number} score - readiness score, 0-100
+ * @param {object} studentData - the 15 model features
  */
-export default function CareerGauge({ score }) {
+export default function CareerGauge({ score, studentData }) {
   const hasScore = typeof score === 'number' && !Number.isNaN(score);
 
   const R = 72;
@@ -27,6 +27,8 @@ export default function CareerGauge({ score }) {
   // Clamp to 0-100 so a stray value can never overdraw the arc.
   const pct = hasScore ? Math.max(0, Math.min(100, score)) / 100 : 0;
   const stroke = hasScore ? colorForScore(score) : 'var(--cpe-border)';
+
+  const recommendations = studentData ? getCareerRecommendations(studentData) : [];
 
   return (
     <section className="cpe-panel cg">
@@ -59,9 +61,13 @@ export default function CareerGauge({ score }) {
         </svg>
       </div>
 
-      <div className="cg-chips">
-        {DOMAINS.map((d) => (
-          <span key={d} className="cg-chip">{d}</span>
+      <div className="career-chips-row">
+        {recommendations.map((c) => (
+          <span key={c.label} className="career-chip">
+            <span>{c.icon}</span>
+            <span>{c.label}</span>
+            <span className="career-chip-match">{c.match}%</span>
+          </span>
         ))}
       </div>
     </section>
