@@ -42,7 +42,7 @@ function startTimeOf(entry) {
 }
 
 /** One real session card - a suggested self-study block or a real scheduled task. Shared by the current week and any other in-range week (Part: multi-week integration), so this rendering is written once. */
-function SessionCard({ entry, di, i, tasksRegistry, assignments, moduleName }) {
+function SessionCard({ entry, di, i, tasksRegistry, assignments, moduleName, exams }) {
   const isStudySession = entry.timeSlot != null;
   const delay = di * 0.02 + i * 0.03;
 
@@ -75,7 +75,7 @@ function SessionCard({ entry, di, i, tasksRegistry, assignments, moduleName }) {
   const item = entry;
   const priority = tasksRegistry?.[item.task_id]?.priority_label || "Medium";
   const colors = PRIORITY_COLORS[priority];
-  const display = resolveSessionDisplay(item, { tasksRegistry, assignments, moduleName });
+  const display = resolveSessionDisplay(item, { tasksRegistry, assignments, moduleName, exams });
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -86,7 +86,7 @@ function SessionCard({ entry, di, i, tasksRegistry, assignments, moduleName }) {
     >
       <div className="flex items-center gap-1.5">
         {display.isExamPrep ? (
-          <GraduationCap size={11} style={{ color: EXAM_PREP_ACCENT_HEX }} title="Exam prep" />
+          <GraduationCap size={11} style={{ color: EXAM_PREP_ACCENT_HEX }} title={display.isLabPrep ? "Lab prep" : "Exam prep"} />
         ) : (
           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${colors.dot}`} title={`${priority} priority`} />
         )}
@@ -102,7 +102,7 @@ function SessionCard({ entry, di, i, tasksRegistry, assignments, moduleName }) {
   );
 }
 
-function BandedTimeline({ timeline, di, tasksRegistry, assignments, moduleName }) {
+function BandedTimeline({ timeline, di, tasksRegistry, assignments, moduleName, exams }) {
   const bandedGroups = TIME_OF_DAY_BAND_ORDER.map((band) => ({
     band,
     entries: timeline.filter((entry) => getTimeOfDayBand(startTimeOf(entry)) === band),
@@ -126,6 +126,7 @@ function BandedTimeline({ timeline, di, tasksRegistry, assignments, moduleName }
                 tasksRegistry={tasksRegistry}
                 assignments={assignments}
                 moduleName={moduleName}
+                exams={exams}
               />
             ))}
           </div>
@@ -139,6 +140,7 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
   const modules = useAcademicStore((s) => s.modules);
   const weeklyFreeSlots = useAcademicStore((s) => s.weeklyFreeSlots);
   const assignments = useAcademicStore((s) => s.assignments);
+  const exams = useAcademicStore((s) => s.exams);
   // Frozen per-date snapshots (Section 8e) - once a past date is captured
   // here, it is the SOLE source of truth for that date's content below,
   // regardless of what the live schedule/multiWeekSchedule now says for it.
@@ -360,14 +362,14 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
             return (
               <div
                 key={day}
-                className={`card p-3 min-h-70 flex flex-col ${isToday ? "ring-2 ring-brand-400 bg-brand-50/60 dark:bg-brand-500/10" : ""}`}
+                className={`card p-3 min-h-70 flex flex-col ${isToday ? "ring-2 ring-sky-500 bg-sky-200! dark:bg-sky-500/35!" : ""}`}
               >
                 <div className="flex items-center justify-between gap-1.5 mb-2 shrink-0">
                   <div className="flex items-center gap-1.5">
-                    <p className={`text-xs font-bold uppercase tracking-wide ${isToday ? "text-brand-600" : "text-slate-400"}`}>
+                    <p className={`text-xs font-bold uppercase tracking-wide ${isToday ? "text-sky-700 dark:text-sky-300" : "text-slate-400"}`}>
                       {day.slice(0, 3)} {dayDate.getDate()}
                     </p>
-                    {isToday && <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />}
+                    {isToday && <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />}
                   </div>
                   {/* Part 3: "Day complete" indicator, distinct from the
                       today ring/dot above - only for genuinely past days. */}
@@ -392,6 +394,7 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
                       tasksRegistry={activeTasksRegistry}
                       assignments={assignments}
                       moduleName={moduleName}
+                      exams={exams}
                     />
                   )}
                 </div>

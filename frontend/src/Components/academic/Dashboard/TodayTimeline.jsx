@@ -10,6 +10,7 @@ const TODAY_NAME = new Date().toLocaleDateString(undefined, { weekday: "long" })
 export default function TodayTimeline({ schedule, tasksRegistry }) {
   const modules = useAcademicStore((s) => s.modules);
   const assignments = useAcademicStore((s) => s.assignments);
+  const exams = useAcademicStore((s) => s.exams);
   const moduleName = (code) => modules.find((m) => m.code === code)?.name || code;
   const todaysItems = schedule?.[TODAY_NAME] || [];
 
@@ -30,7 +31,7 @@ export default function TodayTimeline({ schedule, tasksRegistry }) {
           const meta = tasksRegistry?.[item.task_id];
           const priority = meta?.priority_label || "Medium";
           const colors = PRIORITY_COLORS[priority];
-          const display = resolveSessionDisplay(item, { tasksRegistry, assignments, moduleName });
+          const display = resolveSessionDisplay(item, { tasksRegistry, assignments, moduleName, exams });
           return (
             <motion.div
               key={`${item.task_id}-${i}`}

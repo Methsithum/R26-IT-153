@@ -23,20 +23,32 @@ export const EXAM_PREP_ACCENT_HEX = "#2563eb";
  * never real assignment documents, so `assignments.find(...)` would never
  * find them.
  */
-export function resolveSessionDisplay(item, { tasksRegistry, assignments, moduleName }) {
+export function resolveSessionDisplay(item, { tasksRegistry, assignments, moduleName, exams }) {
   const registryEntry = tasksRegistry?.[item.task_id];
   const taskType = registryEntry?.task_type || "assignment";
   const resolvedModuleName = moduleName(item.module);
 
   if (taskType === "exam") {
+    // The backend's tasks registry only round-trips module/deadline_date/
+    // task_type (Section 5d) - it never learns the exam's own sub-type
+    // ("mid"/"final"/"lab"/"quiz"), so that has to be re-matched here
+    // against the real `exams` array by (module, date) - the same pair
+    // that made this exam-prep task's deadline_date in the first place
+    // (examPrepScheduling.js always sets deadline_date: exam.date). A "lab"
+    // exam is really lab prep, not exam prep, and should read that way
+    // rather than lumping every assessment type under one generic label.
+    const matchedExam = exams?.find((e) => e.module === item.module && e.date === registryEntry?.deadline_date);
+    const isLab = (matchedExam?.type || "").toLowerCase() === "lab";
     // No subtitle - the module name is already in the title itself
-    // ("Exam Prep: X"), so repeating it on a second line would be redundant
-    // (unlike the assignment case below, where the title is the assignment's
-    // own name and the module is genuinely new information).
+    // ("Exam Prep: X"/"Lab Preparation: X"), so repeating it on a second
+    // line would be redundant (unlike the assignment case below, where the
+    // title is the assignment's own name and the module is genuinely new
+    // information).
     return {
-      title: `Exam Prep: ${resolvedModuleName}`,
+      title: `${isLab ? "Lab Preparation" : "Exam Prep"}: ${resolvedModuleName}`,
       subtitle: null,
       isExamPrep: true,
+      isLabPrep: isLab,
       moduleName: resolvedModuleName,
     };
   }

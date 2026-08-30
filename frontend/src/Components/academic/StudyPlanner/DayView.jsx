@@ -18,6 +18,7 @@ export default function DayView({ schedule, tasksRegistry }) {
   const modules = useAcademicStore((s) => s.modules);
   const weeklyFreeSlots = useAcademicStore((s) => s.weeklyFreeSlots);
   const assignments = useAcademicStore((s) => s.assignments);
+  const exams = useAcademicStore((s) => s.exams);
   const moduleName = (code) => modules.find((m) => m.code === code)?.name || code;
 
   const studySessionsByDay = useMemo(
@@ -82,7 +83,7 @@ export default function DayView({ schedule, tasksRegistry }) {
           const item = entry;
           const priority = tasksRegistry?.[item.task_id]?.priority_label || "Medium";
           const colors = PRIORITY_COLORS[priority];
-          const display = resolveSessionDisplay(item, { tasksRegistry, assignments, moduleName });
+          const display = resolveSessionDisplay(item, { tasksRegistry, assignments, moduleName, exams });
           return (
             <motion.div
               key={`${item.task_id}-${i}`}
