@@ -28,6 +28,7 @@ export function mapBackendQuestion(res) {
       missingExams,
       markAssignments,
       subjectOptions: res.subject_options || markAssignments.map((item) => item.title),
+      examKind: res.exam_kind || missingExams[0]?.examType || null,
       assignmentId: res.task_id || markAssignments[0]?.id || null,
     },
   };

@@ -1,3 +1,5 @@
+import { formatExamMark } from "./letterGrades";
+
 function formatDate(iso) {
   if (!iso) return "an unconfirmed date";
   const parsed = new Date(iso);
@@ -36,7 +38,7 @@ function highlightsFromEntry(entry) {
         : subject
           ? ` · ${subject}`
           : "";
-      highlights.push(`Mark${examLabel}: ${record.value}%`);
+      highlights.push(`Mark${examLabel}: ${formatExamMark(record.value) || record.value}`);
     } else if (record.interactionType === "examDate" && record.value && typeof record.value === "object") {
       Object.values(record.value).forEach((date) => highlights.push(`Exam date: ${formatDate(date)}`));
     }

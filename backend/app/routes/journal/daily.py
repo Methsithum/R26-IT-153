@@ -25,7 +25,12 @@ from app.services.journal.gamification import (
     level_from_xp,
 )
 from app.services.journal.journal_service import build_session_context
-from app.services.journal.journal_constants import ASSIGNMENT_STATUS_ANSWERS, EXAM_KINDS, filter_allowed_activities
+from app.services.journal.journal_constants import (
+    ASSIGNMENT_STATUS_ANSWERS,
+    EXAM_KINDS,
+    filter_allowed_activities,
+    parse_letter_grade,
+)
 from app.services.journal.alerts import generate_proactive_alerts
 from app.services.journal.learning_patterns import aggregate_learning_patterns
 import json
@@ -223,6 +228,9 @@ def _parse_mark(answer: Any):
             payload = answer
     if isinstance(payload, dict):
         return payload
+    letter = parse_letter_grade(payload)
+    if letter:
+        return letter
     try:
         return float(payload)
     except (TypeError, ValueError):
@@ -519,10 +527,14 @@ async def _record_structured_answer(session: dict, answer: str) -> dict:
         parsed = _parse_mark(answer)
         if isinstance(parsed, dict):
             for eid, mark_value in parsed.items():
-                try:
-                    mark = float(mark_value)
-                except (TypeError, ValueError):
-                    continue
+                letter = parse_letter_grade(mark_value)
+                if letter:
+                    mark = letter
+                else:
+                    try:
+                        mark = float(mark_value)
+                    except (TypeError, ValueError):
+                        continue
                 if eid:
                     await ExamModel.set_mark(str(eid), mark)
             updates["pending_mark_exam_id"] = None

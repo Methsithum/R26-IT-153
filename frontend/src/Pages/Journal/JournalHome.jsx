@@ -8,6 +8,7 @@ import { BADGE_CATALOG, XP_PER_LEVEL, isBadgeUnlocked, xpIntoLevel, xpToNextLeve
 import LevelRing from "../../Game/UI/LevelRing";
 import { clearStoredUser } from "../../services/userApi";
 import { campusDateKey, formatCampusDate } from "../../services/localDate";
+import { formatExamMark } from "../../Game/data/letterGrades";
 import DiscardTodayButton from "./DiscardTodayButton";
 import CampusMapsPage from "./CampusMapsPage";
 import ReflectionsPage from "./ReflectionsPage";
@@ -548,7 +549,7 @@ function GameDetailsContent() {
                 </div>
                 <div className="text-[10px] text-stone-500">
                   {e.date ?? "No date set"}
-                  {e.mark != null && e.mark !== "" ? ` · ${e.mark}%` : ""}
+                  {e.mark != null && e.mark !== "" ? ` · ${formatExamMark(e.mark)}` : ""}
                 </div>
               </div>
               <span
