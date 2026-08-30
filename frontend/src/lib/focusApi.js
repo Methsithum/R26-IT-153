@@ -2,6 +2,7 @@ import axios from "axios";
 import { readStoredUser } from "../services/userApi";
 
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
+const USER_KEY = "sug_focus_user_id";
 
 /** Logged-in Mongo user id (`smart-uni-guide-user`), same as journal/planner. */
 export function getFocusUserId() {

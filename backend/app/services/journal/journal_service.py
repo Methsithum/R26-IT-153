@@ -13,12 +13,9 @@ async def build_session_context(session_doc):
     
     # Compute derived behavioral flags for LLM context
     tasks_data = [{"title": t["title"], "progress_stage": t.get("progress_stage"), "deadline": t.get("deadline")} for t in tasks]
-    derived = await compute_derived_context(session_doc, tasks_data)
-    
-    # Identify at-risk tasks for prioritization
-    at_risk_tasks = await identify_at_risk_tasks(tasks_data)
-    
     journal_day = to_local_date(session_doc.get("date"))
+    derived = await compute_derived_context(session_doc, tasks_data, as_of=journal_day)
+    at_risk_tasks = await identify_at_risk_tasks(tasks_data, as_of=journal_day)
     recent_answers = []
     for prior in recent_sessions or []:
         for pair in prior.get("qa_history") or []:

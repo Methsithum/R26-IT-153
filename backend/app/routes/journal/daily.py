@@ -25,7 +25,12 @@ from app.services.journal.gamification import (
     level_from_xp,
 )
 from app.services.journal.journal_service import build_session_context
-from app.services.journal.journal_constants import ASSIGNMENT_STATUS_ANSWERS, EXAM_KINDS, filter_allowed_activities
+from app.services.journal.journal_constants import (
+    ASSIGNMENT_STATUS_ANSWERS,
+    EXAM_KINDS,
+    filter_allowed_activities,
+    parse_letter_grade,
+)
 from app.services.journal.alerts import generate_proactive_alerts
 from app.services.journal.learning_patterns import aggregate_learning_patterns
 import json
@@ -34,7 +39,7 @@ import re
 from datetime import datetime, time
 from typing import Any, Dict, List, Optional
 
-from app.services.time_utils import calendar_datetime, local_today_iso, to_local_date
+from app.services.time_utils import as_of_day, calendar_datetime, local_today_iso, to_local_date
 
 router = APIRouter(prefix="/daily", tags=["daily"])
 logger = logging.getLogger(__name__)
@@ -87,7 +92,17 @@ def _pack_question(session_id: str, question: Optional[Dict[str, Any]], **extra)
         target_location=question.get("target_location"),
         context_field=question.get("context_field"),
         subject=question.get("subject"),
+        task_id=question.get("task_id"),
         subject_options=question.get("subject_options") or None,
+        mark_assignments=[
+            {
+                "id": str(item.get("id")),
+                "subject": item.get("subject"),
+                "title": item.get("title") or item.get("subject"),
+            }
+            for item in (question.get("mark_assignments") or [])
+            if item.get("id") and item.get("subject")
+        ] or None,
         missing_exams=[
             {
                 "id": str(item.get("id")),
@@ -123,6 +138,7 @@ def _pending_fields(question: Optional[Dict[str, Any]]) -> dict:
             "context_field": question.get("context_field"),
             "subject": question.get("subject"),
             "subject_options": question.get("subject_options"),
+            "mark_assignments": question.get("mark_assignments"),
             "missing_exams": question.get("missing_exams"),
             "exam_kind": question.get("exam_kind"),
             "task_id": question.get("task_id"),
@@ -212,6 +228,9 @@ def _parse_mark(answer: Any):
             payload = answer
     if isinstance(payload, dict):
         return payload
+    letter = parse_letter_grade(payload)
+    if letter:
+        return letter
     try:
         return float(payload)
     except (TypeError, ValueError):
@@ -321,15 +340,21 @@ def _exam_rows(exams: List[Dict]) -> List[Dict]:
     ]
 
 
-async def _academic_state(user_id: str) -> dict:
-    tasks = await TaskModel.find_by_user(user_id)
+async def _numbered_assignment_tasks(user_id: str) -> list:
+    await TaskModel.sync_assignment_titles(user_id)
+    return await TaskModel.find_by_user(user_id)
+
+
+async def _academic_state(user_id: str, as_of=None) -> dict:
+    tasks = await _numbered_assignment_tasks(user_id)
     memory = await _picker_memory(user_id)
+    as_of = as_of_day(as_of)
     return {
         "tasks": tasks,
         "tasks_data": _task_rows(tasks),
-        "missing_exams": await ExamModel.missing(user_id),
-        "unmarked_exams": await ExamModel.missing_marks(user_id),
-        "unmarked_assignments": await TaskModel.assignments_needing_mark(user_id),
+        "missing_exams": await ExamModel.missing(user_id, as_of=as_of),
+        "unmarked_exams": await ExamModel.missing_marks(user_id, as_of=as_of),
+        "unmarked_assignments": await TaskModel.assignments_needing_mark(user_id, as_of=as_of),
         "dated_exam_kinds": await ExamModel.dated_kinds(user_id),
         "marked_exam_kinds": await ExamModel.marked_kinds(user_id),
         **memory,
@@ -386,9 +411,17 @@ async def _record_structured_answer(session: dict, answer: str) -> dict:
         return updates
 
     if field == "assignmentMarkSubject":
-        subject = _first_token(answer)
-        if subject:
-            updates["pending_mark_subject"] = subject
+        token = _first_token(answer)
+        picked = None
+        for item in meta.get("mark_assignments") or []:
+            if token in {str(item.get("id")), item.get("subject"), item.get("title")}:
+                picked = item
+                break
+        if picked:
+            updates["pending_mark_task_id"] = str(picked.get("id"))
+            updates["pending_mark_subject"] = picked.get("subject")
+        elif token:
+            updates["pending_mark_subject"] = token
         return updates
 
     if field == "assignmentProgress" or session.get("pending_question_id") in {
@@ -438,8 +471,14 @@ async def _record_structured_answer(session: dict, answer: str) -> dict:
         parsed = _parse_mark(answer)
         target_subjects = [subject] if subject else list(meta.get("subject_options") or [])
         if parsed is not None and not isinstance(parsed, dict) and (subject or target_subjects):
-            await TaskModel.set_mark(user_id, subject or target_subjects[0], parsed)
+            await TaskModel.set_mark(
+                user_id,
+                subject or target_subjects[0],
+                parsed,
+                task_id=meta.get("task_id") or session.get("pending_mark_task_id"),
+            )
             updates["pending_mark_subject"] = None
+            updates["pending_mark_task_id"] = None
             updates["confirmed_assignment_marks"] = True
         elif field == "mark-check" and _is_no(answer):
             for item in target_subjects:
@@ -488,10 +527,14 @@ async def _record_structured_answer(session: dict, answer: str) -> dict:
         parsed = _parse_mark(answer)
         if isinstance(parsed, dict):
             for eid, mark_value in parsed.items():
-                try:
-                    mark = float(mark_value)
-                except (TypeError, ValueError):
-                    continue
+                letter = parse_letter_grade(mark_value)
+                if letter:
+                    mark = letter
+                else:
+                    try:
+                        mark = float(mark_value)
+                    except (TypeError, ValueError):
+                        continue
                 if eid:
                     await ExamModel.set_mark(str(eid), mark)
             updates["pending_mark_exam_id"] = None
@@ -719,7 +762,7 @@ async def _user_world_payload(user_id: str) -> dict:
         "play_date": bundle["play_date"],
         "level": level_from_xp(user.get("total_xp", 0)),
         "sessions": remaining,
-        "tasks": await TaskModel.find_by_user(user_id),
+        "tasks": await _numbered_assignment_tasks(user_id),
         "exams": await ExamModel.find_by_user(user_id),
     }
 
@@ -816,7 +859,7 @@ async def start_daily_session(req: StartDailyRequest):
             for kind in kinds:
                 await ExamModel.ensure(req.user_id, subject, kind)
 
-    academic = await _academic_state(req.user_id)
+    academic = await _academic_state(req.user_id, as_of=play_day)
     tasks = academic["tasks"]
     exams = await ExamModel.find_by_user(req.user_id)
     date = calendar_datetime(play_day)
@@ -900,6 +943,7 @@ async def start_daily_session(req: StartDailyRequest):
         "pending_exam_mark_kind": None,
         "pending_mark_exam_id": None,
         "pending_mark_subject": None,
+        "pending_mark_task_id": None,
         "confirmed_assignment_marks": False,
         "qa_history": [],
         "completed": False,
@@ -959,7 +1003,7 @@ async def answer_question(req: AnswerRequest):
     assignment_subjects = session.get("assignment_subjects") or []
     exam_subjects = session.get("exam_subjects") or []
     exam_kinds = [k for k in (session.get("exam_kinds") or []) if k in ("mid", "final")]
-    academic = await _academic_state(session["user_id"])
+    academic = await _academic_state(session["user_id"], as_of=to_local_date(session.get("date")))
     qa_list = [
         {
             "question": q["question"],
@@ -995,6 +1039,7 @@ async def answer_question(req: AnswerRequest):
         unmarked_assignments=academic["unmarked_assignments"],
         pending_mark_exam_id=session.get("pending_mark_exam_id"),
         pending_mark_subject=session.get("pending_mark_subject"),
+        pending_mark_task_id=session.get("pending_mark_task_id"),
         pending_exam_date_kind=session.get("pending_exam_date_kind"),
         pending_exam_mark_kind=session.get("pending_exam_mark_kind"),
         confirmed_assignment_marks=bool(session.get("confirmed_assignment_marks")),

@@ -1,0 +1,203 @@
+/* Temporary diagnostic page - remove with DataCheck.jsx. */
+
+.cpe-root .dc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cpe-gap);
+}
+
+.cpe-root .dc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cpe-root .dc-title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--cpe-text);
+}
+
+.cpe-root .dc-sub {
+  margin: 2px 0 0;
+  font-size: 0.79rem;
+  color: var(--cpe-text-faint);
+}
+
+.cpe-root .dc-refresh {
+  flex: none;
+  padding: 8px 16px;
+  font-size: 0.79rem;
+  font-weight: 600;
+  color: #185fa5;
+  background: #ffffff;
+  border: 1px solid #185fa5;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.cpe-root .dc-refresh:hover {
+  color: #ffffff;
+  background: #185fa5;
+}
+
+.cpe-root .dc-error {
+  padding: 11px 15px;
+  font-size: 0.81rem;
+  color: var(--cpe-red);
+  background: var(--cpe-red-soft);
+  border: 1px solid var(--cpe-red);
+  border-radius: var(--cpe-radius);
+}
+
+/* ---- key/value block ---- */
+
+.cpe-root .dc-kv {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px 20px;
+  margin: 0;
+}
+
+.cpe-root .dc-kv > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cpe-root .dc-kv dt {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cpe-text-faint);
+}
+
+.cpe-root .dc-kv dd {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--cpe-text);
+  overflow-wrap: anywhere;
+}
+
+/* ---- tables ---- */
+
+.cpe-root .dc-table-wrap {
+  overflow-x: auto;
+}
+
+.cpe-root .dc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.cpe-root .dc-table th {
+  text-align: left;
+  padding: 9px 12px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--cpe-text-faint);
+  border-bottom: 1px solid var(--cpe-border);
+}
+
+.cpe-root .dc-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--cpe-border);
+  color: var(--cpe-text);
+}
+
+.cpe-root .dc-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.cpe-root .dc-mono {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+}
+
+.cpe-root .dc-num {
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+}
+
+.cpe-root .dc-note {
+  color: var(--cpe-text-dim);
+  white-space: normal;
+}
+
+/* ---- status pills ---- */
+
+.cpe-root .dc-pill {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.cpe-root .dc-ok {
+  color: var(--cpe-green);
+  background: var(--cpe-green-soft);
+}
+
+.cpe-root .dc-warn {
+  color: var(--cpe-orange);
+  background: var(--cpe-orange-soft);
+}
+
+.cpe-root .dc-bad {
+  color: var(--cpe-red);
+  background: var(--cpe-red-soft);
+}
+
+.cpe-root .dc-info {
+  color: var(--cpe-accent);
+  background: var(--cpe-accent-soft);
+}
+
+/* ---- raw payloads ---- */
+
+.cpe-root .dc-raw {
+  border: 1px solid var(--cpe-border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  background: var(--cpe-bg-panel-alt);
+}
+
+.cpe-root .dc-raw summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--cpe-text);
+}
+
+.cpe-root .dc-raw-path {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--cpe-text-faint);
+}
+
+.cpe-root .dc-raw pre {
+  margin: 0;
+  padding: 12px 14px;
+  border-top: 1px solid var(--cpe-border);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.74rem;
+  line-height: 1.55;
+  color: var(--cpe-text-dim);
+  overflow-x: auto;
+}

@@ -25,3 +25,260 @@
 @media (max-width: 780px) {
   .cpe-root .dash-row-3, .cpe-root .dash-row-2 { grid-template-columns: 1fr; }
 }
+
+.cpe-root .dash-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--cpe-bg-panel);
+  border: 1px solid var(--cpe-border);
+  border-radius: var(--cpe-radius);
+  box-shadow: var(--cpe-shadow);
+}
+
+.cpe-root .dash-bar-note {
+  font-size: 0.79rem;
+  color: var(--cpe-text-dim);
+}
+
+.cpe-root .dash-estimate {
+  padding: 12px 16px;
+  font-size: 0.79rem;
+  line-height: 1.55;
+  color: #7a4d06;
+  background: var(--cpe-orange-soft);
+  border: 1px solid var(--cpe-orange);
+  border-radius: var(--cpe-radius);
+}
+
+.cpe-root .dash-estimate-list {
+  font-weight: 600;
+}
+
+/* ---- STATE 2: pre-flight / generate ---- */
+
+.cpe-root .dash-start {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 40px 24px;
+  text-align: center;
+  background: var(--cpe-bg-panel);
+  border: 1px solid var(--cpe-border);
+  border-radius: var(--cpe-radius);
+  box-shadow: var(--cpe-shadow);
+}
+
+.cpe-root .dash-start-title {
+  margin: 0 0 4px;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--cpe-text);
+}
+
+.cpe-root .dash-start-sub {
+  margin: 0 0 24px;
+  font-size: 0.9rem;
+  color: var(--cpe-text-dim);
+}
+
+.cpe-root .dash-preview {
+  padding: 14px 16px;
+  margin-bottom: 24px;
+  text-align: left;
+  background: var(--cpe-bg-panel-alt);
+  border: 1px solid var(--cpe-border);
+  border-radius: 8px;
+}
+
+.cpe-root .dash-preview-tag {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cpe-text-faint);
+}
+
+.cpe-root .dash-preview-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  font-size: 0.82rem;
+  color: var(--cpe-text-dim);
+}
+
+.cpe-root .dash-preview-row b {
+  color: var(--cpe-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.cpe-root .dash-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  padding: 16px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffffff;
+  background: #185fa5;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+
+.cpe-root .dash-cta:hover { filter: brightness(1.1); }
+
+.cpe-root .dash-cta-icon { font-size: 1.05rem; }
+
+.cpe-root .dash-start-note {
+  margin: 14px 0 0;
+  font-size: 0.79rem;
+  line-height: 1.55;
+  color: var(--cpe-text-faint);
+}
+
+/* ---- STATE 3: progress ---- */
+
+.cpe-root .dash-progress {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 56px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.cpe-root .dash-progress-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--cpe-text);
+}
+
+.cpe-root .dash-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.cpe-root .dash-steps li::before {
+  display: inline-block;
+  width: 20px;
+  font-weight: 700;
+}
+
+.cpe-root .dash-step-done {
+  color: var(--cpe-green);
+}
+.cpe-root .dash-step-done::before { content: '\2713'; }
+
+.cpe-root .dash-step-doing {
+  color: var(--cpe-text);
+  font-weight: 600;
+}
+.cpe-root .dash-step-doing::before { content: '\25CB'; }
+
+.cpe-root .dash-step-todo {
+  color: var(--cpe-text-faint);
+}
+.cpe-root .dash-step-todo::before { content: '\25CB'; }
+
+/* ---- STATE 4: header bar additions ---- */
+
+.cpe-root .dash-bar-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cpe-root .dash-bar-greeting {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--cpe-text);
+}
+
+.cpe-root .dash-inline-error {
+  padding: 11px 15px;
+  font-size: 0.81rem;
+  color: var(--cpe-red);
+  background: var(--cpe-red-soft);
+  border: 1px solid var(--cpe-red);
+  border-radius: var(--cpe-radius);
+}
+
+/* Inline survey control, used in the answers panel and results header. */
+.cpe-root .dash-edit-link {
+  padding: 8px 4px;
+  text-align: right;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #185fa5;
+  background: none;
+  border: none;
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+}
+
+.cpe-root .dash-edit-link:hover {
+  border-bottom-color: #185fa5;
+}
+
+/* Returns from the results view to the start screen. */
+.cpe-root .dash-back-btn {
+  flex: none;
+  padding: 8px 16px;
+  font-size: 0.79rem;
+  font-weight: 600;
+  color: #185fa5;
+  background: #ffffff;
+  border: 1px solid #185fa5;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.cpe-root .dash-back-btn:hover {
+  color: #ffffff;
+  background: #185fa5;
+}
+
+/* Groups the survey link and New prediction button in the results header. */
+.cpe-root .dash-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 620px) {
+  .cpe-root .dash-bar-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+/* Wraps the survey questions rendered inline on the start screen. */
+.cpe-root .dash-answers {
+  padding: 14px 16px;
+  margin-bottom: 24px;
+  text-align: left;
+  background: var(--cpe-bg-panel-alt);
+  border: 1px solid var(--cpe-border);
+  border-radius: 8px;
+}

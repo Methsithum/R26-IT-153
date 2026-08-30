@@ -1,0 +1,229 @@
+.cpe-root .svy-card {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 24px;
+  background: #ffffff;
+  border: 0.5px solid #e5e5e5;
+  border-radius: 12px;
+  box-shadow: var(--cpe-shadow);
+}
+
+.cpe-root .svy-head {
+  margin-bottom: 18px;
+}
+
+.cpe-root .svy-title {
+  margin: 0 0 6px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--cpe-text);
+}
+
+.cpe-root .svy-sub {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--cpe-text-dim);
+}
+
+/* ---- progress ---- */
+
+.cpe-root .svy-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 16px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--cpe-border);
+}
+
+.cpe-root .svy-progress-text {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cpe-text-faint);
+}
+
+.cpe-root .svy-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.cpe-root .svy-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cpe-border);
+}
+
+.cpe-root .svy-dot-on {
+  background: #185fa5;
+}
+
+/* ---- questions ---- */
+
+.cpe-root .svy-q {
+  margin-top: 20px;
+}
+
+.cpe-root .svy-label {
+  display: block;
+  margin-bottom: 9px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--cpe-text);
+}
+
+.cpe-root .svy-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.cpe-root .svy-range {
+  flex: 1;
+  min-width: 0;
+  accent-color: #185fa5;
+  cursor: pointer;
+}
+
+.cpe-root .svy-value {
+  flex: none;
+  min-width: 132px;
+  text-align: right;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #185fa5;
+  font-variant-numeric: tabular-nums;
+}
+
+.cpe-root .svy-note {
+  margin: 7px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--cpe-text-faint);
+}
+
+/* ---- choice buttons ---- */
+
+.cpe-root .svy-choices {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.cpe-root .svy-choice {
+  padding: 10px 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--cpe-text-dim);
+  background: #ffffff;
+  border: 1px solid var(--cpe-border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.cpe-root .svy-choice:hover {
+  border-color: #185fa5;
+  color: #185fa5;
+}
+
+.cpe-root .svy-choice-on,
+.cpe-root .svy-choice-on:hover {
+  color: #ffffff;
+  background: #185fa5;
+  border-color: #185fa5;
+}
+
+/* ---- actions ---- */
+
+.cpe-root .svy-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.cpe-root .svy-submit {
+  flex: 1;
+  padding: 13px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #ffffff;
+  background: #185fa5;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+
+.cpe-root .svy-submit:hover {
+  filter: brightness(1.1);
+}
+
+.cpe-root .svy-cancel {
+  flex: none;
+  padding: 13px 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--cpe-text-dim);
+  background: #ffffff;
+  border: 1px solid var(--cpe-border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.cpe-root .svy-cancel:hover {
+  color: var(--cpe-text);
+  border-color: var(--cpe-text-faint);
+}
+
+@media (max-width: 560px) {
+  .cpe-root .svy-slider-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .cpe-root .svy-value {
+    text-align: left;
+    min-width: 0;
+  }
+
+  .cpe-root .svy-choices {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- embedded mode ---- */
+
+/* Rendered inside the Generate page, the questions carry no card of their
+   own; the surrounding panel supplies the background and padding. */
+.cpe-root .svy-embedded {
+  display: block;
+}
+
+/* The first question sits directly under the panel label, so it does not
+   need the gap that separates questions from each other. */
+.cpe-root .svy-embedded .svy-q:first-child {
+  margin-top: 0;
+}
+
+/* Labels are lighter here - the panel is a form, not a titled survey card. */
+.cpe-root .svy-embedded .svy-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.cpe-root .svy-embedded .svy-value {
+  min-width: 118px;
+  font-size: 0.8rem;
+}
+
+.cpe-root .svy-embedded .svy-choice {
+  padding: 8px 6px;
+  font-size: 0.76rem;
+}

@@ -154,9 +154,12 @@ body,
     font-size: 16px;
     line-height: 1.85;
     font-weight: 400;
-    color: #4a4338;
+    color: #334155;
     letter-spacing: 0.012em;
     text-wrap: pretty;
+  }
+  .dark .journal-letter p {
+    color: #cbd5e1;
   }
   .journal-letter p + p {
     margin-top: 1.35em;

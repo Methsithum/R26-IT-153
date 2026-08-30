@@ -1,6 +1,6 @@
 from app.config.database import db
 from app.services.journal.journal_constants import is_mark_check_due
-from app.services.time_utils import local_today_iso
+from app.services.time_utils import as_of_day, local_today_iso
 from bson import ObjectId
 from datetime import datetime
 
@@ -48,7 +48,12 @@ class ExamModel:
         return [ExamModel._serialize(d) for d in docs]
 
     @staticmethod
-    async def missing(user_id: str, subjects: list[str] | None = None, exam_types: list[str] | None = None):
+    async def missing(
+        user_id: str,
+        subjects: list[str] | None = None,
+        exam_types: list[str] | None = None,
+        as_of=None,
+    ):
         query = {
             "user_id": user_id,
             **ExamModel._blank_field_query("date"),
@@ -58,10 +63,11 @@ class ExamModel:
         if exam_types:
             query["exam_type"] = {"$in": exam_types}
         docs = list(exam_collection.find(query))
+        as_of = as_of_day(as_of)
         ready = []
         for doc in docs:
             exam = ExamModel._serialize(doc)
-            if is_mark_check_due(exam.get("last_date_check")):
+            if is_mark_check_due(exam.get("last_date_check"), today=as_of):
                 ready.append(exam)
         return ready
 
@@ -90,8 +96,13 @@ class ExamModel:
         return list(dict.fromkeys(str(doc.get("exam_type") or "") for doc in docs if doc.get("exam_type")))
 
     @staticmethod
-    async def missing_marks(user_id: str, subjects: list[str] | None = None, exam_types: list[str] | None = None):
-        """Exams whose date has arrived, still have no mark, and are due for a weekly check."""
+    async def missing_marks(
+        user_id: str,
+        subjects: list[str] | None = None,
+        exam_types: list[str] | None = None,
+        as_of=None,
+    ):
+        """Exams whose date has arrived as of the journal day, still have no mark."""
         query = {
             "user_id": user_id,
             "date": {"$nin": [None, ""], "$exists": True},
@@ -102,12 +113,17 @@ class ExamModel:
         if exam_types:
             query["exam_type"] = {"$in": exam_types}
         docs = list(exam_collection.find(query))
-        today = local_today_iso()
+        as_of = as_of_day(as_of)
+        as_of_iso = as_of.isoformat()
         ready = []
         for doc in docs:
             exam = ExamModel._serialize(doc)
             date_value = str(exam.get("date") or "")[:10]
-            if date_value and date_value <= today and is_mark_check_due(exam.get("last_mark_check")):
+            if (
+                date_value
+                and date_value <= as_of_iso
+                and is_mark_check_due(exam.get("last_mark_check"), today=as_of)
+            ):
                 ready.append(exam)
         return ready
 
