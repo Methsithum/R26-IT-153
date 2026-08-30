@@ -25,6 +25,10 @@ from app.services.journal.gamification import (
     level_from_xp,
 )
 from app.services.journal.journal_service import build_session_context
+from app.services.journal.career_clarity import (
+    week_already_answered_career_clarity,
+    scored_career_clarity,
+)
 from app.services.journal.journal_constants import (
     ASSIGNMENT_STATUS_ANSWERS,
     EXAM_KINDS,
@@ -395,6 +399,9 @@ async def _record_structured_answer(session: dict, answer: str) -> dict:
             for subject in subjects:
                 for kind in kinds:
                     await ExamModel.ensure(user_id, subject, kind)
+        return updates
+
+    if field == "careerClarity" or session.get("pending_question_id") == "career-clarity":
         return updates
 
     if field == "examMarkSubject":
@@ -871,6 +878,9 @@ async def start_daily_session(req: StartDailyRequest):
         "journal_date": play_day.isoformat(),
         "recent_answers": academic.get("recent_answers") or [],
         "exams": _exam_rows(exams),
+        "weekly_career_clarity_done": await week_already_answered_career_clarity(
+            req.user_id, play_day
+        ),
     }
     recent_asked_ids = academic["recent_asked_ids"]
 
@@ -1014,6 +1024,12 @@ async def answer_question(req: AnswerRequest):
     ]
     user = await UserModel.find_by_id(session["user_id"])
     session_context = await build_session_context(session)
+    session_context["weekly_career_clarity_done"] = (
+        scored_career_clarity(qa_list) is not None
+        or await week_already_answered_career_clarity(
+            session["user_id"], to_local_date(session.get("date"))
+        )
+    )
     max_questions = session.get("max_questions", 12)
     registered_subjects = (user or {}).get("subjects") or []
 
