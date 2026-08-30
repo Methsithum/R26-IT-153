@@ -732,7 +732,7 @@ export default function JournalHome() {
         </div>
       }
     >
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+      <nav className="flex w-full flex-nowrap items-center gap-1 rounded-2xl bg-white/90 p-1.5 shadow-card ring-1 ring-black/5">
         {TABS.map((t) => {
           const Icon = t.icon;
           const active = tab === t.id;
@@ -741,28 +741,24 @@ export default function JournalHome() {
               key={t.id}
               type="button"
               onClick={() => selectTab(t.id)}
-              className={`shrink-0 inline-flex items-center gap-2 rounded-2xl px-3.5 py-2 text-sm font-medium transition-all ${
+              title={t.label}
+              className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-[12px] font-medium leading-tight transition-all sm:text-[13px] ${
                 active
                   ? "bg-gradient-to-r from-brand-500 to-brand-400 text-white shadow-playful"
-                  : "bg-white text-slate-500 border border-black/5 hover:bg-brand-50 hover:text-brand-600"
+                  : "text-slate-500 hover:bg-brand-50 hover:text-brand-600"
               }`}
             >
-              <Icon size={16} strokeWidth={2.3} />
-              {t.label}
+              <Icon size={15} strokeWidth={2.3} className="shrink-0" />
+              <span className="truncate">{t.label}</span>
             </button>
           );
         })}
-      </div>
+      </nav>
 
       <div className="card flex min-h-[28rem] flex-1 overflow-hidden shadow-[var(--shadow-playful)]">
-        <div className="hidden sm:flex w-[7.5rem] shrink-0 flex-col items-center justify-center gap-4 bg-gradient-to-b from-brand-500 to-brand-700 p-5 text-center text-white">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25 shadow-inner">
-            <NotebookPen size={28} strokeWidth={2.2} />
-          </div>
-          <div className="text-[11px] font-medium leading-relaxed tracking-wide text-white/90">
-            Smart Uni Guide
-            <br />
-            Student Journal
+        <div className="hidden sm:flex w-16 shrink-0 flex-col items-center justify-center bg-gradient-to-b from-brand-500 to-brand-700 text-white">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25 shadow-inner">
+            <NotebookPen size={22} strokeWidth={2.2} />
           </div>
         </div>
 

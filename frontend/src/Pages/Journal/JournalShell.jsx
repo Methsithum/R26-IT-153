@@ -8,7 +8,7 @@ export default function JournalShell({ title, subtitle, aside, children, fill = 
       <div className="pointer-events-none absolute -bottom-24 right-1/4 h-64 w-64 rounded-full bg-brand-200/40 blur-3xl" />
 
       <div
-        className={`relative mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-4 py-6 sm:px-8 sm:py-8 ${
+        className={`relative mx-auto flex min-h-dvh w-full max-w-7xl flex-col px-4 py-6 sm:px-6 lg:px-8 sm:py-8 ${
           fill ? "gap-4" : "gap-6"
         }`}
       >
