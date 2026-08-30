@@ -141,3 +141,26 @@ export function startMinutes(timeSlot) {
   const [h, m] = (start || "0:0").split(":").map(Number);
   return (h || 0) * 60 + (m || 0);
 }
+
+// Time-of-day grouping for the Week view (Part 1) - a pure, testable
+// classifier taking just a start time ("HH:MM", or a "HH:MM-HH:MM" range -
+// only the start is used), independent of any specific day's session list,
+// so it's reusable wherever sessions need grouping and unit-testable on its
+// own. Order matches the display order sections render in.
+export const TIME_OF_DAY_BAND_ORDER = ["Morning", "Afternoon", "Evening", "Night"];
+
+export function getTimeOfDayBand(startTime) {
+  const [startPart] = String(startTime || "0:0").split("-");
+  const [h, m] = startPart.split(":").map(Number);
+  const minutes = (h || 0) * 60 + (m || 0);
+  if (minutes >= 6 * 60 && minutes < 12 * 60) return "Morning";
+  if (minutes >= 12 * 60 && minutes < 17 * 60) return "Afternoon";
+  if (minutes >= 17 * 60 && minutes < 20 * 60) return "Evening";
+  // Night: 20:00-01:00, wrapping past midnight - covers 20:00-23:59 (falls
+  // through to here) and 00:00-05:59 (the `< 6*60` catch above the Morning
+  // check never triggers before this line, so it lands here too). No real
+  // free-slot in this app currently starts between 01:00-05:59, but bucketing
+  // it as Night rather than leaving it unclassified is the safer default for
+  // an edge case this function should never silently mishandle.
+  return "Night";
+}
