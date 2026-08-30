@@ -1,15 +1,20 @@
 import React, { useEffect, useState } from "react";
-import { INTERVENTIONS } from "./focusData";
+import { pickIntervention } from "./focusData";
 
 export default function IntModal({ open, onClose, type, onComplete }) {
   const [done, setDone] = useState([]);
-
-  const cfg = INTERVENTIONS[type] || INTERVENTIONS.Focused;
-  const finished = cfg && done.length === cfg.steps.length;
+  const [cfg, setCfg] = useState(null);
 
   useEffect(() => {
-    if (open) setDone([]);
+    if (!open) {
+      setCfg(null);
+      return;
+    }
+    setDone([]);
+    setCfg(pickIntervention(type));
   }, [open, type]);
+
+  const finished = cfg && done.length === cfg.steps.length;
 
   if (!open || !cfg) return null;
 
@@ -27,14 +32,15 @@ export default function IntModal({ open, onClose, type, onComplete }) {
           <button onClick={onClose} className="text-slate-400 hover:text-slate-900 text-xl">✕</button>
         </div>
 
-        <p className="text-slate-700 text-sm mb-4">{cfg.msg}</p>
+        <p className="text-slate-700 text-sm mb-2">{cfg.msg}</p>
+        <p className="text-xs font-semibold mb-4" style={{ color: cfg.color }}>This challenge costs 5 points.</p>
 
         <div className="space-y-2 mb-4">
           {cfg.steps.map((step, index) => {
             const complete = done.includes(index);
             return (
               <button
-                key={step}
+                key={`${cfg.title}-${index}`}
                 onClick={() => setDone((current) => (current.includes(index) ? current.filter((item) => item !== index) : [...current, index]))}
                 className="w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all"
                 style={{ borderColor: complete ? cfg.color : "rgba(148,163,184,0.22)", backgroundColor: complete ? `${cfg.color}12` : "rgba(255,255,255,0.7)" }}
@@ -53,7 +59,7 @@ export default function IntModal({ open, onClose, type, onComplete }) {
             Close
           </button>
           <button onClick={() => onComplete && onComplete(type)} disabled={!finished} className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-50" style={{ backgroundColor: cfg.color }}>
-            {finished ? `✓ Claim +${cfg.reward} pts` : "Complete steps to claim reward"}
+            {finished ? "Done" : "Tick all steps to finish"}
           </button>
         </div>
       </div>

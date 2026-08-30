@@ -1,7 +1,7 @@
 import React from "react";
 import Card from "../Card";
 import TreeSVG from "../TreeSVG";
-import { STATE_CFG, LEVEL_DATA, TREE_MOOD } from "../focusData";
+import { STATE_CFG, LEVEL_DATA, TREE_MOOD, levelIndexFromPoints } from "../focusData";
 import { PageHeader, SectionTitle, Meter, Badge, EmptyState } from "../ui";
 import { dayFocusMin, formatHM, todayISO, weekdayShort } from "../../../lib/focusTime";
 
@@ -13,17 +13,20 @@ export default function TabDashboard({
   LEVEL_DATA: LD = LEVEL_DATA,
   todayGoal,
   distMin,
-  lifetimeMin,
   week,
+  challengePoints = 0,
+  treeFx = null,
+  treeFxNonce = 0,
+  userName,
 }) {
   const cfg = STATE_CFG[state] || STATE_CFG.Focused;
   const mood = TREE_MOOD[state] || TREE_MOOD.Focused;
-  const lv = Math.max(0, LD.filter((l) => lifetimeMin >= l.min).length - 1);
+  const lv = levelIndexFromPoints(challengePoints);
   const current = LD[lv];
   const next = LD[lv + 1];
   const goalPct = Math.min((focusMin / todayGoal) * 100, 100);
-  const nextMin = next ? next.min : current.min;
-  const lvPct = next ? ((lifetimeMin - current.min) / (next.min - current.min)) * 100 : 100;
+  const xpToNext = next ? Math.max(next.min - challengePoints, 0) : 0;
+  const lvPct = next ? ((challengePoints - current.min) / (next.min - current.min)) * 100 : 100;
   const trackedTotal = focusMin + distMin;
   const distPct = trackedTotal > 0 ? (distMin / trackedTotal) * 100 : 0;
   const earnedAchievements = ACHIEVEMENTS_LIST.filter((a) => a.earned);
@@ -34,7 +37,7 @@ export default function TabDashboard({
   const stats = [
     { label: "Focus today", value: formatHM(focusMin), icon: "⏱", color: "#22c55e" },
     { label: "Streak", value: `${streak}m`, icon: "🔥", color: "#f97316" },
-    { label: "All-time", value: formatHM(lifetimeMin), icon: "🌳", color: "#a855f7" },
+    { label: "Points today", value: `${challengePoints}`, icon: "✦", color: "#a855f7" },
     { label: "Off-task", value: formatHM(distMin), icon: "😔", color: "#64748b" },
   ];
 
@@ -43,7 +46,7 @@ export default function TabDashboard({
       <PageHeader
         icon="🌿"
         title="Dashboard"
-        subtitle="Your tree is happy when this session is mostly focused, droopy when distraction leads"
+        subtitle={userName ? `Hi ${userName} — your tree is happy when this session is mostly focused` : "Your tree is happy when this session is mostly focused, droopy when distraction leads"}
         right={<Badge color={cfg.color}>{mood.emoji} {cfg.label}</Badge>}
       />
 
@@ -63,7 +66,7 @@ export default function TabDashboard({
               style={{ background: `radial-gradient(circle at 50% 40%, ${cfg.color}22, transparent 62%)` }}
             />
             <div className="relative">
-              <TreeSVG state={state} points={lifetimeMin} size={220} />
+              <TreeSVG state={state} points={challengePoints} size={240} fx={treeFx} fxKey={treeFxNonce} />
               <div
                 className="absolute -right-2 top-6 px-3 py-2 rounded-2xl rounded-bl-md text-sm font-semibold shadow-sm border"
                 style={{
@@ -85,7 +88,7 @@ export default function TabDashboard({
               <div className="flex justify-between text-[11px] mb-1">
                 <span className="text-slate-500">Level {lv + 1}</span>
                 <span className="font-semibold" style={{ color: cfg.color }}>
-                  {next ? `${formatHM(Math.max(nextMin - lifetimeMin, 0))} to go` : "Max"}
+                  {next ? `${xpToNext} XP to go` : "Max"}
                 </span>
               </div>
               <Meter pct={lvPct} color={lv === 3 ? "#f59e0b" : cfg.color} height={8} glow sheen={!!next} />

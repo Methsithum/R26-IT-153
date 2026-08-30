@@ -1,19 +1,13 @@
 import axios from "axios";
+import { readStoredUser } from "../services/userApi";
 
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
 const USER_KEY = "sug_focus_user_id";
 
+/** Logged-in Mongo user id (`smart-uni-guide-user`), same as journal/planner. */
 export function getFocusUserId() {
-  try {
-    let id = localStorage.getItem(USER_KEY);
-    if (!id) {
-      id = (crypto.randomUUID && crypto.randomUUID()) || `user-${Date.now()}`;
-      localStorage.setItem(USER_KEY, id);
-    }
-    return id;
-  } catch {
-    return "anonymous";
-  }
+  const id = readStoredUser()?.id;
+  return id ? String(id) : "anonymous";
 }
 
 function withUser(params = {}) {
@@ -30,7 +24,7 @@ export async function predictFocusState(base64Image) {
 export async function saveFocusSession(payload) {
   const { data } = await axios.post(`${API_BASE}/focus/sessions`, {
     ...payload,
-    user_id: payload.user_id || getFocusUserId(),
+    user_id: getFocusUserId(),
   });
   return data;
 }
@@ -68,6 +62,22 @@ export async function getEmotionalStats() {
     params: withUser(),
   });
   return data;
+}
+
+export async function pingFocusPresence() {
+  const uid = getFocusUserId();
+  if (!uid || uid === "anonymous") return;
+  await axios.post(`${API_BASE}/focus/presence`, null, { params: { user_id: uid } });
+}
+
+export function leaveFocusPresence() {
+  const uid = getFocusUserId();
+  if (!uid || uid === "anonymous") return;
+  try {
+    navigator.sendBeacon(`${API_BASE}/focus/presence/leave?user_id=${encodeURIComponent(uid)}`);
+  } catch {
+    // ignore
+  }
 }
 
 /** Best-effort flush on tab close. Periodic save is the reliable path. */

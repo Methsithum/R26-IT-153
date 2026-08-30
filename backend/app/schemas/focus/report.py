@@ -15,6 +15,9 @@ class DailyReport(BaseModel):
     mood_stability: int
     longest_streak_minutes: int
     calm_quest_count: int
+    challenges_taken: int = 0
+    focus_boosts: int = 0
+    challenge_points: int = 0
     first_hour: int | None
     achievements_unlocked: list[str]
 

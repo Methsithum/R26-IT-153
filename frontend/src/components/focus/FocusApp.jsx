@@ -1,30 +1,38 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { STATE_CFG, LEVEL_DATA, ACHIEVEMENTS_LIST } from "./focusData";
+import { STATE_CFG, LEVEL_DATA, ACHIEVEMENTS_LIST, pickChallengeType, challengePointsFor, levelIndexFromPoints } from "./focusData";
 import { useFocusCamera } from "../../hooks/useFocusCamera";
-import { saveFocusSession, getDailyReport, getWeeklyReport, getFocusProfile, flushFocusSession } from "../../lib/focusApi";
+import { saveFocusSession, getDailyReport, getWeeklyReport, getFocusProfile, flushFocusSession, getLeaderboard, pingFocusPresence, leaveFocusPresence } from "../../lib/focusApi";
 import { combineHM, mergeLiveWeek } from "../../lib/focusTime";
 import FocusHeader from "./FocusHeader";
-import FocusFooter from "./FocusFooter";
 import IntModal from "./IntModal";
+import TreeSVG from "./TreeSVG";
 import TabDashboard from "./views/Dashboard";
 import TabMonitoring from "./views/Monitoring";
 import TabTree from "./views/Tree";
 import TabAchievements from "./views/Achievements";
 import TabLeaderboard from "./views/Leaderboard";
 import TabReport from "./views/Report";
+import TabProfile from "./views/Profile";
+import { readStoredUser } from "../../services/userApi";
 
 const MANUAL_OVERRIDE_LOCK_MS = 5000;
 const HIGH_CONFIDENCE = 0.70;
-const CHALLENGE_SUSTAIN_MS = 5 * 60 * 1000;
+/** Flip to false after the demo video — restores 5 min boost / challenge / check-in. */
+const DEMO_MODE = true;
+const CHALLENGE_SUSTAIN_MS = DEMO_MODE ? 20 * 1000 : 5 * 60 * 1000;
 const SPRINT_STREAK_MIN = 25;
-const CHECKIN_INTERVAL_MS = 5 * 60 * 1000;
+const FOCUS_BOOST_STREAK_MIN = DEMO_MODE ? 0.25 : 5; // 15s vs 5 min
+const TREE_FX_MS = 2000;
+const CHECKIN_INTERVAL_MS = DEMO_MODE ? 45 * 1000 : 5 * 60 * 1000;
+const CHECKIN_TIMEOUT_MS = 15 * 1000;
 const SAVE_INTERVAL_MS = 60 * 1000;
 const TODAY_GOAL = 120;
 const CHECKIN_PROMPT = "Are you focusing right now?";
 const CHECKIN_YES_REPLY = "Great! Keep going!";
 const CHECKIN_NO_REPLY = "Let's try a quick challenge!";
 const CHECKIN_PAUSE_REPLY = "Your session is paused. Resume when you are ready.";
-const CHECKIN_TIMEOUT_MS = 15 * 1000;
+const HEARTBEAT_MS = 20 * 1000;
+const LEADERBOARD_POLL_MS = 15 * 1000;
 
 const FEMALE_VOICE_RE = /aria|jenny|zira|samantha|karen|moira|tessa|fiona|veena|raveena|susan|hazel|catherine|zosia|ana|linda|heera|google us english female|microsoft.*(aria|jenny|zira|sara)|female/i;
 const MALE_VOICE_RE = /\b(david|mark|guy|james|george|daniel|thomas|fred|male|man)\b/i;
@@ -84,10 +92,15 @@ export default function FocusApp() {
   const [todayBaseFocus, setTodayBaseFocus] = useState(0);
   const [todayBaseDist, setTodayBaseDist] = useState(0);
   const [streak, setStreak] = useState(0);
-  const [sessionStatus, setSessionStatus] = useState("active"); // active | paused | ended
+  const [sessionStatus, setSessionStatus] = useState("ended"); // active | paused | ended
   const [reportFocusMin, setReportFocusMin] = useState(null);
   const [reportDistMin, setReportDistMin] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [challengeType, setChallengeType] = useState("Fatigue");
+  const [challengesTaken, setChallengesTaken] = useState(0);
+  const [focusBoosts, setFocusBoosts] = useState(0);
+  const [treeFx, setTreeFx] = useState(null);
+  const [treeFxNonce, setTreeFxNonce] = useState(0);
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [checkInAns, setCheckInAns] = useState(null);
   const [showPauseNotice, setShowPauseNotice] = useState(false);
@@ -96,6 +109,9 @@ export default function FocusApp() {
   const [weekly, setWeekly] = useState(null);
   const [savedAchievements, setSavedAchievements] = useState([]);
   const [lifetimeBaseMin, setLifetimeBaseMin] = useState(0);
+  const [account] = useState(() => readStoredUser());
+  const [boardRows, setBoardRows] = useState([]);
+  const [boardLoading, setBoardLoading] = useState(true);
 
   const showModalRef = useRef(showModal);
   const lastManualRef = useRef(0);
@@ -111,7 +127,26 @@ export default function FocusApp() {
   const sprintBonusReadyRef = useRef(true);
   const firstHourRef = useRef(null);
   const calmQuestRef = useRef(0);
+  const challengesTakenRef = useRef(0);
+  const focusBoostsRef = useRef(0);
+  const boostTierRef = useRef(0);
+  const treeFxTimerRef = useRef(null);
+  const persistSessionRef = useRef(async () => {});
   useEffect(() => { showModalRef.current = showModal; }, [showModal]);
+
+  const playTreeFx = useCallback((kind) => {
+    setTreeFx(kind);
+    setTreeFxNonce((n) => n + 1);
+    if (treeFxTimerRef.current) clearTimeout(treeFxTimerRef.current);
+    treeFxTimerRef.current = setTimeout(() => {
+      setTreeFx(null);
+      treeFxTimerRef.current = null;
+    }, TREE_FX_MS);
+  }, []);
+
+  useEffect(() => () => {
+    if (treeFxTimerRef.current) clearTimeout(treeFxTimerRef.current);
+  }, []);
 
   const sessionOn = sessionStatus === "active";
 
@@ -175,6 +210,8 @@ export default function FocusApp() {
     longest_streak_minutes: longestStreakRef.current,
     today_goal: todayGoal,
     calm_quest_count: calmQuestRef.current,
+    challenges_taken: challengesTakenRef.current,
+    focus_boosts: focusBoostsRef.current,
     first_hour: firstHourRef.current,
   }), [todayGoal]);
 
@@ -187,6 +224,8 @@ export default function FocusApp() {
       console.warn("Failed to save focus session", err);
     }
   }, [sessionPayload]);
+
+  useEffect(() => { persistSessionRef.current = persistSession; }, [persistSession]);
 
   useEffect(() => {
     let cancelled = false;
@@ -213,6 +252,12 @@ export default function FocusApp() {
         firstHourRef.current = report.first_hour ?? null;
         const calm = report.calm_quest_count || 0;
         calmQuestRef.current = calm;
+        const taken = report.challenges_taken || 0;
+        challengesTakenRef.current = taken;
+        setChallengesTaken(taken);
+        const boosts = report.focus_boosts || 0;
+        focusBoostsRef.current = boosts;
+        setFocusBoosts(boosts);
         setInterventionCounts((c) => ({ ...c, Anxiety: calm }));
         if ((report.longest_streak_minutes || 0) >= SPRINT_STREAK_MIN || (profile.achievements_unlocked || []).includes("sprint25")) {
           setEverSprint25(true);
@@ -242,6 +287,48 @@ export default function FocusApp() {
     };
   }, [sessionOn, persistSession]);
 
+  useEffect(() => {
+    const beat = async () => {
+      try {
+        await pingFocusPresence();
+      } catch {
+        // ignore
+      }
+    };
+    beat();
+    const id = setInterval(beat, HEARTBEAT_MS);
+    const onLeave = () => leaveFocusPresence();
+    window.addEventListener("pagehide", onLeave);
+    window.addEventListener("beforeunload", onLeave);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("pagehide", onLeave);
+      window.removeEventListener("beforeunload", onLeave);
+      leaveFocusPresence();
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadBoard = async () => {
+      try {
+        const rows = await getLeaderboard();
+        if (!cancelled) {
+          setBoardRows(Array.isArray(rows) ? rows : []);
+          setBoardLoading(false);
+        }
+      } catch {
+        if (!cancelled) setBoardLoading(false);
+      }
+    };
+    loadBoard();
+    const id = setInterval(loadBoard, LEADERBOARD_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
   const pauseSession = useCallback(() => setSessionStatus("paused"), []);
   const resumeSession = useCallback(() => {
     if (sessionStatus === "ended") return;
@@ -254,6 +341,7 @@ export default function FocusApp() {
     setSessionFocusMin(0);
     setSessionDistMin(0);
     focusStreakRef.current = 0;
+    boostTierRef.current = 0;
     setStreak(0);
     sprintBonusReadyRef.current = true;
     setSessionStatus("active");
@@ -277,6 +365,7 @@ export default function FocusApp() {
     setSessionFocusMin(0);
     setSessionDistMin(0);
     focusStreakRef.current = 0;
+    boostTierRef.current = 0;
     setStreak(0);
     setSessionStatus("ended");
   }, [sessionStatus, persistSession]);
@@ -297,7 +386,8 @@ export default function FocusApp() {
   // focused time is ahead (or tied), sad once overall distraction overtakes it.
   const treeState = treeFocusMin >= treeDistMin ? "Focused" : "Boredom";
   const lifetimeMin = lifetimeBaseMin + todayFocusMin;
-  const lv = LEVEL_DATA.filter((l) => lifetimeMin >= l.min).length - 1;
+  const challengePoints = challengePointsFor(challengesTaken, focusBoosts);
+  const lv = levelIndexFromPoints(challengePoints);
 
   const liveWeek = useMemo(
     () => mergeLiveWeek(weekly, todayFocusMin, todayDistMin),
@@ -322,11 +412,22 @@ export default function FocusApp() {
   };
   const liveAchievements = ACHIEVEMENTS_LIST.map((a) => ({ ...a, earned: !!earnedByKey[a.key] }));
 
+  const openChallenge = useCallback((type) => {
+    if (showModalRef.current) return;
+    showModalRef.current = true;
+    setChallengeType(pickChallengeType(type));
+    setShowModal(true);
+    challengesTakenRef.current += 1;
+    setChallengesTaken(challengesTakenRef.current);
+    playTreeFx("wilt");
+    persistSession();
+  }, [persistSession, playTreeFx]);
+
   const handleStateSelect = (nextState) => {
     if (sessionStatus !== "active") return;
     lastManualRef.current = Date.now();
     setState(nextState);
-    if (["Fatigue", "Anxiety", "Boredom"].includes(nextState)) setShowModal(true);
+    if (["Fatigue", "Anxiety", "Boredom"].includes(nextState)) openChallenge(nextState);
   };
 
   const handleDetection = useCallback((nextState, _probs, elapsedMs, confidence) => {
@@ -352,8 +453,20 @@ export default function FocusApp() {
         sprintBonusReadyRef.current = false;
         setEverSprint25(true);
       }
+
+      const streakMin = focusStreakRef.current / 60000;
+      const tier = Math.floor(streakMin / FOCUS_BOOST_STREAK_MIN);
+      if (tier > boostTierRef.current) {
+        const gained = tier - boostTierRef.current;
+        boostTierRef.current = tier;
+        focusBoostsRef.current += gained;
+        setFocusBoosts(focusBoostsRef.current);
+        playTreeFx("water");
+        persistSessionRef.current();
+      }
     } else {
       focusStreakRef.current = 0;
+      boostTierRef.current = 0;
       sprintBonusReadyRef.current = true;
       setStreak(0);
       sessionDistRef.current += minutes;
@@ -369,13 +482,13 @@ export default function FocusApp() {
       dstreak.state = nextState;
 
       if (dstreak.ms >= CHALLENGE_SUSTAIN_MS && !showModalRef.current) {
-        setShowModal(true);
+        openChallenge(nextState);
         dstreak.ms = 0;
       }
     } else {
       distractionStreakRef.current = { state: null, ms: 0 };
     }
-  }, []);
+  }, [openChallenge, playTreeFx]);
 
   const handleInterventionComplete = useCallback((type) => {
     setInterventionCounts((c) => {
@@ -384,6 +497,7 @@ export default function FocusApp() {
       return next;
     });
     setShowModal(false);
+    showModalRef.current = false;
   }, []);
 
   const camera = useFocusCamera(sessionOn, handleDetection);
@@ -403,8 +517,11 @@ export default function FocusApp() {
         LEVEL_DATA={LEVEL_DATA}
         todayGoal={todayGoal}
         distMin={todayDistMin}
-        lifetimeMin={lifetimeMin}
         week={liveWeek}
+        challengePoints={challengePoints}
+        treeFx={treeFx}
+        treeFxNonce={treeFxNonce}
+        userName={account?.name}
       />
     ),
     monitoring: (
@@ -425,21 +542,22 @@ export default function FocusApp() {
     tree: (
       <TabTree
         state={treeState}
-        lifetimeMin={lifetimeMin}
         streak={streak}
         focusMin={todayFocusMin}
         LEVEL_DATA={LEVEL_DATA}
+        challengePoints={challengePoints}
+        treeFx={treeFx}
+        treeFxNonce={treeFxNonce}
       />
     ),
     achievements: <TabAchievements ACHIEVEMENTS_LIST={liveAchievements} />,
     leaderboard: (
       <TabLeaderboard
+        rows={boardRows}
+        loading={boardLoading}
         focusMin={todayFocusMin}
         distMin={todayDistMin}
-        streak={streak}
-        longestStreak={longestStreakRef.current}
         lifetimeMin={lifetimeMin}
-        week={liveWeek}
       />
     ),
     report: (
@@ -451,6 +569,17 @@ export default function FocusApp() {
         todayDistMin={todayDistMin}
         todayGoal={todayGoal}
         week={liveWeek}
+      />
+    ),
+    profile: (
+      <TabProfile
+        user={account}
+        focusMin={todayFocusMin}
+        distMin={todayDistMin}
+        challengePoints={challengePoints}
+        streak={streak}
+        lifetimeMin={lifetimeMin}
+        ACHIEVEMENTS_LIST={liveAchievements}
       />
     ),
   };
@@ -475,6 +604,9 @@ export default function FocusApp() {
         resumeSession={resumeSession}
         startSession={startSession}
         setShowCheckIn={setShowCheckIn}
+        challengePoints={challengePoints}
+        userName={account?.name}
+        onOpenProfile={() => setTab("profile")}
       />
 
       <video ref={captureVideoRef} autoPlay playsInline muted
@@ -482,6 +614,15 @@ export default function FocusApp() {
       <canvas ref={canvasRef} style={{ display: "none" }} />
 
       <div key={tab} className="max-w-7xl mx-auto px-4 py-6">{VIEWS[tab]}</div>
+
+      {treeFx && tab !== "dashboard" && tab !== "tree" && (
+        <div
+          className="fixed bottom-24 right-6 z-40 pointer-events-none rounded-3xl px-3 pt-2 pb-1 border shadow-xl"
+          style={{ background: "rgba(255,255,255,0.94)", borderColor: "rgba(148,163,184,0.35)", backdropFilter: "blur(12px)" }}
+        >
+          <TreeSVG state={treeState} points={challengePoints} size={132} fx={treeFx} fxKey={treeFxNonce} />
+        </div>
+      )}
 
       {showCheckIn && (
         <div className="fixed bottom-6 right-6 z-50 w-80 fu-view">
@@ -496,7 +637,7 @@ export default function FocusApp() {
             {checkInAns === null ? (
               <div className="flex gap-2">
                 <button onClick={() => { setCheckInAns(true); setTimeout(() => { setShowCheckIn(false); setCheckInAns(null); }, 2500); }} className="flex-1 py-2.5 rounded-xl font-semibold text-sm bg-green-500 text-white hover:bg-green-400 transition-all">✅ Yes</button>
-                <button onClick={() => { setCheckInAns(false); setTimeout(() => { setShowCheckIn(false); setShowModal(true); setCheckInAns(null); }, 2500); }} className="flex-1 py-2.5 rounded-xl font-semibold text-sm border border-slate-300 text-slate-700 hover:bg-slate-100 transition-all">😔 No</button>
+                <button onClick={() => { setCheckInAns(false); setTimeout(() => { setShowCheckIn(false); setCheckInAns(null); openChallenge(state); }, 2500); }} className="flex-1 py-2.5 rounded-xl font-semibold text-sm border border-slate-300 text-slate-700 hover:bg-slate-100 transition-all">😔 No</button>
               </div>
             ) : (
               <p className={`text-sm font-semibold text-center py-1 ${checkInAns ? "text-green-600" : "text-orange-600"}`}>{checkInAns ? "Great! Keep going! 🌱" : "Let's try a quick challenge! 💪"}</p>
@@ -535,11 +676,7 @@ export default function FocusApp() {
         </div>
       )}
 
-      {["Fatigue", "Anxiety", "Boredom"].includes(state) && (
-        <IntModal open={showModal} type={state} onClose={() => setShowModal(false)} onComplete={handleInterventionComplete} />
-      )}
-
-      <FocusFooter />
+      <IntModal open={showModal} type={challengeType} onClose={() => { showModalRef.current = false; setShowModal(false); }} onComplete={handleInterventionComplete} />
     </div>
   );
 }

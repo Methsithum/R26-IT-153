@@ -25,6 +25,16 @@ def compute_scores(focus_min: float, dist_min: float, today_goal: int) -> tuple[
     return int(score), int(goal)
 
 
+CHALLENGE_POINT_COST = 5
+DAILY_CHALLENGE_POINTS = 100
+
+
+def challenge_points_for(taken: int, boosts: int = 0) -> int:
+    """Start at 0 XP (Seedling). Focus boosts add, challenges subtract, cap 100."""
+    raw = CHALLENGE_POINT_COST * max(0, int(boosts or 0)) - CHALLENGE_POINT_COST * max(0, int(taken or 0))
+    return max(0, min(DAILY_CHALLENGE_POINTS, raw))
+
+
 class FocusDailyStats(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -41,6 +51,8 @@ class FocusDailyStats(BaseModel):
     goal_progress: int = 0
     longest_streak_minutes: int = 0
     calm_quest_count: int = 0
+    challenges_taken: int = 0
+    focus_boosts: int = 0
     first_hour: int | None = None
     achievements_unlocked: list[str] = Field(default_factory=list)
 

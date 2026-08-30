@@ -2,7 +2,7 @@ from datetime import date as date_cls
 
 from fastapi import APIRouter
 
-from app.models.focus.daily_stats import split_hm
+from app.models.focus.daily_stats import challenge_points_for, split_hm
 from app.schemas.focus.report import DailyReport, EmotionalReport, WeeklyReport, WeeklyReportDay
 from app.services.focus import tracking
 
@@ -24,6 +24,9 @@ def _daily_payload(stats) -> DailyReport:
         mood_stability=stats.mood_stability,
         longest_streak_minutes=stats.longest_streak_minutes,
         calm_quest_count=stats.calm_quest_count,
+        challenges_taken=stats.challenges_taken,
+        focus_boosts=stats.focus_boosts,
+        challenge_points=challenge_points_for(stats.challenges_taken, stats.focus_boosts),
         first_hour=stats.first_hour,
         achievements_unlocked=stats.achievements_unlocked,
     )

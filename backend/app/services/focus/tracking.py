@@ -144,6 +144,8 @@ def stats_from_doc(doc: dict) -> FocusDailyStats:
         goal_progress=int(data.get("goal_progress") or goal),
         longest_streak_minutes=int(data.get("longest_streak_minutes") or 0),
         calm_quest_count=calm,
+        challenges_taken=int(data.get("challenges_taken") or 0),
+        focus_boosts=int(data.get("focus_boosts") or 0),
         first_hour=data.get("first_hour"),
         achievements_unlocked=list(data.get("achievements_unlocked") or []),
     )

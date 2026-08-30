@@ -2,14 +2,18 @@ from pydantic import BaseModel
 
 
 class LeaderboardEntry(BaseModel):
+    user_id: str
     name: str
     rank: int
+    is_you: bool = False
+    online: bool = True
     focus_hours: int
     focus_minutes: int
     distraction_hours: int
     distraction_minutes: int
     longest_streak_minutes: int
     focus_score: int
+    challenge_points: int = 0
 
 
 class ProfileResponse(BaseModel):
