@@ -20,6 +20,7 @@ SYSTEM_STAGES = {
     "exam_mark_review",
     "exam_mark_entry",
     "exam_mark_subject_needed",
+    "weekly_career_clarity",
 }
 
 

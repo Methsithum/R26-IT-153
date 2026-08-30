@@ -316,6 +316,15 @@ QUESTION_BANK: list[dict[str, Any]] = [
     _q("day-help", "Did you need help from anyone today?",
        ["Lecturer / tutor", "Friends", "No, I managed", "I needed help but didn't ask"],
        ACADEMIC, category="academic"),
+    _q(
+        "career-clarity",
+        "How confident are you this week about your career direction?",
+        ["Poor", "Fair", "Good", "Strong"],
+        ANY,
+        category="career",
+        stage="weekly_career_clarity",
+        context_field="careerClarity",
+    ),
 ]
 
 

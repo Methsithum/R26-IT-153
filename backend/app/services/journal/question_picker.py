@@ -9,7 +9,8 @@ from typing import Any, Dict, List, Optional, Sequence
 from app.services.journal.llm_service import pick_question_id
 from app.services.journal.journal_constants import MARK_RECEIVED_STAGES, is_mark_check_due
 from app.models.journal.question import QuestionModel
-from app.services.journal.question_bank import QUESTION_BANK, get_question, get_questions, pad_options
+from app.services.journal.question_bank import QUESTION_BANK, QUESTION_BY_ID, get_question, get_questions, pad_options
+from app.services.journal.career_clarity import CAREER_CLARITY_QID, scored_career_clarity
 from app.services.time_utils import as_of_day, to_local_date
 
 SHORTLIST_SIZE = 20
@@ -39,6 +40,7 @@ FORCED_QUESTION_IDS = {
     "exam-mark-pick",
     "exam-mark-check",
     "exam-mark-enter",
+    "career-clarity",
 }
 FORCED_ONLY_STAGES = {
     "lecture_subjects_needed",
@@ -58,6 +60,7 @@ FORCED_ONLY_STAGES = {
     "exam_mark_review",
     "exam_mark_entry",
     "exam_mark_subject_needed",
+    "weekly_career_clarity",
 }
 ACTIVITY_FLAVOR_PREFIXES = {
     "academic_study": ("study-", "lecture-"),
@@ -961,6 +964,20 @@ async def pick_next_question(
     )
     if mark_followup and mark_followup.get("question"):
         return {"end_session": False, "question": _hydrate_forced(mark_followup, as_of), "task_updates": []}
+
+    asked_career = (
+        scored_career_clarity(qa_history) is not None
+        or CAREER_CLARITY_QID in asked_ids
+        or CAREER_CLARITY_QID in (asked_intent_ids or [])
+    )
+    if not asked_career and not (session_context or {}).get("weekly_career_clarity_done"):
+        career_q = dict(QUESTION_BY_ID[CAREER_CLARITY_QID]) if CAREER_CLARITY_QID in QUESTION_BY_ID else get_question(CAREER_CLARITY_QID)
+        if career_q:
+            return {
+                "end_session": False,
+                "question": hydrate(career_q, as_of=as_of),
+                "task_updates": [],
+            }
 
     uncovered = uncovered_activities(
         selected_activities,
