@@ -525,7 +525,11 @@ def hydrate(
         else:
             text = f"Have {phrase} results come out?"
     if question.get("stage") == "exam_mark_entry" and missing_exams:
-        text = f"Log the mark you received for {_exam_label(missing_exams[0])}."
+        label = _exam_label(missing_exams[0])
+        if _exam_kind(missing_exams[0]) == "final" or kind == "final":
+            text = f"Fill the vial for the letter grade you received in {label}."
+        else:
+            text = f"Log the mark you received for {label}."
     return {
         **question,
         "question": text,
