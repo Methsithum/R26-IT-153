@@ -13,7 +13,9 @@ from pathlib import Path
 import joblib
 import pandas as pd
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+
+from app.models.career_prediction.prediction import CareerPredictionModel
 
 router = APIRouter(prefix="/career", tags=["Career Prediction Engine"])
 
@@ -74,6 +76,17 @@ def get_artifacts():
 # =============================================================================
 
 class StudentFeatures(BaseModel):
+    """
+    The 15 model inputs.
+
+    `anxiety_score` is sourced from focus_emotional_stats.distraction_score,
+    so the field also accepts the name "distraction_score" on the wire. Both
+    are 0-25 negative-affect scales (the model was trained on 0-21), so the
+    value carries across with no rescaling.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
     gpa_cumulative: float
     gpa_trend: float
     assignment_completion_rate: float
@@ -86,7 +99,7 @@ class StudentFeatures(BaseModel):
     sleep_consistency: float
     part_time_work_hours: float
     stress_level: float
-    anxiety_score: float
+    anxiety_score: float = Field(validation_alias=AliasChoices('anxiety_score', 'distraction_score'))
     mood_stability: float
     career_clarity_score: float
 
@@ -184,3 +197,63 @@ def get_model_metrics():
         return response
     except KeyError as exc:
         raise HTTPException(status_code=500, detail=f"Missing key in model_metadata.pkl: {exc}")
+
+
+# =============================================================================
+# ROUTE 5 — SAVE A PREDICTION
+# =============================================================================
+
+class SavePredictionRequest(BaseModel):
+    """A completed prediction plus the features it was generated from."""
+
+    user_id: str
+    prediction: dict
+    features: dict
+    estimated_features: list[str] = Field(default_factory=list)
+
+
+@router.post("/history")
+async def save_prediction(payload: SavePredictionRequest):
+    """Persist one prediction run for the student and trim old entries."""
+    if not payload.user_id:
+        raise HTTPException(status_code=422, detail="user_id is required.")
+
+    try:
+        return await CareerPredictionModel.create(
+            payload.user_id,
+            payload.prediction,
+            payload.features,
+            payload.estimated_features,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not save prediction: {exc}")
+
+
+# =============================================================================
+# ROUTE 6 — READ PREDICTION HISTORY
+# =============================================================================
+
+@router.get("/history/{user_id}")
+async def get_history(user_id: str):
+    """A student's stored predictions, newest first."""
+    try:
+        return {
+            "user_id": user_id,
+            "predictions": await CareerPredictionModel.find_by_user(user_id),
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not read history: {exc}")
+
+
+# =============================================================================
+# ROUTE 7 — CLEAR PREDICTION HISTORY
+# =============================================================================
+
+@router.delete("/history/{user_id}")
+async def clear_history(user_id: str):
+    """Remove every stored prediction for one student."""
+    try:
+        removed = await CareerPredictionModel.clear_for_user(user_id)
+        return {"user_id": user_id, "deleted": removed}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not clear history: {exc}")

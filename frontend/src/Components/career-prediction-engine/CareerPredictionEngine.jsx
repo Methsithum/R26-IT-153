@@ -1,10 +1,19 @@
-import { Route, Routes } from 'react-router-dom';
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useParams,
+} from 'react-router-dom';
 
 import Header from './components/Header';
 import Navbar from './components/Navbar';
 import Dashboard from './pages/Dashboard';
 import ProfileList from './pages/ProfileList';
 import ModelMetrics from './pages/ModelMetrics';
+// TEMPORARY: diagnostic page for verifying the MongoDB data pipeline.
+// Delete this import, its route below, and the Navbar tab when done.
+import DataCheck from './pages/DataCheck';
 
 import './theme.css';
 import './CareerPredictionEngine.css';
@@ -20,6 +29,26 @@ import './CareerPredictionEngine.css';
  * All styles are scoped under .cpe-root so they cannot leak into other
  * teammates' components.
  */
+/**
+ * Sends an unrecognised sub-path back to the feature root.
+ *
+ * `<Navigate to="">` would resolve against the current URL and land back on
+ * itself, so the root is rebuilt from the splat: everything the "*" route
+ * matched is stripped off the end of the current path.
+ */
+function RedirectToRoot() {
+  const { pathname } = useLocation();
+  const { '*': splat } = useParams();
+
+  let root = pathname;
+  if (splat && pathname.endsWith(splat)) {
+    root = pathname.slice(0, -splat.length);
+  }
+  root = root.replace(/\/+$/, '') || '/';
+
+  return <Navigate to={root} replace />;
+}
+
 export default function CareerPredictionEngine() {
   return (
     <div className="cpe-root">
@@ -31,8 +60,11 @@ export default function CareerPredictionEngine() {
           <Route index element={<Dashboard />} />
           <Route path="profiles" element={<ProfileList />} />
           <Route path="metrics" element={<ModelMetrics />} />
-          {/* Unknown sub-paths fall back to the dashboard. */}
-          <Route path="*" element={<Dashboard />} />
+          {/* TEMPORARY - remove with DataCheck.jsx */}
+          <Route path="data-check" element={<DataCheck />} />
+          {/* Unknown sub-paths redirect rather than render, so a stale or
+              malformed URL cannot keep accumulating segments. */}
+          <Route path="*" element={<RedirectToRoot />} />
         </Routes>
       </main>
     </div>
