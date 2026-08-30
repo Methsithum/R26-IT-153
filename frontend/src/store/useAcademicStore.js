@@ -11,6 +11,7 @@ import { CODE_MODULE_ENCODING, ASSESSMENT_TYPE_ENCODING, buildDateFeatureFromDea
 import { buildWeeklyModuleAllocation } from "../utils/studyAllocation";
 import { buildWeeklyFreeSlots } from "../utils/freeSlotGenerator";
 import { buildNotificationsFromRealData } from "../utils/notificationBuilder";
+import { toLocalDateStr } from "../utils/dateHelpers";
 import {
   updateTaskWeight as apiUpdateTaskWeight,
   updateTaskDeadline as apiUpdateTaskDeadline,
@@ -304,6 +305,10 @@ export const useAcademicStore = create(
       syncFromJournal: ({ tasks, exams, subjects }) => {
         if (!subjects || subjects.length === 0) return;
         const built = buildFromJournal({ tasks: tasks || [], exams: exams || [], subjects });
+        // About to potentially discard scheduleResponse/multiWeekSchedule
+        // below (when the task set changed) - freeze anything they hold for
+        // already-past dates first, same as setSchedule/setMultiWeekSchedule.
+        get().freezePastDates();
         set((s) => {
           // Only discard the cached /schedule response when the real task
           // set actually differs from what it was generated against (e.g.
@@ -318,7 +323,7 @@ export const useAcademicStore = create(
             modules: built.modules,
             assignments: built.assignments,
             exams: built.exams,
-            ...(sameTasks ? {} : { scheduleResponse: null, todoList: [] }),
+            ...(sameTasks ? {} : { scheduleResponse: null, todoList: [], multiWeekSchedule: null }),
           };
         });
         get().recomputeSemesterAllocation();
@@ -407,10 +412,100 @@ export const useAcademicStore = create(
       weeklyFreeSlots: buildWeeklyFreeSlots(MOCK_SETTINGS.studyPreferences),
       remainingFreeSlots: buildWeeklyFreeSlots(MOCK_SETTINGS.studyPreferences),
       scheduleResponse: null, // raw ScheduleResponse from the backend
+      // The real calendar date "today" was when scheduleResponse was last
+      // generated - scheduleResponse itself is keyed by WEEKDAY NAME (not
+      // real date), so once that date has slipped into the past this is the
+      // only way to know which real date its content actually belongs to.
+      // Persisted alongside scheduleResponse specifically so freezePastDates()
+      // can still resolve it correctly after a reload on a later day.
+      scheduleGeneratedDate: null,
       todoList: [],
-      setSchedule: (scheduleResponse) => set({ scheduleResponse }),
+      setSchedule: (scheduleResponse) => {
+        // Freeze whatever the OLD scheduleResponse/multiWeekSchedule held for
+        // any date that has since become past, using their content as it was
+        // immediately before this call overwrites it - see freezePastDates().
+        get().freezePastDates();
+        set({ scheduleResponse, scheduleGeneratedDate: toLocalDateStr(new Date()) });
+      },
       setRemainingFreeSlots: (slots) => set({ remainingFreeSlots: slots }),
       setTodoList: (todoList) => set({ todoList }),
+      // MultiWeekScheduleResponse (PROJECT CONTEXT.md Section 8d) - real,
+      // ISO-date-keyed sessions spanning several weeks ahead, fetched ONCE
+      // by useMultiWeekSchedule() and sliced per-viewed-week by WeekGrid.jsx,
+      // rather than a fresh backend call every time the student clicks
+      // Next/Previous week. Deliberately NOT persisted (not in `partialize`
+      // below) - it must always be refetched fresh on reload so future/today
+      // stay genuinely live (Section 8d/8e); only its already-past dates,
+      // captured into historicalScheduleByDate before each overwrite, need
+      // to survive a reload.
+      multiWeekSchedule: null,
+      setMultiWeekSchedule: (multiWeekSchedule) => {
+        get().freezePastDates();
+        set({ multiWeekSchedule });
+      },
+
+      // --- Historical (frozen) per-date schedule snapshots (Section 8e) ---
+      // { "YYYY-MM-DD": { sessions: [...], tasksRegistry: {...}, frozenAt } }
+      // Append-only: once a date is written here it is NEVER overwritten by
+      // a later regeneration, even if the live allocation algorithm would
+      // now produce something different for that same date. This is what
+      // makes past days in the Week view immune to "the schedule looked
+      // different an hour ago" - see freezePastDates() and PROJECT
+      // CONTEXT.md Section 8e for the full design rationale.
+      historicalScheduleByDate: {},
+      // Called right before scheduleResponse/multiWeekSchedule get replaced
+      // with fresh data (setSchedule/setMultiWeekSchedule above), plus once
+      // on every app load (App.jsx's HydrateUser) so a date that quietly
+      // became "yesterday" while the app was closed still gets captured
+      // before anything regenerates. Idempotent and safe to call repeatedly -
+      // a date already present in historicalScheduleByDate is never touched
+      // again by either source below.
+      freezePastDates: () => {
+        const s = get();
+        const today = toLocalDateStr(new Date());
+        const historical = { ...s.historicalScheduleByDate };
+        let changed = false;
+
+        // Source 1: scheduleResponse - the live, /reschedule-integrated
+        // single-week response, keyed by WEEKDAY NAME relative to whatever
+        // "today" was when it was generated (scheduleGeneratedDate). Only
+        // one real date is ever recoverable from it (the date it was
+        // generated for) - but it's the more authoritative source for that
+        // one date, since it reflects any "mark complete"/"missed task"
+        // adjustments the multi-week response never sees.
+        if (s.scheduleResponse && s.scheduleGeneratedDate && s.scheduleGeneratedDate < today && !historical[s.scheduleGeneratedDate]) {
+          const weekdayName = new Date(`${s.scheduleGeneratedDate}T00:00:00`).toLocaleDateString(undefined, { weekday: "long" });
+          historical[s.scheduleGeneratedDate] = {
+            sessions: s.scheduleResponse.schedule?.[weekdayName] || [],
+            tasksRegistry: s.scheduleResponse.tasks || {},
+            frozenAt: new Date().toISOString(),
+            source: "scheduleResponse",
+          };
+          changed = true;
+        }
+
+        // Source 2: multiWeekSchedule - already real-ISO-date-keyed, covers
+        // every date in its generated range (even ones with zero sessions -
+        // frozen as a genuine "nothing was scheduled" record, distinct from
+        // a date that was simply never captured at all). Only fills in
+        // dates Source 1 didn't already claim, so scheduleResponse's more
+        // authoritative version of "today at generation time" always wins.
+        if (s.multiWeekSchedule?.schedule) {
+          for (const [dateStr, sessions] of Object.entries(s.multiWeekSchedule.schedule)) {
+            if (dateStr < today && !historical[dateStr]) {
+              historical[dateStr] = {
+                sessions,
+                tasksRegistry: s.multiWeekSchedule.tasks || {},
+                frozenAt: new Date().toISOString(),
+                source: "multiWeekSchedule",
+              };
+              changed = true;
+            }
+          }
+        }
+
+        if (changed) set({ historicalScheduleByDate: historical });
+      },
 
       // --- Notifications (mock) ---
       // Real, derived from actual assignments/exams/modules — see
@@ -444,7 +539,12 @@ export const useAcademicStore = create(
       settings: MOCK_SETTINGS,
       updateNotificationSetting: (key, value) =>
         set((s) => ({ settings: { ...s.settings, notifications: { ...s.settings.notifications, [key]: value } } })),
-      updateStudyPreference: (key, value) =>
+      updateStudyPreference: (key, value) => {
+        if (key === "preferredStudyTimes" || key === "maxDailyStudyHours") {
+          // About to null out scheduleResponse/multiWeekSchedule below -
+          // freeze anything they hold for already-past dates first.
+          get().freezePastDates();
+        }
         set((s) => {
           const studyPreferences = { ...s.settings.studyPreferences, [key]: value };
           const patch = { settings: { ...s.settings, studyPreferences } };
@@ -456,9 +556,11 @@ export const useAcademicStore = create(
             patch.remainingFreeSlots = patch.weeklyFreeSlots;
             patch.scheduleResponse = null;
             patch.todoList = [];
+            patch.multiWeekSchedule = null;
           }
           return patch;
-        }),
+        });
+      },
 
       // --- Streak / celebratory state ---
       streak: 6,
@@ -480,6 +582,8 @@ export const useAcademicStore = create(
         weeklyFreeSlots: s.weeklyFreeSlots,
         remainingFreeSlots: s.remainingFreeSlots,
         scheduleResponse: s.scheduleResponse,
+        scheduleGeneratedDate: s.scheduleGeneratedDate,
+        historicalScheduleByDate: s.historicalScheduleByDate,
         todoList: s.todoList,
         notifications: s.notifications,
         settings: s.settings,
@@ -499,7 +603,12 @@ export const useAcademicStore = create(
       // generated before this fix baked in priority_labels predicted from
       // the wrong feature) so the next load calls /schedule fresh with
       // corrected inputs instead of serving stale cached output forever.
-      version: 7,
+      // v8: introduces historicalScheduleByDate + scheduleGeneratedDate
+      // (Section 8e) - new, additive fields with safe defaults ({} / null)
+      // already set by the store initializer above, so no transform is
+      // needed for existing persisted state; the version bump exists purely
+      // as a changelog marker for this schema addition.
+      version: 8,
       migrate: migrateAcademicStore,
     }
   )

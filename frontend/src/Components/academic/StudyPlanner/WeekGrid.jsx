@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, CalendarX, Coffee, GraduationCap, ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
+import { BookOpen, CalendarX, Coffee, GraduationCap, ChevronLeft, ChevronRight, CheckCircle2, Clock, History } from "lucide-react";
 import { PRIORITY_COLORS } from "../../../utils/featureNameMap";
 import { WEEKDAYS, getWeekStart, addDays, toLocalDateStr, formatWeekRangeLabel } from "../../../utils/dateHelpers";
 import { useAcademicStore } from "../../../store/useAcademicStore";
+import { useMultiWeekSchedule } from "../../../hooks/useAcademicData";
 import {
   buildStudySessionsByDay,
   startMinutes,
@@ -40,21 +41,124 @@ function startTimeOf(entry) {
   return (entry.time_slot || entry.timeSlot || "0:0").split("-")[0];
 }
 
+/** One real session card - a suggested self-study block or a real scheduled task. Shared by the current week and any other in-range week (Part: multi-week integration), so this rendering is written once. */
+function SessionCard({ entry, di, i, tasksRegistry, assignments, moduleName }) {
+  const isStudySession = entry.timeSlot != null;
+  const delay = di * 0.02 + i * 0.03;
+
+  if (isStudySession) {
+    const s = entry;
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay }}
+        className="rounded-xl px-2.5 py-2 border border-dashed hover:-translate-y-0.5 hover:shadow-playful transition-all"
+        style={{ borderColor: MODULE_COLOR_HEX[s.color] || "#7c3aed", backgroundColor: `${MODULE_COLOR_HEX[s.color] || "#7c3aed"}14` }}
+      >
+        <div className="flex items-center gap-1">
+          <BookOpen size={11} style={{ color: MODULE_COLOR_HEX[s.color] || "#7c3aed" }} />
+          <p className="text-[11px] font-bold" style={{ color: MODULE_COLOR_HEX[s.color] || "#7c3aed" }}>
+            {s.timeSlot}
+          </p>
+        </div>
+        <p className="text-xs font-semibold text-slate-700 dark:text-white leading-snug wrap-break-word" title={s.assignmentTitle || s.moduleName}>
+          {s.assignmentTitle || s.moduleName}
+        </p>
+        <p className="text-[10px] text-slate-400 leading-snug wrap-break-word">
+          {s.assignmentTitle ? `${s.moduleName} · ` : ""}Study session · {s.durationMinutes} min
+        </p>
+      </motion.div>
+    );
+  }
+
+  const item = entry;
+  const priority = tasksRegistry?.[item.task_id]?.priority_label || "Medium";
+  const colors = PRIORITY_COLORS[priority];
+  const display = resolveSessionDisplay(item, { tasksRegistry, assignments, moduleName });
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay }}
+      className={`rounded-xl px-2.5 py-2 ${colors.bg} hover:-translate-y-0.5 hover:shadow-playful transition-all ${display.isExamPrep ? "border-2" : ""}`}
+      style={display.isExamPrep ? { borderColor: EXAM_PREP_ACCENT_HEX } : undefined}
+    >
+      <div className="flex items-center gap-1.5">
+        {display.isExamPrep ? (
+          <GraduationCap size={11} style={{ color: EXAM_PREP_ACCENT_HEX }} title="Exam prep" />
+        ) : (
+          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${colors.dot}`} title={`${priority} priority`} />
+        )}
+        <p className={`text-[11px] font-bold ${colors.text}`}>{item.time_slot}</p>
+      </div>
+      <p className="text-xs font-semibold text-slate-700 dark:text-white leading-snug wrap-break-word" title={display.title}>
+        {display.title}
+      </p>
+      <p className="text-[10px] text-slate-400 leading-snug wrap-break-word">
+        {display.subtitle ? `${display.subtitle} · ` : ""}{item.duration_minutes} min
+      </p>
+    </motion.div>
+  );
+}
+
+function BandedTimeline({ timeline, di, tasksRegistry, assignments, moduleName }) {
+  const bandedGroups = TIME_OF_DAY_BAND_ORDER.map((band) => ({
+    band,
+    entries: timeline.filter((entry) => getTimeOfDayBand(startTimeOf(entry)) === band),
+  })).filter((g) => g.entries.length > 0);
+
+  return (
+    <div className="space-y-3 flex-1">
+      {bandedGroups.map(({ band, entries }) => (
+        <div key={band}>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 shrink-0">{band}</span>
+            <span className="flex-1 h-px bg-slate-100 dark:bg-white/10" />
+          </div>
+          <div className="space-y-2">
+            {entries.map((entry, i) => (
+              <SessionCard
+                key={entry.taskId || `${entry.task_id}-${i}`}
+                entry={entry}
+                di={di}
+                i={i}
+                tasksRegistry={tasksRegistry}
+                assignments={assignments}
+                moduleName={moduleName}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
   const modules = useAcademicStore((s) => s.modules);
   const weeklyFreeSlots = useAcademicStore((s) => s.weeklyFreeSlots);
   const assignments = useAcademicStore((s) => s.assignments);
-  const exams = useAcademicStore((s) => s.exams);
+  // Frozen per-date snapshots (Section 8e) - once a past date is captured
+  // here, it is the SOLE source of truth for that date's content below,
+  // regardless of what the live schedule/multiWeekSchedule now says for it.
+  const historicalScheduleByDate = useAcademicStore((s) => s.historicalScheduleByDate);
   const moduleName = (code) => modules.find((m) => m.code === code)?.name || code;
+
+  // Real, ISO-date-keyed sessions spanning several weeks ahead (PROJECT
+  // CONTEXT.md Section 8d) - fetched once, sliced per viewed week below,
+  // instead of a fresh backend call every time the student navigates.
+  const { multiWeekSchedule, loading: multiWeekLoading } = useMultiWeekSchedule();
 
   // --- Part 2: week navigation --------------------------------------------
   // weekOffset counts real weeks away from the actual current week (0 = this
-  // week, +1 = next week, -1 = last week). The backend has no way to
-  // generate a time-blocked schedule for anything but "today" (StudyScheduler
-  // always anchors to date.today() server-side - no anchor_date param exists
-  // on /schedule), so only weekOffset===0 can show the real, algorithmically
-  // time-blocked plan. Other weeks are honestly derived from real assignment/
-  // exam DATES already in the store instead of a fabricated time-blocked view.
+  // week, +1 = next week, -1 = last week). The CURRENT week keeps using the
+  // single-week `schedule` prop (from useWeeklySchedule/StudyPlanner.jsx) -
+  // it's the one still wired to /reschedule for live "mark complete"/"missed
+  // task" adjustments. Every OTHER week is sliced from multiWeekSchedule,
+  // which covers real, backend-time-blocked sessions up to its generated
+  // range (up to 12 weeks - schedule_engine.py's MAX_WEEKS_AHEAD); a week
+  // beyond that range still honestly says so rather than showing nothing.
   const [weekOffset, setWeekOffset] = useState(0);
   const [direction, setDirection] = useState(0); // -1 = navigated back, +1 = forward, drives the slide direction
 
@@ -83,6 +187,15 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
   if (isCurrentWeek && !currentWeekHasAny) {
     return <EmptyState icon={CalendarX} title="No sessions scheduled yet" subtitle="Generate a plan to fill your week with time-blocked study sessions." />;
   }
+
+  const rangeStart = multiWeekSchedule?.range_start;
+  const rangeEnd = multiWeekSchedule?.range_end;
+
+  // Overload warnings relevant to the currently-viewed non-current week
+  // (its own tasks registry doesn't map 1:1 onto the current week's props).
+  const viewedWeekOverload = !isCurrentWeek && multiWeekSchedule
+    ? multiWeekSchedule.overload_warning.filter((w) => w.deadline_date >= toLocalDateStr(weekDates[0]) && w.deadline_date <= toLocalDateStr(weekDates[6]))
+    : [];
 
   return (
     <div className="space-y-5">
@@ -131,10 +244,18 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
         </div>
       )}
 
-      {!isCurrentWeek && (
-        <p className="text-xs text-slate-400 -mt-2">
-          Showing tasks and exams due this week by their real dates — the time-blocked plan below is only generated for the current week.
-        </p>
+      {!isCurrentWeek && viewedWeekOverload.length > 0 && (
+        <div className="card p-4 border-l-4 border-high-500 bg-high-50/60 dark:bg-high-500/10">
+          <p className="text-sm font-semibold text-high-600 mb-1">A few tasks need more room than your free time allows</p>
+          <ul className="text-xs text-slate-600 dark:text-slate-300 space-y-0.5">
+            {viewedWeekOverload.map((w) => (
+              <li key={w.task_id}>
+                {moduleName(w.module)} — short by {w.hours_short}h before {w.deadline_date}. Consider freeing up
+                extra time or adjusting scope.
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       <AnimatePresence mode="wait" custom={direction}>
@@ -153,36 +274,88 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
             const isToday = dateStr === TODAY_DATE_STR;
             const isPast = dateStr < TODAY_DATE_STR;
 
-            const items = isCurrentWeek ? schedule?.[day] || [] : [];
-            const studySessions = isCurrentWeek ? studySessionsByDay[day] || [] : [];
+            const withinGeneratedRange = !isCurrentWeek && rangeStart && dateStr >= rangeStart && dateStr <= rangeEnd;
+
+            // Past dates NEVER read from the live schedule/multiWeekSchedule,
+            // no matter what those currently say - once a date is past, its
+            // content is frozen (Section 8e) the moment it's captured by
+            // freezePastDates() (useAcademicStore), and a later regeneration
+            // must not be able to change what already happened. A past date
+            // with no frozen record at all (captured before this mechanism
+            // existed, or a gap while the app was closed) honestly says so
+            // below rather than showing a misleading empty "Nothing scheduled".
+            const historicalRecord = isPast ? historicalScheduleByDate?.[dateStr] : null;
+            const hasHistoricalRecord = isPast && !!historicalRecord;
+
+            // Which task/session data source this day pulls from (today/future only):
+            //  - current week: the live, /reschedule-integrated single-week `schedule` prop (weekday-keyed).
+            //  - other weeks within the generated range: multiWeekSchedule (real ISO-date-keyed).
+            //  - other weeks outside the range: none - honest fallback below.
+            //
+            // IMPORTANT for the current week: `schedule` (and studySessionsByDay)
+            // are keyed by weekday NAME, but StudyScheduler resolves those names
+            // relative to ITS OWN anchor (today), not this calendar-Monday-
+            // aligned display - "Monday" means "the next Monday from today",
+            // which is a DIFFERENT calendar date than this column's `dayDate`
+            // whenever today isn't itself Monday. The static `day` from the
+            // WEEKDAYS iteration must NOT be used to look up real content here
+            // - only `dayDate`'s OWN real weekday name correctly identifies
+            // which backend bucket this specific date actually landed in.
+            const realDayName = dayDate.toLocaleDateString(undefined, { weekday: "long" });
+            const items = isPast
+              ? historicalRecord?.sessions || []
+              : isCurrentWeek
+              ? schedule?.[realDayName] || []
+              : withinGeneratedRange
+              ? multiWeekSchedule.schedule[dateStr] || []
+              : [];
+            const studySessions = isCurrentWeek && !isPast ? studySessionsByDay[realDayName] || [] : []; // suggested self-study blocks are current-week-only (tied to weeklyFreeSlots' day-name pattern), and never part of a frozen historical record
+            const activeTasksRegistry = isPast
+              ? historicalRecord?.tasksRegistry || {}
+              : isCurrentWeek
+              ? tasksRegistry
+              : multiWeekSchedule?.tasks;
+
             const timeline = [...items, ...studySessions].sort(
               (a, b) => startMinutes(a.time_slot || a.timeSlot) - startMinutes(b.time_slot || b.timeSlot)
             );
-
-            // Non-current weeks: honestly derived from real assignment/exam
-            // dates already in the store (Part 2) - not a fabricated
-            // time-blocked schedule, since only the current week has one.
-            const dueAssignments = !isCurrentWeek ? assignments.filter((a) => a.deadlineDate === dateStr) : [];
-            const dueExams = !isCurrentWeek ? exams.filter((e) => e.date === dateStr) : [];
-            const hasDerivedContent = dueAssignments.length > 0 || dueExams.length > 0;
 
             const scheduledMinutes = timelineUsedMinutes(timeline);
             const freeMinutes = isCurrentWeek ? Math.max(0, totalFreeSlotMinutes(day, weeklyFreeSlots) - scheduledMinutes) : 0;
             const freeLabel = isCurrentWeek ? formatMinutes(freeMinutes) : null;
 
             const priorityCounts = items.reduce((acc, item) => {
-              const p = tasksRegistry?.[item.task_id]?.priority_label || "Medium";
+              const p = activeTasksRegistry?.[item.task_id]?.priority_label || "Medium";
               acc[p] = (acc[p] || 0) + 1;
               return acc;
             }, {});
 
-            // Part 1: group the current week's real, time-slotted sessions
-            // into time-of-day bands. Non-current-week "due" entries have no
-            // real time, so banding doesn't apply to them.
-            const bandedGroups = TIME_OF_DAY_BAND_ORDER.map((band) => ({
-              band,
-              entries: timeline.filter((entry) => getTimeOfDayBand(startTimeOf(entry)) === band),
-            })).filter((g) => g.entries.length > 0);
+            let emptyState = null;
+            if (isPast) {
+              if (!hasHistoricalRecord) {
+                emptyState = {
+                  icon: History,
+                  title: "Historical data not available",
+                  subtitle: "This day passed before permanent history tracking began, so its original plan can't be shown.",
+                };
+              } else if (timeline.length === 0) {
+                emptyState = { title: "Nothing scheduled", subtitle: "This day was genuinely free." };
+              }
+            } else if (isCurrentWeek && timeline.length === 0) {
+              emptyState = { title: "Nothing scheduled", subtitle: "Good day for a break, or tackle something ahead of time." };
+            } else if (!isCurrentWeek) {
+              if (!multiWeekSchedule && multiWeekLoading) {
+                emptyState = { icon: Clock, title: "Loading…", subtitle: "Fetching this week's real plan." };
+              } else if (!withinGeneratedRange) {
+                emptyState = {
+                  icon: Clock,
+                  title: "Too far ahead",
+                  subtitle: "This week is beyond the planner's generated range (up to 12 weeks) — check back closer to it.",
+                };
+              } else if (timeline.length === 0) {
+                emptyState = { title: "Nothing scheduled", subtitle: "No study time or deadlines land on this real day." };
+              }
+            }
 
             return (
               <div
@@ -199,10 +372,7 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
                   {/* Part 3: "Day complete" indicator, distinct from the
                       today ring/dot above - only for genuinely past days. */}
                   {isPast && (
-                    <span
-                      className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-slate-400"
-                      title="Day complete"
-                    >
+                    <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-slate-400" title="Day complete">
                       <CheckCircle2 size={11} /> Done
                     </span>
                   )}
@@ -213,122 +383,16 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
                     priority/module colors, never a redesign of the cards
                     themselves. Today is never muted, only real past days. */}
                 <div className={`flex-1 flex flex-col min-h-0 ${isPast ? "opacity-55 saturate-[.45]" : ""}`}>
-                  {isCurrentWeek && timeline.length === 0 && (
-                    <EmptyDay />
-                  )}
-                  {!isCurrentWeek && !hasDerivedContent && (
-                    <EmptyDay
-                      title="No schedule data"
-                      subtitle="Nothing due this day, based on real deadlines — this week hasn't been time-blocked by the planner."
+                  {emptyState ? (
+                    <EmptyDay {...emptyState} />
+                  ) : (
+                    <BandedTimeline
+                      timeline={timeline}
+                      di={di}
+                      tasksRegistry={activeTasksRegistry}
+                      assignments={assignments}
+                      moduleName={moduleName}
                     />
-                  )}
-
-                  {isCurrentWeek && timeline.length > 0 && (
-                    <div className="space-y-3 flex-1">
-                      {bandedGroups.map(({ band, entries }) => (
-                        <div key={band}>
-                          <div className="flex items-center gap-1.5 mb-1.5">
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 shrink-0">{band}</span>
-                            <span className="flex-1 h-px bg-slate-100 dark:bg-white/10" />
-                          </div>
-                          <div className="space-y-2">
-                            {entries.map((entry, i) => {
-                              const isStudySession = entry.timeSlot != null;
-                              const delay = di * 0.02 + i * 0.03;
-                              if (isStudySession) {
-                                const s = entry;
-                                return (
-                                  <motion.div
-                                    key={s.taskId}
-                                    initial={{ opacity: 0, y: 8 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay }}
-                                    className="rounded-xl px-2.5 py-2 border border-dashed hover:-translate-y-0.5 hover:shadow-playful transition-all"
-                                    style={{ borderColor: MODULE_COLOR_HEX[s.color] || "#7c3aed", backgroundColor: `${MODULE_COLOR_HEX[s.color] || "#7c3aed"}14` }}
-                                  >
-                                    <div className="flex items-center gap-1">
-                                      <BookOpen size={11} style={{ color: MODULE_COLOR_HEX[s.color] || "#7c3aed" }} />
-                                      <p className="text-[11px] font-bold" style={{ color: MODULE_COLOR_HEX[s.color] || "#7c3aed" }}>
-                                        {s.timeSlot}
-                                      </p>
-                                    </div>
-                                    <p
-                                      className="text-xs font-semibold text-slate-700 dark:text-white leading-snug wrap-break-word"
-                                      title={s.assignmentTitle || s.moduleName}
-                                    >
-                                      {s.assignmentTitle || s.moduleName}
-                                    </p>
-                                    <p className="text-[10px] text-slate-400 leading-snug wrap-break-word">
-                                      {s.assignmentTitle ? `${s.moduleName} · ` : ""}Study session · {s.durationMinutes} min
-                                    </p>
-                                  </motion.div>
-                                );
-                              }
-                              const item = entry;
-                              const priority = tasksRegistry?.[item.task_id]?.priority_label || "Medium";
-                              const colors = PRIORITY_COLORS[priority];
-                              const display = resolveSessionDisplay(item, { tasksRegistry, assignments, moduleName });
-                              return (
-                                <motion.div
-                                  key={`${item.task_id}-${i}`}
-                                  initial={{ opacity: 0, y: 8 }}
-                                  animate={{ opacity: 1, y: 0 }}
-                                  transition={{ delay }}
-                                  className={`rounded-xl px-2.5 py-2 ${colors.bg} hover:-translate-y-0.5 hover:shadow-playful transition-all ${
-                                    display.isExamPrep ? "border-2" : ""
-                                  }`}
-                                  style={display.isExamPrep ? { borderColor: EXAM_PREP_ACCENT_HEX } : undefined}
-                                >
-                                  <div className="flex items-center gap-1.5">
-                                    {display.isExamPrep ? (
-                                      <GraduationCap size={11} style={{ color: EXAM_PREP_ACCENT_HEX }} title="Exam prep" />
-                                    ) : (
-                                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${colors.dot}`} title={`${priority} priority`} />
-                                    )}
-                                    <p className={`text-[11px] font-bold ${colors.text}`}>{item.time_slot}</p>
-                                  </div>
-                                  <p
-                                    className="text-xs font-semibold text-slate-700 dark:text-white leading-snug wrap-break-word"
-                                    title={display.title}
-                                  >
-                                    {display.title}
-                                  </p>
-                                  <p className="text-[10px] text-slate-400 leading-snug wrap-break-word">
-                                    {display.subtitle ? `${display.subtitle} · ` : ""}{item.duration_minutes} min
-                                  </p>
-                                </motion.div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {!isCurrentWeek && hasDerivedContent && (
-                    <div className="space-y-2 flex-1">
-                      {dueExams.map((e) => (
-                        <div
-                          key={e.id}
-                          className="rounded-xl px-2.5 py-2 border-2 bg-white dark:bg-white/5"
-                          style={{ borderColor: EXAM_PREP_ACCENT_HEX }}
-                        >
-                          <div className="flex items-center gap-1.5">
-                            <GraduationCap size={11} style={{ color: EXAM_PREP_ACCENT_HEX }} />
-                            <p className="text-[10px] font-bold" style={{ color: EXAM_PREP_ACCENT_HEX }}>Exam</p>
-                          </div>
-                          <p className="text-xs font-semibold text-slate-700 dark:text-white leading-snug wrap-break-word">
-                            {e.type} — {e.moduleName}
-                          </p>
-                        </div>
-                      ))}
-                      {dueAssignments.map((a) => (
-                        <div key={a.taskId} className="rounded-xl px-2.5 py-2 bg-slate-50 dark:bg-white/5 border border-black/5 dark:border-white/10">
-                          <p className="text-xs font-semibold text-slate-700 dark:text-white leading-snug wrap-break-word">{a.title}</p>
-                          <p className="text-[10px] text-slate-400 leading-snug wrap-break-word">{a.moduleName} · due this day</p>
-                        </div>
-                      ))}
-                    </div>
                   )}
                 </div>
 
@@ -366,11 +430,11 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
   );
 }
 
-function EmptyDay({ title = "Nothing scheduled", subtitle = "Good day for a break, or tackle something ahead of time." }) {
+function EmptyDay({ icon: Icon = Coffee, title = "Nothing scheduled", subtitle = "Good day for a break, or tackle something ahead of time." }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-center px-1 py-4">
       <div className="w-9 h-9 rounded-xl bg-brand-50 dark:bg-brand-500/15 flex items-center justify-center mb-2">
-        <Coffee size={16} className="text-brand-400" />
+        <Icon size={16} className="text-brand-400" />
       </div>
       <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-300">{title}</p>
       <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">{subtitle}</p>

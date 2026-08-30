@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAcademicStore } from "../store/useAcademicStore";
-import { createSchedule, rescheduleSchedule, getTodoList } from "../services/academicApi";
+import { createSchedule, createMultiWeekSchedule, rescheduleSchedule, getTodoList } from "../services/academicApi";
 import { applyPriorityEngineToScheduleResult } from "../utils/priorityEngine";
-import { buildExamPrepTasks, toApiTaskInput } from "../utils/examPrepScheduling";
+import { buildExamPrepTasks, buildMultiWeekExamPrepTasks, toApiTaskInput } from "../utils/examPrepScheduling";
+
+// How many weeks ahead useMultiWeekSchedule() requests by default - matches
+// the backend's own MAX_WEEKS_AHEAD (schedule_engine.py) so a request never
+// asks for more than the backend will ever generate; the backend still
+// auto-derives a SHORTER range from the farthest real deadline when that's
+// sooner, so this is a ceiling, not a guarantee every call generates 12
+// full weeks.
+const MULTI_WEEK_WEEKS_AHEAD = 12;
 
 // The backend's /todo rejects a schedule whose `tasks` registry is empty
 // (422 "schedule_result has no 'tasks' registry") instead of just returning
@@ -94,6 +102,68 @@ export function useWeeklySchedule() {
   }, [assignments, weeklyFreeSlots]);
 
   return { schedule: scheduleResponse, loading, error, regenerate: generate };
+}
+
+/**
+ * Generates the real, ISO-date-keyed multi-week schedule (PROJECT
+ * CONTEXT.md Section 8d) via /multi-week-schedule, ONCE (covering
+ * MULTI_WEEK_WEEKS_AHEAD weeks) rather than once per Next/Previous click -
+ * WeekGrid.jsx then slices out whichever 7-day window is currently being
+ * viewed from this single response. Mirrors useWeeklySchedule()'s task-
+ * building (same assignments + exam-prep sources), but sends exam-prep as
+ * one task PER WEEK (buildMultiWeekExamPrepTasks) instead of one task
+ * capped to "this week" only, and does NOT cap assignment hours to a single
+ * week either - assignments already send their full remaining
+ * estimated_hours_needed, letting the backend's rolling allocator (not this
+ * hook) decide which week(s) they land in.
+ */
+export function useMultiWeekSchedule() {
+  const assignments = useAcademicStore((s) => s.assignments);
+  const weeklyFreeSlots = useAcademicStore((s) => s.weeklyFreeSlots);
+  const exams = useAcademicStore((s) => s.exams);
+  const modules = useAcademicStore((s) => s.modules);
+  const multiWeekSchedule = useAcademicStore((s) => s.multiWeekSchedule);
+  const setMultiWeekSchedule = useAcademicStore((s) => s.setMultiWeekSchedule);
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const generate = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const pending = assignments.filter((a) => a.status === "pending");
+      const tasks = pending.map((a) => ({
+        task_id: a.taskId,
+        module: a.module,
+        deadline_date: a.deadlineDate,
+        weight: a.weight,
+        estimated_hours_needed: Math.max(a.estimatedHoursNeeded - a.completedHours, 0.5),
+        feature_row: a.featureRow,
+        task_type: a.taskType || "assignment",
+      }));
+      const examPrepTasks = buildMultiWeekExamPrepTasks(exams, modules, MULTI_WEEK_WEEKS_AHEAD).map(toApiTaskInput);
+      const result = applyPriorityEngineToScheduleResult(
+        await createMultiWeekSchedule(weeklyFreeSlots, [...tasks, ...examPrepTasks], MULTI_WEEK_WEEKS_AHEAD)
+      );
+      setMultiWeekSchedule(result);
+      return result;
+    } catch (e) {
+      setError(e.message);
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }, [assignments, weeklyFreeSlots, exams, modules, setMultiWeekSchedule]);
+
+  useEffect(() => {
+    if (!multiWeekSchedule) {
+      generate().catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignments, weeklyFreeSlots]);
+
+  return { multiWeekSchedule, loading, error, regenerate: generate };
 }
 
 /** Wraps /reschedule for the "mark complete" / "missed task" flows. */

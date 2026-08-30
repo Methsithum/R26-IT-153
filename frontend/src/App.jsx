@@ -42,6 +42,13 @@ function RedirectIfAuthed({ children }) {
 
 function HydrateUser({ children }) {
   useEffect(() => {
+    // Runs on every app load regardless of whether anything actually
+    // regenerates below - a reload where nothing changed still needs to
+    // catch a date that quietly became "yesterday" while the app was
+    // closed, since setSchedule/setMultiWeekSchedule (where this also runs)
+    // may not get called again for a while otherwise (Section 8e).
+    useAcademicStore.getState().freezePastDates();
+
     const local = readStoredUser();
     const preserveRun = isActiveCampusRun(useGameStore.getState());
     if (local) {

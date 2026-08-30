@@ -39,6 +39,21 @@ export function createSchedule(weeklyFreeSlots, tasks) {
   return unwrap(client.post("/schedule", { weekly_free_slots: weeklyFreeSlots, tasks }));
 }
 
+/**
+ * POST /multi-week-schedule — { weekly_free_slots, tasks, weeks_ahead? } ->
+ * { schedule (real ISO date -> sessions, spanning every generated week),
+ *   overload_warning, tasks (+ weeks_allocated per task), weeks_generated,
+ *   range_start, range_end }. Called ONCE to cover a forward range of weeks
+ * (see useMultiWeekSchedule(), useAcademicData.js) rather than once per
+ * "Next"/"Previous" click - the Week view then slices whichever 7-day
+ * window is currently being viewed out of this single response.
+ */
+export function createMultiWeekSchedule(weeklyFreeSlots, tasks, weeksAhead) {
+  return unwrap(
+    client.post("/multi-week-schedule", { weekly_free_slots: weeklyFreeSlots, tasks, weeks_ahead: weeksAhead ?? null })
+  );
+}
+
 /** POST /reschedule — previous schedule + remaining free slots + completed/new tasks -> same shape as /schedule */
 export function rescheduleSchedule({ previousSchedule, remainingFreeSlots, completedTaskIds, newTasks }) {
   return unwrap(

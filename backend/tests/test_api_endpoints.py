@@ -82,6 +82,20 @@ class TestSchedule:
         assert body["tasks"]["smoke-t1"]["task_type"] == "assignment"
 
 
+class TestMultiWeekSchedule:
+    def test_returns_200_with_valid_body(self, api_client, sample_schedule_request):
+        payload = {**sample_schedule_request, "weeks_ahead": 2}
+        resp = api_client.post("/study-planner/multi-week-schedule", json=payload)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["weeks_generated"] == 2
+        assert "range_start" in body and "range_end" in body
+        assert "smoke-t1" in body["tasks"]
+        assert "weeks_allocated" in body["tasks"]["smoke-t1"]
+        # schedule keys must be real ISO dates, not weekday names.
+        assert all(len(k) == 10 and k[4] == "-" and k[7] == "-" for k in body["schedule"].keys())
+
+
 class TestReschedule:
     def test_returns_200_with_valid_body(self, api_client, sample_schedule_request):
         schedule_resp = api_client.post("/study-planner/schedule", json=sample_schedule_request).json()
