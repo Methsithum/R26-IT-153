@@ -21,16 +21,8 @@ const SLEEP_REGULARITY = [
 /** Upper bound the model was trained on for nightly sleep hours. */
 const SLEEP_HOURS_MODEL_MAX = 7.0;
 
-/** Map a 0-100 career clarity score to its descriptive band. */
-function clarityLabel(score) {
-  if (score <= 25) return 'Very Unclear';
-  if (score <= 50) return 'Somewhat Unclear';
-  if (score <= 75) return 'Somewhat Clear';
-  return 'Very Clear';
-}
-
 /**
- * One-time survey collecting the 4 features MongoDB does not provide.
+ * One-time survey collecting the 3 features MongoDB does not provide.
  *
  * @param {function} onComplete - called with the saved answers on submit
  * @param {object}   [initialAnswers] - existing answers when re-editing
@@ -58,12 +50,9 @@ export default function StudentSurvey({
   const [workHours, setWorkHours] = useState(
     initialAnswers?.part_time_work_hours ?? 0,
   );
-  const [clarity, setClarity] = useState(
-    initialAnswers?.career_clarity_score ?? 50,
-  );
 
   /**
-   * Assemble the four answers into the shape the model expects.
+   * Assemble the three answers into the shape the model expects.
    *
    * Sleep hours are clamped to the trained maximum before being used as a
    * model feature, while the student's real answer is kept alongside it so
@@ -79,7 +68,6 @@ export default function StudentSurvey({
       sleep_hours_avg_reported: hours,
       sleep_consistency: over.sleepConsistency ?? sleepConsistency,
       part_time_work_hours: over.workHours ?? workHours,
-      career_clarity_score: over.clarity ?? clarity,
     };
   };
 
@@ -124,17 +112,17 @@ export default function StudentSurvey({
               Quick Setup — Help Us Personalise Your Prediction
             </h2>
             <p className="svy-sub">
-              Answer 4 quick questions once. We use this to predict your academic
+              Answer 3 quick questions once. We use this to predict your academic
               risk and career readiness.
             </p>
           </div>
 
-          {/* Progress indicator - all four questions are on one page, so every
+          {/* Progress indicator - all three questions are on one page, so every
               dot is shown as complete. */}
           <div className="svy-progress">
-            <span className="svy-progress-text">4 questions</span>
+            <span className="svy-progress-text">3 questions</span>
             <div className="svy-dots">
-              {[0, 1, 2, 3].map((i) => (
+              {[0, 1, 2].map((i) => (
                 <span key={i} className="svy-dot svy-dot-on" />
               ))}
             </div>
@@ -218,30 +206,6 @@ export default function StudentSurvey({
           <span className="svy-value">{workHours} hours per week</span>
         </div>
         <p className="svy-note">Put 0 if you do not work</p>
-      </div>
-
-      {/* Q4 - career clarity */}
-      <div className="svy-q">
-        <label className="svy-label" htmlFor="svy-clarity">
-          How clear are you about your career path?
-        </label>
-        <div className="svy-slider-row">
-          <input
-            id="svy-clarity"
-            className="svy-range"
-            type="range"
-            min={0}
-            max={100}
-            step={1}
-            value={clarity}
-            onChange={(e) => {
-                  const v = Number(e.target.value);
-                  setClarity(v);
-                  commit({ clarity: v });
-                }}
-          />
-          <span className="svy-value">{clarityLabel(clarity)}</span>
-        </div>
       </div>
 
       {/* Embedded mode saves on every change, so the parent's own Generate

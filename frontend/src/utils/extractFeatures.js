@@ -27,18 +27,26 @@ const DEFAULTS = {
   project_performance: 70,
   attendance_rate: 0.8,
   weekly_study_hours: 14,
-  stress_level: 35,
-  anxiety_score: 9,
-  mood_stability: 61,
+  // Emotional fallbacks, used only when focus_emotional_stats has no
+  // document for this user yet.
+  stress_level: 50,
+  anxiety_score: 10,
+  mood_stability: 60,
 };
 
-/** Survey fallbacks, per the component spec. */
+/** Fallbacks for the 3 survey questions, used before the student answers. */
 const SURVEY_DEFAULTS = {
   sleep_hours_avg: 6.5,
-  sleep_consistency: 0.6,
+  sleep_consistency: 1.2,
   part_time_work_hours: 10,
-  career_clarity_score: 50,
 };
+
+/**
+ * career_clarity_score is not collected anywhere yet - no teammate component
+ * writes it and the survey no longer asks. 50 is the neutral midpoint until
+ * a real source exists.
+ */
+const CAREER_CLARITY_DEFAULT = 50;
 
 /** Clamp helper so no derived feature leaves its valid range. */
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -145,20 +153,24 @@ function deriveAttendance(sessions, createdAt) {
   const WINDOW_DAYS = 30;
   const cutoff = Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000;
 
-  // Count distinct days that have a session inside the window.
-  const activeDays = new Set(
+  // Distinct days with a COMPLETED session inside the window. Counting days
+  // rather than rows stops two sessions in one day reading as two days.
+  const attendedDays = new Set(
     sessions
+      .filter((s) => s.completed === true)
       .map((s) => s.date || s.session_date || s.created_at)
       .filter(Boolean)
       .filter((d) => new Date(d).getTime() >= cutoff)
       .map((d) => new Date(d).toISOString().slice(0, 10)),
   );
 
-  // Days the account has existed, capped at the window.
+  // Use days since account created as denominator.
+  // Capped at 30 days max.
+  // Prevents penalising new students.
   //
-  // The /users endpoint does not return created_at, so when the caller has
-  // no date we fall back to the student's earliest session - the first day
-  // they could possibly have attended.
+  // The /users endpoint does not currently return created_at, so when the
+  // caller has no date we fall back to the student's earliest session - the
+  // first day they could possibly have attended.
   let created = createdAt ? new Date(createdAt).getTime() : NaN;
 
   if (Number.isNaN(created)) {
@@ -168,18 +180,13 @@ function deriveAttendance(sessions, createdAt) {
     if (timestamps.length) created = Math.min(...timestamps);
   }
 
-  let denominator = WINDOW_DAYS;
-  if (!Number.isNaN(created)) {
-    const daysSinceCreation = Math.floor(
-      (Date.now() - created) / (1000 * 60 * 60 * 24),
-    );
-    denominator = Math.min(daysSinceCreation, WINDOW_DAYS);
-  }
+  const daysSinceJoined = Number.isNaN(created)
+    ? WINDOW_DAYS
+    : Math.max(1, Math.floor((Date.now() - created) / (1000 * 60 * 60 * 24)));
 
-  // A brand-new account gives 0 days; never divide by zero.
-  if (denominator < 1) denominator = 1;
+  const denominator = Math.min(daysSinceJoined, WINDOW_DAYS);
 
-  return clamp(activeDays.size / denominator, 0, 1);
+  return clamp(attendedDays.size / denominator, 0, 1);
 }
 
 /**
@@ -206,29 +213,23 @@ function deriveLearningFeatures(insights) {
 
   // Engagement trend stands in for GPA direction.
   //
-  // "neutral", "stable" and "unknown" all mean "no movement detected", which
-  // is a real answer of 0.0 - not missing data. Only an unrecognised string
-  // is treated as absent so the feature is reported as estimated.
+  // "stable", "neutral" and "unknown" all mean "no movement detected", which
+  // is a real answer of 0.0 - not missing data. Anything unrecognised also
+  // falls back to 0.0, so this never returns undefined or null.
   const trendMap = {
     improving: 0.3,
     rising: 0.3,
+    declining: -0.3,
+    falling: -0.3,
     stable: 0.0,
     neutral: 0.0,
     unknown: 0.0,
-    declining: -0.3,
-    falling: -0.3,
   };
 
-  const rawValue = p.engagement_trend ?? p.engagementTrend;
-  let gpaTrend;
-
-  if (rawValue === null || rawValue === undefined || rawValue === '') {
-    // No trend recorded yet is itself a flat trend.
-    gpaTrend = 0.0;
-  } else {
-    const raw = String(rawValue).toLowerCase();
-    gpaTrend = raw in trendMap ? trendMap[raw] : null;
-  }
+  const trend = String(
+    p.engagement_trend ?? p.engagementTrend ?? 'neutral',
+  ).toLowerCase();
+  const gpaTrend = trendMap[trend] ?? 0.0;
 
   return { weekly_study_hours: weekly, gpa_trend: gpaTrend };
 }
@@ -268,10 +269,23 @@ export async function extractFeaturesFromMongoDB(surveyAnswers) {
   );
   const learning = deriveLearningFeatures(insights);
 
-  // `anxiety_score` is sourced from focus_emotional_stats.distraction_score.
-  // Both are 0-25 scales measuring the same negative-affect signal, so the
-  // value carries over directly with no rescaling.
+  // ---- Emotional domain, from focus_emotional_stats ----------------------
+  // One document per user, overwritten on every save, so this is always the
+  // latest reading from the Focus Monitor's webcam ML model.
+
+  // stress_level: direct mapping 0-100
+  // from focus_emotional_stats ML model output
+  const stress = emotional?.stress_level;
+
+  // distraction_score maps DIRECTLY to anxiety_score
+  // Both use 0-25 scale - no conversion needed
+  // distraction_score combines physical fatigue,
+  // anxiety and boredom from webcam ML model
   const anxiety = emotional?.distraction_score;
+
+  // mood_stability: direct mapping 0-100
+  // from focus_emotional_stats ML model output
+  const mood = emotional?.mood_stability;
 
   // Every entry is [measured value or null, default]. A null means the
   // collection had nothing usable, so the default is an estimate.
@@ -296,9 +310,9 @@ export async function extractFeaturesFromMongoDB(surveyAnswers) {
       learning.weekly_study_hours,
       DEFAULTS.weekly_study_hours,
     ],
-    stress_level: [emotional?.stress_level, DEFAULTS.stress_level],
+    stress_level: [stress, DEFAULTS.stress_level],
     anxiety_score: [anxiety, DEFAULTS.anxiety_score],
-    mood_stability: [emotional?.mood_stability, DEFAULTS.mood_stability],
+    mood_stability: [mood, DEFAULTS.mood_stability],
   };
 
   const mongoFeatures = {};
@@ -309,6 +323,10 @@ export async function extractFeaturesFromMongoDB(surveyAnswers) {
     mongoFeatures[key] = usable ? measured : fallback;
     if (!usable) estimated.push(key);
   }
+
+  // career_clarity_score has no source at all yet, so it is estimated in the
+  // same sense as a missing MongoDB field - the student never supplied it.
+  estimated.push('career_clarity_score');
 
   // Non-enumerable so the object still spreads cleanly into a /predict body
   // containing exactly the 15 model features.
@@ -321,7 +339,12 @@ export async function extractFeaturesFromMongoDB(surveyAnswers) {
   return features;
 }
 
-/** Pick the 4 survey features, falling back to the documented defaults. */
+/**
+ * The 3 survey features plus the career-clarity placeholder.
+ *
+ * @param {object} [surveyAnswers] - saved survey answers
+ * @returns {object} 4 model features
+ */
 function resolveSurvey(surveyAnswers) {
   return {
     sleep_hours_avg:
@@ -330,16 +353,21 @@ function resolveSurvey(surveyAnswers) {
       surveyAnswers?.sleep_consistency ?? SURVEY_DEFAULTS.sleep_consistency,
     part_time_work_hours:
       surveyAnswers?.part_time_work_hours ?? SURVEY_DEFAULTS.part_time_work_hours,
-    career_clarity_score:
-      surveyAnswers?.career_clarity_score ?? SURVEY_DEFAULTS.career_clarity_score,
+
+    // career_clarity_score: default 50
+    // Friend implementation pending
+    // Will be read from users collection
+    // when available
+    career_clarity_score: CAREER_CLARITY_DEFAULT,
   };
 }
 
 /**
  * Summarise how much of a feature vector came from real student data.
  *
- * The 4 survey answers are always real (the student typed them), so quality
- * is measured against the 11 MongoDB-derived features only.
+ * Quality is measured over the 11 MongoDB features plus career_clarity_score,
+ * which is a placeholder until a teammate implements it. The 3 survey answers
+ * are excluded because they are always real - the student typed them.
  *
  * @param {object} features - the result of extractFeaturesFromMongoDB
  * @returns {{real_features:number, estimated_features:number,
@@ -347,7 +375,8 @@ function resolveSurvey(surveyAnswers) {
  */
 export function summariseDataQuality(features) {
   const estimatedList = features?.__estimated ?? [];
-  const total = Object.keys(DEFAULTS).length; // the 11 MongoDB features
+  // 11 MongoDB features + career_clarity_score.
+  const total = Object.keys(DEFAULTS).length + 1;
   const estimated = estimatedList.length;
   const real = Math.max(0, total - estimated);
 

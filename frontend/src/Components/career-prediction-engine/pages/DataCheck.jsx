@@ -29,21 +29,20 @@ const FEATURE_SOURCE = {
   project_performance: 'exams.mark + tasks.mark',
   attendance_rate: 'daily_sessions.date',
   weekly_study_hours: 'learning_patterns.total_study_time',
-  stress_level: 'focus_emotional_stats.stress_level',
-  anxiety_score: 'focus_emotional_stats.distraction_score',
-  mood_stability: 'focus_emotional_stats.mood_stability',
-  sleep_hours_avg: 'survey',
-  sleep_consistency: 'survey',
-  part_time_work_hours: 'survey',
-  career_clarity_score: 'survey',
+  stress_level: 'MongoDB - focus_emotional_stats',
+  anxiety_score: 'MongoDB - focus_emotional_stats (distraction_score, 0-25 direct)',
+  mood_stability: 'MongoDB - focus_emotional_stats',
+  sleep_hours_avg: 'Survey',
+  sleep_consistency: 'Survey',
+  part_time_work_hours: 'Survey',
+  career_clarity_score: 'Default - friend implementation pending',
 };
 
-/** The four features the survey supplies rather than MongoDB. */
+/** The three features the survey supplies rather than MongoDB. */
 const SURVEY_KEYS = new Set([
   'sleep_hours_avg',
   'sleep_consistency',
   'part_time_work_hours',
-  'career_clarity_score',
 ]);
 
 /**
@@ -222,7 +221,7 @@ export default function DataCheck() {
       {/* The 15 features */}
       <section className="cpe-panel">
         <h3 className="cpe-panel-title">
-          Derived features — {quality.real_features} of 11 measured,{' '}
+          Derived features — {quality.real_features} of 12 measured,{' '}
           {quality.estimated_features} estimated ({quality.quality_percent}%
           real data)
         </h3>
