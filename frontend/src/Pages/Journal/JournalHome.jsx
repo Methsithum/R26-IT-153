@@ -3,6 +3,9 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   BookOpen,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   Feather,
   History,
   Map,
@@ -328,9 +331,49 @@ function RoadmapContent({ onViewDay }) {
   );
 }
 
+function journalDateKey(item) {
+  return campusDateKey(item?.date || item?.completedAt);
+}
+
+function indexForJournalDate(entries, iso) {
+  const key = campusDateKey(iso);
+  const exact = entries.findIndex((item) => journalDateKey(item) === key);
+  if (exact >= 0) return exact;
+  let best = 0;
+  let bestDiff = Infinity;
+  entries.forEach((item, i) => {
+    const d = journalDateKey(item);
+    if (!d || !key) return;
+    const diff = Math.abs(Number(d.replaceAll("-", "")) - Number(key.replaceAll("-", "")));
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = i;
+    }
+  });
+  return best;
+}
+
+function indexForJournalDay(entries, day) {
+  const n = Math.round(Number(day));
+  if (!Number.isFinite(n)) return -1;
+  const exact = entries.findIndex((item) => item.day === n);
+  if (exact >= 0) return exact;
+  let best = 0;
+  let bestDiff = Infinity;
+  entries.forEach((item, i) => {
+    const diff = Math.abs(item.day - n);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = i;
+    }
+  });
+  return best;
+}
+
 function RecentJournalsContent({ focusDay }) {
   const entries = useJournalHistoryStore((s) => s.entries);
   const [index, setIndex] = useState(0);
+  const [dayDraft, setDayDraft] = useState("");
 
   useEffect(() => {
     if (entries.length === 0) {
@@ -346,6 +389,12 @@ function RecentJournalsContent({ focusDay }) {
     }
     setIndex(entries.length - 1);
   }, [entries, focusDay]);
+
+  useEffect(() => {
+    if (entries.length === 0) return;
+    const i = Math.min(Math.max(index, 0), entries.length - 1);
+    setDayDraft(String(entries[i].day));
+  }, [entries, index]);
 
   if (entries.length === 0) {
     return (
@@ -366,60 +415,95 @@ function RecentJournalsContent({ focusDay }) {
   const canReplay = Boolean(latestDate) && entryDate === latestDate;
   const { narrative, highlights } = buildJournalPage(entry);
 
+  const pageDate = formatCampusDate(entryDate || entry.completedAt, {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const dates = entries.map(journalDateKey).filter(Boolean);
+  const minDate = dates[0] || undefined;
+  const maxDate = dates[dates.length - 1] || undefined;
+  const dayMin = entries[0]?.day ?? 1;
+  const dayMax = entries[entries.length - 1]?.day ?? 1;
+
+  function commitDayDraft() {
+    const next = indexForJournalDay(entries, dayDraft);
+    if (next >= 0) setIndex(next);
+    else setDayDraft(String(entry.day));
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="mb-4 flex items-start justify-between gap-4">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.25em] text-brand-500 dark:text-brand-300">Your journal</div>
-          <h2 className="font-display text-2xl font-bold text-slate-800 dark:text-white">Day {entry.day}</h2>
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-[11px] uppercase tracking-[0.25em] text-brand-500">Your journal</div>
+          <h2 className="font-display text-2xl font-bold text-slate-800">Day {entry.day}</h2>
+          <p className="mt-0.5 truncate text-sm text-slate-400">{pageDate}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            disabled={clamped === 0}
-            onClick={() => setIndex(clamped - 1)}
-            className="rounded-full border border-brand-200 dark:border-white/15 px-3 py-1 text-slate-600 dark:text-slate-300 disabled:opacity-30 hover:bg-brand-50 dark:hover:bg-white/10"
-          >
-            ‹
-          </button>
-          <button
-            type="button"
-            disabled={clamped === entries.length - 1}
-            onClick={() => setIndex(clamped + 1)}
-            className="rounded-full border border-brand-200 dark:border-white/15 px-3 py-1 text-slate-600 dark:text-slate-300 disabled:opacity-30 hover:bg-brand-50 dark:hover:bg-white/10"
-          >
-            ›
-          </button>
+        <div className="shrink-0 rounded-full bg-brand-50 px-3 py-1 text-[11px] font-semibold tabular-nums text-brand-600">
+          {clamped + 1} of {entries.length}
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        {entries.map((item, i) => (
-          <button
-            key={item.day}
-            type="button"
-            onClick={() => setIndex(i)}
-            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-              i === clamped
-                ? "bg-gradient-to-r from-brand-500 to-brand-400 text-white shadow-playful"
-                : "bg-brand-50 dark:bg-white/10 text-brand-700 dark:text-brand-200 border border-brand-200/60 dark:border-white/10 hover:bg-brand-100"
-            }`}
-          >
-            Day {item.day}
-          </button>
-        ))}
+      <div className="mb-5 flex items-center gap-2">
+        <button
+          type="button"
+          disabled={clamped === 0}
+          onClick={() => setIndex(clamped - 1)}
+          aria-label="Previous journal page"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-brand-100 bg-white text-slate-500 transition-colors hover:bg-brand-50 hover:text-brand-600 disabled:opacity-30"
+        >
+          <ChevronLeft size={20} strokeWidth={2.2} />
+        </button>
+
+        <div className="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-2xl border border-brand-100 bg-white shadow-card">
+          <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-3 py-1.5">
+            <CalendarDays size={16} className="shrink-0 text-brand-500" />
+            <span className="sr-only">Jump to a date</span>
+            <input
+              type="date"
+              value={entryDate || ""}
+              min={minDate}
+              max={maxDate}
+              onChange={(event) => setIndex(indexForJournalDate(entries, event.target.value))}
+              className="min-w-0 flex-1 bg-transparent text-sm font-medium text-slate-700 outline-none"
+            />
+          </label>
+          <div className="my-2 w-px bg-brand-100" />
+          <label className="flex w-[6.75rem] shrink-0 items-center gap-1.5 px-3 py-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Day</span>
+            <input
+              type="number"
+              min={dayMin}
+              max={dayMax}
+              value={dayDraft}
+              onChange={(event) => setDayDraft(event.target.value)}
+              onBlur={commitDayDraft}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.currentTarget.blur();
+                }
+              }}
+              aria-label="Go to day number"
+              className="w-full bg-transparent text-sm font-semibold tabular-nums text-slate-700 outline-none"
+            />
+          </label>
+        </div>
+
+        <button
+          type="button"
+          disabled={clamped === entries.length - 1}
+          onClick={() => setIndex(clamped + 1)}
+          aria-label="Next journal page"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-brand-100 bg-white text-slate-500 transition-colors hover:bg-brand-50 hover:text-brand-600 disabled:opacity-30"
+        >
+          <ChevronRight size={20} strokeWidth={2.2} />
+        </button>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-1 scrollbar-thin">
-        <div className="text-xs text-slate-400 mb-4 italic">
-          {entry.completedAt &&
-            new Date(entry.completedAt).toLocaleDateString(undefined, {
-              weekday: "long",
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
-        </div>
         <div className="journal-letter mb-6">
           {splitJournalParagraphs(narrative || "No entry was recorded for this day.").map((paragraph, i) => (
             <p key={`${i}-${paragraph.slice(0, 24)}`}>{paragraph}</p>
