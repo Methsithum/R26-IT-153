@@ -7,6 +7,7 @@
  */
 
 import { readStoredUser } from '../services/userApi';
+import { summariseDataQuality } from './extractFeatures';
 
 const STORAGE_KEY = 'career_engine_history';
 const API_BASE = `${import.meta.env.VITE_API_URL || '/api'}/career`;
@@ -69,6 +70,7 @@ function fromDocument(doc) {
     prob_high: doc.prob_high,
     career_score: doc.career_score,
     features_snapshot: doc.features_snapshot ?? {},
+    data_quality: doc.data_quality ?? null,
   };
 }
 
@@ -98,6 +100,9 @@ export async function savePrediction(prediction, features) {
     // Spread strips the non-enumerable __estimated marker, leaving exactly
     // the 15 model features.
     features_snapshot: { ...features },
+    // How much of this prediction rests on real data, so a later comparison
+    // can say whether a score moved or just got better-informed.
+    data_quality: summariseDataQuality(features),
   };
 
   // Mirror locally first so the panel updates even if the request is slow.
@@ -115,6 +120,7 @@ export async function savePrediction(prediction, features) {
         prediction,
         features: { ...features },
         estimated_features: features?.__estimated ?? [],
+        data_quality: entry.data_quality,
       }),
     });
   } catch {

@@ -26,8 +26,8 @@ const PAGE_SEGMENTS = ['profiles', 'metrics', 'data-check'];
  *
  * This nav sits outside the <Routes> block, so a relative `to` resolves
  * against the URL currently showing rather than the feature root: from
- * "/career/metrics" a link to "data-check" becomes
- * "/career/metrics/data-check", and every further click appends again.
+ * "/career/metrics" a link to "profiles" becomes
+ * "/career/metrics/profiles", and every further click appends again.
  *
  * The fix is to build absolute hrefs from the feature root, found by removing
  * a known page segment from the end of the current path.

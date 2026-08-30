@@ -213,3 +213,15 @@
     padding: 4px 0;
   }
 }
+
+/* Data-quality note on each comparison card. A rising percentage means a
+   later prediction rests on more real data, not just a different score. */
+.cpe-root .ph-card-quality {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--cpe-border);
+  font-size: 0.71rem;
+  font-weight: 600;
+  color: var(--cpe-text-faint);
+  font-variant-numeric: tabular-nums;
+}

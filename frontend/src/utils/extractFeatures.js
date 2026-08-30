@@ -128,10 +128,18 @@ function deriveExamFeatures(exams, tasks) {
 }
 
 /**
- * Attendance from daily session history over the last 30 days.
- * @returns {number|null} attendance rate 0-1
+ * Attendance from daily session history.
+ *
+ * The denominator is the number of days the student could actually have
+ * attended - their account age, capped at the 30-day window. Dividing by a
+ * flat 30 would penalise someone who joined a week ago for the 23 days
+ * before their account existed.
+ *
+ * @param {object[]} sessions - daily_sessions documents
+ * @param {string} [createdAt] - users.created_at
+ * @returns {number|null} attendance rate 0-1, or null when there is nothing to measure
  */
-function deriveAttendance(sessions) {
+function deriveAttendance(sessions, createdAt) {
   if (!Array.isArray(sessions) || sessions.length === 0) return null;
 
   const WINDOW_DAYS = 30;
@@ -146,7 +154,32 @@ function deriveAttendance(sessions) {
       .map((d) => new Date(d).toISOString().slice(0, 10)),
   );
 
-  return clamp(activeDays.size / WINDOW_DAYS, 0, 1);
+  // Days the account has existed, capped at the window.
+  //
+  // The /users endpoint does not return created_at, so when the caller has
+  // no date we fall back to the student's earliest session - the first day
+  // they could possibly have attended.
+  let created = createdAt ? new Date(createdAt).getTime() : NaN;
+
+  if (Number.isNaN(created)) {
+    const timestamps = sessions
+      .map((s) => new Date(s.date || s.session_date || s.created_at).getTime())
+      .filter((t) => !Number.isNaN(t));
+    if (timestamps.length) created = Math.min(...timestamps);
+  }
+
+  let denominator = WINDOW_DAYS;
+  if (!Number.isNaN(created)) {
+    const daysSinceCreation = Math.floor(
+      (Date.now() - created) / (1000 * 60 * 60 * 24),
+    );
+    denominator = Math.min(daysSinceCreation, WINDOW_DAYS);
+  }
+
+  // A brand-new account gives 0 days; never divide by zero.
+  if (denominator < 1) denominator = 1;
+
+  return clamp(activeDays.size / denominator, 0, 1);
 }
 
 /**
@@ -172,9 +205,30 @@ function deriveLearningFeatures(insights) {
   // session counts, which measure journal usage, not study time.
 
   // Engagement trend stands in for GPA direction.
-  const trendMap = { improving: 0.3, rising: 0.3, stable: 0.0, declining: -0.3, falling: -0.3 };
-  const raw = (p.engagement_trend ?? p.engagementTrend ?? '').toString().toLowerCase();
-  const gpaTrend = raw in trendMap ? trendMap[raw] : null;
+  //
+  // "neutral", "stable" and "unknown" all mean "no movement detected", which
+  // is a real answer of 0.0 - not missing data. Only an unrecognised string
+  // is treated as absent so the feature is reported as estimated.
+  const trendMap = {
+    improving: 0.3,
+    rising: 0.3,
+    stable: 0.0,
+    neutral: 0.0,
+    unknown: 0.0,
+    declining: -0.3,
+    falling: -0.3,
+  };
+
+  const rawValue = p.engagement_trend ?? p.engagementTrend;
+  let gpaTrend;
+
+  if (rawValue === null || rawValue === undefined || rawValue === '') {
+    // No trend recorded yet is itself a flat trend.
+    gpaTrend = 0.0;
+  } else {
+    const raw = String(rawValue).toLowerCase();
+    gpaTrend = raw in trendMap ? trendMap[raw] : null;
+  }
 
   return { weekly_study_hours: weekly, gpa_trend: gpaTrend };
 }
@@ -208,7 +262,10 @@ export async function extractFeaturesFromMongoDB(surveyAnswers) {
 
   const taskFeats = deriveTaskFeatures(tasksRes?.tasks);
   const examFeats = deriveExamFeatures(examsRes?.exams, tasksRes?.tasks);
-  const attendance = deriveAttendance(sessionsRes?.sessions);
+  const attendance = deriveAttendance(
+    sessionsRes?.sessions,
+    profile?.created_at,
+  );
   const learning = deriveLearningFeatures(insights);
 
   // `anxiety_score` is sourced from focus_emotional_stats.distraction_score.
@@ -275,5 +332,29 @@ function resolveSurvey(surveyAnswers) {
       surveyAnswers?.part_time_work_hours ?? SURVEY_DEFAULTS.part_time_work_hours,
     career_clarity_score:
       surveyAnswers?.career_clarity_score ?? SURVEY_DEFAULTS.career_clarity_score,
+  };
+}
+
+/**
+ * Summarise how much of a feature vector came from real student data.
+ *
+ * The 4 survey answers are always real (the student typed them), so quality
+ * is measured against the 11 MongoDB-derived features only.
+ *
+ * @param {object} features - the result of extractFeaturesFromMongoDB
+ * @returns {{real_features:number, estimated_features:number,
+ *            quality_percent:number, estimated_list:string[]}}
+ */
+export function summariseDataQuality(features) {
+  const estimatedList = features?.__estimated ?? [];
+  const total = Object.keys(DEFAULTS).length; // the 11 MongoDB features
+  const estimated = estimatedList.length;
+  const real = Math.max(0, total - estimated);
+
+  return {
+    real_features: real,
+    estimated_features: estimated,
+    quality_percent: Math.round((real / total) * 100),
+    estimated_list: [...estimatedList],
   };
 }

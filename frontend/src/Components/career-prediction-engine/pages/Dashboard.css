@@ -45,6 +45,9 @@
 }
 
 .cpe-root .dash-estimate {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
   padding: 12px 16px;
   font-size: 0.79rem;
   line-height: 1.55;
@@ -281,4 +284,9 @@
   background: var(--cpe-bg-panel-alt);
   border: 1px solid var(--cpe-border);
   border-radius: 8px;
+}
+
+.cpe-root .dash-estimate-icon {
+  flex: none;
+  line-height: 1.5;
 }

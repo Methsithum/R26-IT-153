@@ -62,9 +62,19 @@ export default function InputDataPanel({ features }) {
     );
   }
 
+  // Features that fell back to a default, marked by extractFeaturesFromMongoDB.
+  const estimated = new Set(features.__estimated ?? []);
+
   return (
     <section className="cpe-panel idp">
       <h2 className="cpe-panel-title">Input Data</h2>
+
+      {estimated.size > 0 && (
+        <p className="idp-legend">
+          <span className="idp-dot idp-dot-good" /> from your activity
+          <span className="idp-dot idp-dot-est" /> estimated
+        </p>
+      )}
 
       <div className="idp-scroll">
         {GROUPS.map(({ title, items }) => (
@@ -76,15 +86,36 @@ export default function InputDataPanel({ features }) {
               // Guard against a missing/non-numeric field from the API.
               if (typeof raw !== 'number' || Number.isNaN(raw)) return null;
 
+              // An estimated feature has no real value behind it, so the
+              // good/needs-attention judgement would be meaningless - it is
+              // shown greyed instead.
+              const isEstimated = estimated.has(key);
               const isGood = good(raw);
+
               return (
-                <div key={key} className="idp-row">
+                <div
+                  key={key}
+                  className={isEstimated ? 'idp-row idp-row-est' : 'idp-row'}
+                >
                   <span
-                    className={`idp-dot ${isGood ? 'idp-dot-good' : 'idp-dot-warn'}`}
-                    title={isGood ? 'Good' : 'Needs attention'}
+                    className={
+                      isEstimated
+                        ? 'idp-dot idp-dot-est'
+                        : `idp-dot ${isGood ? 'idp-dot-good' : 'idp-dot-warn'}`
+                    }
+                    title={
+                      isEstimated
+                        ? 'Estimated - this data is not available yet'
+                        : isGood
+                          ? 'Good'
+                          : 'Needs attention'
+                    }
                   />
                   <span className="idp-label">{label}</span>
-                  <span className="idp-value">{fmt(raw)}</span>
+                  <span className="idp-value">
+                    {fmt(raw)}
+                    {isEstimated && <em className="idp-est-tag">est.</em>}
+                  </span>
                 </div>
               );
             })}

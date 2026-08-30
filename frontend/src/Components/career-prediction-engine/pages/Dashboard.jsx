@@ -2,7 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import { predictStudent } from '../api/predictionApi';
-import { extractFeaturesFromMongoDB } from '../../../utils/extractFeatures';
+import {
+  extractFeaturesFromMongoDB,
+  summariseDataQuality,
+} from '../../../utils/extractFeatures';
 import { hasSurveyAnswers, loadSurveyAnswers } from '../../../utils/surveyStorage';
 import {
   getCachedHistory,
@@ -324,6 +327,7 @@ export default function Dashboard() {
   // a profile from the list, since those rows are already complete.
   const estimatedFields = features?.__estimated ?? [];
   const estimatedCount = incomingProfile ? 0 : estimatedFields.length;
+  const { quality_percent: qualityPercent } = summariseDataQuality(features);
 
   return (
     <div className="dash">
@@ -361,12 +365,16 @@ export default function Dashboard() {
 
       {estimatedCount > 0 && (
         <div className="dash-estimate">
-          <strong>{estimatedCount} of 11</strong> study-data inputs have no
-          record yet, so a typical value was used for them:{' '}
-          <span className="dash-estimate-list">
-            {estimatedFields.map((k) => FEATURE_LABELS[k] ?? k).join(', ')}
+          <span className="dash-estimate-icon" aria-hidden="true">⚠️</span>
+          <span>
+            <strong>Some data not yet available.</strong> Prediction uses
+            estimated values for{' '}
+            <span className="dash-estimate-list">
+              {estimatedFields.map((k) => FEATURE_LABELS[k] ?? k).join(', ')}
+            </span>
+            . Results will improve as you use the app —{' '}
+            <strong>{qualityPercent}% real data</strong> in this prediction.
           </span>
-          . Accuracy improves as you log marks, study time, and results.
         </div>
       )}
 

@@ -1,0 +1,96 @@
+Integrated Future & Career Prediction Engine — setup and run
+============================================================
+
+PYTHON VERSION
+--------------
+Works with:      Python 3.9 – 3.12
+Recommended:     Python 3.11
+NOT supported:   Python 3.14
+
+Why 3.14 fails: several pinned dependencies (notably pydantic-core)
+have no prebuilt wheel for 3.14 yet, so `pip install` tries to compile
+them from source and fails with "failed-wheel-build-for-install".
+
+Check your version:
+    python --version
+
+
+INSTALL
+-------
+From the repository root:
+
+    cd backend
+    python -m venv .venv
+    .venv\Scripts\activate          (Windows)
+    source .venv/bin/activate       (macOS / Linux)
+
+Install just this component's dependencies:
+
+    pip install -r app/career-prediction-engine/requirements.txt
+
+Or the whole backend (includes the other team modules):
+
+    pip install -r requirements.txt
+
+
+RUN — this component on its own
+-------------------------------
+    cd backend/app/career-prediction-engine
+    python -m uvicorn prediction_api:app --reload --port 8001
+
+    Swagger UI:  http://127.0.0.1:8001/docs
+    Test all 4 routes:  python test_api.py
+
+
+RUN — inside the shared Smart Uni Guide API
+-------------------------------------------
+    cd backend
+    python -m uvicorn app.main:app --reload --port 8000
+
+    Career routes are mounted under /career:
+      GET  /career/                     health check
+      POST /career/predict              15 features -> risk + career score
+      GET  /career/model-metrics        model comparison tables
+      POST /career/history              save a prediction
+      GET  /career/history/{user_id}    stored predictions, newest first
+      DEL  /career/history/{user_id}    clear a student's history
+
+Frontend (separate terminal):
+
+    cd frontend
+    npm install
+    npm run dev
+
+    The Vite dev server proxies /api -> http://127.0.0.1:8000,
+    so the frontend calls /api/career/... with no extra config.
+
+
+KNOWN ISSUES IN THE SHARED BACKEND
+----------------------------------
+These affect `app.main`, not this component. They are noted here
+because they block a fresh clone from starting the full API.
+
+1. backend/requirements.txt pins pydantic==2.7.1, which has no
+   Python 3.14 wheel. Use Python 3.11, or relax the pin.
+
+2. app/routes/focus/predict.py imports cv2 (OpenCV) for the focus
+   module's face detection, but opencv is not listed in
+   backend/requirements.txt. Install it if you need the focus module:
+
+       pip install opencv-python
+
+   This component does not use cv2 and runs fine without it.
+
+
+TRAINED MODEL FILES
+-------------------
+Predictions need the .pkl files in:
+
+    backend/trained-models/career-prediction-engine/saved_objects/
+
+If they are missing, the API returns a clear 503 naming the file.
+Regenerate them with:
+
+    cd backend/ml_scripts/career-prediction-engine
+    python dataset_preprocessing.py
+    python model_training.py

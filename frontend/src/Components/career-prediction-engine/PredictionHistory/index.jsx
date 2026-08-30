@@ -103,6 +103,11 @@ export default function PredictionHistory({ history }) {
           </span>
           <span className="ph-card-score">{previous.career_score?.toFixed(1)}</span>
           <span className="ph-card-unit">career readiness</span>
+          {previous.data_quality && (
+            <span className="ph-card-quality">
+              {previous.data_quality.quality_percent}% real data
+            </span>
+          )}
         </article>
 
         <div className="ph-deltas">
@@ -149,6 +154,11 @@ export default function PredictionHistory({ history }) {
           </span>
           <span className="ph-card-score">{current.career_score?.toFixed(1)}</span>
           <span className="ph-card-unit">career readiness</span>
+          {current.data_quality && (
+            <span className="ph-card-quality">
+              {current.data_quality.quality_percent}% real data
+            </span>
+          )}
         </article>
       </div>
 

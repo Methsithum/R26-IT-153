@@ -60,3 +60,42 @@
   color: var(--cpe-text);
   font-variant-numeric: tabular-nums;
 }
+
+/* ---- estimated features ---- */
+
+/* A grey dot means the value is a stand-in, not measured from the student's
+   own activity, so the good/needs-attention colours do not apply. */
+.cpe-root .idp-dot-est {
+  background: var(--cpe-text-faint);
+  opacity: 0.55;
+}
+
+.cpe-root .idp-row-est .idp-label,
+.cpe-root .idp-row-est .idp-value {
+  color: var(--cpe-text-faint);
+}
+
+.cpe-root .idp-est-tag {
+  margin-left: 5px;
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 600;
+  color: var(--cpe-text-faint);
+}
+
+.cpe-root .idp-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -6px 0 12px;
+  font-size: 0.7rem;
+  color: var(--cpe-text-faint);
+}
+
+.cpe-root .idp-legend .idp-dot {
+  margin-left: 6px;
+}
+
+.cpe-root .idp-legend .idp-dot:first-child {
+  margin-left: 0;
+}

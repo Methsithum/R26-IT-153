@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { extractFeaturesFromMongoDB } from '../../../utils/extractFeatures';
+import {
+  extractFeaturesFromMongoDB,
+  summariseDataQuality,
+} from '../../../utils/extractFeatures';
 import { loadSurveyAnswers } from '../../../utils/surveyStorage';
 import { readStoredUser } from '../../../services/userApi';
 import LoadingState from '../components/LoadingState';
@@ -128,11 +131,9 @@ export default function DataCheck() {
   const estimated = new Set(features?.__estimated ?? []);
   const survey = loadSurveyAnswers();
 
-  const measuredCount = features
-    ? Object.keys(features).filter(
-        (k) => !estimated.has(k) && !SURVEY_KEYS.has(k),
-      ).length
-    : 0;
+  // Same summary that gets stored on each saved prediction, so this page and
+  // the history panel always report the identical percentage.
+  const quality = summariseDataQuality(features);
 
   return (
     <div className="dc">
@@ -221,8 +222,9 @@ export default function DataCheck() {
       {/* The 15 features */}
       <section className="cpe-panel">
         <h3 className="cpe-panel-title">
-          Derived features — {measuredCount} of 11 measured,{' '}
-          {estimated.size} estimated
+          Derived features — {quality.real_features} of 11 measured,{' '}
+          {quality.estimated_features} estimated ({quality.quality_percent}%
+          real data)
         </h3>
         <div className="dc-table-wrap">
           <table className="dc-table">

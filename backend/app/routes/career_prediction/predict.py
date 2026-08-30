@@ -210,6 +210,9 @@ class SavePredictionRequest(BaseModel):
     prediction: dict
     features: dict
     estimated_features: list[str] = Field(default_factory=list)
+    # How much of the feature vector was real rather than a default:
+    # real_features, estimated_features, quality_percent, estimated_list.
+    data_quality: dict = Field(default_factory=dict)
 
 
 @router.post("/history")
@@ -224,6 +227,7 @@ async def save_prediction(payload: SavePredictionRequest):
             payload.prediction,
             payload.features,
             payload.estimated_features,
+            payload.data_quality,
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Could not save prediction: {exc}")

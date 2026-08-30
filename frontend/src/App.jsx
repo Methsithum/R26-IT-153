@@ -223,24 +223,6 @@ function App() {
 
 
         {/* =================================================
-            CAREER PREDICTION ENGINE MODULE
-            Owns its own sub-routes (dashboard / profiles / metrics),
-            hence the trailing "/*".
-        ================================================= */}
-
-        <Route
-          path="/career/*"
-          element={
-            <RequireAuth>
-              <HydrateUser>
-                <CareerPredictionEngine />
-              </HydrateUser>
-            </RequireAuth>
-          }
-        />
-
-
-        {/* =================================================
             JOURNAL MODULE
         ================================================= */}
 
@@ -302,6 +284,13 @@ function App() {
           <Route
             path="/study-planner"
             element={<StudyPlanner />}
+          />
+
+          {/* Career Prediction Engine — owns its own sub-routes
+              (dashboard / profiles / metrics), hence the trailing "/*". */}
+          <Route
+            path="/career/*"
+            element={<CareerPredictionEngine />}
           />
 
           {/* Tasks */}

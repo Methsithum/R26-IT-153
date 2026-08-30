@@ -34,13 +34,15 @@ class CareerPredictionModel:
 
     @staticmethod
     async def create(user_id: str, prediction: dict, features: dict,
-                     estimated: list[str] | None = None):
+                     estimated: list[str] | None = None,
+                     data_quality: dict | None = None):
         """
         Store one prediction run and trim the student's history.
 
         `estimated` names the features that fell back to a default because the
         source collection had no data, so a later reader can tell a measured
-        prediction from a partly-inferred one.
+        prediction from a partly-inferred one. `data_quality` carries the same
+        information as counts and a percentage, for the history comparison.
         """
         doc = {
             "user_id": user_id,
@@ -51,6 +53,7 @@ class CareerPredictionModel:
             "career_score": prediction.get("career_score"),
             "features_snapshot": features,
             "estimated_features": estimated or [],
+            "data_quality": data_quality or {},
             "created_at": datetime.utcnow(),
         }
         result = prediction_collection.insert_one(doc)
