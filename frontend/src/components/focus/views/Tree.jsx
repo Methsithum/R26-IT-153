@@ -12,7 +12,7 @@ const STATE_BLURB = {
 
 const GROWTH_RULES = [
   { action: "New students start at Seedling (0 XP)", icon: "🌱", value: "Lv 1", color: "#22c55e" },
-  { action: "5 min focused waters the tree (+5 XP)", icon: "💧", value: "+5", color: "#38bdf8" },
+  { action: "Focused streak waters the tree (+5 XP)", icon: "💧", value: "+5", color: "#38bdf8" },
   { action: "Each challenge costs 5 XP", icon: "📉", value: "−5", color: "#ef4444" },
   { action: "Level follows today's XP, not minutes", icon: "🌳", value: "XP", color: "#22c55e" },
   { action: "25-min continuous focus", icon: "⚡", value: "Sprint", color: "#f59e0b" },

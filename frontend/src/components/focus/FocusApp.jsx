@@ -17,11 +17,13 @@ import { readStoredUser } from "../../services/userApi";
 
 const MANUAL_OVERRIDE_LOCK_MS = 5000;
 const HIGH_CONFIDENCE = 0.70;
-const CHALLENGE_SUSTAIN_MS = 5 * 60 * 1000;
+/** Flip to false after the demo video — restores 5 min boost / challenge / check-in. */
+const DEMO_MODE = true;
+const CHALLENGE_SUSTAIN_MS = DEMO_MODE ? 20 * 1000 : 5 * 60 * 1000;
 const SPRINT_STREAK_MIN = 25;
-const FOCUS_BOOST_STREAK_MIN = 5;
+const FOCUS_BOOST_STREAK_MIN = DEMO_MODE ? 0.25 : 5; // 15s vs 5 min
 const TREE_FX_MS = 2000;
-const CHECKIN_INTERVAL_MS = 5 * 60 * 1000;
+const CHECKIN_INTERVAL_MS = DEMO_MODE ? 45 * 1000 : 5 * 60 * 1000;
 const CHECKIN_TIMEOUT_MS = 15 * 1000;
 const SAVE_INTERVAL_MS = 60 * 1000;
 const TODAY_GOAL = 120;
