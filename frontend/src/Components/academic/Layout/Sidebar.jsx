@@ -8,6 +8,7 @@ import {
   BarChart3,
   Bell,
   Settings,
+  TrendingUp,
 } from "lucide-react";
 import { useAcademicStore } from "../../../store/useAcademicStore";
 import Logo from "../Shared/Logo";
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { to: "/modules", label: "Modules", icon: BookOpen },
   { to: "/exams", label: "Exams", icon: GraduationCap },
   { to: "/analytics", label: "Analytics", icon: BarChart3 },
+  { to: "/career", label: "Career Prediction", icon: TrendingUp },
   { to: "/notifications", label: "Notifications", icon: Bell, badge: true },
 ];
 

@@ -1,19 +1,24 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+from datetime import date
 
-from app.services.time_utils import local_today, to_local_date
+from app.services.time_utils import as_of_day, to_local_date
 
 _NO_DEADLINE = 10**9
 
 
-def _deadline_days(deadline: Any) -> int:
-    """Calendar days until deadline in Asia/Colombo. 0 is today, 1 is tomorrow."""
+def _deadline_days(deadline: Any, as_of: Optional[date] = None) -> int:
+    """Calendar days until deadline from the journal day. 0 is that day, 1 is the next."""
     due = to_local_date(deadline)
     if not due:
         return _NO_DEADLINE
-    return (due - local_today()).days
+    return (due - as_of_day(as_of)).days
 
 
-async def compute_derived_context(session_doc: Dict[str, Any], current_tasks: List[Dict]) -> Dict[str, bool]:
+async def compute_derived_context(
+    session_doc: Dict[str, Any],
+    current_tasks: List[Dict],
+    as_of: Optional[date] = None,
+) -> Dict[str, bool]:
     """
     Compute behavioral flags from session data for intelligent LLM prompting.
     
@@ -32,7 +37,7 @@ async def compute_derived_context(session_doc: Dict[str, Any], current_tasks: Li
     # Flag 2: Deadline pressure (any task due within 2 days)
     deadline_pressure = False
     for task in current_tasks:
-        days_left = _deadline_days(task.get("deadline"))
+        days_left = _deadline_days(task.get("deadline"), as_of)
         if days_left <= 2:
             deadline_pressure = True
             break
@@ -61,7 +66,10 @@ async def compute_derived_context(session_doc: Dict[str, Any], current_tasks: Li
     }
 
 
-async def identify_at_risk_tasks(current_tasks: List[Dict]) -> List[Dict]:
+async def identify_at_risk_tasks(
+    current_tasks: List[Dict],
+    as_of: Optional[date] = None,
+) -> List[Dict]:
     """
     Identify at-risk tasks: deadline ≤ 2 days AND (not started OR in progress).
     Returns list of at-risk tasks with urgency level.
@@ -69,7 +77,7 @@ async def identify_at_risk_tasks(current_tasks: List[Dict]) -> List[Dict]:
     at_risk = []
     
     for task in current_tasks:
-        days_left = _deadline_days(task.get("deadline"))
+        days_left = _deadline_days(task.get("deadline"), as_of)
         progress_stage = (task.get("progress_stage") or "").lower()
         
         # Check if task is at-risk: deadline soon + not making progress

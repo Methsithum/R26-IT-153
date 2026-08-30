@@ -50,6 +50,11 @@ def to_local_date(value: Any) -> Optional[date]:
         return None
 
 
+def as_of_day(value: Any = None) -> date:
+    """Catch-up journal date, or campus today when value is missing."""
+    return to_local_date(value) or local_today()
+
+
 def calendar_datetime(value: Any = None) -> datetime:
     """Naive midnight representing the campus calendar day."""
     day = to_local_date(value) or local_today()
