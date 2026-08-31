@@ -141,7 +141,12 @@ function generateSpecialQuestions(assignments, exams = [], today = new Date()) {
           targetLocation: getFacultyForSubject(dueMarks[0].subject),
           context: {
             field: "assignmentMarkSubject",
-            subjectOptions: dueMarks.map((item) => item.subject).filter(Boolean),
+            markAssignments: dueMarks.map((item) => ({
+              id: item.id,
+              subject: item.subject,
+              title: item.title || `${item.subject} assignment`,
+            })),
+            subjectOptions: dueMarks.map((item) => item.title || item.subject).filter(Boolean),
           },
         }
       )
@@ -304,7 +309,8 @@ export function shouldEscalateToSpecialEntry(question, answerValue) {
   if (field === "exam-dates-check") return true;
   if (field === "mark-check") {
     const options = question?.context?.subjectOptions || [];
-    if (options.length > 1 && !question?.subject && !question?.context?.subject) return false;
+    const papers = question?.context?.markAssignments || [];
+    if ((options.length > 1 || papers.length > 1) && !question?.subject && !question?.context?.subject) return false;
     return answerValue === "Yes" || answerValue === "Partial feedback only";
   }
   if (field === "exam-mark-check") {

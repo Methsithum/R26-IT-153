@@ -8,7 +8,7 @@ import { missionLabel } from "../Environment/stationMap";
 import { mapBackendQuestion, serializeAnswer } from "../data/backendQuestion";
 import { levelFromXp } from "../data/progression";
 import { readStoredUser, storeUser, apiErrorMessage, loadUserWorld } from "../../services/userApi";
-import { startDailySession, submitDailyAnswer, deleteTodayJournal, finishDailyRun } from "../../services/journalApi";
+import { startDailySession, submitDailyAnswer, deleteTodayJournal, finishDailyRun, abandonDailySession } from "../../services/journalApi";
 import { useJournalHistoryStore } from "./journalHistoryStore";
 import { useRunnerStore } from "./runnerStore";
 import {
@@ -138,6 +138,48 @@ function xpPatch(state, nextXp, extra = {}) {
 
 export function isActiveCampusRun(state) {
   return Boolean(state?.sessionId) && state.phase !== PHASES.GAME_START;
+}
+
+function activityLobbyPatch(get, data = {}, { keepOverlay = false } = {}) {
+  const day = Math.max(1, data.current_day || get().day);
+  const xp = data.total_xp ?? get().runStartXp ?? get().xp;
+  return {
+    phase: PHASES.GAME_START,
+    paused: keepOverlay,
+    restarting: keepOverlay,
+    restartError: null,
+    sessionId: null,
+    sessionCompleted: false,
+    backendJournalEntry: null,
+    backendJournalHighlights: [],
+    questionQueue: [],
+    questionIndex: 0,
+    activeQuestion: null,
+    pendingAnswer: null,
+    selectedActivities: [],
+    lectureSubjects: [],
+    assignmentSubjects: [],
+    examSubjects: [],
+    examKinds: [],
+    todaySubjects: [],
+    dailyCompleted: Boolean(data.daily_completed),
+    missedDates: Array.isArray(data.missed_dates) ? data.missed_dates : get().missedDates || [],
+    playDate: data.play_date || get().playDate || localTodayIso(),
+    journalDate: null,
+    finishLineZ: null,
+    journalDay: createEmptyJournalDay(day),
+    newBadges: [],
+    leveledUpTo: null,
+    score: 0,
+    lives: MAX_LIVES,
+    combo: 0,
+    exhausted: false,
+    hitFlashAt: 0,
+    floatingTexts: [],
+    objectiveText: "Start today's campus run",
+    xp,
+    level: data.level ?? levelFromXp(xp),
+  };
 }
 
 const initialDay = 1;
@@ -840,40 +882,48 @@ export const useGameStore = create((set, get) => ({
     else get().pause();
   },
 
+  abandonCurrentRun: async ({ keepOverlay = false } = {}) => {
+    const user = readStoredUser();
+    const sessionId = get().sessionId;
+    let data = user;
+    if (user?.id && sessionId && !get().sessionCompleted) {
+      try {
+        data = await abandonDailySession(user.id, sessionId);
+        storeUser(data);
+      } catch (err) {
+        if (err?.response?.status !== 404) throw err;
+      }
+    }
+    if (data) {
+      get().applyUserProgress(data);
+      get().applyWorldRecords({ tasks: data.tasks, exams: data.exams, sessions: data.sessions });
+      useJournalHistoryStore.getState().hydrateFromSessions(data.sessions || [], data.id);
+    }
+    useRunnerStore.getState().resetRun();
+    set(activityLobbyPatch(get, data || {}, { keepOverlay }));
+    return data;
+  },
+
   restartRun: async () => {
-    if (get().restarting) return;
-    const {
-      selectedActivities,
-      lectureSubjects,
-      assignmentSubjects,
-      examSubjects,
-      examKinds,
-      sessionCompleted,
-      runStartXp,
-    } = get();
-    const startXp = Math.max(0, runStartXp ?? get().xp);
+    if (get().restarting) return false;
+    const { sessionCompleted } = get();
     set({ restarting: true, restartError: null, paused: true });
     try {
       if (sessionCompleted) {
         await get().discardTodayJournal();
+        useRunnerStore.getState().resetRun();
+        set(activityLobbyPatch(get, readStoredUser() || {}, { keepOverlay: true }));
+      } else {
+        await get().abandonCurrentRun({ keepOverlay: true });
       }
-      set({
-        xp: startXp,
-        level: levelFromXp(startXp),
-      });
-      await get().startDailyGame({
-        activities: selectedActivities,
-        lectureSubjects,
-        assignmentSubjects,
-        examSubjects,
-        examKinds,
-      });
+      return true;
     } catch (err) {
       set({
         paused: true,
         restarting: false,
-        restartError: apiErrorMessage(err, "Could not restart this run. Try again."),
+        restartError: apiErrorMessage(err, "Could not leave this run. Try again."),
       });
+      throw err;
     }
   },
 

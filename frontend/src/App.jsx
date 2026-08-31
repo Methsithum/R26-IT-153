@@ -28,6 +28,9 @@ import Settings from "./Pages/studyplanner/Settings";
 import Profile from "./Pages/studyplanner/Profile";
 import CalendarPage from "./Pages/studyplanner/Calendar";
 
+// Focus component
+import FocusApp from "./Components/focus/FocusApp";
+
 // Career Prediction Engine component
 import CareerPredictionEngine from "./Components/career-prediction-engine/CareerPredictionEngine";
 
@@ -112,6 +115,18 @@ function App() {
           }
         />
 
+        {/* --- Focus component (teammate's) --- */}
+        <Route
+          path="/focus"
+          element={
+            <RequireAuth>
+              <HydrateUser>
+                <FocusApp />
+              </HydrateUser>
+            </RequireAuth>
+          }
+        />
+
         {/* --- Journal component (teammate's) --- */}
         <Route
           path="/journal"
@@ -171,6 +186,9 @@ function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/profile" element={<Profile />} />
         </Route>
+
+        {/* Unknown URLs fall back to the dashboard rather than a blank page. */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );

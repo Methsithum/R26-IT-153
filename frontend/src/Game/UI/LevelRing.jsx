@@ -14,7 +14,12 @@ export default function LevelRing({
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const journal = tone === "journal";
-  const track = journal ? "rgba(180, 83, 9, 0.18)" : "rgba(148, 163, 184, 0.35)";
+  const brand = tone === "brand";
+  const track = brand
+    ? "rgba(124, 58, 237, 0.18)"
+    : journal
+      ? "rgba(180, 83, 9, 0.18)"
+      : "rgba(148, 163, 184, 0.35)";
   const innerPad = size >= 80 ? 9 : 6;
   const levelSize = size >= 90 ? "text-2xl" : size >= 70 ? "text-xl" : "text-sm";
   const labelSize = size >= 70 ? "text-[9px]" : "text-[7px]";
@@ -28,7 +33,12 @@ export default function LevelRing({
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
         <defs>
           <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
-            {journal ? (
+            {brand ? (
+              <>
+                <stop offset="0%" stopColor="#ac85ff" />
+                <stop offset="100%" stopColor="#7c3aed" />
+              </>
+            ) : journal ? (
               <>
                 <stop offset="0%" stopColor="#fbbf24" />
                 <stop offset="100%" stopColor="#b45309" />
@@ -56,18 +66,24 @@ export default function LevelRing({
         />
       </svg>
       <div
-        className="absolute flex flex-col items-center justify-center rounded-full bg-gradient-to-br from-amber-200 to-amber-700 shadow-inner"
+        className={`absolute flex flex-col items-center justify-center rounded-full shadow-inner ${
+          brand ? "bg-gradient-to-br from-brand-200 to-brand-600" : "bg-gradient-to-br from-amber-200 to-amber-700"
+        }`}
         style={{ inset: innerPad }}
       >
         <div
           className={`absolute inset-[3px] flex flex-col items-center justify-center rounded-full ${
-            journal ? "bg-[#f5ecd9]" : "bg-slate-950"
+            brand ? "bg-white dark:bg-[#1a1530]" : journal ? "bg-[#f5ecd9]" : "bg-slate-950"
           }`}
         >
-          <div className={`${labelSize} uppercase tracking-[0.18em] leading-none ${journal ? "text-stone-500" : "text-slate-400"}`}>
+          <div className={`${labelSize} uppercase tracking-[0.18em] leading-none ${
+            brand ? "text-brand-400" : journal ? "text-stone-500" : "text-slate-400"
+          }`}>
             Lv
           </div>
-          <div className={`${levelSize} font-black leading-none ${journal ? "text-amber-800" : "text-amber-200"}`}>
+          <div className={`${levelSize} font-black leading-none ${
+            brand ? "text-brand-600 dark:text-brand-300" : journal ? "text-amber-800" : "text-amber-200"
+          }`}>
             {shownLevel}
           </div>
         </div>

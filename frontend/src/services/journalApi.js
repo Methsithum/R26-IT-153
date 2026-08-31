@@ -1,6 +1,14 @@
 import api from "./apiClient";
 import { localTodayIso, campusDateKey } from "./localDate";
 
+export async function abandonDailySession(userId, sessionId) {
+  const { data } = await api.post("/daily/abandon", {
+    user_id: userId,
+    session_id: sessionId,
+  });
+  return data;
+}
+
 export async function startDailySession({
   userId,
   date = `${localTodayIso()}T00:00:00`,
