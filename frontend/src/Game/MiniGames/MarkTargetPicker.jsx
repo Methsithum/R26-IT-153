@@ -77,7 +77,12 @@ export default function MarkTargetPicker({ question, onComplete }) {
                   type="button"
                   onClick={() => choose(paper.id)}
                   initial={{ scale: 0.92, opacity: 0 }}
-                  animate={{ scale: active ? 1.04 : 1, rotate: active ? 0 : tilt, y: active ? -8 : 0 }}
+                  animate={{
+                    opacity: 1,
+                    scale: active ? 1.04 : 1,
+                    rotate: active ? 0 : tilt,
+                    y: active ? -8 : 0,
+                  }}
                   whileHover={{ y: -10, rotate: 0 }}
                   whileTap={{ scale: 0.97 }}
                   className="relative w-[168px] rounded-sm border border-amber-900/15 bg-[#fff7ed] px-3 py-4 text-left shadow-md"
