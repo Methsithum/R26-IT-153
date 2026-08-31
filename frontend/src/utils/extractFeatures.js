@@ -42,9 +42,8 @@ const SURVEY_DEFAULTS = {
 };
 
 /**
- * career_clarity_score is not collected anywhere yet - no teammate component
- * writes it and the survey no longer asks. 50 is the neutral midpoint until
- * a real source exists.
+ * Fallback when the student has never answered the journal's career-clarity
+ * question. 50 is the neutral midpoint of the 0-100 scale.
  */
 const CAREER_CLARITY_DEFAULT = 50;
 
@@ -190,6 +189,145 @@ function deriveAttendance(sessions, createdAt) {
 }
 
 /**
+ * Normalise a journal answer for matching: lowercase, and fold the en-dash the
+ * journal actually stores ("1–2 hours") down to a plain hyphen.
+ *
+ * @param {*} answer
+ * @returns {string}
+ */
+function normaliseAnswer(answer) {
+  return String(answer ?? '')
+    .replace(/[‐-―]/g, '-')
+    .toLowerCase()
+    .trim();
+}
+
+/** Phrase answers that carry no numbers, mapped to an hour estimate. */
+const HOUR_PHRASES = [
+  [/most of the day/, 6.0],
+  [/all day/, 8.0],
+  [/half[-\s]?a?[-\s]?day/, 4.0],
+  [/a few hours/, 2.5],
+  [/a session/, 1.5],
+  [/one to three/, 2.0],
+  [/quick sit|brief|less than an? hour/, 0.5],
+];
+
+/**
+ * Convert one journal answer about time spent into hours.
+ *
+ * The journal stores free text rather than numbers, and the wording varies by
+ * question variant ("1-2 hours", "More than 3 hours", "Quick sit"), so ranges
+ * are read with a regex and the remaining phrases matched by keyword. Anything
+ * unrecognised returns null so it can be skipped rather than counted as zero.
+ *
+ * @param {*} answer
+ * @returns {number|null} hours, or null when the answer carries no duration
+ */
+function answerToHours(answer) {
+  const text = normaliseAnswer(answer);
+  if (!text) return null;
+
+  // "1-2 hours", "2-4 hours" -> midpoint of the range.
+  const range = text.match(/(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*hour/);
+  if (range) return (Number(range[1]) + Number(range[2])) / 2;
+
+  // "More than 3 hours" -> just above the stated bound.
+  const moreThan = text.match(/more than\s*(\d+(?:\.\d+)?)\s*hour/);
+  if (moreThan) return Number(moreThan[1]) + 1;
+
+  // "2 hours", "half an hour" handled by the phrase table below.
+  const plain = text.match(/(\d+(?:\.\d+)?)\s*hour/);
+  if (plain) return Number(plain[1]);
+
+  for (const [pattern, hours] of HOUR_PHRASES) {
+    if (pattern.test(text)) return hours;
+  }
+  return null;
+}
+
+/** Career-clarity wording mapped to the model's 0-100 scale. */
+const CLARITY_MAP = {
+  poor: 20,
+  fair: 45,
+  good: 70,
+  strong: 90,
+};
+
+/**
+ * career_clarity_score from daily_sessions
+ * qa_history where question_id="career-clarity"
+ * Maps text answer to numeric 0-100 scale
+ * poor=20, fair=45, good=70, strong=90
+ *
+ * Uses the most recent completed session that carries an answer.
+ *
+ * @param {object[]} sessions - daily_sessions documents
+ * @returns {number|null} 0-100, or null when never answered
+ */
+function deriveCareerClarity(sessions) {
+  if (!Array.isArray(sessions)) return null;
+
+  const answered = sessions
+    .filter((s) => s.completed === true)
+    .sort(
+      (a, b) =>
+        new Date(b.date || b.created_at) - new Date(a.date || a.created_at),
+    );
+
+  for (const session of answered) {
+    for (const qa of session.qa_history ?? []) {
+      if (qa?.question_id !== 'career-clarity') continue;
+      const score = CLARITY_MAP[normaliseAnswer(qa.answer)];
+      if (typeof score === 'number') return score;
+    }
+  }
+  return null;
+}
+
+/**
+ * weekly_study_hours derived from
+ * qa_history hour answers in last 7 days
+ * Text answers mapped to numeric hours
+ *
+ * @param {object[]} sessions - daily_sessions documents
+ * @returns {number|null} hours in the last 7 days, or null when none recorded
+ */
+function deriveStudyHoursFromSessions(sessions) {
+  if (!Array.isArray(sessions)) return null;
+
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  let total = 0;
+  let found = false;
+
+  for (const session of sessions) {
+    const when = new Date(session.date || session.created_at).getTime();
+    if (Number.isNaN(when) || when < cutoff) continue;
+
+    for (const qa of session.qa_history ?? []) {
+      const qid = String(qa?.question_id ?? '');
+      // Question ids carry a variant suffix (asg-hours-v0035), so match the stem.
+      if (!/hours|duration/.test(qid)) continue;
+
+      const hours = answerToHours(qa.answer);
+      if (hours !== null) {
+        total += hours;
+        found = true;
+      }
+    }
+
+    // Extra activities are already stored as minutes.
+    const extra = session.extra_activity_minutes;
+    if (typeof extra === 'number' && extra > 0) {
+      total += extra / 60;
+      found = true;
+    }
+  }
+
+  return found ? clamp(total, 0, 80) : null;
+}
+
+/**
  * Study hours and GPA trend from aggregated learning patterns.
  * @returns {{weekly_study_hours:number|null, gpa_trend:number|null}}
  */
@@ -263,11 +401,16 @@ export async function extractFeaturesFromMongoDB(surveyAnswers) {
 
   const taskFeats = deriveTaskFeatures(tasksRes?.tasks);
   const examFeats = deriveExamFeatures(examsRes?.exams, tasksRes?.tasks);
-  const attendance = deriveAttendance(
-    sessionsRes?.sessions,
-    profile?.created_at,
-  );
+  const sessions = sessionsRes?.sessions;
+  const attendance = deriveAttendance(sessions, profile?.created_at);
   const learning = deriveLearningFeatures(insights);
+
+  // Study hours: prefer what the student actually reported in the journal over
+  // the aggregate, which stays 0 unless a duration was explicitly recorded.
+  const studyHours =
+    deriveStudyHoursFromSessions(sessions) ?? learning.weekly_study_hours;
+
+  const careerClarity = deriveCareerClarity(sessions);
 
   // ---- Emotional domain, from focus_emotional_stats ----------------------
   // One document per user, overwritten on every save, so this is always the
@@ -306,13 +449,11 @@ export async function extractFeaturesFromMongoDB(surveyAnswers) {
       DEFAULTS.project_performance,
     ],
     attendance_rate: [attendance, DEFAULTS.attendance_rate],
-    weekly_study_hours: [
-      learning.weekly_study_hours,
-      DEFAULTS.weekly_study_hours,
-    ],
+    weekly_study_hours: [studyHours, DEFAULTS.weekly_study_hours],
     stress_level: [stress, DEFAULTS.stress_level],
     anxiety_score: [anxiety, DEFAULTS.anxiety_score],
     mood_stability: [mood, DEFAULTS.mood_stability],
+    career_clarity_score: [careerClarity, CAREER_CLARITY_DEFAULT],
   };
 
   const mongoFeatures = {};
@@ -323,10 +464,6 @@ export async function extractFeaturesFromMongoDB(surveyAnswers) {
     mongoFeatures[key] = usable ? measured : fallback;
     if (!usable) estimated.push(key);
   }
-
-  // career_clarity_score has no source at all yet, so it is estimated in the
-  // same sense as a missing MongoDB field - the student never supplied it.
-  estimated.push('career_clarity_score');
 
   // Non-enumerable so the object still spreads cleanly into a /predict body
   // containing exactly the 15 model features.
@@ -353,12 +490,6 @@ function resolveSurvey(surveyAnswers) {
       surveyAnswers?.sleep_consistency ?? SURVEY_DEFAULTS.sleep_consistency,
     part_time_work_hours:
       surveyAnswers?.part_time_work_hours ?? SURVEY_DEFAULTS.part_time_work_hours,
-
-    // career_clarity_score: default 50
-    // Friend implementation pending
-    // Will be read from users collection
-    // when available
-    career_clarity_score: CAREER_CLARITY_DEFAULT,
   };
 }
 
@@ -375,7 +506,8 @@ function resolveSurvey(surveyAnswers) {
  */
 export function summariseDataQuality(features) {
   const estimatedList = features?.__estimated ?? [];
-  // 11 MongoDB features + career_clarity_score.
+  // The 11 MongoDB features plus career_clarity_score, which is now also read
+  // from MongoDB (daily_sessions.qa_history).
   const total = Object.keys(DEFAULTS).length + 1;
   const estimated = estimatedList.length;
   const real = Math.max(0, total - estimated);
