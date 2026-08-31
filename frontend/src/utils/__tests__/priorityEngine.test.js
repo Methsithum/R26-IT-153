@@ -3,7 +3,13 @@
 // design guarantee or a specific bug that was found and fixed during
 // development, not generic coverage.
 import { describe, it, expect } from "vitest";
-import { computeBaseTier, computeFinalPriority, resolveExplanationDisplay, PRIORITY_LEVELS } from "../priorityEngine";
+import {
+  computeBaseTier,
+  computeFinalPriority,
+  resolveExplanationDisplay,
+  applyPriorityEngineToScheduleResult,
+  PRIORITY_LEVELS,
+} from "../priorityEngine";
 
 describe("computeBaseTier (assignment thresholds)", () => {
   it("assigns High at <=4 days", () => {
@@ -188,5 +194,129 @@ describe("resolveExplanationDisplay: cold-start honesty (Section 17)", () => {
     const display = resolveExplanationDisplay(finalResult, 20, explanationWeightDominant);
     expect(display.sentence).toContain("weight");
     expect(display.caveat).toBeNull();
+  });
+
+  it("always excludes assessment_type_enc from both the sentence and the factor bars - it's a fixed constant now, never a real per-task signal (Assessment Type was removed as a student-set field)", () => {
+    const explanationAssessmentTypeTop = {
+      predicted_priority: finalResult.priorityLabel,
+      feature_contributions: { assessment_type_enc: 0.95, weight: 0.4, date: 0.1 },
+    };
+    const display = resolveExplanationDisplay(finalResult, 20, explanationAssessmentTypeTop);
+    expect(display.sentence).not.toContain("Assessment Type");
+    expect(display.sentence).not.toContain("assessment type");
+    expect(display.contributions).not.toHaveProperty("assessment_type_enc");
+    expect(display.contributions).toHaveProperty("weight");
+  });
+
+  it("always excludes module_presentation_length too - also always the same hardcoded constant (240) for every task, never a real per-module value collected anywhere in the app", () => {
+    const explanationModuleLengthTop = {
+      predicted_priority: finalResult.priorityLabel,
+      feature_contributions: { module_presentation_length: 0.95, weight: 0.4, date: 0.1 },
+    };
+    const display = resolveExplanationDisplay(finalResult, 20, explanationModuleLengthTop);
+    expect(display.sentence).not.toContain("Module length");
+    expect(display.sentence).not.toContain("module length");
+    expect(display.contributions).not.toHaveProperty("module_presentation_length");
+    expect(display.contributions).toHaveProperty("weight");
+  });
+
+  it("always excludes code_module_enc too - a real subject is mapped onto the model's 7 fixed training categories by arbitrary list position, never a meaningful reflection of that subject", () => {
+    const explanationModuleTop = {
+      predicted_priority: finalResult.priorityLabel,
+      feature_contributions: { code_module_enc: 0.95, weight: 0.4, date: 0.1 },
+    };
+    const display = resolveExplanationDisplay(finalResult, 20, explanationModuleTop);
+    expect(display.sentence).not.toContain("Module");
+    expect(display.contributions).not.toHaveProperty("code_module_enc");
+    expect(display.contributions).toHaveProperty("weight");
+  });
+});
+
+describe("applyPriorityEngineToScheduleResult: cross-task deadline consistency", () => {
+  // Both fall in the assignment ">14 days" base-tier band (Low, leaning
+  // Medium) - real bug report: a task due in 20 days independently computed
+  // as Low while a DIFFERENT task due in 30 days, same band, got bumped to
+  // Medium by its own ML weight signal. Individually valid, but backwards
+  // side by side - the nearer deadline must never rank below the farther one.
+  const baseScheduleResult = (from) => ({
+    tasks: {
+      "task-near-20d": {
+        deadline_date: new Date(from.getTime() + 20 * 86400000).toISOString().slice(0, 10),
+        task_type: "assignment",
+        priority_label: "Low", // raw ML label - would independently stay Low
+      },
+      "task-far-30d": {
+        deadline_date: new Date(from.getTime() + 30 * 86400000).toISOString().slice(0, 10),
+        task_type: "assignment",
+        priority_label: "High", // raw ML label - strong enough to clamp up to Medium
+      },
+    },
+    overload_warning: [],
+  });
+
+  it("raises the nearer deadline's priority to match a farther deadline in the same band, never lowering the farther one", () => {
+    const from = new Date("2026-09-01T00:00:00");
+    const result = applyPriorityEngineToScheduleResult(baseScheduleResult(from), from);
+    const nearLevel = PRIORITY_LEVELS[result.tasks["task-near-20d"].priority_label];
+    const farLevel = PRIORITY_LEVELS[result.tasks["task-far-30d"].priority_label];
+    expect(farLevel).toBe(PRIORITY_LEVELS.Medium); // farther task's own real ML-driven result, unchanged
+    expect(nearLevel).toBeGreaterThanOrEqual(farLevel); // nearer task raised to at least match it
+  });
+
+  it("never compares across different task_types (assignment vs exam follow different urgency curves)", () => {
+    const from = new Date("2026-09-01T00:00:00");
+    const scheduleResult = {
+      tasks: {
+        "assign-near-20d": {
+          deadline_date: new Date(from.getTime() + 20 * 86400000).toISOString().slice(0, 10),
+          task_type: "assignment",
+          priority_label: "Low",
+        },
+        "exam-far-30d": {
+          deadline_date: new Date(from.getTime() + 30 * 86400000).toISOString().slice(0, 10),
+          task_type: "exam",
+          priority_label: "High", // exam base tier at 30 days is already Medium regardless
+        },
+      },
+      overload_warning: [],
+    };
+    const result = applyPriorityEngineToScheduleResult(scheduleResult, from);
+    // The assignment's own independent result stands - not pulled up just
+    // because an unrelated EXAM further out happens to rank higher.
+    expect(result.tasks["assign-near-20d"].priority_label).toBe("Low");
+  });
+});
+
+describe("resolveExplanationDisplay: weight detail sentence (real training-data context)", () => {
+  const finalResult = computeFinalPriority(20, "assignment", "Medium"); // base Low, ML Medium -> raised
+  const explanationWeightTop = {
+    predicted_priority: finalResult.priorityLabel,
+    feature_contributions: { weight: 0.9, date: 0.1 },
+  };
+
+  it("cites the real weight value and its position relative to the training data when weight is the named reason", () => {
+    const display = resolveExplanationDisplay(finalResult, 20, explanationWeightTop, { hasRealWeight: true, weightValue: 35 });
+    expect(display.detail).toContain("35%");
+    expect(display.detail).toMatch(/heaviest|above|typical/);
+  });
+
+  it("says nothing extra for a weight at or below the training data's median (9%) - not a real distinguishing detail", () => {
+    const display = resolveExplanationDisplay(finalResult, 20, explanationWeightTop, { hasRealWeight: true, weightValue: 5 });
+    expect(display.detail).toContain("5%");
+    expect(display.detail).toContain("typical");
+  });
+
+  it("omits the detail entirely when weight isn't real yet (cold-start placeholder)", () => {
+    const display = resolveExplanationDisplay(finalResult, 20, explanationWeightTop, { hasRealWeight: false, weightValue: 35 });
+    expect(display.detail).toBeNull();
+  });
+
+  it("omits the detail when weight wasn't actually the named reason", () => {
+    const explanationDateTop = {
+      predicted_priority: finalResult.priorityLabel,
+      feature_contributions: { date: 0.9, weight: 0.1 },
+    };
+    const display = resolveExplanationDisplay(finalResult, 20, explanationDateTop, { hasRealWeight: true, weightValue: 35 });
+    expect(display.detail).toBeNull();
   });
 });

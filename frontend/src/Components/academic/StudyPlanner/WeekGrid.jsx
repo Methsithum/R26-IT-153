@@ -177,9 +177,50 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
     setWeekOffset(0);
   }
 
+  const semesterAllocation = useAcademicStore((s) => s.semesterAllocation);
+
+  // Real occupied items for the WEEK CURRENTLY BEING VIEWED, re-keyed onto
+  // weekday names - the current week's own live `schedule` prop for week 0,
+  // or multiWeekSchedule's real-ISO-date entries mapped back onto each
+  // date's own weekday name for every other week. Regular per-module study
+  // sessions (below) must only ever fill what's ACTUALLY still free in
+  // THIS specific week, never week 0's occupied slots reused for every week.
+  const weekOccupiedByWeekday = useMemo(() => {
+    if (isCurrentWeek) return schedule || {};
+    if (!multiWeekSchedule) return {};
+    const map = {};
+    weekDates.forEach((d) => {
+      const items = multiWeekSchedule.schedule?.[toLocalDateStr(d)];
+      if (!items?.length) return;
+      map[d.toLocaleDateString(undefined, { weekday: "long" })] = items;
+    });
+    return map;
+  }, [isCurrentWeek, schedule, multiWeekSchedule, weekDates]);
+
+  // semesterAllocation[weekOffset] is that week's real per-module hours
+  // projection (studyAllocation.js's SEMESTER_WEEKS = 14 fixed rows) - undefined
+  // once weekOffset reaches 14, which correctly turns regular study sessions
+  // off beyond the modeled semester length rather than reusing week 0's numbers.
+  const weekModuleHours = weekOffset >= 0 ? semesterAllocation[weekOffset] : null;
+
+  // Real ISO date for each weekday NAME in the week being viewed - weekDates[i]
+  // always really is WEEKDAYS[i] (both built from the same Monday-aligned
+  // viewedWeekStart), so this is a direct 1:1 zip, not a guess. Lets
+  // buildStudySessionsByDay refuse to label a suggested chunk with an
+  // assignment whose real deadline already fell earlier in this same week -
+  // e.g. never suggest "study for X" on the Friday of a week when X was
+  // actually due that Monday.
+  const weekDatesByDay = useMemo(
+    () => Object.fromEntries(WEEKDAYS.map((d, i) => [d, toLocalDateStr(weekDates[i])])),
+    [weekDates]
+  );
+
   const studySessionsByDay = useMemo(
-    () => buildStudySessionsByDay(modules, weeklyFreeSlots, assignments, schedule || {}),
-    [modules, weeklyFreeSlots, assignments, schedule]
+    () =>
+      weekModuleHours
+        ? buildStudySessionsByDay(modules, weeklyFreeSlots, assignments, weekOccupiedByWeekday, weekModuleHours, weekDatesByDay)
+        : {},
+    [modules, weeklyFreeSlots, assignments, weekOccupiedByWeekday, weekModuleHours, weekDatesByDay]
   );
 
   // Only meaningful for the current week - other weeks never have a
@@ -311,7 +352,14 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
               : withinGeneratedRange
               ? multiWeekSchedule.schedule[dateStr] || []
               : [];
-            const studySessions = isCurrentWeek && !isPast ? studySessionsByDay[realDayName] || [] : []; // suggested self-study blocks are current-week-only (tied to weeklyFreeSlots' day-name pattern), and never part of a frozen historical record
+            // Regular per-module study sessions - spread across the whole
+            // modeled semester (studyAllocation.js's SEMESTER_WEEKS), not
+            // just the current week, but only ever filling time that week's
+            // OWN real schedule (weekOccupiedByWeekday) left genuinely free -
+            // never part of a frozen historical record, since a past day's
+            // record is exactly what was really shown, suggestions included
+            // or not.
+            const studySessions = !isPast ? studySessionsByDay[realDayName] || [] : [];
             const activeTasksRegistry = isPast
               ? historicalRecord?.tasksRegistry || {}
               : isCurrentWeek
@@ -348,7 +396,12 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
             } else if (!isCurrentWeek) {
               if (!multiWeekSchedule && multiWeekLoading) {
                 emptyState = { icon: Clock, title: "Loading…", subtitle: "Fetching this week's real plan." };
-              } else if (!withinGeneratedRange) {
+              } else if (!withinGeneratedRange && studySessions.length === 0) {
+                // Weeks 12-13 (beyond the backend's own 12-week cap) can
+                // still show regular per-module study sessions - those are
+                // computed entirely client-side from SEMESTER_WEEKS, not
+                // from the backend's generated range - so only fall back to
+                // "too far ahead" when there's truly nothing to show either way.
                 emptyState = {
                   icon: Clock,
                   title: "Too far ahead",

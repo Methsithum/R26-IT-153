@@ -96,6 +96,13 @@ function spreadAcrossDays(weeklyFreeSlots) {
   return spread;
 }
 
+function addClockMinutes(hhmm, minutes) {
+  const [h, m] = (hhmm || "0:0").split(":").map(Number);
+  const total = h * 60 + m + minutes;
+  const wrapped = ((total % (24 * 60)) + 24 * 60) % (24 * 60);
+  return `${String(Math.floor(wrapped / 60)).padStart(2, "0")}:${String(wrapped % 60).padStart(2, "0")}`;
+}
+
 function timeToMinutes(hhmm) {
   const [h, m] = (hhmm || "0:0").split(":").map(Number);
   return (h || 0) * 60 + (m || 0);
@@ -119,31 +126,117 @@ function isSlotFree(slot, scheduledItemsForDay) {
   });
 }
 
-export function buildStudySessionsByDay(modules, weeklyFreeSlots, assignments = [], schedule = {}) {
+/**
+ * moduleHoursOverride: optional { moduleCode: hours } map for the WEEK being
+ * built - lets a caller building a specific week other than the current one
+ * (WeekGrid.jsx's multi-week regular-study fill, see studyAllocation.js's
+ * SEMESTER_WEEKS) supply that week's own real semesterAllocation row instead
+ * of always reading the live `module.studyHoursThisWeek` (which only ever
+ * reflects week 1). `schedule` must be that SAME week's own real occupied
+ * items (weekday-keyed) so `isSlotFree` checks the right week's conflicts,
+ * not always week 0's.
+ */
+export function buildStudySessionsByDay(modules, weeklyFreeSlots, assignments = [], schedule = {}, moduleHoursOverride = null, weekDatesByDay = null) {
   const byDay = {};
   if (!weeklyFreeSlots?.length) return byDay;
   const availableSlots = weeklyFreeSlots.filter((slot) => isSlotFree(slot, schedule[slot.day] || []));
-  const candidates = [...modules]
-    .filter((m) => (m.studyHoursThisWeek || 0) > 0)
+  const candidates = modules
+    .map((m) => ({ ...m, studyHoursThisWeek: moduleHoursOverride ? moduleHoursOverride[m.code] || 0 : m.studyHoursThisWeek || 0 }))
+    .filter((m) => m.studyHoursThisWeek > 0)
     .sort((a, b) => b.studyHoursThisWeek - a.studyHoursThisWeek);
-  const spreadSlots = spreadAcrossDays(availableSlots);
 
-  candidates.forEach((m, i) => {
-    const slot = spreadSlots[i % spreadSlots.length];
-    if (!slot) return;
-    const nearestAssignment = assignments
-      .filter((a) => a.module === m.code && a.status === "pending")
-      .sort((a, b) => (a.deadlineDate || "").localeCompare(b.deadlineDate || ""))[0];
-    byDay[slot.day] = byDay[slot.day] || [];
-    byDay[slot.day].push({
-      taskId: `study-${m.code}`,
-      module: m.code,
-      moduleName: m.name,
-      assignmentTitle: nearestAssignment?.title || null,
-      color: m.color,
-      timeSlot: `${slot.start_time}-${slot.end_time}`,
-      durationMinutes: Math.min(Math.round(m.studyHoursThisWeek * 60), slot.duration_minutes),
+  // Mutable remaining capacity, round-robin ordered (spreadAcrossDays) so the
+  // very first pass spreads across different days before ever doubling back
+  // on one - each module then greedily keeps consuming from here across AS
+  // MANY slots/days as it needs, until its full weekly hours are placed or
+  // free capacity genuinely runs out - the same greedy-fill approach the
+  // real scheduler uses for real tasks (schedule_engine.py's StudyScheduler).
+  // Previously a module only ever got ONE slot regardless of how many hours
+  // it actually needed that week, silently dropping the rest - which left
+  // most of the week's genuinely free days empty even with capacity to
+  // spare, once a module's weekly hours exceeded a single slot's length.
+  const remaining = spreadAcrossDays(availableSlots).map((s) => ({ ...s }));
+  const dayLoadMinutes = {};
+
+  candidates.forEach((m) => {
+    let minutesNeeded = Math.round(m.studyHoursThisWeek * 60);
+    if (minutesNeeded <= 0) return;
+
+    // Every pending assignment for this module, nearest deadline first, each
+    // carrying its OWN real remaining minutes. A chunk is only ever labeled
+    // with a given assignment's name while that assignment genuinely still
+    // has that much work left - once its own remaining hours are used up,
+    // later chunks move on to the next assignment (or fall back to just the
+    // module name once none are left). Without this, a single small
+    // assignment's name got stamped on the module's ENTIRE weekly study
+    // budget regardless of size - a 4-hour assignment could end up
+    // labeling 18+ hours of suggested sessions, falsely implying it needed
+    // far more work than it actually does.
+    // `schedule` (this week's real occupied items, already passed in for
+    // isSlotFree above) may ALREADY carry real, ML-scheduled minutes for one
+    // of these exact assignments this week - those must count against its
+    // remaining need too, or a task the real scheduler already fully placed
+    // (e.g. Mon+Tue) would still show its full original hours as "still
+    // owed" here, handing out MORE assignment-labeled suggested chunks
+    // (Wed, Thu, ...) on top of work that's already fully scheduled.
+    const realMinutesThisWeekByTaskId = {};
+    Object.values(schedule).forEach((dayItems) => {
+      (dayItems || []).forEach((item) => {
+        realMinutesThisWeekByTaskId[item.task_id] = (realMinutesThisWeekByTaskId[item.task_id] || 0) + (item.duration_minutes || 0);
+      });
     });
+    const pendingForModule = assignments
+      .filter((a) => a.module === m.code && a.status === "pending")
+      .sort((a, b) => (a.deadlineDate || "").localeCompare(b.deadlineDate || ""))
+      .map((a) => {
+        const totalNeededMinutes = Math.max(0, (a.estimatedHoursNeeded || 0) - (a.completedHours || 0)) * 60;
+        const alreadyRealMinutes = realMinutesThisWeekByTaskId[a.taskId] || 0;
+        return { title: a.title, deadlineDate: a.deadlineDate, remainingMinutes: Math.max(0, totalNeededMinutes - alreadyRealMinutes) };
+      });
+    // Picks the first assignment (by deadline order) that both still has
+    // remaining minutes AND hasn't already passed its own deadline as of
+    // THIS specific chunk's real date - a `find` each time, not a monotonic
+    // pointer, since chunks aren't necessarily processed in chronological
+    // order (least-loaded-day-first can visit a later week-day before an
+    // earlier one). Without the date check, a chunk landing after an
+    // assignment's real deadline (e.g. labeling Friday/Saturday with an
+    // assignment that was actually due the Monday of that same week) would
+    // suggest studying for something already overdue, instead of moving on
+    // to the next real assignment or the plain module name.
+    function labelForChunk(chunkMinutes, day) {
+      const chunkDate = weekDatesByDay?.[day];
+      const candidate = pendingForModule.find(
+        (a) => a.remainingMinutes > 0 && (!chunkDate || !a.deadlineDate || a.deadlineDate >= chunkDate)
+      );
+      if (!candidate) return null;
+      candidate.remainingMinutes -= chunkMinutes;
+      return candidate.title;
+    }
+
+    // Least-loaded day first, re-sorted before each module's turn - so one
+    // hungry module doesn't stack every remaining slot onto a single day
+    // before a lighter module still gets a fair spread too.
+    remaining.sort((a, b) => (dayLoadMinutes[a.day] || 0) - (dayLoadMinutes[b.day] || 0));
+
+    for (const slot of remaining) {
+      if (minutesNeeded <= 0) break;
+      if (slot.duration_minutes <= 0) continue;
+      const take = Math.min(slot.duration_minutes, minutesNeeded);
+      byDay[slot.day] = byDay[slot.day] || [];
+      byDay[slot.day].push({
+        taskId: `study-${m.code}-${slot.day}-${byDay[slot.day].length}`,
+        module: m.code,
+        moduleName: m.name,
+        assignmentTitle: labelForChunk(take, slot.day),
+        color: m.color,
+        timeSlot: `${slot.start_time}-${addClockMinutes(slot.start_time, take)}`,
+        durationMinutes: take,
+      });
+      slot.start_time = addClockMinutes(slot.start_time, take);
+      slot.duration_minutes -= take;
+      minutesNeeded -= take;
+      dayLoadMinutes[slot.day] = (dayLoadMinutes[slot.day] || 0) + take;
+    }
   });
   return byDay;
 }

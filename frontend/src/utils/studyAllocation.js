@@ -1,3 +1,13 @@
+// A full academic term's worth of weeks - fixed, not derived from whatever
+// deadlines happen to exist right now. Regular per-module revision (see
+// buildStudySessionsByDay in studySessionBuilder.js) is meant to run for
+// the whole semester, not just until the last currently-known deadline -
+// a module with nothing due for the next 8 weeks still deserves ongoing
+// study time in the meantime, and W12-14 need real rows to exist even
+// though schedule_engine.py's own MAX_WEEKS_AHEAD (12) never reaches that
+// far for real assignment/exam-prep scheduling.
+export const SEMESTER_WEEKS = 14;
+
 // Real, data-driven weekly study-hours-per-module allocation — built from
 // each module's actual remaining assignment deadlines and exam dates (both
 // real once synced from the journal), spread across the student's real
@@ -25,10 +35,7 @@ export function buildWeeklyModuleAllocation({ modules, assignments, exams, weekl
   });
   Object.values(focusPointsByModule).forEach((arr) => arr.sort());
 
-  const allDates = Object.values(focusPointsByModule).flat();
-  const maxDate = allDates.length ? allDates.reduce((a, b) => (a > b ? a : b)) : null;
-  const daysUntilMax = maxDate ? Math.max(1, Math.round((new Date(`${maxDate}T00:00:00`) - today) / 86400000)) : 0;
-  const numWeeks = Math.min(16, Math.max(4, Math.ceil(daysUntilMax / 7) || 4));
+  const numWeeks = SEMESTER_WEEKS;
 
   const weeks = [];
   for (let i = 0; i < numWeeks; i++) {
@@ -47,9 +54,19 @@ export function buildWeeklyModuleAllocation({ modules, assignments, exams, weekl
       weights[m.code] = w;
       totalWeight += w;
     });
+    // No module has any known upcoming deadline/exam this far out yet (common
+    // for the later semester weeks, since real deadlines/exams are usually
+    // only known a few weeks ahead) - fall back to splitting the week's hours
+    // evenly across every module rather than giving everyone zero, so
+    // "regular" revision keeps happening even before anything concrete is due.
+    const fallbackEven = totalWeight <= 0 && modules.length > 0;
     const row = { week: `W${i + 1}` };
     modules.forEach((m) => {
-      row[m.code] = totalWeight > 0 ? Math.round((weights[m.code] / totalWeight) * weeklyHours * 10) / 10 : 0;
+      row[m.code] = fallbackEven
+        ? Math.round((weeklyHours / modules.length) * 10) / 10
+        : totalWeight > 0
+        ? Math.round((weights[m.code] / totalWeight) * weeklyHours * 10) / 10
+        : 0;
     });
     weeks.push(row);
   }

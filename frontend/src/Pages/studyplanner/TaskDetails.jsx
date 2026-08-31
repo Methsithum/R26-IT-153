@@ -76,6 +76,7 @@ export default function TaskDetails() {
     ? resolveExplanationDisplay(finalPriorityResult, days, explanation, {
         hasPriorScoreData: !!task?.hasPriorScoreData,
         hasRealWeight: !!task?.hasRealWeight,
+        weightValue: task?.weight ?? null,
       })
     : null;
 

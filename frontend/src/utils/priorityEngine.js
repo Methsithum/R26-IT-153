@@ -4,13 +4,21 @@
 // the model — the model itself is already correct (PROJECT CONTEXT.md
 // Section 5c: the OrdinalMonotonicPriorityModel guarantees priority never
 // falls as a deadline gets nearer, HOLDING OTHER FEATURES FIXED). What that
-// guarantee does NOT cover is consistency ACROSS different tasks: weight and
-// prior performance can genuinely dominate the model's decision more than
-// deadline proximity (confirmed via SHAP), so a task due in 32 days can
-// still outrank a differently-weighted task due in 12 days. That's a real
-// product requirement (deadline should be what students see as the
-// dominant signal across their whole list), not a bug in the monotonic fix
-// - see PROJECT CONTEXT.md Section 5d for the full writeup.
+// guarantee does NOT cover on its own is consistency ACROSS different
+// tasks: weight and prior performance can genuinely dominate the model's
+// decision more than deadline proximity (confirmed via SHAP) - see PROJECT
+// CONTEXT.md Section 5d for the full writeup on why the deadline-driven
+// base tier is the dominant factor and the ML label only nudges it by at
+// most one tier.
+//
+// applyPriorityEngineToScheduleResult() adds a second, explicit guarantee
+// on top of that per-task result: within the SAME task_type, a nearer
+// deadline's final priority is never allowed to end up LOWER than a
+// farther deadline's - two tasks can land in the same broad base-tier band
+// (e.g. both ">14 days") and still get different independent ML nudges, and
+// without this cross-task pass that could show the nearer one as Low while
+// a farther one in the same band shows Medium, which reads as backwards to
+// a student even though each number was individually valid.
 //
 // This layer takes real days-until-deadline as the DOMINANT factor (a
 // deadline-driven "base tier"), then lets the ML label shift the result by
@@ -197,14 +205,60 @@ const NO_DATA_CAVEATS = {
   weight: "This task's weight isn't set yet — using a neutral default, so this estimate may be less certain.",
 };
 
+// Real assessment-weight distribution from the actual training dataset
+// (oulad_task_level_leakage_free.csv - see backend/ml_scripts/study-planner),
+// computed once and hardcoded here since it's a fixed property of the
+// already-trained model's data, not something that changes per request.
+// Gives the "assignment weight" reason real, honest context instead of a
+// bare feature name - a student reading e.g. "35%" as a modest-looking
+// number out of 100 has no way to know that's actually heavier than 90% of
+// assessments in the data the model itself learned from.
+const TRAINING_WEIGHT_PERCENTILES = { median: 9, p75: 18, p90: 25 };
+
+function weightDetailSentence(weightValue) {
+  if (weightValue == null || Number.isNaN(weightValue)) return null;
+  const { median, p75, p90 } = TRAINING_WEIGHT_PERCENTILES;
+  if (weightValue > p90) {
+    return `This assignment's ${weightValue}% weight is among the heaviest in the training data — over 90% of assessments the model learned from are lighter than this, which is why it pushed the priority up.`;
+  }
+  if (weightValue > p75) {
+    return `This assignment's ${weightValue}% weight is well above typical — most assessments in the training data are weighted under ${p75}%, which is why it pushed the priority up.`;
+  }
+  if (weightValue > median) {
+    return `This assignment's ${weightValue}% weight is somewhat above the typical assessment weight (median ${median}% in the training data), which nudged the priority up.`;
+  }
+  return `This assignment's ${weightValue}% weight is around or below the typical assessment weight (median ${median}% in the training data).`;
+}
+
 export function resolveExplanationDisplay(finalResult, daysRemainingValue, explanation, options = {}) {
   if (!finalResult || !explanation) return null;
-  const { hasPriorScoreData = true, hasRealWeight = true } = options;
+  const { hasPriorScoreData = true, hasRealWeight = true, weightValue = null } = options;
   const excludeKeys = [
     ...(hasPriorScoreData ? [] : ["prior_avg_score"]),
     ...(hasRealWeight ? [] : ["weight"]),
+    // assessment_type_enc, module_presentation_length, and code_module_enc
+    // are always excluded, unconditionally - not a no-data cold-start case
+    // like the two above, but a permanent one for all three: none is real,
+    // meaningful per-task information the way weight or the deadline are.
+    // Assessment Type was removed as a form field entirely and
+    // module_presentation_length has never had a real source at all - both
+    // are always sent to the model as the exact same fixed constant for
+    // every task (AddAcademicData.jsx / useAcademicStore.js /
+    // academicMocks.js). code_module_enc is different but no more
+    // meaningful: the model only ever learned 7 fixed OULAD categories
+    // (AAA-GGG), so a real subject like "Probability & Statistics" gets
+    // mapped onto one of them by ARBITRARY LIST POSITION
+    // (subjectNames.indexOf(subject) % 7, same files) - nothing about that
+    // mapping reflects anything real about the subject. Citing any of the
+    // three as a genuine "why" reason - or showing it as a contributing
+    // factor bar - would misrepresent an artifact of the encoding as if it
+    // were something that actually varied and mattered for this task.
+    "assessment_type_enc",
+    "module_presentation_length",
+    "code_module_enc",
   ];
 
+  const excludedSet = new Set(excludeKeys);
   const rawLabel = explanation.predicted_priority;
   const finalLabel = finalResult.priorityLabel;
 
@@ -217,11 +271,27 @@ export function resolveExplanationDisplay(finalResult, daysRemainingValue, expla
   const topKey = allRanked[0]?.key;
   const caveat = excludeKeys.includes(topKey) ? NO_DATA_CAVEATS[topKey] || null : null;
 
+  // The same exclusion applies to the factor BARS shown alongside the
+  // sentence (ExplanationPanel.jsx), not just the sentence text - those
+  // render straight from `contributions` below, so assessment_type_enc (and
+  // any cold-start-excluded feature) must already be stripped out here
+  // rather than filtered a second time downstream.
+  const excludedContributions = Object.fromEntries(
+    Object.entries(explanation.feature_contributions).filter(([key]) => !excludeKeys.includes(key))
+  );
+
   if (finalLabel === rawLabel) {
+    // Recomputed here (cheap) so this branch can tell whether "weight" was
+    // actually the SINGLE STRONGEST cited reason (not merely mentioned as a
+    // secondary factor buildShapSentence's top-2 happened to include) -
+    // the detail sentence elaborates on the headline reason, and would be
+    // misleading noise attached to a factor that barely moved the needle.
+    const shapStrongestKey = allRanked.filter((c) => !excludedSet.has(c.key))[0]?.key;
     return {
       type: "shap",
       sentence: buildShapSentence(finalLabel, explanation.feature_contributions, 2, excludeKeys),
-      contributions: explanation.feature_contributions,
+      detail: hasRealWeight && shapStrongestKey === "weight" ? weightDetailSentence(weightValue) : null,
+      contributions: excludedContributions,
       caveat,
     };
   }
@@ -248,7 +318,6 @@ export function resolveExplanationDisplay(finalResult, daysRemainingValue, expla
   // of the shift: positive (pushed toward the raw label) when raised,
   // negative (pushed away from it) when lowered. Also excludes any
   // no-real-data feature here for the same cold-start reason as above.
-  const excludedSet = new Set(excludeKeys);
   const humanized = allRanked.filter((c) => !excludedSet.has(c.key));
   const supporting = humanized.filter((c) => (raised ? c.value > 0 : c.value < 0));
   const topFactor = supporting[0] || humanized[0];
@@ -257,7 +326,8 @@ export function resolveExplanationDisplay(finalResult, daysRemainingValue, expla
   return {
     type: "blended",
     sentence: `Normally this would be ${baseLabel} priority based on its deadline, but it's been ${direction} to ${finalLabel} priority because of ${reason}.`,
-    contributions: explanation.feature_contributions,
+    detail: hasRealWeight && topFactor?.key === "weight" ? weightDetailSentence(weightValue) : null,
+    contributions: excludedContributions,
     caveat,
   };
 }
@@ -286,12 +356,41 @@ export function resolveExplanationDisplay(finalResult, daysRemainingValue, expla
 export function applyPriorityEngineToScheduleResult(scheduleResult, from = new Date()) {
   if (!scheduleResult?.tasks) return scheduleResult;
 
+  // First pass: independent per-task hybrid priority, exactly as before.
+  const computed = Object.entries(scheduleResult.tasks).map(([taskId, entry]) => {
+    const taskType = entry.task_type || "assignment";
+    const result = computeFinalPriorityFromDeadline(entry.deadline_date, taskType, entry.priority_label, from);
+    return { taskId, entry, taskType, days: daysRemaining(entry.deadline_date, from), level: PRIORITY_LEVELS[result.priorityLabel] };
+  });
+
+  // Second pass: cross-task consistency, within the same task_type only
+  // (assignment vs exam are never compared - see computeBaseTier, they
+  // follow genuinely different urgency curves). Two tasks can land in the
+  // SAME broad deadline band (e.g. both ">14 days" for assignments) and
+  // still get different ML modifiers from their own real weight/engagement
+  // signals - so, previously, a task due in 20 days could independently end
+  // up Low while a DIFFERENT task due in 30 days, in that same band, got
+  // bumped to Medium. Each number was individually valid, but side by side
+  // it reads as backwards ("why is the sooner one lower?"). Enforced by
+  // walking farthest-to-nearest per type and never letting a nearer
+  // deadline's level fall below the highest level any farther deadline (of
+  // the same type) already reached - the nearer task gets raised to match,
+  // the farther task's own data-driven result is never lowered.
+  const byType = {};
+  computed.forEach((c) => {
+    (byType[c.taskType] = byType[c.taskType] || []).push(c);
+  });
+  Object.values(byType).forEach((group) => {
+    group.sort((a, b) => b.days - a.days); // farthest deadline first
+    let minAllowedLevel = 0;
+    group.forEach((c) => {
+      c.level = Math.max(c.level, minAllowedLevel);
+      minAllowedLevel = c.level;
+    });
+  });
+
   const tasks = Object.fromEntries(
-    Object.entries(scheduleResult.tasks).map(([taskId, entry]) => {
-      const taskType = entry.task_type || "assignment";
-      const result = computeFinalPriorityFromDeadline(entry.deadline_date, taskType, entry.priority_label, from);
-      return [taskId, { ...entry, priority_label: result.priorityLabel }];
-    })
+    computed.map((c) => [c.taskId, { ...c.entry, priority_label: LEVEL_TO_PRIORITY[c.level] }])
   );
 
   const overload_warning = (scheduleResult.overload_warning || []).map((w) => {
