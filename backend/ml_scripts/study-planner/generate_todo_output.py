@@ -51,40 +51,48 @@ def section(title):
 # ===========================================================================
 # CORE TRANSFORM: schedule -> to-do list
 # ===========================================================================
-def _reminder_message(module, priority_label, days_remaining):
+def _reminder_message(module, priority_label, days_remaining, task_type="assignment"):
     """
     Builds a short, human-readable reminder that varies by priority AND
     urgency (not priority alone) - a High-priority task due in 3 weeks
     doesn't need the same tone as one due tomorrow, and a Low-priority task
     due tomorrow still deserves a nudge.
+
+    task_type distinguishes exam-prep entries (see PROJECT CONTEXT.md
+    Section 5d / Section 8's exam-prep subsection) from regular assignment
+    work - "task" reads oddly for exam study time, and a student scanning
+    this list needs to tell at a glance which entries are prep for an exam
+    itself vs. an assignment, same as the session cards in the UI.
     """
+    noun = "exam prep" if task_type == "exam" else "task"
+
     if days_remaining < 0:
-        return f"⚠️ Overdue: {module} task was due {abs(days_remaining)} day(s) ago - address immediately."
+        return f"⚠️ Overdue: {module} {noun} was due {abs(days_remaining)} day(s) ago - address immediately."
 
     if priority_label == "High":
         if days_remaining <= 2:
-            return f"⚠️ Urgent: {module} task due in {days_remaining} day(s) — schedule time today."
+            return f"⚠️ Urgent: {module} {noun} due in {days_remaining} day(s) — schedule time today."
         elif days_remaining <= 7:
-            return f"\U0001F4CC High priority: {module} task due in {days_remaining} days — start soon."
+            return f"\U0001F4CC High priority: {module} {noun} due in {days_remaining} days — start soon."
         else:
-            return f"\U0001F4CC High priority: {module} task due in {days_remaining} days — begin early given its weight."
+            return f"\U0001F4CC High priority: {module} {noun} due in {days_remaining} days — begin early given its weight."
 
     if priority_label == "Medium":
         if days_remaining <= 2:
-            return f"⏳ {module} task due in {days_remaining} day(s) — make time soon."
+            return f"⏳ {module} {noun} due in {days_remaining} day(s) — make time soon."
         elif days_remaining <= 7:
-            return f"\U0001F4C5 {module} task due in {days_remaining} days — plan a session this week."
+            return f"\U0001F4C5 {module} {noun} due in {days_remaining} days — plan a session this week."
         else:
-            return f"\U0001F4C5 {module} task due in {days_remaining} days — keep it on your radar."
+            return f"\U0001F4C5 {module} {noun} due in {days_remaining} days — keep it on your radar."
 
     # Low priority
     if days_remaining <= 2:
-        return f"ℹ️ {module} task (low priority) due in {days_remaining} day(s) — quick task, fit it in when convenient."
+        return f"ℹ️ {module} {noun} (low priority) due in {days_remaining} day(s) — quick task, fit it in when convenient."
     elif days_remaining <= 13:
-        return f"ℹ️ {module} task due in {days_remaining} days — no urgent action needed yet."
+        return f"ℹ️ {module} {noun} due in {days_remaining} days — no urgent action needed yet."
     else:
         weeks = days_remaining // 7
-        return f"ℹ️ {module} task due in {weeks} week(s) — no immediate action needed."
+        return f"ℹ️ {module} {noun} due in {weeks} week(s) — no immediate action needed."
 
 
 def build_todo_list(schedule_result, today=None):
@@ -137,7 +145,10 @@ def build_todo_list(schedule_result, today=None):
             "deadline_date": info["deadline_date"],
             "days_remaining": days_remaining,
             "recommended_next_session": recommended_next_session,
-            "reminder_message": _reminder_message(info["module"], info["priority_label"], days_remaining),
+            "reminder_message": _reminder_message(
+                info["module"], info["priority_label"], days_remaining, info.get("task_type", "assignment")
+            ),
+            "task_type": info.get("task_type", "assignment"),
         })
 
     todo_items.sort(key=lambda t: (PRIORITY_ORDER.get(t["priority_label"], 3), t["days_remaining"]))

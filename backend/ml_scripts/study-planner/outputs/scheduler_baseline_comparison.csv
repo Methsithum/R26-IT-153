@@ -1,0 +1,13 @@
+scenario,algorithm,pct_high_priority_scheduled_before_deadline,avg_lead_time_high_priority,daily_load_variance,overload_total_hours,pct_high_priority_scheduled_before_deadline_stdev,avg_lead_time_high_priority_stdev,daily_load_variance_stdev,overload_total_hours_stdev
+light,StudyScheduler (current),1.0,3,1.263,0,,,,
+light,FCFS,1.0,3,1.263,0,,,,
+light,EDF,1.0,3,1.263,0,,,,
+light,Random (mean of 20),1.0,1.7,1.263,0,0.0,0.843,0.0,0.0
+typical,StudyScheduler (current),1.0,5.5,0.0,6.75,,,,
+typical,FCFS,1.0,5,0.0,6.75,,,,
+typical,EDF,1.0,6,0.0,6.75,,,,
+typical,Random (mean of 20),0.45,8.25,0.0,6.75,0.35,3.277,0.0,0.0
+heavy,StudyScheduler (current),0.0,n/a,0.0,26.25,,,,
+heavy,FCFS,0.0,n/a,0.0,26.25,,,,
+heavy,EDF,0.0,n/a,0.0,26.25,,,,
+heavy,Random (mean of 20),0.0,n/a,0.0,26.25,0.0,n/a,0.0,0.0

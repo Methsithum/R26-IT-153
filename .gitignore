@@ -1,7 +1,11 @@
 config.bat
 node_modules
+.env
 
 # Datasets and large trained-model artifacts
 datasets
 /backend/datasets
 backend/trained-models/focus/features_cache.npz
+
+# Internal notes, not part of the deliverable
+backend/PROJECT CONTEXT.md

@@ -1,27 +1,19 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { play } from "../audio/sfx";
-import { blotterStyle, PaperSlip } from "./woodDesk";
+
+const RINGS = [
+  { r: 90, fill: "#9b2c2c" },
+  { r: 70, fill: "#f4efe4" },
+  { r: 50, fill: "#9b2c2c" },
+  { r: 30, fill: "#f4efe4" },
+  { r: 14, fill: "#9b2c2c" },
+];
 
 const REST = { x: 100, y: 218 };
 const CENTER = { x: 100, y: 100 };
 const MAX_PULL = 62;
 const BOARD_R = 90;
-
-const WOOD_RINGS = [
-  { r: 90, fill: "wd-outer" },
-  { r: 70, fill: "wd-oak" },
-  { r: 50, fill: "wd-honey" },
-  { r: 30, fill: "wd-walnut" },
-  { r: 14, fill: "wd-heart" },
-];
-
-const RING_LABELS = [
-  { r: 80, mark: 20 },
-  { r: 60, mark: 40 },
-  { r: 40, mark: 60 },
-  { r: 22, mark: 80 },
-];
 
 function subjectOf(question) {
   const exam = question?.context?.missingExams?.[0];
@@ -67,53 +59,8 @@ function landingFromPull(pull) {
   };
 }
 
-function WoodDefs({ uid }) {
-  return (
-    <defs>
-      <radialGradient id={`${uid}-wd-outer`} cx="38%" cy="32%" r="72%">
-        <stop offset="0%" stopColor="#7a4d28" />
-        <stop offset="55%" stopColor="#5c3a1e" />
-        <stop offset="100%" stopColor="#3d2414" />
-      </radialGradient>
-      <radialGradient id={`${uid}-wd-oak`} cx="40%" cy="30%" r="70%">
-        <stop offset="0%" stopColor="#c9a36a" />
-        <stop offset="50%" stopColor="#a67c4e" />
-        <stop offset="100%" stopColor="#7a4d28" />
-      </radialGradient>
-      <radialGradient id={`${uid}-wd-honey`} cx="42%" cy="28%" r="68%">
-        <stop offset="0%" stopColor="#e8d5a3" />
-        <stop offset="48%" stopColor="#c4a574" />
-        <stop offset="100%" stopColor="#8b5a2b" />
-      </radialGradient>
-      <radialGradient id={`${uid}-wd-walnut`} cx="40%" cy="30%" r="70%">
-        <stop offset="0%" stopColor="#8b5a2b" />
-        <stop offset="60%" stopColor="#5c3a1e" />
-        <stop offset="100%" stopColor="#3f2412" />
-      </radialGradient>
-      <radialGradient id={`${uid}-wd-heart`} cx="40%" cy="32%" r="70%">
-        <stop offset="0%" stopColor="#6b4226" />
-        <stop offset="100%" stopColor="#2c1810" />
-      </radialGradient>
-      <radialGradient id={`${uid}-wd-rim`} cx="35%" cy="28%" r="75%">
-        <stop offset="0%" stopColor="#5a3418" />
-        <stop offset="100%" stopColor="#1f120c" />
-      </radialGradient>
-      <linearGradient id={`${uid}-brass`} x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stopColor="#f3e2b8" />
-        <stop offset="45%" stopColor="#d4af6a" />
-        <stop offset="100%" stopColor="#8a6a32" />
-      </linearGradient>
-      <pattern id={`${uid}-grain`} width="8" height="8" patternUnits="userSpaceOnUse">
-        <path d="M0 4h8" stroke="#3d2414" strokeOpacity="0.12" strokeWidth="0.6" />
-        <path d="M1 1h6" stroke="#fff7ed" strokeOpacity="0.06" strokeWidth="0.4" />
-      </pattern>
-    </defs>
-  );
-}
-
 export default function MarksDartboard({ question, onComplete }) {
   const svgRef = useRef(null);
-  const uid = useId().replace(/:/g, "");
   const [dart, setDart] = useState(REST);
   const [pull, setPull] = useState(null);
   const [flying, setFlying] = useState(false);
@@ -145,7 +92,8 @@ export default function MarksDartboard({ question, onComplete }) {
       setFlying(true);
       play("dart");
       setDart({ x: land.x, y: land.y });
-      setMark(scoreFromPoint(land.x, land.y));
+      const nextMark = scoreFromPoint(land.x, land.y);
+      setMark(nextMark);
       window.setTimeout(() => {
         setFlying(false);
         setStuck(true);
@@ -167,12 +115,12 @@ export default function MarksDartboard({ question, onComplete }) {
     const point = pointerInSvg(event, svg);
     const next = clampPull(point.x - REST.x, point.y - REST.y);
     dragRef.current = next;
+    dragRef.current = next;
     setPull(next);
     setDart({ x: REST.x + next.x, y: REST.y + next.y });
   }
 
   function throwAgain() {
-    play("click");
     setStuck(false);
     setFlying(false);
     setMark(null);
@@ -182,11 +130,6 @@ export default function MarksDartboard({ question, onComplete }) {
   }
 
   const aim = pull ? landingFromPull(pull) : null;
-  const liveMark = stuck && mark != null ? mark : aim ? scoreFromPoint(aim.x, aim.y) : null;
-  const slipBody =
-    flying ? "In the air…"
-    : liveMark != null ? `${liveMark}%`
-    : "Pull back until the mark is right";
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -194,160 +137,87 @@ export default function MarksDartboard({ question, onComplete }) {
         <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">Results board</div>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900">{subject}</h2>
         <p className="mt-2 max-w-xl text-sm text-stone-600">
-          {question?.questionText ?? "Aim until the mark is right, then release to throw."}
+          {question?.questionText ?? "Pull back, aim, and release. Where it sticks is the mark."}
         </p>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-amber-900/25 shadow-[0_18px_40px_rgba(40,20,8,0.28)]">
-        <div
-          className="relative flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-5 sm:px-6"
-          style={blotterStyle}
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-3xl border border-stone-200 bg-white p-5 shadow-sm sm:p-8">
+        <svg
+          ref={svgRef}
+          viewBox="0 0 200 240"
+          width={260}
+          height={312}
+          className={`select-none touch-none ${stuck || flying ? "cursor-default" : "cursor-grab active:cursor-grabbing"}`}
+          onPointerDown={onPointerDown}
         >
-          <div
-            className="pointer-events-none absolute inset-x-8 top-4 h-8 rounded-full opacity-40"
-            style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(255,247,237,0.45), transparent 70%)" }}
-          />
-
-          <svg
-            ref={svgRef}
-            viewBox="0 0 200 240"
-            className={`h-[min(58vh,340px)] w-auto max-w-full select-none touch-none drop-shadow-[0_16px_24px_rgba(40,20,8,0.45)] ${
-              stuck || flying ? "cursor-default" : "cursor-grab active:cursor-grabbing"
-            }`}
-            onPointerDown={onPointerDown}
-          >
-            <WoodDefs uid={uid} />
-
-            <ellipse cx="100" cy="228" rx="38" ry="6" fill="#2c1810" opacity="0.28" />
-
-            <circle cx={CENTER.x} cy={CENTER.y} r={98} fill={`url(#${uid}-wd-rim)`} />
+          {RINGS.map((ring) => (
             <circle
+              key={ring.r}
               cx={CENTER.x}
               cy={CENTER.y}
-              r={96}
-              fill="none"
-              stroke={`url(#${uid}-brass)`}
-              strokeWidth="2.4"
+              r={ring.r}
+              fill={ring.fill}
+              stroke="#5c3a1e"
+              strokeWidth={1.2}
             />
+          ))}
+          <circle cx={CENTER.x} cy={CENTER.y} r={4} fill="#5c3a1e" />
+          {aim && !stuck && (
+            <circle cx={aim.x} cy={aim.y} r={5} fill="none" stroke="#f5d76e" strokeWidth="1.4" strokeDasharray="3 3" opacity="0.85" />
+          )}
+          {pull && (
+            <line
+              x1={REST.x}
+              y1={REST.y}
+              x2={REST.x + pull.x}
+              y2={REST.y + pull.y}
+              stroke="#b45309"
+              strokeWidth="2.2"
+              strokeDasharray="4 3"
+            />
+          )}
+          <motion.g
+            initial={false}
+            animate={{ x: dart.x, y: dart.y }}
+            transition={{ duration: flying ? 0.4 : 0, ease: flying ? [0.15, 0.85, 0.2, 1] : "linear" }}
+          >
+            <g transform="translate(-4,-4) rotate(-28)">
+              <rect x="0" y="0" width="3" height="22" rx="1" fill="#d6d3d1" />
+              <polygon points="1.5,-6 6,2 -3,2" fill="#9b2c2c" />
+              <circle cx="1.5" cy="22" r="2.2" fill="#f5d76e" stroke="#5c3a1e" strokeWidth="0.8" />
+            </g>
+          </motion.g>
+        </svg>
 
-            {WOOD_RINGS.map((ring) => (
-              <circle
-                key={ring.r}
-                cx={CENTER.x}
-                cy={CENTER.y}
-                r={ring.r}
-                fill={`url(#${uid}-${ring.fill})`}
-                stroke={`url(#${uid}-brass)`}
-                strokeWidth={0.85}
-                strokeOpacity="0.55"
-              />
-            ))}
-            <circle cx={CENTER.x} cy={CENTER.y} r={BOARD_R} fill={`url(#${uid}-grain)`} />
-            <circle cx={CENTER.x} cy={CENTER.y} r={5.5} fill={`url(#${uid}-brass)`} />
-            <circle cx={CENTER.x} cy={CENTER.y} r={2.2} fill="#2c1810" />
-
-            {RING_LABELS.map((item) => (
-              <text
-                key={item.mark}
-                x={CENTER.x}
-                y={CENTER.y - item.r + 3}
-                textAnchor="middle"
-                fill="#fff7ed"
-                fillOpacity="0.42"
-                fontSize="8"
-                fontWeight="700"
-                letterSpacing="0.06em"
-              >
-                {item.mark}
-              </text>
-            ))}
-            <text
-              x={CENTER.x}
-              y={CENTER.y + 3.2}
-              textAnchor="middle"
-              fill="#f3e2b8"
-              fillOpacity="0.7"
-              fontSize="7"
-              fontWeight="700"
-            >
-              100
-            </text>
-
-            {aim && !stuck && (
-              <g>
-                <circle cx={aim.x} cy={aim.y} r={8} fill="#f5d76e" fillOpacity="0.12" />
-                <circle
-                  cx={aim.x}
-                  cy={aim.y}
-                  r={5}
-                  fill="none"
-                  stroke="#f5d76e"
-                  strokeWidth="1.5"
-                  strokeDasharray="3 2.5"
-                />
-              </g>
-            )}
-            {pull && (
-              <line
-                x1={REST.x}
-                y1={REST.y}
-                x2={REST.x + pull.x}
-                y2={REST.y + pull.y}
-                stroke="#f3e2b8"
-                strokeWidth="2"
-                strokeDasharray="4 3"
-                opacity="0.7"
-              />
-            )}
-
-            <motion.g
-              initial={false}
-              animate={{ x: dart.x, y: dart.y }}
-              transition={{ duration: flying ? 0.4 : 0, ease: flying ? [0.15, 0.85, 0.2, 1] : "linear" }}
-            >
-              <g transform="translate(-4,-4) rotate(-28)">
-                <rect x="0.4" y="0" width="2.4" height="22" rx="1" fill="#8b5a2b" />
-                <rect x="0.7" y="1" width="0.7" height="20" rx="0.4" fill="#e8d5a3" opacity="0.35" />
-                <polygon points="1.5,-7 6.2,2.2 -3.2,2.2" fill="#7a1f1f" />
-                <polygon points="1.5,-5 4.4,1.4 -1.4,1.4" fill="#c45c4a" />
-                <circle cx="1.5" cy="22" r="2.3" fill={`url(#${uid}-brass)`} stroke="#5c3a1e" strokeWidth="0.6" />
-              </g>
-            </motion.g>
-          </svg>
+        <div className="mt-4 min-h-[28px] text-center text-sm text-stone-600">
+          {stuck && mark != null ? (
+            <span className="text-lg font-semibold text-stone-800">{mark}%</span>
+          ) : flying ? (
+            "In the air…"
+          ) : pull ? (
+            "Release to throw"
+          ) : (
+            "Drag the dart back, then let go"
+          )}
         </div>
 
-        <div className="flex items-stretch gap-3 bg-[#2c1810] px-4 py-4 sm:px-6">
-          <PaperSlip
-            kicker={stuck ? "Thrown mark" : pull ? "Aiming" : "Mark slip"}
-            title={subject}
-            body={slipBody}
-            stamped={stuck}
-            stampText={`${mark ?? ""}%`}
-          />
-          <div className="flex w-[108px] shrink-0 flex-col gap-2">
-            <button
-              type="button"
-              disabled={!stuck}
-              onClick={throwAgain}
-              className="rounded-2xl border border-amber-100/15 bg-black/25 px-2 py-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-100/80 transition hover:bg-black/40 disabled:opacity-35"
-            >
-              Throw again
-            </button>
-            <motion.button
-              type="button"
-              disabled={!stuck || mark == null}
-              onClick={() => onComplete(mark)}
-              whileHover={stuck ? { y: -2 } : undefined}
-              whileTap={stuck ? { y: 6, scale: 0.97 } : undefined}
-              className="flex flex-1 flex-col items-center justify-center rounded-2xl border border-amber-200/20 bg-gradient-to-b from-amber-700 to-amber-950 px-2 py-2 text-amber-50 shadow-lg disabled:opacity-40"
-            >
-              <span className="mb-1 h-2.5 w-9 rounded-full bg-stone-300/80 shadow-inner" />
-              <span className="h-7 w-12 rounded-md bg-red-900/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]" />
-              <span className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em]">
-                {stuck ? `Save ${mark}%` : "Throw"}
-              </span>
-            </motion.button>
-          </div>
+        <div className="mt-5 flex w-full max-w-md gap-3">
+          <button
+            type="button"
+            disabled={!stuck}
+            onClick={throwAgain}
+            className="flex-1 rounded-2xl border border-stone-200 bg-stone-50 py-3.5 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-100 disabled:opacity-40"
+          >
+            Throw again
+          </button>
+          <button
+            type="button"
+            disabled={!stuck || mark == null}
+            onClick={() => onComplete(mark)}
+            className="flex-1 rounded-2xl bg-amber-800 py-3.5 text-sm font-semibold text-amber-50 transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {stuck ? `Save ${mark}%` : "Throw to set the mark"}
+          </button>
         </div>
       </div>
     </div>

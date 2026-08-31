@@ -51,11 +51,32 @@ os.makedirs(OUTPUTS_DIR, exist_ok=True)
 PRIORITY_ORDER = {"High": 0, "Medium": 1, "Low": 2}  # lower = scheduled first
 DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
+# Rolling multi-week scheduling (see generate_rolling_schedule): bounds how
+# far ahead the system will ever generate a schedule, regardless of how far
+# out the farthest real deadline/exam is, so a student with something due in
+# a year from now can't trigger an unbounded (or just absurdly large)
+# generation. 12 weeks is a full academic term's worth of runway - generous
+# for real planning, not unbounded.
+MAX_WEEKS_AHEAD = 12
+
 
 def section(title):
     print("\n" + "=" * 90)
     print(title)
     print("=" * 90)
+
+
+def resolve_day_date(day_name, anchor_date):
+    """
+    Resolves a weekday NAME to the next real calendar date on/after
+    anchor_date (anchor_date..anchor_date+6) - module-level so both
+    StudyScheduler (single week) and generate_rolling_schedule (many
+    consecutive weeks, each with its own anchor) share the exact same
+    resolution logic rather than each reimplementing it.
+    """
+    target_weekday = DAY_ORDER.index(day_name)
+    delta_days = (target_weekday - anchor_date.weekday()) % 7
+    return anchor_date + timedelta(days=delta_days)
 
 
 # ===========================================================================
@@ -98,21 +119,31 @@ class StudyScheduler:
 
     def _slot_date(self, day_name):
         """Resolves a weekday name to the next real date (today..today+6)."""
-        target_weekday = DAY_ORDER.index(day_name)
-        delta_days = (target_weekday - self.anchor_date.weekday()) % 7
-        return self.anchor_date + timedelta(days=delta_days)
+        return resolve_day_date(day_name, self.anchor_date)
 
     def add_task(self, task):
         """
         task: dict with keys
             task_id, module, deadline_date (ISO "YYYY-MM-DD"), weight,
             priority_label ("High"/"Medium"/"Low"), estimated_hours_needed
+        task_type ("assignment"/"exam") is optional and defaults to
+        "assignment" - it doesn't change the greedy allocation ORDER (that's
+        still driven entirely by priority_label + deadline, see _sort_tasks),
+        it's carried through purely so callers (the study-planner API, then
+        the frontend) can round-trip it back out via the tasks registry -
+        see PROJECT CONTEXT.md Section 8's exam-prep subsection for why an
+        exam-prep task competing for slots is done by giving it the
+        appropriate priority_label up front (computed client-side from days-
+        until-exam, the same base-tier logic used for assignments), not by
+        adding a second, parallel priority system here.
         """
         required = {"task_id", "module", "deadline_date", "weight", "priority_label", "estimated_hours_needed"}
         missing = required - task.keys()
         if missing:
             raise ValueError(f"Task {task.get('task_id', '?')} missing required fields: {missing}")
-        self.tasks.append(dict(task))
+        task = dict(task)
+        task.setdefault("task_type", "assignment")
+        self.tasks.append(task)
 
     def _sort_tasks(self):
         def sort_key(t):
@@ -196,6 +227,7 @@ class StudyScheduler:
                     "priority_label": task["priority_label"],
                     "deadline_date": task["deadline_date"],
                     "hours_short": round(minutes_needed / 60, 2),
+                    "task_type": task.get("task_type", "assignment"),
                 })
 
         # Keep only slots with remaining capacity for the next reschedule() call.
@@ -211,6 +243,7 @@ class StudyScheduler:
                 "priority_label": t["priority_label"],
                 "deadline_date": t["deadline_date"],
                 "estimated_hours_needed": t["estimated_hours_needed"],
+                "task_type": t.get("task_type", "assignment"),
             }
             for t in self.tasks
         }
@@ -233,6 +266,185 @@ class StudyScheduler:
     def _add_minutes(hhmm, minutes):
         t = datetime.strptime(hhmm, "%H:%M") + timedelta(minutes=minutes)
         return t.strftime("%H:%M")
+
+
+# ===========================================================================
+# Rolling multi-week scheduling
+# ===========================================================================
+def _weeks_needed_for(tasks, anchor_date, weeks_ahead=None):
+    """How many consecutive 7-day blocks to generate, capped at MAX_WEEKS_AHEAD."""
+    if weeks_ahead is not None:
+        return max(1, min(weeks_ahead, MAX_WEEKS_AHEAD))
+    if not tasks:
+        return 1
+    farthest = max(datetime.strptime(t["deadline_date"], "%Y-%m-%d").date() for t in tasks)
+    weeks_needed = max(1, -(-((farthest - anchor_date).days + 1) // 7))  # ceil division, at least 1
+    return min(weeks_needed, MAX_WEEKS_AHEAD)
+
+
+def generate_rolling_schedule(weekly_free_slots, tasks, anchor_date=None, weeks_ahead=None):
+    """
+    Extends StudyScheduler across multiple consecutive weeks with backlog
+    carryover, WITHOUT duplicating its slot-filling logic - each week is a
+    real StudyScheduler.generate_schedule() call against that week's own
+    7-day block of the SAME recurring weekly_free_slots pattern (the
+    existing "this pattern repeats every week" assumption already implicit
+    in how Settings' preferred-study-time windows feed /schedule today -
+    reused verbatim here, not reinvented).
+
+    weekly_free_slots: the same recurring weekly pattern /schedule already
+        takes (e.g. "Monday 18:00-20:00 free"), assumed to repeat every
+        generated week.
+    tasks: same shape as StudyScheduler.add_task() expects (task_id, module,
+        deadline_date, weight, priority_label, estimated_hours_needed,
+        optional task_type) - deliberately NOT pre-split per week by the
+        caller; a task's estimated_hours_needed is its TOTAL remaining need,
+        and this function figures out which week(s) it actually lands in.
+    weeks_ahead: explicit override for how many weeks to generate. If
+        omitted, auto-derived from the farthest task deadline (preferred -
+        see the task description). Always capped at MAX_WEEKS_AHEAD either way.
+
+    BACKLOG CARRYOVER MECHANISM: a per-task `remaining_hours` pool is tracked
+    across the whole loop, seeded from each task's estimated_hours_needed and
+    decremented by whatever a week's StudyScheduler actually placed. A task
+    is included in week i's scheduling pool (with estimated_hours_needed set
+    to its CURRENT remaining_hours, not its original) as long as its deadline
+    hasn't fully passed before week i starts AND it still has remaining hours
+    - so unplaced hours from an earlier week are neither dropped nor
+    double-counted, they simply compete again (at the same priority tier)
+    for the next week's free capacity. A task is only reported in
+    overload_warning once - in the week that actually CONTAINS its deadline -
+    never speculatively in an earlier week where it merely hadn't been
+    scheduled YET but still had later weeks to catch up in. This is why each
+    week's own StudyScheduler.generate_schedule().overload_warning is
+    deliberately NOT used directly; a task under-filled in week 1 with a
+    week-3 deadline is not yet a real shortfall.
+
+    Exam-prep escalation (Section 8a) continuing to work correctly across
+    week boundaries is a property of the CALLER, not this function: the
+    frontend already computes each week's slice of an exam's escalating
+    curve client-side (computeExamPrepHoursForDay, examPrepConfig.js) and is
+    expected to submit one task per (exam, week) pair here - e.g.
+    "exam-<id>-w0", "exam-<id>-w1", ... - each carrying that week's own
+    escalating chunk and the exam's real deadline_date. This function then
+    applies the exact same generic backlog-carryover logic to those chunks
+    as it does to any assignment - if week 0's light chunk doesn't fully
+    fit, it carries into week 1 alongside week 1's own (heavier) chunk,
+    with no special-casing needed here for "this is exam prep" at all.
+
+    Returns:
+        {
+          "schedule": {"YYYY-MM-DD": [items...], ...}  # every date in the
+              generated range present, even with an empty list,
+          "overload_warning": [...],  # same shape as StudyScheduler's, plus task_type
+          "tasks": {task_id: {..., "weeks_allocated": [0, 1, ...]}},  # 0-indexed
+          "weeks_generated": int,
+          "range_start": "YYYY-MM-DD", "range_end": "YYYY-MM-DD",
+        }
+    """
+    anchor_date = anchor_date or date.today()
+    tasks = [dict(t) for t in tasks]
+    for t in tasks:
+        t.setdefault("task_type", "assignment")
+
+    task_lookup = {t["task_id"]: t for t in tasks}
+    remaining_hours = {t["task_id"]: t["estimated_hours_needed"] for t in tasks}
+    weeks_allocated = {t["task_id"]: [] for t in tasks}
+
+    num_weeks = _weeks_needed_for(tasks, anchor_date, weeks_ahead)
+    range_start = anchor_date
+    range_end = anchor_date + timedelta(days=num_weeks * 7 - 1)
+
+    combined_schedule = {
+        (range_start + timedelta(days=d)).isoformat(): []
+        for d in range(num_weeks * 7)
+    }
+    overload_warning = []
+
+    for week_idx in range(num_weeks):
+        week_anchor = anchor_date + timedelta(days=7 * week_idx)
+        week_end = week_anchor + timedelta(days=6)
+
+        week_task_list = []
+        for tid, hours_left in remaining_hours.items():
+            if hours_left <= 1e-9:
+                continue
+            deadline = datetime.strptime(task_lookup[tid]["deadline_date"], "%Y-%m-%d").date()
+            if deadline < week_anchor:
+                continue  # deadline already fully passed before this week even starts
+            not_before = task_lookup[tid].get("not_before_date")
+            if not_before and week_anchor < datetime.strptime(not_before, "%Y-%m-%d").date():
+                # This task isn't eligible yet - e.g. a multi-week exam-prep
+                # chunk built for a LATER week (see not_before_date's own
+                # doc comment, TaskInput). Without this, a week with idle
+                # free capacity greedily front-loads a chunk meant for
+                # several weeks from now, well before its escalating-urgency
+                # curve says it should happen - PROJECT CONTEXT.md Section 8e.
+                continue
+            week_task_list.append({**task_lookup[tid], "estimated_hours_needed": hours_left})
+
+        scheduler = StudyScheduler(weekly_free_slots, anchor_date=week_anchor)
+        for t in week_task_list:
+            scheduler.add_task(t)
+        week_result = scheduler.generate_schedule()
+
+        # Re-key this week's weekday-named schedule onto real calendar dates
+        # and merge into the combined multi-week result.
+        for day_name, items in week_result["schedule"].items():
+            if not items:
+                continue
+            real_date = resolve_day_date(day_name, week_anchor).isoformat()
+            combined_schedule[real_date] = items
+
+        # Decrement the backlog pool by what actually got placed this week.
+        scheduled_minutes_this_week = {}
+        for items in week_result["schedule"].values():
+            for item in items:
+                scheduled_minutes_this_week[item["task_id"]] = (
+                    scheduled_minutes_this_week.get(item["task_id"], 0) + item["duration_minutes"]
+                )
+        for tid, minutes in scheduled_minutes_this_week.items():
+            remaining_hours[tid] -= minutes / 60
+            weeks_allocated[tid].append(week_idx)
+
+        # Only report a real shortfall once we've reached the week that
+        # actually contains the task's deadline - not speculatively earlier,
+        # while later weeks could still catch it up.
+        for t in week_task_list:
+            tid = t["task_id"]
+            deadline = datetime.strptime(task_lookup[tid]["deadline_date"], "%Y-%m-%d").date()
+            deadline_is_this_week = week_anchor <= deadline <= week_end
+            if deadline_is_this_week and remaining_hours[tid] > 1e-9:
+                overload_warning.append({
+                    "task_id": tid,
+                    "module": task_lookup[tid]["module"],
+                    "priority_label": task_lookup[tid]["priority_label"],
+                    "deadline_date": task_lookup[tid]["deadline_date"],
+                    "hours_short": round(remaining_hours[tid], 2),
+                    "task_type": task_lookup[tid].get("task_type", "assignment"),
+                })
+
+    tasks_registry = {
+        t["task_id"]: {
+            "module": t["module"],
+            "weight": t["weight"],
+            "priority_label": t["priority_label"],
+            "deadline_date": t["deadline_date"],
+            "estimated_hours_needed": t["estimated_hours_needed"],
+            "task_type": t.get("task_type", "assignment"),
+            "weeks_allocated": weeks_allocated[t["task_id"]],
+        }
+        for t in tasks
+    }
+
+    return {
+        "schedule": combined_schedule,
+        "overload_warning": overload_warning,
+        "tasks": tasks_registry,
+        "weeks_generated": num_weeks,
+        "range_start": range_start.isoformat(),
+        "range_end": range_end.isoformat(),
+    }
 
 
 def print_schedule(result, title):

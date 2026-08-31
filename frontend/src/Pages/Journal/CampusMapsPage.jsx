@@ -90,7 +90,7 @@ function CampusAtlas({ activeId, level, onPick }) {
           <stop offset="100%" stopColor="#3d7c8c" />
         </linearGradient>
       </defs>
-      <rect x="8" y="8" width="384" height="244" rx="22" fill="#f2ecff" stroke="#cbb3ff" strokeWidth="3" />
+      <rect x="8" y="8" width="384" height="244" rx="22" fill="#efe4c8" stroke="#c4a574" strokeWidth="3" />
       <rect x="22" y="22" width="356" height="216" rx="16" fill="url(#atlas-ground)" />
       <ellipse cx="318" cy="186" rx="58" ry="32" fill="url(#atlas-water)" opacity="0.9" />
       <rect x="58" y="168" width="86" height="54" rx="10" fill="#7cb85a" stroke="#4e8c45" strokeWidth="2" />
@@ -176,15 +176,15 @@ export default function CampusMapsPage() {
 
   return (
     <div>
-      <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-brand-500 dark:text-brand-300">
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">
         Campus atlas
       </div>
-      <h2 className="font-display text-xl font-bold text-slate-800 dark:text-white">Locate your next run</h2>
-      <p className="mt-1 max-w-xl text-sm text-slate-500 dark:text-slate-300">
+      <h2 className="text-xl font-bold">Locate your next run</h2>
+      <p className="mt-1 max-w-xl text-sm text-stone-600">
         Pins mark every avenue on campus. Tap an open pin or postcard to walk it on your next journal day.
       </p>
 
-      <div className="mt-4 overflow-hidden rounded-[28px] border border-brand-100 dark:border-white/10 bg-brand-50/80 dark:bg-white/5 shadow-[var(--shadow-playful)]">
+      <div className="mt-4 overflow-hidden rounded-[28px] border border-amber-900/15 bg-[#f7f0e2] shadow-[0_16px_40px_rgba(58,36,21,0.12)]">
         <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="p-3 sm:p-4">
             <CampusAtlas activeId={activeMap.id} level={level} onPick={pick} />
@@ -203,11 +203,11 @@ export default function CampusMapsPage() {
       </div>
 
       <div className="mt-4 mb-3 flex items-end justify-between gap-3">
-        <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+        <div className="text-sm font-semibold text-stone-700">
           {unlockedCount} of {CAMPUS_MAPS.length} avenues open
         </div>
         {nextLock && (
-          <div className="text-[11px] text-slate-400">
+          <div className="text-[11px] text-stone-500">
             Next unlock · {nextLock.name} at Level {nextLock.unlockLevel}
           </div>
         )}
@@ -229,23 +229,23 @@ export default function CampusMapsPage() {
               transition={{ delay: index * 0.04 }}
               className={`overflow-hidden rounded-2xl border text-left shadow-sm transition-all ${
                 selected
-                  ? "border-brand-500 ring-2 ring-brand-400/30"
+                  ? "border-amber-700 ring-2 ring-amber-600/25"
                   : unlocked
-                    ? "border-brand-100 dark:border-white/10 hover:-translate-y-0.5 hover:shadow-md"
-                    : "border-slate-200 dark:border-white/10 cursor-not-allowed"
+                    ? "border-amber-900/10 hover:-translate-y-0.5 hover:shadow-md"
+                    : "border-stone-300/80 cursor-not-allowed"
               }`}
             >
               <div className="relative h-24">
                 {unlocked ? (
                   <MapPreview map={item} />
                 ) : (
-                  <div className="flex h-full items-center justify-center bg-brand-50 dark:bg-white/5 text-2xl grayscale">🔒</div>
+                  <div className="flex h-full items-center justify-center bg-[#ece7dc] text-2xl grayscale">🔒</div>
                 )}
                 <div className="absolute left-3 top-3 text-lg drop-shadow">{unlocked ? item.icon : ""}</div>
                 {selected && (
                   <span
                     className={`absolute right-3 top-3 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
-                      light ? "bg-white/20 text-white" : "bg-white/90 text-brand-700"
+                      light ? "bg-white/20 text-white" : "bg-white/85 text-amber-950"
                     }`}
                   >
                     Playing
@@ -257,11 +257,11 @@ export default function CampusMapsPage() {
                 style={{
                   background: unlocked
                     ? `linear-gradient(135deg, ${item.cardFrom}55, ${item.cardTo}40)`
-                    : "#f4f0ff",
+                    : "#f3eee4",
                 }}
               >
-                <div className={`text-sm font-bold ${unlocked ? "text-slate-900 dark:text-white" : "text-slate-400"}`}>{item.name}</div>
-                <div className={`text-[11px] ${unlocked ? "text-slate-600 dark:text-slate-300" : "text-slate-400"}`}>
+                <div className={`text-sm font-bold ${unlocked ? "text-stone-900" : "text-stone-500"}`}>{item.name}</div>
+                <div className={`text-[11px] ${unlocked ? "text-stone-600" : "text-stone-500"}`}>
                   {unlocked ? `${item.place} · ${item.tagline}` : `Unlocks at Level ${item.unlockLevel}`}
                 </div>
               </div>

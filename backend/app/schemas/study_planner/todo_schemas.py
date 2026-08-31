@@ -15,3 +15,6 @@ class TodoItem(BaseModel):
     days_remaining: int = Field(..., description="Days until the deadline (negative if overdue).")
     recommended_next_session: str = Field(..., description="The task's next scheduled slot, or a 'not yet scheduled' note.")
     reminder_message: str = Field(..., description="Human-readable, priority/urgency-aware reminder.")
+    task_type: Literal["assignment", "exam"] = Field(
+        "assignment", description="Whether this entry is regular assignment work or exam-preparation time."
+    )

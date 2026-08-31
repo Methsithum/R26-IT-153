@@ -1,13 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Check, Sparkles, ArrowLeft } from "lucide-react";
 import { useGameStore } from "../../Game/state/GameStateManager";
 import { unlockAudio } from "../../Game/audio/sfx";
 import { apiErrorMessage } from "../../services/userApi";
 import { formatCampusDate, isPastCampusDate, localTodayIso } from "../../services/localDate";
 import DiscardTodayButton from "./DiscardTodayButton";
-import JournalShell from "./JournalShell";
 
 const ACTIVITIES = [
   { id: "academic_study", label: "University Lectures", icon: "🎓" },
@@ -33,28 +31,6 @@ export default function DailyActivitySelection() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    useGameStore.setState({ restarting: false, paused: false });
-    const { sessionId, sessionCompleted } = useGameStore.getState();
-    if (!sessionId || sessionCompleted) return undefined;
-    let cancelled = false;
-    setBusy(true);
-    useGameStore
-      .getState()
-      .abandonCurrentRun()
-      .catch((err) => {
-        if (!cancelled) {
-          setError(apiErrorMessage(err, "Could not clear the previous run. Try again."));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setBusy(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   function toggle(id) {
     unlockAudio();
     setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
@@ -74,100 +50,79 @@ export default function DailyActivitySelection() {
     }
   }
 
-  const journalHome = { pathname: "/journal", state: { openTab: "roadmap" } };
-
   return (
-    <JournalShell
-      title={catchingUp ? `Catch-up · Day ${day}` : `Day ${day}`}
-      subtitle={catchingUp ? `This run will be saved as ${playLabel}.` : "Pick everything you did — then head into campus."}
-      aside={
-        <button
-          type="button"
-          onClick={() => navigate("/journal")}
-          className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-sm font-medium text-slate-500 shadow-card ring-1 ring-black/5 hover:text-brand-600 hover:ring-brand-200 transition-colors"
-        >
-          <ArrowLeft size={16} />
-          Journal
-        </button>
-      }
-    >
+    <div className="min-h-screen w-full bg-gradient-to-br from-[#5b3a24] to-[#3a2415] flex items-center justify-center p-4 sm:p-8">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        className="card mx-auto w-full max-w-3xl p-6 sm:p-8"
+        className="w-full max-w-lg rounded-md shadow-2xl border border-black/20 bg-[#f5ecd9] text-stone-800 p-6 sm:p-8"
       >
-          {dailyCompleted && !catchingUp ? (
-            <div>
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-white/10 dark:text-brand-300">
-                <Sparkles size={22} />
-              </div>
-              <h1 className="font-display text-2xl font-bold text-slate-800 dark:text-white mb-2">
-                Today’s journal is already saved
-              </h1>
-              <p className="text-sm text-slate-500 dark:text-slate-300 mb-6 max-w-xl">
-                Come back tomorrow for the next campus day. If today’s answers were wrong, delete this journal and play Day {day} again.
-              </p>
-              <div className="flex flex-col items-start gap-3">
-                <button
-                  onClick={() => navigate(journalHome.pathname, { state: journalHome.state })}
-                  className="rounded-2xl bg-gradient-to-r from-brand-500 to-brand-400 hover:from-brand-600 hover:to-brand-500 text-white font-semibold px-6 py-3 text-sm shadow-playful transition-all"
-                >
-                  Return to Journal
-                </button>
-                <DiscardTodayButton date={localTodayIso()} />
-              </div>
+        <div className="text-[11px] uppercase tracking-[0.25em] text-stone-500 mb-1">
+          {catchingUp ? `Catch-up · Day ${day}` : `Day ${day}`}
+        </div>
+        {dailyCompleted && !catchingUp ? (
+          <div className="mt-2">
+            <h1 className="text-2xl font-bold mb-2">Today’s journal is already saved</h1>
+            <p className="text-sm text-stone-600 mb-6">
+              Come back tomorrow for the next campus day. If today’s answers were wrong, delete this journal and play Day {day} again.
+            </p>
+            <div className="flex flex-col items-start gap-3">
+              <button
+                onClick={() => navigate("/")}
+                className="rounded-lg bg-amber-700 hover:bg-amber-600 text-amber-50 font-semibold px-6 py-3 text-sm"
+              >
+                Return to Journal
+              </button>
+              <DiscardTodayButton date={localTodayIso()} />
             </div>
-          ) : (
-            <>
-              <h1 className="font-display text-2xl font-bold text-slate-800 dark:text-white mb-2">
-                {catchingUp ? `What did you do on ${playLabel}?` : "What did you do today?"}
-              </h1>
-              <p className="text-sm text-slate-500 dark:text-slate-300 mb-6 max-w-2xl">
-                {catchingUp
-                  ? `This run is Day ${day} and will be saved as ${playLabel}, not today. After you finish, today's day will still be waiting.`
-                  : "Pick everything that applies. Subjects, deadlines and exam dates are asked inside the campus run — only if they are still missing."}
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {ACTIVITIES.map((activity) => {
-                  const active = selected.includes(activity.id);
-                  return (
-                    <button
-                      key={activity.id}
-                      type="button"
-                      onClick={() => toggle(activity.id)}
-                      className={`flex items-center gap-3 rounded-2xl border px-4 py-3.5 text-left text-sm font-medium transition-all ${
-                        active
-                          ? "bg-gradient-to-r from-brand-500 to-brand-400 border-transparent text-white shadow-playful"
-                          : "bg-white dark:bg-white/5 border-brand-100 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-white/10"
-                      }`}
-                    >
-                      <span className="text-lg leading-none">{activity.icon}</span>
-                      <span className="flex-1">{activity.label}</span>
-                      {active && <Check size={16} strokeWidth={2.6} className="shrink-0" />}
-                    </button>
-                  );
-                })}
-              </div>
-              {error && <p className="text-sm text-high-600 mt-5">{error}</p>}
-              <div className="flex items-center justify-between mt-8 gap-3">
-                <button
-                  onClick={() => navigate("/journal")}
-                  className="text-sm text-slate-400 hover:text-brand-600 dark:hover:text-brand-300"
-                >
-                  ‹ Back to Journal
-                </button>
-                <button
-                  onClick={handleContinue}
-                  disabled={selected.length === 0 || busy}
-                  className="rounded-2xl bg-gradient-to-r from-brand-500 to-brand-400 hover:from-brand-600 hover:to-brand-500 disabled:opacity-40 transition-all text-white
-                             font-semibold px-6 py-3 text-sm shadow-playful"
-                >
-                  {busy ? "Preparing questions…" : catchingUp ? "Continue catch-up run →" : "Continue to Campus Run →"}
-                </button>
-              </div>
-            </>
+          </div>
+        ) : (
+          <>
+            <h1 className="text-2xl font-bold mb-2">
+              {catchingUp ? `What did you do on ${playLabel}?` : "What did you do today?"}
+            </h1>
+            <p className="text-sm text-stone-600 mb-6">
+              {catchingUp
+                ? `This run is Day ${day} and will be saved as ${playLabel}, not today. After you finish, today's day will still be waiting.`
+                : "Pick everything that applies. Subjects, deadlines and exam dates are asked inside the campus run — only if they are still missing."}
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {ACTIVITIES.map((activity) => {
+                const active = selected.includes(activity.id);
+                return (
+                  <button
+                    key={activity.id}
+                    type="button"
+                    onClick={() => toggle(activity.id)}
+                    className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-left text-sm font-medium transition-colors ${
+                      active
+                        ? "bg-amber-700 border-amber-800 text-amber-50"
+                        : "bg-amber-50 border-amber-800/10 text-stone-700 hover:bg-amber-100"
+                    }`}
+                  >
+                    <span className="text-lg">{activity.icon}</span>
+                    {activity.label}
+                  </button>
+                );
+              })}
+            </div>
+            {error && <p className="text-sm text-red-700 mt-5">{error}</p>}
+            <div className="flex items-center justify-between mt-8">
+              <button onClick={() => navigate("/")} className="text-sm text-stone-500 hover:text-stone-700">
+                ‹ Back to Journal
+              </button>
+              <button
+                onClick={handleContinue}
+                disabled={selected.length === 0 || busy}
+                className="rounded-lg bg-amber-700 hover:bg-amber-600 disabled:opacity-40 transition-colors text-amber-50
+                           font-semibold px-6 py-3 text-sm shadow"
+              >
+                {busy ? "Preparing questions…" : catchingUp ? "Continue catch-up run →" : "Continue to Campus Run →"}
+              </button>
+            </div>
+          </>
         )}
       </motion.div>
-    </JournalShell>
+    </div>
   );
 }

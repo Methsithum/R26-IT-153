@@ -39,3 +39,29 @@ export function greetingForNow(date = new Date()) {
 }
 
 export const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+/** Local-midnight Date for the Monday of the week `date` falls in (Monday-start week, matching WEEKDAYS). */
+export function getWeekStart(date = new Date()) {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const day = d.getDay(); // 0=Sunday..6=Saturday
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diffToMonday);
+  return d;
+}
+
+export function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+/** "Sep 1 - 7" or "Sep 29 - Oct 5" (crossing months) / "Dec 29 - Jan 4" (crossing years). */
+export function formatWeekRangeLabel(weekStartDate) {
+  const end = addDays(weekStartDate, 6);
+  const sameMonth = weekStartDate.getMonth() === end.getMonth() && weekStartDate.getFullYear() === end.getFullYear();
+  const startLabel = weekStartDate.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const endLabel = sameMonth
+    ? String(end.getDate())
+    : end.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return `${startLabel} - ${endLabel}`;
+}

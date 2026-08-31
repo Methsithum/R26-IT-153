@@ -1,10 +1,18 @@
 import { NavLink } from "react-router-dom";
-import { LayoutGrid, CalendarDays, CheckSquare, TrendingUp, Settings } from "lucide-react";
+import {
+  LayoutGrid,
+  CalendarDays,
+  CheckSquare,
+  BarChart3,
+  TrendingUp,
+  Settings,
+} from "lucide-react";
 
 const ITEMS = [
   { to: "/", label: "Home", icon: LayoutGrid, exact: true },
   { to: "/study-planner", label: "Planner", icon: CalendarDays },
   { to: "/tasks", label: "Tasks", icon: CheckSquare },
+  { to: "/analytics", label: "Stats", icon: BarChart3 },
   { to: "/career", label: "Career", icon: TrendingUp },
   { to: "/settings", label: "Settings", icon: Settings },
 ];

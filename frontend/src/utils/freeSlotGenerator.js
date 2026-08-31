@@ -23,12 +23,21 @@ function windowMinutes(win) {
   return eh * 60 + em - (sh * 60 + sm);
 }
 
+// A day marked as a "full study day" (Settings' permanent Full Study Days
+// picker) gets this single big block INSTEAD OF its normal
+// preferredStudyTimes window(s) - not layered on top of them, since 8h
+// already dwarfs whatever the regular window would add, and stacking both
+// would just be a confusing double-entry for the same day. Daytime hours
+// (not starting at midnight, not running past a normal bedtime) so it reads
+// as a real study day, not an unrealistic marathon window.
+export const FULL_STUDY_DAY_WINDOW = { start: "09:00", end: "17:00" }; // 8h
+
 // Turns the student's real preferred-study-time choice(s) (1 or 2 of
 // morning/afternoon/evening/night) plus their max daily study hours into
 // real, per-weekday free-time windows sent to /schedule — the actual input
 // the ML scheduler time-blocks tasks into, so the setting now genuinely
 // drives the generated plan instead of sitting unused next to a fixed mock.
-export function buildWeeklyFreeSlots({ preferredStudyTimes, maxDailyStudyHours = 4 }) {
+export function buildWeeklyFreeSlots({ preferredStudyTimes, maxDailyStudyHours = 4, includeWeekends = true, fullStudyDays = [] }) {
   const chosen = (preferredStudyTimes?.length ? preferredStudyTimes : ["evening"])
     .map((key) => STUDY_TIME_WINDOWS[key])
     .filter(Boolean);
@@ -37,8 +46,31 @@ export function buildWeeklyFreeSlots({ preferredStudyTimes, maxDailyStudyHours =
   const dailyCapMinutes = Math.max(30, maxDailyStudyHours * 60);
   const perWindowCap = Math.floor(dailyCapMinutes / chosen.length);
 
-  return WEEKDAYS.flatMap((day) =>
-    chosen.map((win) => {
+  // includeWeekends=false is the first real source of day-to-day variation
+  // this function has ever had - everything else (preferredStudyTimes,
+  // maxDailyStudyHours) still applies identically to every included day, no
+  // per-weekday granularity beyond "skip Sat/Sun entirely" yet.
+  const fullDaySet = new Set(fullStudyDays);
+  // A day the student explicitly marked as a full study day stays in,
+  // even with weekends switched off elsewhere - picking a specific day is a
+  // more deliberate, specific signal than the blanket weekend toggle, so it
+  // wins over it rather than being silently dropped.
+  const activeDays = includeWeekends
+    ? WEEKDAYS
+    : WEEKDAYS.filter((d) => fullDaySet.has(d) || (d !== "Saturday" && d !== "Sunday"));
+
+  return activeDays.flatMap((day) => {
+    if (fullDaySet.has(day)) {
+      return [
+        {
+          day,
+          start_time: FULL_STUDY_DAY_WINDOW.start,
+          end_time: FULL_STUDY_DAY_WINDOW.end,
+          duration_minutes: windowMinutes(FULL_STUDY_DAY_WINDOW),
+        },
+      ];
+    }
+    return chosen.map((win) => {
       const duration = Math.max(30, Math.min(windowMinutes(win), perWindowCap));
       return {
         day,
@@ -46,6 +78,6 @@ export function buildWeeklyFreeSlots({ preferredStudyTimes, maxDailyStudyHours =
         end_time: addMinutes(win.start, duration),
         duration_minutes: duration,
       };
-    })
-  );
+    });
+  });
 }

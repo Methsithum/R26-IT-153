@@ -105,8 +105,5 @@ export function missionLocalOffset(question, buildingId) {
 }
 
 export function missionLabel(question, buildingId) {
-  const exam = question?.context?.missingExams?.[0];
-  const kind = String(exam?.examType || exam?.exam_type || question?.context?.examKind || "").toLowerCase();
-  if (question?.interactionType === "marks" && kind === "final") return "Results lab";
   return getStation(question, buildingId).label || "desk";
 }

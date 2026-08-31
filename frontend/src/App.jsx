@@ -1,42 +1,18 @@
 import { useEffect } from "react";
-import {
-  BrowserRouter as Router,
-  Navigate,
-  Route,
-  Routes,
-} from "react-router-dom";
+import { BrowserRouter as Router, Navigate, Route, Routes } from "react-router-dom";
 
-// Focus component
-import FocusApp from "./components/focus/FocusApp";
-
-// Career Prediction Engine component
-import CareerPredictionEngine from "./Components/career-prediction-engine/CareerPredictionEngine";
-
-// Journal components
+// Journal component (teammate's)
 import JournalHome from "./Pages/Journal/JournalHome";
 import DailyActivitySelection from "./Pages/Journal/DailyActivitySelection";
 import GamePage from "./Pages/Journal/GamePage";
-
-// Authentication
 import Register from "./Pages/Auth/Register";
 import Login from "./Pages/Auth/Login";
-
-// User / Game / Journal services
-import {
-  loadUserWorld,
-  readStoredUser,
-  refreshStoredUser,
-} from "./services/userApi";
-
-import {
-  isActiveCampusRun,
-  useGameStore,
-} from "./Game/state/GameStateManager";
-
+import { loadUserWorld, readStoredUser, refreshStoredUser } from "./services/userApi";
+import { isActiveCampusRun, useGameStore } from "./Game/state/GameStateManager";
 import { useJournalHistoryStore } from "./Game/state/journalHistoryStore";
 import { useAcademicStore } from "./store/useAcademicStore";
 
-// Study Planner
+// Study Planner component (yours)
 import AppLayout from "./Components/academic/Layout/AppLayout";
 import Dashboard from "./Pages/studyplanner/Dashboard";
 import StudyPlanner from "./Pages/studyplanner/StudyPlanner";
@@ -52,140 +28,73 @@ import Settings from "./Pages/studyplanner/Settings";
 import Profile from "./Pages/studyplanner/Profile";
 import CalendarPage from "./Pages/studyplanner/Calendar";
 
-
-/* =========================================================
-   AUTH GUARDS
-========================================================= */
+// Career Prediction Engine component
+import CareerPredictionEngine from "./Components/career-prediction-engine/CareerPredictionEngine";
 
 function RequireAuth({ children }) {
   const user = readStoredUser();
-
-  if (!user?.id) {
-    return <Navigate to="/login" replace />;
-  }
-
+  if (!user?.id) return <Navigate to="/register" replace />;
   return children;
 }
-
 
 function RedirectIfAuthed({ children }) {
   const user = readStoredUser();
-
-  if (user?.id) {
-    return <Navigate to="/" replace />;
-  }
-
+  if (user?.id) return <Navigate to="/" replace />;
   return children;
 }
 
-
-/* =========================================================
-   USER DATA HYDRATION
-========================================================= */
-
 function HydrateUser({ children }) {
   useEffect(() => {
+    // Runs on every app load regardless of whether anything actually
+    // regenerates below - a reload where nothing changed still needs to
+    // catch a date that quietly became "yesterday" while the app was
+    // closed, since setSchedule/setMultiWeekSchedule (where this also runs)
+    // may not get called again for a while otherwise (Section 8e).
+    useAcademicStore.getState().freezePastDates();
+
     const local = readStoredUser();
-
-    // Preserve an active campus run when refreshing/loading data.
     const preserveRun = isActiveCampusRun(useGameStore.getState());
-
     if (local) {
-      useGameStore
-        .getState()
-        .applyUserProgress(local, { preserveRun });
-
-      useAcademicStore
-        .getState()
-        .syncProfileFromUser(useGameStore.getState());
+      useGameStore.getState().applyUserProgress(local, { preserveRun });
+      useAcademicStore.getState().syncProfileFromUser(useGameStore.getState());
     }
-
     let cancelled = false;
-
     (async () => {
       try {
         const user = await refreshStoredUser();
-
         if (cancelled) return;
-
         if (!user) {
-          window.location.assign("/login");
+          window.location.assign("/register");
           return;
         }
-
-        // Preserve currently running campus game.
-        const stillRunning = isActiveCampusRun(
-          useGameStore.getState()
-        );
-
-        useGameStore
-          .getState()
-          .applyUserProgress(user, {
-            preserveRun: stillRunning,
-          });
-
-        useAcademicStore
-          .getState()
-          .syncProfileFromUser(useGameStore.getState());
-
-        // Load user's complete world data.
+        const stillRunning = isActiveCampusRun(useGameStore.getState());
+        useGameStore.getState().applyUserProgress(user, { preserveRun: stillRunning });
+        useAcademicStore.getState().syncProfileFromUser(useGameStore.getState());
         const world = await loadUserWorld(user.id);
-
         if (cancelled) return;
-
-        useGameStore
-          .getState()
-          .applyWorldRecords(world);
-
-        // Hydrate journal history.
-        useJournalHistoryStore
-          .getState()
-          .hydrateFromSessions(
-            world.sessions,
-            user.id
-          );
-
-        // Sync study planner data.
-        useAcademicStore
-          .getState()
-          .syncFromJournal({
-            tasks: world.tasks,
-            exams: world.exams,
-            subjects: user.subjects,
-          });
-
-      } catch (error) {
-        // Offline mode:
-        // Local stored progress is still available.
-        console.warn(
-          "Failed to refresh user data. Using local data.",
-          error
-        );
+        useGameStore.getState().applyWorldRecords(world);
+        useJournalHistoryStore.getState().hydrateFromSessions(world.sessions, user.id);
+        useAcademicStore.getState().syncFromJournal({
+          tasks: world.tasks,
+          exams: world.exams,
+          subjects: user.subjects,
+        });
+      } catch {
+        // Offline — local stored progress still applies.
       }
     })();
-
     return () => {
       cancelled = true;
     };
   }, []);
-
   return children;
 }
-
-
-/* =========================================================
-   APP
-========================================================= */
 
 function App() {
   return (
     <Router>
       <Routes>
-
-        {/* =================================================
-            PUBLIC / AUTH ROUTES
-        ================================================= */}
-
+        {/* --- Public / auth routes --- */}
         <Route
           path="/register"
           element={
@@ -194,7 +103,6 @@ function App() {
             </RedirectIfAuthed>
           }
         />
-
         <Route
           path="/login"
           element={
@@ -204,28 +112,7 @@ function App() {
           }
         />
 
-
-        {/* =================================================
-            FOCUS MODULE
-            From Student_Focus_Train_ML_3
-        ================================================= */}
-
-        <Route
-          path="/focus"
-          element={
-            <RequireAuth>
-              <HydrateUser>
-                <FocusApp />
-              </HydrateUser>
-            </RequireAuth>
-          }
-        />
-
-
-        {/* =================================================
-            JOURNAL MODULE
-        ================================================= */}
-
+        {/* --- Journal component (teammate's) --- */}
         <Route
           path="/journal"
           element={
@@ -236,7 +123,6 @@ function App() {
             </RequireAuth>
           }
         />
-
         <Route
           path="/journal/activities"
           element={
@@ -247,7 +133,6 @@ function App() {
             </RequireAuth>
           }
         />
-
         <Route
           path="/journal/game"
           element={
@@ -259,11 +144,7 @@ function App() {
           }
         />
 
-
-        {/* =================================================
-            STUDY PLANNER MODULE
-        ================================================= */}
-
+        {/* --- Study Planner component (yours) — now auth-protected and sharing the same route tree --- */}
         <Route
           element={
             <RequireAuth>
@@ -273,102 +154,23 @@ function App() {
             </RequireAuth>
           }
         >
-
-          {/* Dashboard */}
-          <Route
-            path="/"
-            element={<Dashboard />}
-          />
-
-          {/* Study Planner */}
-          <Route
-            path="/study-planner"
-            element={<StudyPlanner />}
-          />
-
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/study-planner" element={<StudyPlanner />} />
+          <Route path="/tasks" element={<Tasks />} />
+          <Route path="/tasks/:taskId" element={<TaskDetails />} />
+          <Route path="/modules" element={<Modules />} />
+          <Route path="/modules/:code" element={<ModuleDetail />} />
+          <Route path="/exams" element={<Exams />} />
+          <Route path="/analytics" element={<Analytics />} />
           {/* Career Prediction Engine — owns its own sub-routes
               (dashboard / profiles / metrics), hence the trailing "/*". */}
-          <Route
-            path="/career/*"
-            element={<CareerPredictionEngine />}
-          />
-
-          {/* Tasks */}
-          <Route
-            path="/tasks"
-            element={<Tasks />}
-          />
-
-          <Route
-            path="/tasks/:taskId"
-            element={<TaskDetails />}
-          />
-
-          {/* Modules */}
-          <Route
-            path="/modules"
-            element={<Modules />}
-          />
-
-          <Route
-            path="/modules/:code"
-            element={<ModuleDetail />}
-          />
-
-          {/* Exams */}
-          <Route
-            path="/exams"
-            element={<Exams />}
-          />
-
-          {/* Analytics */}
-          <Route
-            path="/analytics"
-            element={<Analytics />}
-          />
-
-          {/* Academic Data */}
-          <Route
-            path="/add-academic-data"
-            element={<AddAcademicData />}
-          />
-
-          {/* Notifications */}
-          <Route
-            path="/notifications"
-            element={<Notifications />}
-          />
-
-          {/* Calendar */}
-          <Route
-            path="/calendar"
-            element={<CalendarPage />}
-          />
-
-          {/* Settings */}
-          <Route
-            path="/settings"
-            element={<Settings />}
-          />
-
-          {/* Profile */}
-          <Route
-            path="/profile"
-            element={<Profile />}
-          />
-
+          <Route path="/career/*" element={<CareerPredictionEngine />} />
+          <Route path="/add-academic-data" element={<AddAcademicData />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/profile" element={<Profile />} />
         </Route>
-
-
-        {/* =================================================
-            FALLBACK
-        ================================================= */}
-
-        <Route
-          path="*"
-          element={<Navigate to="/" replace />}
-        />
-
       </Routes>
     </Router>
   );

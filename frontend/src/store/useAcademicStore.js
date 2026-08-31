@@ -7,10 +7,16 @@ import {
   MOCK_EXAMS,
   MOCK_SETTINGS,
 } from "../mocks/academicMocks";
-import { CODE_MODULE_ENCODING, ASSESSMENT_TYPE_ENCODING } from "../utils/featureNameMap";
+import { CODE_MODULE_ENCODING, ASSESSMENT_TYPE_ENCODING, buildDateFeatureFromDeadline, DEFAULT_PRIOR_AVG_SCORE, DEFAULT_ASSIGNMENT_WEIGHT } from "../utils/featureNameMap";
 import { buildWeeklyModuleAllocation } from "../utils/studyAllocation";
 import { buildWeeklyFreeSlots } from "../utils/freeSlotGenerator";
 import { buildNotificationsFromRealData } from "../utils/notificationBuilder";
+import { toLocalDateStr } from "../utils/dateHelpers";
+import {
+  updateTaskWeight as apiUpdateTaskWeight,
+  updateTaskDeadline as apiUpdateTaskDeadline,
+  completeTask as apiCompleteTask,
+} from "../services/academicApi";
 
 const MODULE_COLORS = ["brand", "teal", "pink", "orange"];
 // The trained model only knows 7 fixed OULAD module categories (AAA-GGG) —
@@ -97,30 +103,61 @@ function buildFromJournal({ tasks = [], exams = [], subjects = [] }) {
       const deadlineDate = t.deadline ? String(t.deadline).slice(0, 10) : null;
       const isMissed = !isCompleted && deadlineDate && deadlineDate < todayIso;
       const estimatedHoursNeeded = 4; // not tracked by the journal — neutral default
-      const daysUntilDeadline = deadlineDate
-        ? Math.round((new Date(`${deadlineDate}T00:00:00`) - new Date(`${todayIso}T00:00:00`)) / 86400000)
-        : 14;
+      const finalDeadlineDate = deadlineDate || new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+      // The real external Task schema has NO weight field at all (see
+      // DEFAULT_ASSIGNMENT_WEIGHT's doc comment) - `!= null` correctly
+      // treats a genuinely-absent field the same as an explicit null.
+      const hasRealWeight = t.weight != null;
+      const weight = hasRealWeight ? Number(t.weight) : DEFAULT_ASSIGNMENT_WEIGHT; // real once set via updateTaskWeight
 
       return {
         taskId: t.id,
         module: module?.code || slugifySubject(t.subject),
         moduleName: t.subject,
         title: t.title || `${t.subject} assignment`,
+        // Distinguishes assignment deadlines from exam deadlines for
+        // priorityEngine.js's base-tier thresholds (PROJECT CONTEXT.md
+        // Section 5d) — exams get a longer real-world lead time. The
+        // journal's `tasks` collection only ever holds assignments (exams
+        // are a separate `exams` collection, never sent through /predict-
+        // priority — see MonthGrid.jsx), so this is always "assignment"
+        // today; kept explicit rather than assumed so the priority engine
+        // has a real field to read if/when that changes.
+        taskType: "assignment",
         assessmentType: "TMA", // not tracked by the journal — neutral default
-        weight: 20, // not tracked by the journal — neutral default
-        deadlineDate: deadlineDate || new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+        weight,
+        hasRealWeight,
+        deadlineDate: finalDeadlineDate,
         estimatedHoursNeeded,
         status: isCompleted ? "completed" : isMissed ? "missed" : "pending",
         completedHours: isCompleted ? estimatedHoursNeeded : 0,
+        // Real completion date (task_routes.py's PATCH /complete writes
+        // this) - null when absent, e.g. a task marked "completed" via the
+        // journal's own mark-entry flow instead of our Complete button,
+        // which never went through that route. Never fabricated: the
+        // completed-tasks list falls back to an undated "Completed" line
+        // rather than guessing a date that was never actually recorded.
+        completedAt: t.completed_at ? String(t.completed_at).slice(0, 10) : null,
         notes: "",
+        // Cold-start flag (Section 17) mirroring the existing hasRealWeight
+        // pattern - lets the explanation layer (priorityEngine.js's
+        // resolveExplanationDisplay) know prior_avg_score below is a neutral
+        // fallback, not a real recorded average, so it never gets cited as
+        // "why" a prediction came out the way it did.
+        hasPriorScoreData: !!module?.hasGradeData,
         featureRow: {
-          date: daysUntilDeadline,
-          weight: 20,
+          // Real deadline mapped onto the model's actual trained `date`
+          // range (12-261) — see buildDateFeatureFromDeadline for why a raw
+          // "days remaining" value is wrong here.
+          date: buildDateFeatureFromDeadline(finalDeadlineDate),
+          weight,
           num_of_prev_attempts: 0,
           studied_credits: 60,
           module_presentation_length: 240,
           date_registration: -30,
-          prior_avg_score: module?.currentGrade || 65,
+          // See DEFAULT_PRIOR_AVG_SCORE's own doc comment (featureNameMap.js)
+          // for why this is the OULAD dataset mean, not an arbitrary number.
+          prior_avg_score: module?.hasGradeData ? module.currentGrade : DEFAULT_PRIOR_AVG_SCORE,
           avg_weekly_clicks: 15,
           clicks_trend: 0,
           active_weeks_ratio: 0.5,
@@ -142,6 +179,40 @@ function buildFromJournal({ tasks = [], exams = [], subjects = [] }) {
     }));
 
   return { modules, assignments, exams: mappedExams };
+}
+
+// Extracted (not just inline in the `persist` config below) and exported
+// specifically so it's independently unit-testable - see
+// src/store/__tests__/useAcademicStore.migration.test.js - without it,
+// verifying migration behavior would require driving the whole Zustand
+// `persist` machinery instead of just calling a pure function with a mock
+// pre-migration state. No behavior change from the pre-extraction version.
+export function migrateAcademicStore(persisted, version) {
+  if (!persisted) return persisted;
+  delete persisted.monthSessionsByKey;
+  const prefs = persisted.settings?.studyPreferences;
+  if (prefs && !Array.isArray(prefs.preferredStudyTimes)) {
+    prefs.preferredStudyTimes = prefs.preferredStudyTime ? [prefs.preferredStudyTime] : ["evening"];
+    delete prefs.preferredStudyTime;
+    persisted.weeklyFreeSlots = buildWeeklyFreeSlots(prefs);
+    persisted.remainingFreeSlots = persisted.weeklyFreeSlots;
+    persisted.scheduleResponse = null;
+    persisted.todoList = [];
+  }
+  if (version < 6) persisted.notifications = [];
+  if (version < 7) {
+    if (Array.isArray(persisted.assignments)) {
+      persisted.assignments = persisted.assignments.map((a) =>
+        a.deadlineDate
+          ? { ...a, featureRow: { ...a.featureRow, date: buildDateFeatureFromDeadline(a.deadlineDate) } }
+          : a
+      );
+    }
+    persisted.predictedPriorities = {};
+    persisted.scheduleResponse = null;
+    persisted.todoList = [];
+  }
+  return persisted;
 }
 
 // Why Zustand (not React Context) for this store:
@@ -241,6 +312,10 @@ export const useAcademicStore = create(
       syncFromJournal: ({ tasks, exams, subjects }) => {
         if (!subjects || subjects.length === 0) return;
         const built = buildFromJournal({ tasks: tasks || [], exams: exams || [], subjects });
+        // About to potentially discard scheduleResponse/multiWeekSchedule
+        // below (when the task set changed) - freeze anything they hold for
+        // already-past dates first, same as setSchedule/setMultiWeekSchedule.
+        get().freezePastDates();
         set((s) => {
           // Only discard the cached /schedule response when the real task
           // set actually differs from what it was generated against (e.g.
@@ -255,7 +330,7 @@ export const useAcademicStore = create(
             modules: built.modules,
             assignments: built.assignments,
             exams: built.exams,
-            ...(sameTasks ? {} : { scheduleResponse: null, todoList: [] }),
+            ...(sameTasks ? {} : { scheduleResponse: null, todoList: [], multiWeekSchedule: null }),
           };
         });
         get().recomputeSemesterAllocation();
@@ -268,10 +343,26 @@ export const useAcademicStore = create(
         get().recomputeNotifications();
       },
 
-      completeTask: (taskId) => {
+      // Real database write FIRST (PATCH /tasks/{id}/complete - writes
+      // progress_stage: "completed" into the journal's real `tasks`
+      // collection), local Zustand state updated only after that succeeds.
+      // Previously this only ever touched local state - a completion the
+      // student saw on screen could vanish on the next login/sync because
+      // nothing durable ever recorded it. Callers (Tasks.jsx, TaskDetails.jsx)
+      // must await this and handle rejection (show an error/retry state)
+      // rather than assuming success, since the UI must never show
+      // "completed" while the database still disagrees.
+      completeTask: async (taskId) => {
+        await apiCompleteTask(taskId);
+        // Matches task_routes.py's local_today_iso() (date-only, no time-of-
+        // day - the real DB write this mirrors never captures clock time
+        // either) so a reload's real completed_at from the journal agrees
+        // with what was set optimistically here, instead of drifting by a
+        // few hours of "time" that was never genuinely tracked.
+        const completedAt = new Date().toISOString().slice(0, 10);
         set((s) => ({
           assignments: s.assignments.map((a) =>
-            a.taskId === taskId ? { ...a, status: "completed", completedHours: a.estimatedHoursNeeded } : a
+            a.taskId === taskId ? { ...a, status: "completed", completedHours: a.estimatedHoursNeeded, completedAt } : a
           ),
         }));
         get().recomputeSemesterAllocation();
@@ -280,10 +371,42 @@ export const useAcademicStore = create(
 
       updateAssignmentDeadline: (taskId, newDate) => {
         set((s) => ({
-          assignments: s.assignments.map((a) => (a.taskId === taskId ? { ...a, deadlineDate: newDate } : a)),
+          assignments: s.assignments.map((a) =>
+            a.taskId === taskId
+              ? {
+                  ...a,
+                  deadlineDate: newDate,
+                  // Recompute the ML feature too — deadlineDate (display)
+                  // and featureRow.date (model input) must never drift
+                  // apart, or /predict-priority silently keeps scoring
+                  // against the OLD deadline after the student moves it.
+                  featureRow: { ...a.featureRow, date: buildDateFeatureFromDeadline(newDate) },
+                }
+              : a
+          ),
         }));
         get().recomputeSemesterAllocation();
         get().recomputeNotifications();
+        // Writes back to the journal's real task doc so this edit survives
+        // the next login instead of being overwritten by syncFromJournal.
+        // Mock/manually-added assignments aren't real Mongo docs and will
+        // 404 here — harmless, the local edit above already applied.
+        apiUpdateTaskDeadline(taskId, newDate).catch(() => {});
+      },
+
+      // Real weight write-back so /predict-priority stops getting a fixed
+      // placeholder for this task from now on — see task_routes.py.
+      updateAssignmentWeight: (taskId, weight) => {
+        set((s) => ({
+          assignments: s.assignments.map((a) =>
+            a.taskId === taskId
+              ? { ...a, weight, hasRealWeight: true, featureRow: { ...a.featureRow, weight } }
+              : a
+          ),
+        }));
+        get().recomputeSemesterAllocation();
+        get().recomputeNotifications();
+        apiUpdateTaskWeight(taskId, weight).catch(() => {});
       },
 
       updateExamDate: (examId, newDate) => {
@@ -302,10 +425,100 @@ export const useAcademicStore = create(
       weeklyFreeSlots: buildWeeklyFreeSlots(MOCK_SETTINGS.studyPreferences),
       remainingFreeSlots: buildWeeklyFreeSlots(MOCK_SETTINGS.studyPreferences),
       scheduleResponse: null, // raw ScheduleResponse from the backend
+      // The real calendar date "today" was when scheduleResponse was last
+      // generated - scheduleResponse itself is keyed by WEEKDAY NAME (not
+      // real date), so once that date has slipped into the past this is the
+      // only way to know which real date its content actually belongs to.
+      // Persisted alongside scheduleResponse specifically so freezePastDates()
+      // can still resolve it correctly after a reload on a later day.
+      scheduleGeneratedDate: null,
       todoList: [],
-      setSchedule: (scheduleResponse) => set({ scheduleResponse }),
+      setSchedule: (scheduleResponse) => {
+        // Freeze whatever the OLD scheduleResponse/multiWeekSchedule held for
+        // any date that has since become past, using their content as it was
+        // immediately before this call overwrites it - see freezePastDates().
+        get().freezePastDates();
+        set({ scheduleResponse, scheduleGeneratedDate: toLocalDateStr(new Date()) });
+      },
       setRemainingFreeSlots: (slots) => set({ remainingFreeSlots: slots }),
       setTodoList: (todoList) => set({ todoList }),
+      // MultiWeekScheduleResponse (PROJECT CONTEXT.md Section 8d) - real,
+      // ISO-date-keyed sessions spanning several weeks ahead, fetched ONCE
+      // by useMultiWeekSchedule() and sliced per-viewed-week by WeekGrid.jsx,
+      // rather than a fresh backend call every time the student clicks
+      // Next/Previous week. Deliberately NOT persisted (not in `partialize`
+      // below) - it must always be refetched fresh on reload so future/today
+      // stay genuinely live (Section 8d/8e); only its already-past dates,
+      // captured into historicalScheduleByDate before each overwrite, need
+      // to survive a reload.
+      multiWeekSchedule: null,
+      setMultiWeekSchedule: (multiWeekSchedule) => {
+        get().freezePastDates();
+        set({ multiWeekSchedule });
+      },
+
+      // --- Historical (frozen) per-date schedule snapshots (Section 8e) ---
+      // { "YYYY-MM-DD": { sessions: [...], tasksRegistry: {...}, frozenAt } }
+      // Append-only: once a date is written here it is NEVER overwritten by
+      // a later regeneration, even if the live allocation algorithm would
+      // now produce something different for that same date. This is what
+      // makes past days in the Week view immune to "the schedule looked
+      // different an hour ago" - see freezePastDates() and PROJECT
+      // CONTEXT.md Section 8e for the full design rationale.
+      historicalScheduleByDate: {},
+      // Called right before scheduleResponse/multiWeekSchedule get replaced
+      // with fresh data (setSchedule/setMultiWeekSchedule above), plus once
+      // on every app load (App.jsx's HydrateUser) so a date that quietly
+      // became "yesterday" while the app was closed still gets captured
+      // before anything regenerates. Idempotent and safe to call repeatedly -
+      // a date already present in historicalScheduleByDate is never touched
+      // again by either source below.
+      freezePastDates: () => {
+        const s = get();
+        const today = toLocalDateStr(new Date());
+        const historical = { ...s.historicalScheduleByDate };
+        let changed = false;
+
+        // Source 1: scheduleResponse - the live, /reschedule-integrated
+        // single-week response, keyed by WEEKDAY NAME relative to whatever
+        // "today" was when it was generated (scheduleGeneratedDate). Only
+        // one real date is ever recoverable from it (the date it was
+        // generated for) - but it's the more authoritative source for that
+        // one date, since it reflects any "mark complete"/"missed task"
+        // adjustments the multi-week response never sees.
+        if (s.scheduleResponse && s.scheduleGeneratedDate && s.scheduleGeneratedDate < today && !historical[s.scheduleGeneratedDate]) {
+          const weekdayName = new Date(`${s.scheduleGeneratedDate}T00:00:00`).toLocaleDateString(undefined, { weekday: "long" });
+          historical[s.scheduleGeneratedDate] = {
+            sessions: s.scheduleResponse.schedule?.[weekdayName] || [],
+            tasksRegistry: s.scheduleResponse.tasks || {},
+            frozenAt: new Date().toISOString(),
+            source: "scheduleResponse",
+          };
+          changed = true;
+        }
+
+        // Source 2: multiWeekSchedule - already real-ISO-date-keyed, covers
+        // every date in its generated range (even ones with zero sessions -
+        // frozen as a genuine "nothing was scheduled" record, distinct from
+        // a date that was simply never captured at all). Only fills in
+        // dates Source 1 didn't already claim, so scheduleResponse's more
+        // authoritative version of "today at generation time" always wins.
+        if (s.multiWeekSchedule?.schedule) {
+          for (const [dateStr, sessions] of Object.entries(s.multiWeekSchedule.schedule)) {
+            if (dateStr < today && !historical[dateStr]) {
+              historical[dateStr] = {
+                sessions,
+                tasksRegistry: s.multiWeekSchedule.tasks || {},
+                frozenAt: new Date().toISOString(),
+                source: "multiWeekSchedule",
+              };
+              changed = true;
+            }
+          }
+        }
+
+        if (changed) set({ historicalScheduleByDate: historical });
+      },
 
       // --- Notifications (mock) ---
       // Real, derived from actual assignments/exams/modules — see
@@ -339,11 +552,16 @@ export const useAcademicStore = create(
       settings: MOCK_SETTINGS,
       updateNotificationSetting: (key, value) =>
         set((s) => ({ settings: { ...s.settings, notifications: { ...s.settings.notifications, [key]: value } } })),
-      updateStudyPreference: (key, value) =>
+      updateStudyPreference: (key, value) => {
+        if (key === "preferredStudyTimes" || key === "maxDailyStudyHours" || key === "includeWeekends" || key === "fullStudyDays") {
+          // About to null out scheduleResponse/multiWeekSchedule below -
+          // freeze anything they hold for already-past dates first.
+          get().freezePastDates();
+        }
         set((s) => {
           const studyPreferences = { ...s.settings.studyPreferences, [key]: value };
           const patch = { settings: { ...s.settings, studyPreferences } };
-          if (key === "preferredStudyTimes" || key === "maxDailyStudyHours") {
+          if (key === "preferredStudyTimes" || key === "maxDailyStudyHours" || key === "includeWeekends" || key === "fullStudyDays") {
             // These directly define weeklyFreeSlots — regenerate it so the
             // change actually reaches /schedule, and drop the stale cached
             // schedule (built against the old slots) so it regenerates too.
@@ -351,9 +569,11 @@ export const useAcademicStore = create(
             patch.remainingFreeSlots = patch.weeklyFreeSlots;
             patch.scheduleResponse = null;
             patch.todoList = [];
+            patch.multiWeekSchedule = null;
           }
           return patch;
-        }),
+        });
+      },
 
       // --- Streak / celebratory state ---
       streak: 6,
@@ -375,31 +595,34 @@ export const useAcademicStore = create(
         weeklyFreeSlots: s.weeklyFreeSlots,
         remainingFreeSlots: s.remainingFreeSlots,
         scheduleResponse: s.scheduleResponse,
+        scheduleGeneratedDate: s.scheduleGeneratedDate,
+        historicalScheduleByDate: s.historicalScheduleByDate,
         todoList: s.todoList,
         notifications: s.notifications,
         settings: s.settings,
         streak: s.streak,
       }),
-      // v6: notifications are now derived from real assignments/exams/
-      // modules (see recomputeNotifications) instead of MOCK_NOTIFICATIONS
-      // — discard any persisted mock notifications so they don't linger
-      // next to real ones; a fresh real list is rebuilt on next sync.
-      version: 6,
-      migrate: (persisted, version) => {
-        if (!persisted) return persisted;
-        delete persisted.monthSessionsByKey;
-        const prefs = persisted.settings?.studyPreferences;
-        if (prefs && !Array.isArray(prefs.preferredStudyTimes)) {
-          prefs.preferredStudyTimes = prefs.preferredStudyTime ? [prefs.preferredStudyTime] : ["evening"];
-          delete prefs.preferredStudyTime;
-          persisted.weeklyFreeSlots = buildWeeklyFreeSlots(prefs);
-          persisted.remainingFreeSlots = persisted.weeklyFreeSlots;
-          persisted.scheduleResponse = null;
-          persisted.todoList = [];
-        }
-        if (version < 6) persisted.notifications = [];
-        return persisted;
-      },
+      // v7: featureRow.date used to be a raw "days until deadline" value
+      // (out of the model's actual trained range, ~12-261 — see
+      // buildDateFeatureFromDeadline) and, separately, editing a deadline
+      // never recomputed it — so assignments persisted from before that fix
+      // are stuck holding a stale/wrong date feature no matter how many
+      // times syncFromJournal reruns (it only replaces `assignments` when
+      // the *set* of task ids changes, not when a feature value inside an
+      // unchanged task silently needed correcting). This migration
+      // recomputes date for every persisted assignment from its real
+      // deadlineDate, and clears every cache downstream of the old value
+      // (predictedPriorities; scheduleResponse/todoList, since a schedule
+      // generated before this fix baked in priority_labels predicted from
+      // the wrong feature) so the next load calls /schedule fresh with
+      // corrected inputs instead of serving stale cached output forever.
+      // v8: introduces historicalScheduleByDate + scheduleGeneratedDate
+      // (Section 8e) - new, additive fields with safe defaults ({} / null)
+      // already set by the store initializer above, so no transform is
+      // needed for existing persisted state; the version bump exists purely
+      // as a changelog marker for this schema addition.
+      version: 8,
+      migrate: migrateAcademicStore,
     }
   )
 );

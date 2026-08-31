@@ -25,9 +25,10 @@ if ML_SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, ML_SCRIPTS_DIR)
 
 StudyScheduler = None
+generate_rolling_schedule = None
 try:
-    from schedule_engine import StudyScheduler  # noqa: E402
-    logger.info("schedule_service: imported StudyScheduler from ml_scripts/study-planner/schedule_engine.py")
+    from schedule_engine import StudyScheduler, generate_rolling_schedule  # noqa: E402
+    logger.info("schedule_service: imported StudyScheduler + generate_rolling_schedule from ml_scripts/study-planner/schedule_engine.py")
 except FileNotFoundError as e:
     logger.error("schedule_service: STARTUP ERROR - could not find schedule_engine.py: %s", e)
 except Exception:
@@ -87,6 +88,27 @@ def create_schedule(weekly_free_slots: list, tasks: list) -> dict:
             raise ScheduleServiceError(str(e))
 
     return scheduler.generate_schedule()
+
+
+def create_multi_week_schedule(weekly_free_slots: list, tasks: list, weeks_ahead: int = None) -> dict:
+    """
+    Same priority-resolution step as create_schedule() (predict via the
+    trained classifier for any task without a priority_label already), then
+    hands the resolved task list to generate_rolling_schedule() for the
+    actual multi-week, backlog-carryover allocation - see that function's
+    docstring (schedule_engine.py) for the algorithm itself.
+    """
+    if generate_rolling_schedule is None:
+        raise ScheduleServiceError("Scheduling engine is not available - check server startup logs.")
+
+    resolved_tasks = []
+    for task in tasks:
+        try:
+            resolved_tasks.append(_ensure_priority_label(task))
+        except ScheduleServiceError:
+            raise
+
+    return generate_rolling_schedule(weekly_free_slots, resolved_tasks, weeks_ahead=weeks_ahead)
 
 
 def reschedule(existing_schedule_state: dict, completed_task_ids: list, new_tasks: list = None) -> dict:

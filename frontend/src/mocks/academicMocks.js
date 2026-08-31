@@ -3,7 +3,7 @@
 // PROJECT CONTEXT.md) are expected to return, so wiring a real API later
 // should mostly mean replacing the import with a service call of the same
 // shape rather than rewriting components.
-import { CODE_MODULE_ENCODING, ASSESSMENT_TYPE_ENCODING } from "../utils/featureNameMap";
+import { CODE_MODULE_ENCODING, ASSESSMENT_TYPE_ENCODING, buildDateFeatureFromDeadline } from "../utils/featureNameMap";
 
 // Placeholder shown only until the real registered user (from the Auth flow's
 // useGameStore) is hydrated in — see useAcademicStore's syncProfileFromUser.
@@ -69,16 +69,27 @@ export const MOCK_MODULES = [
   },
 ];
 
+// Mid/Final instead of a Term1-3 progression - the app only ever has two
+// real assessment checkpoints per module (a mid-semester result and the
+// final grade, matching the "mid"/"final" exam_type vocabulary already used
+// elsewhere - Section 8a's exam-type budget multiplier, the Exams page).
+// "Final" intentionally matches each module's `currentGrade` in MOCK_MODULES
+// above so the chart's last point and the "Current Grade" mini-stat on
+// ModuleDetail never silently disagree.
 const MODULE_TREND = [
-  { term: "Term 1", AAA: 58, BBB: 70, CCC: 65, DDD: 79 },
-  { term: "Term 2", AAA: 63, BBB: 74, CCC: 66, DDD: 81 },
-  { term: "Term 3", AAA: 61, BBB: 78, CCC: 69, DDD: 84 },
+  { term: "Mid", AAA: 63, BBB: 74, CCC: 66, DDD: 81 },
+  { term: "Final", AAA: 61, BBB: 78, CCC: 69, DDD: 84 },
 ];
 export const MOCK_MODULE_PERFORMANCE_TREND = MODULE_TREND;
 
-function buildFeatureRow({ module, assessmentType, weight, daysUntilDeadline, priorAvgScore, weeklyClicks, clicksTrend, activeWeeksRatio, hasVle, prevAttempts = 0, studiedCredits = 60 }) {
+// deadlineDate is the single source of truth — `date` is always derived
+// from it (never passed separately), so a mock assignment's ML feature can
+// never drift out of sync with its own real, displayed deadline the way a
+// hardcoded "days until deadline" literal would (see bug report: it did,
+// silently, as soon as "today" moved past when these mocks were authored).
+function buildFeatureRow({ module, assessmentType, weight, deadlineDate, priorAvgScore, weeklyClicks, clicksTrend, activeWeeksRatio, hasVle, prevAttempts = 0, studiedCredits = 60 }) {
   return {
-    date: daysUntilDeadline,
+    date: buildDateFeatureFromDeadline(deadlineDate),
     weight,
     num_of_prev_attempts: prevAttempts,
     studied_credits: studiedCredits,
@@ -102,6 +113,7 @@ export const MOCK_ASSIGNMENTS = [
     module: "AAA",
     moduleName: "Database Systems",
     title: "TMA03 — Normalization & Indexing",
+    taskType: "assignment", // see priorityEngine.js / PROJECT CONTEXT.md Section 5d
     assessmentType: "TMA",
     weight: 25,
     deadlineDate: "2026-08-27",
@@ -110,7 +122,7 @@ export const MOCK_ASSIGNMENTS = [
     completedHours: 2,
     notes: "Cover 3NF proofs and index selection for the sample schema.",
     featureRow: buildFeatureRow({
-      module: "AAA", assessmentType: "TMA", weight: 25, daysUntilDeadline: 5,
+      module: "AAA", assessmentType: "TMA", weight: 25, deadlineDate: "2026-08-27",
       priorAvgScore: 58, weeklyClicks: 12, clicksTrend: -4, activeWeeksRatio: 0.4, hasVle: 1,
     }),
   },
@@ -119,6 +131,7 @@ export const MOCK_ASSIGNMENTS = [
     module: "BBB",
     moduleName: "Software Engineering",
     title: "CMA02 — Requirements & UML",
+    taskType: "assignment",
     assessmentType: "CMA",
     weight: 10,
     deadlineDate: "2026-09-02",
@@ -127,7 +140,7 @@ export const MOCK_ASSIGNMENTS = [
     completedHours: 1,
     notes: "Quiz-style, covers use-case diagrams from week 4.",
     featureRow: buildFeatureRow({
-      module: "BBB", assessmentType: "CMA", weight: 10, daysUntilDeadline: 11,
+      module: "BBB", assessmentType: "CMA", weight: 10, deadlineDate: "2026-09-02",
       priorAvgScore: 78, weeklyClicks: 30, clicksTrend: 5, activeWeeksRatio: 0.8, hasVle: 1,
     }),
   },
@@ -136,6 +149,7 @@ export const MOCK_ASSIGNMENTS = [
     module: "CCC",
     moduleName: "Operating Systems",
     title: "TMA01 — Scheduling Algorithms",
+    taskType: "assignment",
     assessmentType: "TMA",
     weight: 20,
     deadlineDate: "2026-09-05",
@@ -144,7 +158,7 @@ export const MOCK_ASSIGNMENTS = [
     completedHours: 0,
     notes: "Compare Round Robin vs. MLFQ with worked examples.",
     featureRow: buildFeatureRow({
-      module: "CCC", assessmentType: "TMA", weight: 20, daysUntilDeadline: 14,
+      module: "CCC", assessmentType: "TMA", weight: 20, deadlineDate: "2026-09-05",
       priorAvgScore: 69, weeklyClicks: 18, clicksTrend: 1, activeWeeksRatio: 0.55, hasVle: 1,
     }),
   },
@@ -153,6 +167,12 @@ export const MOCK_ASSIGNMENTS = [
     module: "DDD",
     moduleName: "Web Application Development",
     title: "Practical Exam — React & REST",
+    // taskType (priorityEngine.js) != assessmentType (ML feature) below -
+    // this is still an assignment-flow task (goes through /schedule like
+    // the rest of MOCK_ASSIGNMENTS), just with assessment_type_enc="Exam".
+    // Real calendar exams live in MOCK_EXAMS instead and never get a
+    // taskType at all (see MonthGrid.jsx - they never get an ML priority).
+    taskType: "assignment",
     assessmentType: "Exam",
     weight: 40,
     deadlineDate: "2026-09-10",
@@ -161,7 +181,7 @@ export const MOCK_ASSIGNMENTS = [
     completedHours: 5,
     notes: "Timed practical: build a small CRUD app against a given API.",
     featureRow: buildFeatureRow({
-      module: "DDD", assessmentType: "Exam", weight: 40, daysUntilDeadline: 19,
+      module: "DDD", assessmentType: "Exam", weight: 40, deadlineDate: "2026-09-10",
       priorAvgScore: 84, weeklyClicks: 22, clicksTrend: 2, activeWeeksRatio: 0.9, hasVle: 1,
     }),
   },
@@ -170,15 +190,17 @@ export const MOCK_ASSIGNMENTS = [
     module: "AAA",
     moduleName: "Database Systems",
     title: "CMA02 — SQL Query Practice",
+    taskType: "assignment",
     assessmentType: "CMA",
     weight: 8,
     deadlineDate: "2026-08-24",
     estimatedHoursNeeded: 2,
     status: "completed",
     completedHours: 2,
+    completedAt: "2026-08-22",
     notes: "Auto-marked SQL exercises.",
     featureRow: buildFeatureRow({
-      module: "AAA", assessmentType: "CMA", weight: 8, daysUntilDeadline: 2,
+      module: "AAA", assessmentType: "CMA", weight: 8, deadlineDate: "2026-08-24",
       priorAvgScore: 58, weeklyClicks: 12, clicksTrend: -4, activeWeeksRatio: 0.4, hasVle: 1,
     }),
   },
@@ -187,6 +209,7 @@ export const MOCK_ASSIGNMENTS = [
     module: "BBB",
     moduleName: "Software Engineering",
     title: "TMA01 — Agile Retrospective Report",
+    taskType: "assignment",
     assessmentType: "TMA",
     weight: 15,
     deadlineDate: "2026-08-15",
@@ -195,7 +218,7 @@ export const MOCK_ASSIGNMENTS = [
     completedHours: 1,
     notes: "Reflect on sprint 2 velocity and blockers.",
     featureRow: buildFeatureRow({
-      module: "BBB", assessmentType: "TMA", weight: 15, daysUntilDeadline: -7,
+      module: "BBB", assessmentType: "TMA", weight: 15, deadlineDate: "2026-08-15",
       priorAvgScore: 78, weeklyClicks: 30, clicksTrend: 5, activeWeeksRatio: 0.8, hasVle: 1,
     }),
   },
@@ -218,6 +241,8 @@ export const MOCK_SETTINGS = {
     preferredStudyTimes: ["evening"], // 1 or 2 of: morning | afternoon | evening | night
     maxDailyStudyHours: 4,
     breakDurationMinutes: 15,
+    includeWeekends: true,
+    fullStudyDays: [], // weekday names (e.g. "Saturday") that get an 8h block instead of the normal preferred-time window
   },
 };
 

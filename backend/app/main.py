@@ -26,6 +26,7 @@ from app.routes.study_planner.explain_routes import router as explain_router
 from app.routes.study_planner.schedule_routes import router as schedule_router
 from app.routes.study_planner.todo_routes import router as todo_router
 from app.routes.study_planner.cluster_routes import router as cluster_router
+from app.routes.study_planner.task_routes import router as task_router
 
 
 app = FastAPI(title="Smart Uni Guide API")
@@ -70,6 +71,7 @@ app.include_router(explain_router)
 app.include_router(schedule_router)
 app.include_router(todo_router)
 app.include_router(cluster_router)
+app.include_router(task_router)
 
 
 @app.get("/")

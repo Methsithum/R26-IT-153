@@ -29,7 +29,7 @@ export default function DiscardTodayButton({ className = "", date, dayNumber }) 
     setError("");
     try {
       await useGameStore.getState().discardTodayJournal(targetDate);
-      navigate("/journal", { state: { openTab: "roadmap" } });
+      navigate("/", { state: { openTab: "roadmap" } });
     } catch (err) {
       setError(err?.response?.data?.detail || err?.message || "Could not delete this journal.");
       setBusy(false);
@@ -42,7 +42,7 @@ export default function DiscardTodayButton({ className = "", date, dayNumber }) 
         type="button"
         onClick={handleDiscard}
         disabled={busy}
-        className="rounded-2xl border border-high-500/25 bg-high-50 dark:bg-high-500/10 px-4 py-2.5 text-sm font-semibold text-high-600 transition-colors hover:bg-high-50 disabled:opacity-40"
+        className="rounded-lg border border-rose-300/70 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-800 transition-colors hover:bg-rose-100 disabled:opacity-40"
       >
         {busy ? "Deleting…" : `Wrong entry — delete & replay ${shortDate}`}
       </button>

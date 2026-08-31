@@ -8,7 +8,6 @@ import SubjectPicker from "../MiniGames/SubjectPicker";
 import ExamSetup from "../MiniGames/ExamSetup";
 import MarkTargetPicker from "../MiniGames/MarkTargetPicker";
 import MarksDartboard from "../MiniGames/MarksDartboard";
-import LetterGradeTubes from "../MiniGames/LetterGradeTubes";
 import DeadlineAbacus from "../MiniGames/DeadlineAbacus";
 import SubjectBalanceScale from "../MiniGames/SubjectBalanceScale";
 import { missionLabel, stationKeyFor } from "../Environment/stationMap";
@@ -25,11 +24,6 @@ function MiniGameSlot({ activeQuestion, onComplete, buildingId }) {
   if (type === "examDate") return <ExamCalendarSort {...props} />;
   if (type === "markTarget") return <MarkTargetPicker {...props} />;
   if (type === "marks") {
-    const exam = activeQuestion?.context?.missingExams?.[0];
-    const kind = String(
-      exam?.examType || exam?.exam_type || activeQuestion?.context?.examKind || ""
-    ).toLowerCase();
-    if (kind === "final") return <LetterGradeTubes {...props} />;
     if (station === "dartboard") return <MarksDartboard {...props} />;
     if (station === "scale") return <SubjectBalanceScale {...props} />;
     return <GradeSlider {...props} />;

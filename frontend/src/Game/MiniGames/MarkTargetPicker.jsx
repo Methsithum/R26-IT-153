@@ -16,7 +16,6 @@ function hashName(name) {
 
 export default function MarkTargetPicker({ question, onComplete }) {
   const exams = question?.context?.missingExams || [];
-  const assignments = question?.context?.markAssignments || [];
   const subjects = question?.context?.subjectOptions || [];
   const usingExams = exams.length > 0;
   const [picked, setPicked] = useState(null);
@@ -29,21 +28,13 @@ export default function MarkTargetPicker({ question, onComplete }) {
         hint: "Pin this result",
       }));
     }
-    if (assignments.length) {
-      return assignments.map((item) => ({
-        id: item.id,
-        title: item.title || item.subject,
-        badge: "Assignment",
-        hint: "Pin this paper",
-      }));
-    }
     return subjects.map((subject) => ({
       id: subject,
       title: subject,
       badge: "Assignment",
       hint: "Pin this paper",
     }));
-  }, [assignments, exams, subjects, usingExams]);
+  }, [exams, subjects, usingExams]);
 
   const title = usingExams ? "Which exam result?" : "Which assignment mark?";
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, AlertTriangle, Check, RefreshCw, Calendar, Percent, BookOpen } from "lucide-react";
+import { ArrowLeft, AlertTriangle, Check, RefreshCw, Calendar, Percent, BookOpen, Pencil } from "lucide-react";
 import Topbar from "../../Components/academic/Layout/Topbar";
 import PriorityBadge from "../../Components/academic/Shared/PriorityBadge";
 import ExplanationPanel from "../../Components/academic/Shared/ExplanationPanel";
@@ -9,6 +9,7 @@ import { useAcademicStore } from "../../store/useAcademicStore";
 import { useReschedule } from "../../hooks/useAcademicData";
 import { predictPriority, explainTask } from "../../services/academicApi";
 import { formatDeadlineCopy, daysRemaining } from "../../utils/dateHelpers";
+import { computeFinalPriority, resolveExplanationDisplay } from "../../utils/priorityEngine";
 
 export default function TaskDetails() {
   const { taskId } = useParams();
@@ -18,13 +19,19 @@ export default function TaskDetails() {
   const completeTask = useAcademicStore((s) => s.completeTask);
   const bumpStreak = useAcademicStore((s) => s.bumpStreak);
   const scheduleResponse = useAcademicStore((s) => s.scheduleResponse);
+  const updateAssignmentWeight = useAcademicStore((s) => s.updateAssignmentWeight);
   const { runReschedule, loading: rescheduling } = useReschedule();
+
+  const [editingWeight, setEditingWeight] = useState(false);
+  const [weightDraft, setWeightDraft] = useState("");
 
   const [priorityResult, setPriorityResult] = useState(null);
   const [explanation, setExplanation] = useState(null);
   const [loadingExplain, setLoadingExplain] = useState(true);
   const [celebration, setCelebration] = useState(null);
   const [rescheduleInfo, setRescheduleInfo] = useState(null);
+  const [completing, setCompleting] = useState(false);
+  const [completeError, setCompleteError] = useState(null);
 
   const module = modules.find((m) => m.code === task?.module);
 
@@ -45,8 +52,32 @@ export default function TaskDetails() {
     };
   }, [task]);
 
-  const priority = priorityResult?.priority_label || scheduleResponse?.tasks?.[taskId]?.priority_label;
   const days = task ? daysRemaining(task.deadlineDate) : 0;
+
+  // TaskDetails calls /predict-priority directly (below) rather than reading
+  // the /schedule response, so - unlike Dashboard/Tasks/MonthGrid, which all
+  // get the hybrid layer for free via useWeeklySchedule/useReschedule (see
+  // priorityEngine.js) - the raw ML label from that direct call needs to go
+  // through computeFinalPriority here explicitly. The scheduleResponse
+  // fallback already carries the hybrid result (applied at the API
+  // boundary), so it's used as-is.
+  const rawMlLabel = priorityResult?.priority_label;
+  const finalPriorityResult = task && rawMlLabel
+    ? computeFinalPriority(days, task.taskType || "assignment", rawMlLabel)
+    : null;
+  const priority = finalPriorityResult?.priorityLabel || scheduleResponse?.tasks?.[taskId]?.priority_label;
+
+  // Decides which explanation (SHAP / deadline / blended) actually matches
+  // `priority` above - see resolveExplanationDisplay()'s docstring. Passing
+  // the raw /explain response straight to ExplanationPanel would risk
+  // explaining `explanation.predicted_priority` instead of the final,
+  // post-priorityEngine label the badge shows.
+  const explanationDisplay = finalPriorityResult && explanation
+    ? resolveExplanationDisplay(finalPriorityResult, days, explanation, {
+        hasPriorScoreData: !!task?.hasPriorScoreData,
+        hasRealWeight: !!task?.hasRealWeight,
+      })
+    : null;
 
   const remainingHours = task ? Math.max(task.estimatedHoursNeeded - task.completedHours, 0) : 0;
 
@@ -60,11 +91,23 @@ export default function TaskDetails() {
     });
   }
 
-  function handleComplete() {
-    completeTask(taskId);
-    bumpStreak();
-    setCelebration({ priority, title: task.title });
-    runReschedule({ completedTaskIds: [taskId] }).catch(() => {});
+  // Real database write FIRST (see useAcademicStore.js's completeTask) -
+  // only on success do we celebrate/bump the streak/reschedule. On failure,
+  // surface a retryable error rather than showing "completed" while the
+  // database still shows the task open.
+  async function handleComplete() {
+    setCompleting(true);
+    setCompleteError(null);
+    try {
+      await completeTask(taskId);
+      bumpStreak();
+      setCelebration({ priority, title: task.title });
+      runReschedule({ completedTaskIds: [taskId] }).catch(() => {});
+    } catch (e) {
+      setCompleteError(e.message || "Could not mark this task complete.");
+    } finally {
+      setCompleting(false);
+    }
   }
 
   if (!task) {
@@ -104,9 +147,61 @@ export default function TaskDetails() {
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
             <Stat icon={Calendar} label="Deadline" value={formatDeadlineCopy(task.deadlineDate)} />
-            <Stat icon={Percent} label="Assignment Weight" value={`${task.weight}%`} />
-            <Stat icon={BookOpen} label="Module Grade" value={module ? `${module.currentGrade}%` : "—"} />
-            <Stat icon={RefreshCw} label="Assessment Type" value={task.assessmentType} />
+            <div className="flex items-start gap-2">
+              <div className="w-8 h-8 rounded-xl bg-slate-50 dark:bg-white/10 flex items-center justify-center shrink-0">
+                <Percent size={15} className="text-slate-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] text-slate-400 flex items-center gap-1">
+                  Assignment Weight
+                  {!task.hasRealWeight && (
+                    <span
+                      className="text-medium-600 dark:text-medium-500"
+                      title="Not recorded in your journal yet — this is a neutral placeholder used for the ML prediction until you set the real value."
+                    >
+                      (estimate)
+                    </span>
+                  )}
+                </p>
+                {editingWeight ? (
+                  <input
+                    autoFocus
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={weightDraft}
+                    onChange={(e) => setWeightDraft(e.target.value)}
+                    onBlur={() => {
+                      const n = Number(weightDraft);
+                      if (weightDraft !== "" && !Number.isNaN(n)) updateAssignmentWeight(task.taskId, Math.min(100, Math.max(0, n)));
+                      setEditingWeight(false);
+                    }}
+                    onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                    className="w-16 text-sm font-semibold text-slate-700 dark:text-white bg-transparent border-b border-brand-400 outline-none"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWeightDraft(String(task.weight));
+                      setEditingWeight(true);
+                    }}
+                    className="text-sm font-semibold text-slate-700 dark:text-white truncate inline-flex items-center gap-1 hover:text-brand-600"
+                  >
+                    {task.weight}% <Pencil size={11} className="text-slate-300" />
+                  </button>
+                )}
+              </div>
+            </div>
+            <Stat
+              icon={BookOpen}
+              label="Module Grade"
+              // hasGradeData=false means no marks recorded yet - the 0%
+              // placeholder underneath must never display as if it were a
+              // real grade (same honesty rule MonthGrid.jsx already applies
+              // to this exact field; this stat had been missing it - Section 17).
+              value={module ? (module.hasGradeData ? `${module.currentGrade}%` : "No data yet") : "—"}
+            />
           </div>
 
           {task.notes && <p className="text-sm text-slate-500 dark:text-slate-300 mt-5 leading-relaxed">{task.notes}</p>}
@@ -129,9 +224,11 @@ export default function TaskDetails() {
             {task.status !== "completed" && (
               <button
                 onClick={handleComplete}
-                className="inline-flex items-center gap-2 bg-low-500 hover:bg-low-600 text-white font-semibold rounded-2xl px-5 py-2.5 text-sm transition-colors"
+                disabled={completing}
+                className="inline-flex items-center gap-2 bg-low-500 hover:bg-low-600 text-white font-semibold rounded-2xl px-5 py-2.5 text-sm transition-colors disabled:opacity-60"
               >
-                <Check size={16} /> Mark Complete
+                {completing ? <RefreshCw size={16} className="animate-spin" /> : <Check size={16} />}
+                {completing ? "Saving…" : "Mark Complete"}
               </button>
             )}
             {task.status === "missed" && (
@@ -145,6 +242,12 @@ export default function TaskDetails() {
             )}
           </div>
 
+          {completeError && (
+            <div className="mt-4 card p-4 border-l-4 border-high-500 bg-high-50/60 dark:bg-high-500/10">
+              <p className="text-sm text-high-600">Couldn't mark this task complete — {completeError} The task is still open.</p>
+            </div>
+          )}
+
           {rescheduleInfo && (
             <div className="mt-4 card p-4 bg-brand-50 dark:bg-brand-500/10 border border-brand-100 dark:border-brand-500/20">
               <p className="text-sm font-semibold text-brand-600">
@@ -155,7 +258,11 @@ export default function TaskDetails() {
           )}
         </div>
 
-        <ExplanationPanel explanation={explanation} confidence={priorityResult?.confidence} loading={loadingExplain} />
+        <ExplanationPanel
+          display={explanationDisplay}
+          confidence={priorityResult?.confidence}
+          loading={loadingExplain}
+        />
       </div>
 
       <CompletionCelebration active={!!celebration} priority={celebration?.priority} taskTitle={celebration?.title} onDone={() => setCelebration(null)} />

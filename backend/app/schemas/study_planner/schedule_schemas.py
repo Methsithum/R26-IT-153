@@ -38,6 +38,7 @@ class OverloadWarningItem(BaseModel):
     priority_label: Literal["High", "Medium", "Low"]
     deadline_date: str
     hours_short: float
+    task_type: Literal["assignment", "exam"] = "assignment"
 
 
 class TaskRegistryEntry(BaseModel):
@@ -48,6 +49,10 @@ class TaskRegistryEntry(BaseModel):
     priority_label: Literal["High", "Medium", "Low"]
     deadline_date: str
     estimated_hours_needed: float
+    # Round-tripped from TaskInput.task_type (see task_schemas.py) so the
+    # frontend can tell exam-prep sessions apart from assignment sessions
+    # purely from schedule.tasks[taskId] - see PROJECT CONTEXT.md Section 5d.
+    task_type: Literal["assignment", "exam"] = "assignment"
 
 
 class ScheduleResponse(BaseModel):
@@ -85,3 +90,66 @@ class RescheduleRequest(BaseModel):
     )
     completed_task_ids: List[str] = Field(..., description="Task ids the student has finished since last time.")
     new_tasks: Optional[List[TaskInput]] = Field(None, description="Any new tasks that have appeared.")
+
+
+# ---------------------------------------------------------------------------
+# Rolling multi-week scheduling (PROJECT CONTEXT.md Section 8d)
+# ---------------------------------------------------------------------------
+# DESIGN CHOICE: a separate endpoint, not optional parameters bolted onto
+# /schedule. ScheduleResponse.schedule is keyed by weekday NAME (Monday..
+# Sunday, one week only); a multi-week result is keyed by real ISO DATE
+# across many weeks and needs extra fields /schedule callers never expect
+# (weeks_generated, range_start/end, weeks_allocated per task). Reusing
+# /schedule's existing, already-documented single-week contract for both
+# shapes (via an optional flag) would make every existing caller's response
+# type conditional on a request flag - a new endpoint with its own explicit
+# response shape is simpler to reason about and doesn't risk the current
+# single-week callers (used for the actual currently-viewed week, still the
+# only source of the LIVE-adjustable /reschedule flow) breaking if this one
+# changes.
+
+class MultiWeekScheduleRequest(BaseModel):
+    """Input for POST /study-planner/multi-week-schedule."""
+
+    weekly_free_slots: List[FreeSlot] = Field(
+        ..., description="The recurring weekly free-time pattern, assumed to repeat identically every generated week."
+    )
+    tasks: List[TaskInput] = Field(
+        ...,
+        description="Tasks to schedule, each carrying its TOTAL remaining estimated_hours_needed (not pre-split "
+                    "per week) - the rolling allocator determines which week(s) each task actually lands in.",
+    )
+    weeks_ahead: Optional[int] = Field(
+        None,
+        description="Explicit number of weeks to generate. If omitted, auto-derived from the farthest task "
+                    "deadline (preferred). Always capped at 12 weeks regardless.",
+    )
+
+
+class MultiWeekTaskRegistryEntry(TaskRegistryEntry):
+    """TaskRegistryEntry plus which generated week(s) this task's hours were actually allocated across."""
+
+    weeks_allocated: List[int] = Field(
+        default_factory=list,
+        description="0-indexed week numbers (0 = the current/first generated week) this task received any hours "
+                    "in. Empty if the task received none (see overload_warning).",
+    )
+
+
+class MultiWeekScheduleResponse(BaseModel):
+    """Output of schedule_engine.generate_rolling_schedule()."""
+
+    schedule: Dict[str, List[ScheduledItem]] = Field(
+        ..., description="Real ISO date (YYYY-MM-DD) -> list of scheduled study sessions. Every date in the "
+                          "generated range is present, even with an empty list."
+    )
+    overload_warning: List[OverloadWarningItem] = Field(
+        ..., description="Tasks that could not be fully scheduled before their deadline, reported once - in the "
+                          "week that actually contains that deadline, not speculatively in an earlier week."
+    )
+    tasks: Dict[str, MultiWeekTaskRegistryEntry] = Field(
+        ..., description="Every task known to the scheduler, by task_id, including which generated week(s) it was actually allocated in."
+    )
+    weeks_generated: int = Field(..., description="How many consecutive weeks were actually generated (<= 12).")
+    range_start: str = Field(..., description="ISO date of the first day generated (today, at request time).")
+    range_end: str = Field(..., description="ISO date of the last day generated.")

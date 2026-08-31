@@ -1,9 +1,15 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
-import { BookOpen, Coffee } from "lucide-react";
+import { BookOpen, Coffee, GraduationCap } from "lucide-react";
 import { PRIORITY_COLORS } from "../../../utils/featureNameMap";
 import { useAcademicStore } from "../../../store/useAcademicStore";
-import { buildStudySessionsByDay, startMinutes, MODULE_COLOR_HEX } from "../../../utils/studySessionBuilder";
+import {
+  buildStudySessionsByDay,
+  startMinutes,
+  MODULE_COLOR_HEX,
+  EXAM_PREP_ACCENT_HEX,
+  resolveSessionDisplay,
+} from "../../../utils/studySessionBuilder";
 import EmptyState from "../Shared/EmptyState";
 
 const TODAY_NAME = new Date().toLocaleDateString(undefined, { weekday: "long" });
@@ -12,8 +18,8 @@ export default function DayView({ schedule, tasksRegistry }) {
   const modules = useAcademicStore((s) => s.modules);
   const weeklyFreeSlots = useAcademicStore((s) => s.weeklyFreeSlots);
   const assignments = useAcademicStore((s) => s.assignments);
+  const exams = useAcademicStore((s) => s.exams);
   const moduleName = (code) => modules.find((m) => m.code === code)?.name || code;
-  const taskTitle = (taskId) => assignments.find((a) => a.taskId === taskId)?.title || null;
 
   const studySessionsByDay = useMemo(
     () => buildStudySessionsByDay(modules, weeklyFreeSlots, assignments, schedule || {}),
@@ -77,7 +83,7 @@ export default function DayView({ schedule, tasksRegistry }) {
           const item = entry;
           const priority = tasksRegistry?.[item.task_id]?.priority_label || "Medium";
           const colors = PRIORITY_COLORS[priority];
-          const title = taskTitle(item.task_id);
+          const display = resolveSessionDisplay(item, { tasksRegistry, assignments, moduleName, exams });
           return (
             <motion.div
               key={`${item.task_id}-${i}`}
@@ -86,18 +92,30 @@ export default function DayView({ schedule, tasksRegistry }) {
               transition={{ delay: i * 0.07 }}
               className="relative pl-11"
             >
-              <div className={`absolute left-0 top-0.5 w-10 h-10 rounded-2xl flex items-center justify-center ${colors.bg} ring-4 ring-white dark:ring-[#1a1530]`}>
-                <span className={`w-2.5 h-2.5 rounded-full ${colors.dot}`} />
+              <div
+                className={`absolute left-0 top-0.5 w-10 h-10 rounded-2xl flex items-center justify-center ${colors.bg} ring-4 ring-white dark:ring-[#1a1530] ${
+                  display.isExamPrep ? "border-2" : ""
+                }`}
+                style={display.isExamPrep ? { borderColor: EXAM_PREP_ACCENT_HEX } : undefined}
+              >
+                {display.isExamPrep ? (
+                  <GraduationCap size={16} style={{ color: EXAM_PREP_ACCENT_HEX }} />
+                ) : (
+                  <span className={`w-2.5 h-2.5 rounded-full ${colors.dot}`} />
+                )}
               </div>
-              <div className={`rounded-2xl p-3.5 ${colors.bg}`}>
+              <div
+                className={`rounded-2xl p-3.5 ${colors.bg} ${display.isExamPrep ? "border-2" : ""}`}
+                style={display.isExamPrep ? { borderColor: EXAM_PREP_ACCENT_HEX } : undefined}
+              >
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-bold text-slate-700 dark:text-white truncate" title={title || moduleName(item.module)}>
-                    {title || moduleName(item.module)}
+                  <p className="text-sm font-bold text-slate-700 dark:text-white truncate" title={display.title}>
+                    {display.title}
                   </p>
                   <span className={`text-[11px] font-bold ${colors.text}`}>{priority}</span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-300 mt-0.5 truncate">
-                  {title ? `${moduleName(item.module)} · ` : ""}{item.time_slot} · {item.duration_minutes} minutes
+                  {display.subtitle ? `${display.subtitle} · ` : ""}{item.time_slot} · {item.duration_minutes} minutes
                 </p>
               </div>
             </motion.div>
