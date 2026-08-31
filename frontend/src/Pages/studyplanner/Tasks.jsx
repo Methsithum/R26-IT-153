@@ -48,7 +48,12 @@ export default function Tasks() {
   // Completed tasks never sit in the main card grid (see CompletedTaskList) -
   // once done, a full card competing for space with still-open work isn't
   // useful; the compact list below just needs the on-time/late outcome.
-  const activeTasks = filtered.filter((a) => a.status !== "completed");
+  // Active ones are sorted nearest-deadline-first so what needs attention
+  // soonest is grouped together at the top, instead of sitting in whatever
+  // order the journal happened to return tasks in.
+  const activeTasks = filtered
+    .filter((a) => a.status !== "completed")
+    .sort((a, b) => a.deadlineDate.localeCompare(b.deadlineDate));
   const completedTasks = filtered.filter((a) => a.status === "completed");
 
   // completeTask() now writes to the real database FIRST (see
