@@ -63,7 +63,7 @@ def section(title):
 # 1. PRODUCTION VALUES (transcribed from priorityEngine.js / examPrepConfig.js)
 # ===========================================================================
 PROD_THRESHOLDS = {
-    "assign_high_max": 2,     # <=2 days -> High (assignment)
+    "assign_high_max": 4,     # <=4 days -> High (assignment)
     "assign_low_min": 15,     # >=15 days -> Low (assignment); 3-14 = Medium
     "exam_high_max": 7,       # <=7 days -> High (exam)
     "exam_low_min": 31,       # >=31 days -> Low (exam); 8-30 = Medium

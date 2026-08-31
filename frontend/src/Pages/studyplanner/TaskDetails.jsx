@@ -202,7 +202,6 @@ export default function TaskDetails() {
               // to this exact field; this stat had been missing it - Section 17).
               value={module ? (module.hasGradeData ? `${module.currentGrade}%` : "No data yet") : "—"}
             />
-            <Stat icon={RefreshCw} label="Assessment Type" value={task.assessmentType} />
           </div>
 
           {task.notes && <p className="text-sm text-slate-500 dark:text-slate-300 mt-5 leading-relaxed">{task.notes}</p>}

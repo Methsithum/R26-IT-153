@@ -232,6 +232,13 @@ def _build_exam_prep_chunks(exam_id, module, exam_date_iso, anchor, total_budget
             "priority_label": priority_label,
             "estimated_hours_needed": hours,
             "task_type": "exam",
+            # Mirrors examPrepScheduling.js's not_before_date (PROJECT
+            # CONTEXT.md Section 8e) - without it every chunk shares the
+            # exam's own single deadline_date, so a week with idle free
+            # capacity front-loads a later, heavier chunk well before its
+            # own week - see TestFrontLoadingBugFix below for the dedicated
+            # regression test that caught this for real.
+            "not_before_date": (anchor + timedelta(days=window_start)).isoformat(),
         })
     return chunks
 
@@ -420,3 +427,82 @@ class TestThreeWeekHorizonFullCorrectness:
                 f"{eligible_dates[0]}..{eligible_dates[-1]}) were actually used - capacity was left idle, "
                 f"suggesting a bug rather than genuine scarcity."
             )
+
+
+# ===========================================================================
+# Part: front-loading bug fix (not_before_date / Section 8e)
+#
+# Real bug found live: a "lab" exam 20 days out, with generous free time and
+# NO other competing tasks, had ALL THREE of its escalating weekly chunks
+# (w0=1.5h, w1=2.25h, w2=3.5h - the heaviest, right before the exam) show up
+# in week 0's `weeks_allocated`, because every chunk shared the exam's own
+# single real deadline_date and week 0 had plenty of idle capacity to absorb
+# all of them immediately - collapsing the whole escalating-urgency curve
+# into "do it all right now" instead of spreading heavier prep closer to the
+# exam. Root cause: generate_rolling_schedule() had no way to know a chunk
+# was built specifically for a LATER week and shouldn't be eligible before
+# it. Fixed by giving each TaskInput an optional not_before_date and
+# checking it alongside deadline_date when building each week's task pool.
+# ===========================================================================
+class TestFrontLoadingBugFix:
+    def _scenario(self):
+        """
+        Deliberately GENEROUS free time (3h/day = 21h/week) and a SINGLE lab
+        exam 20 days out with no other competing tasks - the exact
+        conditions that exposed the real bug (scarce-capacity scenarios like
+        three_week_scenario above accidentally masked it, since competing
+        higher-priority tasks already consumed each week's early capacity,
+        forcing later chunks to spill into later weeks "by luck").
+        """
+        anchor = date(2026, 8, 31)  # Monday
+        free_slots = _free_slots_fractional(3.0)  # 3h/day every day
+        chunks = _build_exam_prep_chunks("lab1", "MOB", (anchor + timedelta(days=20)).isoformat(), anchor, 7.2, 12)
+        result = generate_rolling_schedule(free_slots, chunks, anchor_date=anchor, weeks_ahead=12)
+        return result, chunks, anchor
+
+    def test_each_chunk_lands_in_its_own_week_not_front_loaded_into_week_0(self):
+        result, chunks, anchor = self._scenario()
+        assert len(chunks) == 3, f"Expected 3 escalating weekly chunks (w0/w1/w2) for a 20-day-out exam, got {len(chunks)}"
+
+        for chunk in chunks:
+            tid = chunk["task_id"]
+            expected_week = int(tid.rsplit("w", 1)[1])
+            weeks_allocated = result["tasks"][tid]["weeks_allocated"]
+            assert weeks_allocated == [expected_week], (
+                f"{tid} was built specifically for week {expected_week} (not_before_date="
+                f"{chunk['not_before_date']}) but was actually allocated to week(s) {weeks_allocated} - "
+                f"it was front-loaded into an earlier week instead of waiting for its own."
+            )
+
+    def test_full_hours_still_placed_exactly_once_each(self):
+        """The fix must not cause any hours to go missing or duplicate - each
+        chunk's full estimated_hours_needed should land, once, in its own week."""
+        result, chunks, anchor = self._scenario()
+        for chunk in chunks:
+            tid = chunk["task_id"]
+            scheduled = _total_scheduled_hours(result["schedule"], tid)
+            assert scheduled == pytest.approx(chunk["estimated_hours_needed"], abs=0.01), (
+                f"{tid}: scheduled {scheduled}h, expected exactly {chunk['estimated_hours_needed']}h."
+            )
+        assert result["overload_warning"] == [], "Generous free time - nothing should be short."
+
+    def test_without_not_before_date_the_bug_reproduces(self):
+        """
+        Sanity check that this test actually exercises the real bug (and
+        isn't accidentally passing for an unrelated reason): stripping
+        not_before_date from the same chunks must reproduce the original
+        front-loaded-into-week-0 behavior.
+        """
+        anchor = date(2026, 8, 31)
+        free_slots = _free_slots_fractional(3.0)
+        chunks = _build_exam_prep_chunks("lab1", "MOB", (anchor + timedelta(days=20)).isoformat(), anchor, 7.2, 12)
+        stripped = [{k: v for k, v in c.items() if k != "not_before_date"} for c in chunks]
+        result = generate_rolling_schedule(free_slots, stripped, anchor_date=anchor, weeks_ahead=12)
+
+        w1_weeks = result["tasks"]["exam-lab1-w1"]["weeks_allocated"]
+        w2_weeks = result["tasks"]["exam-lab1-w2"]["weeks_allocated"]
+        assert w1_weeks == [0] and w2_weeks == [0], (
+            f"Expected the pre-fix bug to reproduce (w1/w2 both front-loaded into week 0) when "
+            f"not_before_date is stripped, got w1={w1_weeks} w2={w2_weeks} - this test may no longer "
+            f"be exercising the real bug."
+        )

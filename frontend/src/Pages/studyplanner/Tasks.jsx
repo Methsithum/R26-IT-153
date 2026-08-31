@@ -4,6 +4,7 @@ import { ListChecks } from "lucide-react";
 import Topbar from "../../Components/academic/Layout/Topbar";
 import TaskFilters from "../../Components/academic/Tasks/TaskFilters";
 import TaskCard from "../../Components/academic/Tasks/TaskCard";
+import CompletedTaskList from "../../Components/academic/Tasks/CompletedTaskList";
 import CompletionCelebration from "../../Components/academic/Tasks/CompletionCelebration";
 import EmptyState from "../../Components/academic/Shared/EmptyState";
 import { SkeletonList } from "../../Components/academic/Shared/Skeletons";
@@ -43,6 +44,12 @@ export default function Tasks() {
     if (priorityFilter !== "all" && a.priority !== priorityFilter) return false;
     return true;
   });
+
+  // Completed tasks never sit in the main card grid (see CompletedTaskList) -
+  // once done, a full card competing for space with still-open work isn't
+  // useful; the compact list below just needs the on-time/late outcome.
+  const activeTasks = filtered.filter((a) => a.status !== "completed");
+  const completedTasks = filtered.filter((a) => a.status === "completed");
 
   // completeTask() now writes to the real database FIRST (see
   // useAcademicStore.js) - only once that succeeds do we celebrate/bump the
@@ -100,20 +107,25 @@ export default function Tasks() {
         ) : filtered.length === 0 ? (
           <EmptyState icon={ListChecks} title="No tasks here" subtitle="Try a different filter, or check back once new tasks appear." />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            <AnimatePresence>
-              {filtered.map((task, i) => (
-                <TaskCard
-                  key={task.taskId}
-                  task={task}
-                  priority={task.priority}
-                  onComplete={handleComplete}
-                  completing={completingId === task.taskId}
-                  index={i}
-                />
-              ))}
-            </AnimatePresence>
-          </div>
+          <>
+            {activeTasks.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                <AnimatePresence>
+                  {activeTasks.map((task, i) => (
+                    <TaskCard
+                      key={task.taskId}
+                      task={task}
+                      priority={task.priority}
+                      onComplete={handleComplete}
+                      completing={completingId === task.taskId}
+                      index={i}
+                    />
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
+            <CompletedTaskList tasks={completedTasks} />
+          </>
         )}
       </div>
 

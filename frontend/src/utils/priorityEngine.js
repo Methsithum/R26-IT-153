@@ -48,7 +48,7 @@ export function computeBaseTier(daysRemaining, taskType = "assignment") {
   }
 
   // assignment (default)
-  if (daysRemaining <= 2) return { level: PRIORITY_LEVELS.High, leaning: null };
+  if (daysRemaining <= 4) return { level: PRIORITY_LEVELS.High, leaning: null };
   if (daysRemaining <= 7) return { level: PRIORITY_LEVELS.Medium, leaning: "High" };
   if (daysRemaining <= 14) return { level: PRIORITY_LEVELS.Medium, leaning: null };
   return { level: PRIORITY_LEVELS.Low, leaning: "Medium" };

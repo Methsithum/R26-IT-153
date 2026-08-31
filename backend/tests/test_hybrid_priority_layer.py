@@ -27,12 +27,12 @@ from sensitivity_analysis import (
 
 
 class TestBaseTierThresholds:
-    def test_assignment_high_at_2_days_or_less(self):
+    def test_assignment_high_at_4_days_or_less(self):
         assert compute_base_tier_level(0, "assignment", PROD_THRESHOLDS) == LEVELS["High"]
-        assert compute_base_tier_level(2, "assignment", PROD_THRESHOLDS) == LEVELS["High"]
+        assert compute_base_tier_level(4, "assignment", PROD_THRESHOLDS) == LEVELS["High"]
 
-    def test_assignment_medium_3_to_14_days(self):
-        assert compute_base_tier_level(3, "assignment", PROD_THRESHOLDS) == LEVELS["Medium"]
+    def test_assignment_medium_5_to_14_days(self):
+        assert compute_base_tier_level(5, "assignment", PROD_THRESHOLDS) == LEVELS["Medium"]
         assert compute_base_tier_level(14, "assignment", PROD_THRESHOLDS) == LEVELS["Medium"]
 
     def test_assignment_low_at_15_days_or_more(self):

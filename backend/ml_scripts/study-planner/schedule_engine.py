@@ -372,6 +372,15 @@ def generate_rolling_schedule(weekly_free_slots, tasks, anchor_date=None, weeks_
             deadline = datetime.strptime(task_lookup[tid]["deadline_date"], "%Y-%m-%d").date()
             if deadline < week_anchor:
                 continue  # deadline already fully passed before this week even starts
+            not_before = task_lookup[tid].get("not_before_date")
+            if not_before and week_anchor < datetime.strptime(not_before, "%Y-%m-%d").date():
+                # This task isn't eligible yet - e.g. a multi-week exam-prep
+                # chunk built for a LATER week (see not_before_date's own
+                # doc comment, TaskInput). Without this, a week with idle
+                # free capacity greedily front-loads a chunk meant for
+                # several weeks from now, well before its escalating-urgency
+                # curve says it should happen - PROJECT CONTEXT.md Section 8e.
+                continue
             week_task_list.append({**task_lookup[tid], "estimated_hours_needed": hours_left})
 
         scheduler = StudyScheduler(weekly_free_slots, anchor_date=week_anchor)

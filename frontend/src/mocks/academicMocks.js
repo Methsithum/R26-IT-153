@@ -69,10 +69,16 @@ export const MOCK_MODULES = [
   },
 ];
 
+// Mid/Final instead of a Term1-3 progression - the app only ever has two
+// real assessment checkpoints per module (a mid-semester result and the
+// final grade, matching the "mid"/"final" exam_type vocabulary already used
+// elsewhere - Section 8a's exam-type budget multiplier, the Exams page).
+// "Final" intentionally matches each module's `currentGrade` in MOCK_MODULES
+// above so the chart's last point and the "Current Grade" mini-stat on
+// ModuleDetail never silently disagree.
 const MODULE_TREND = [
-  { term: "Term 1", AAA: 58, BBB: 70, CCC: 65, DDD: 79 },
-  { term: "Term 2", AAA: 63, BBB: 74, CCC: 66, DDD: 81 },
-  { term: "Term 3", AAA: 61, BBB: 78, CCC: 69, DDD: 84 },
+  { term: "Mid", AAA: 63, BBB: 74, CCC: 66, DDD: 81 },
+  { term: "Final", AAA: 61, BBB: 78, CCC: 69, DDD: 84 },
 ];
 export const MOCK_MODULE_PERFORMANCE_TREND = MODULE_TREND;
 
@@ -191,6 +197,7 @@ export const MOCK_ASSIGNMENTS = [
     estimatedHoursNeeded: 2,
     status: "completed",
     completedHours: 2,
+    completedAt: "2026-08-22",
     notes: "Auto-marked SQL exercises.",
     featureRow: buildFeatureRow({
       module: "AAA", assessmentType: "CMA", weight: 8, deadlineDate: "2026-08-24",
@@ -234,6 +241,8 @@ export const MOCK_SETTINGS = {
     preferredStudyTimes: ["evening"], // 1 or 2 of: morning | afternoon | evening | night
     maxDailyStudyHours: 4,
     breakDurationMinutes: 15,
+    includeWeekends: true,
+    fullStudyDays: [], // weekday names (e.g. "Saturday") that get an 8h block instead of the normal preferred-time window
   },
 };
 

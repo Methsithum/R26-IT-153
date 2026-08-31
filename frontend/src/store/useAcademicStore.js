@@ -131,6 +131,13 @@ function buildFromJournal({ tasks = [], exams = [], subjects = [] }) {
         estimatedHoursNeeded,
         status: isCompleted ? "completed" : isMissed ? "missed" : "pending",
         completedHours: isCompleted ? estimatedHoursNeeded : 0,
+        // Real completion date (task_routes.py's PATCH /complete writes
+        // this) - null when absent, e.g. a task marked "completed" via the
+        // journal's own mark-entry flow instead of our Complete button,
+        // which never went through that route. Never fabricated: the
+        // completed-tasks list falls back to an undated "Completed" line
+        // rather than guessing a date that was never actually recorded.
+        completedAt: t.completed_at ? String(t.completed_at).slice(0, 10) : null,
         notes: "",
         // Cold-start flag (Section 17) mirroring the existing hasRealWeight
         // pattern - lets the explanation layer (priorityEngine.js's
@@ -347,9 +354,15 @@ export const useAcademicStore = create(
       // "completed" while the database still disagrees.
       completeTask: async (taskId) => {
         await apiCompleteTask(taskId);
+        // Matches task_routes.py's local_today_iso() (date-only, no time-of-
+        // day - the real DB write this mirrors never captures clock time
+        // either) so a reload's real completed_at from the journal agrees
+        // with what was set optimistically here, instead of drifting by a
+        // few hours of "time" that was never genuinely tracked.
+        const completedAt = new Date().toISOString().slice(0, 10);
         set((s) => ({
           assignments: s.assignments.map((a) =>
-            a.taskId === taskId ? { ...a, status: "completed", completedHours: a.estimatedHoursNeeded } : a
+            a.taskId === taskId ? { ...a, status: "completed", completedHours: a.estimatedHoursNeeded, completedAt } : a
           ),
         }));
         get().recomputeSemesterAllocation();
@@ -540,7 +553,7 @@ export const useAcademicStore = create(
       updateNotificationSetting: (key, value) =>
         set((s) => ({ settings: { ...s.settings, notifications: { ...s.settings.notifications, [key]: value } } })),
       updateStudyPreference: (key, value) => {
-        if (key === "preferredStudyTimes" || key === "maxDailyStudyHours") {
+        if (key === "preferredStudyTimes" || key === "maxDailyStudyHours" || key === "includeWeekends" || key === "fullStudyDays") {
           // About to null out scheduleResponse/multiWeekSchedule below -
           // freeze anything they hold for already-past dates first.
           get().freezePastDates();
@@ -548,7 +561,7 @@ export const useAcademicStore = create(
         set((s) => {
           const studyPreferences = { ...s.settings.studyPreferences, [key]: value };
           const patch = { settings: { ...s.settings, studyPreferences } };
-          if (key === "preferredStudyTimes" || key === "maxDailyStudyHours") {
+          if (key === "preferredStudyTimes" || key === "maxDailyStudyHours" || key === "includeWeekends" || key === "fullStudyDays") {
             // These directly define weeklyFreeSlots — regenerate it so the
             // change actually reaches /schedule, and drop the stale cached
             // schedule (built against the old slots) so it regenerates too.

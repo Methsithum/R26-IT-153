@@ -14,7 +14,7 @@
 // centralized rule table Section 5d already established, not a second
 // parallel priority system.
 
-import { daysRemaining } from "./dateHelpers";
+import { daysRemaining, addDays, toLocalDateStr } from "./dateHelpers";
 import { computeBaseTier, LEVEL_TO_PRIORITY } from "./priorityEngine";
 import {
   DEFAULT_TOTAL_BUDGET_HOURS,
@@ -169,6 +169,16 @@ export function buildMultiWeekExamPrepTasks(exams, modules, weeksAhead, today = 
         estimated_hours_needed: weekHours,
         priority_label: budget.priorityLabel,
         task_type: "exam",
+        // Every chunk shares the exam's own real deadline (see above), so
+        // without this a later, heavier week's chunk (e.g. w2, right before
+        // the exam) is just as "eligible" as w0 from the backend's point of
+        // view - if an earlier week happens to have idle free capacity, the
+        // greedy allocator front-loads it there immediately instead of
+        // waiting for its own week, collapsing the whole escalating curve
+        // into week 0 (PROJECT CONTEXT.md Section 8e - the real bug this
+        // fixes). windowStart is this chunk's own week's day-offset from
+        // `today`, so its real calendar start date is exactly today+windowStart.
+        not_before_date: toLocalDateStr(addDays(today, windowStart)),
         _meta: {
           examId: exam.id,
           moduleCode: exam.module,

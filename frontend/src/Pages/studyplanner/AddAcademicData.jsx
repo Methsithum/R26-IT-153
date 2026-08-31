@@ -27,6 +27,8 @@ export default function AddAcademicData() {
 
   const [form, setForm] = useState({
     module: modules[0]?.code || "AAA",
+    // No longer a form field - fixed at "TMA" and only used internally, for
+    // the ML feature row's assessment_type_enc and the title fallback below.
     assessmentType: "TMA",
     title: "",
     weight: DEFAULT_ASSIGNMENT_WEIGHT,
@@ -145,14 +147,6 @@ export default function AddAcademicData() {
           <Field label="Module">
             <select value={form.module} onChange={(e) => update("module", e.target.value)} className="input">
               {modules.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}
-            </select>
-          </Field>
-
-          <Field label="Assessment Type">
-            <select value={form.assessmentType} onChange={(e) => update("assessmentType", e.target.value)} className="input">
-              <option value="TMA">Tutor-Marked Assignment</option>
-              <option value="CMA">Computer-Marked Assignment</option>
-              <option value="Exam">Exam</option>
             </select>
           </Field>
 

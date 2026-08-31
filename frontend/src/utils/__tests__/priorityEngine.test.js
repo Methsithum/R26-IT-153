@@ -6,12 +6,12 @@ import { describe, it, expect } from "vitest";
 import { computeBaseTier, computeFinalPriority, resolveExplanationDisplay, PRIORITY_LEVELS } from "../priorityEngine";
 
 describe("computeBaseTier (assignment thresholds)", () => {
-  it("assigns High at <=2 days", () => {
+  it("assigns High at <=4 days", () => {
     expect(computeBaseTier(0, "assignment").level).toBe(PRIORITY_LEVELS.High);
-    expect(computeBaseTier(2, "assignment").level).toBe(PRIORITY_LEVELS.High);
+    expect(computeBaseTier(4, "assignment").level).toBe(PRIORITY_LEVELS.High);
   });
-  it("assigns Medium at 3-14 days", () => {
-    expect(computeBaseTier(3, "assignment").level).toBe(PRIORITY_LEVELS.Medium);
+  it("assigns Medium at 5-14 days", () => {
+    expect(computeBaseTier(5, "assignment").level).toBe(PRIORITY_LEVELS.Medium);
     expect(computeBaseTier(14, "assignment").level).toBe(PRIORITY_LEVELS.Medium);
   });
   it("assigns Low at >=15 days", () => {
