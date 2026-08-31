@@ -115,10 +115,20 @@ function App() {
           }
         />
 
+        {/* Campus run is fullscreen — no Study Planner sidebar or mobile nav. */}
+        <Route
+          path="/journal/game"
+          element={
+            <RequireAuth>
+              <HydrateUser>
+                <GamePage />
+              </HydrateUser>
+            </RequireAuth>
+          }
+        />
+
         {/* --- Every authed page (Study Planner + teammates' Focus/Journal
-            components) shares AppLayout now, so the sidebar - and its
-            navigation to Focus/Journal/Career - is always visible, not just
-            on the Study Planner's own pages. --- */}
+            chrome) shares AppLayout so sidebar navigation stays visible. --- */}
         <Route
           element={
             <RequireAuth>
@@ -148,10 +158,9 @@ function App() {
           {/* --- Focus component (teammate's) --- */}
           <Route path="/focus" element={<FocusApp />} />
 
-          {/* --- Journal component (teammate's) --- */}
+          {/* --- Journal (pre-game / book UI; game route is outside AppLayout) --- */}
           <Route path="/journal" element={<JournalHome />} />
           <Route path="/journal/activities" element={<DailyActivitySelection />} />
-          <Route path="/journal/game" element={<GamePage />} />
         </Route>
 
         {/* Unknown URLs fall back to the dashboard rather than a blank page. */}

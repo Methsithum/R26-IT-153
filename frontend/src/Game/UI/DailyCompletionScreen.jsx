@@ -157,7 +157,7 @@ export default function DailyCompletionScreen() {
         <button
           onClick={() => {
             useGameStore.getState().startNextDay();
-            navigate("/");
+            navigate("/journal");
           }}
           className="mt-7 rounded-xl bg-emerald-400 hover:bg-emerald-300 transition-colors text-slate-900 font-semibold px-6 py-3"
         >
