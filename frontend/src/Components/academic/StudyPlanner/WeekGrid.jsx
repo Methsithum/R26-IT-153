@@ -203,24 +203,12 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
   // off beyond the modeled semester length rather than reusing week 0's numbers.
   const weekModuleHours = weekOffset >= 0 ? semesterAllocation[weekOffset] : null;
 
-  // Real ISO date for each weekday NAME in the week being viewed - weekDates[i]
-  // always really is WEEKDAYS[i] (both built from the same Monday-aligned
-  // viewedWeekStart), so this is a direct 1:1 zip, not a guess. Lets
-  // buildStudySessionsByDay refuse to label a suggested chunk with an
-  // assignment whose real deadline already fell earlier in this same week -
-  // e.g. never suggest "study for X" on the Friday of a week when X was
-  // actually due that Monday.
-  const weekDatesByDay = useMemo(
-    () => Object.fromEntries(WEEKDAYS.map((d, i) => [d, toLocalDateStr(weekDates[i])])),
-    [weekDates]
-  );
-
   const studySessionsByDay = useMemo(
     () =>
       weekModuleHours
-        ? buildStudySessionsByDay(modules, weeklyFreeSlots, assignments, weekOccupiedByWeekday, weekModuleHours, weekDatesByDay)
+        ? buildStudySessionsByDay(modules, weeklyFreeSlots, assignments, weekOccupiedByWeekday, weekModuleHours)
         : {},
-    [modules, weeklyFreeSlots, assignments, weekOccupiedByWeekday, weekModuleHours, weekDatesByDay]
+    [modules, weeklyFreeSlots, assignments, weekOccupiedByWeekday, weekModuleHours]
   );
 
   // Only meaningful for the current week - other weeks never have a
