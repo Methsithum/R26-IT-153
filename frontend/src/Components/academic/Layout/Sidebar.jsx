@@ -9,6 +9,8 @@ import {
   Bell,
   Settings,
   TrendingUp,
+  NotebookPen,
+  Target,
 } from "lucide-react";
 import { useAcademicStore } from "../../../store/useAcademicStore";
 import Logo from "../Shared/Logo";
@@ -20,8 +22,17 @@ const NAV_ITEMS = [
   { to: "/modules", label: "Modules", icon: BookOpen },
   { to: "/exams", label: "Exams", icon: GraduationCap },
   { to: "/analytics", label: "Analytics", icon: BarChart3 },
-  { to: "/career", label: "Career Prediction", icon: TrendingUp },
   { to: "/notifications", label: "Notifications", icon: Bell, badge: true },
+];
+
+// The app's three standalone "main components" (Career Prediction, plus the
+// teammates' Student Journal and Focus Monitoring apps in App.jsx) get their
+// own bigger, tinted buttons instead of blending into the regular nav list -
+// they're full features in their own right, not just another planner page.
+const FEATURE_ITEMS = [
+  { to: "/career", label: "Career Prediction", icon: TrendingUp, tint: "from-violet-500 to-purple-500" },
+  { to: "/journal", label: "Student Journal", icon: NotebookPen, tint: "from-amber-500 to-orange-500" },
+  { to: "/focus", label: "Focus Monitoring", icon: Target, tint: "from-teal-400 to-emerald-500" },
 ];
 
 export default function Sidebar() {
@@ -62,6 +73,29 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-black/5 dark:border-white/5">
+        {FEATURE_ITEMS.map(({ to, label, icon: Icon, tint }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              `group flex items-center gap-3 px-3.5 py-3 rounded-2xl font-semibold text-sm transition-all ${
+                isActive
+                  ? "bg-slate-100 dark:bg-white/10 ring-2 ring-brand-400/50"
+                  : "hover:bg-slate-50 dark:hover:bg-white/5"
+              }`
+            }
+          >
+            <span className={`flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br ${tint} text-white shadow-sm shrink-0`}>
+              <Icon size={18} strokeWidth={2.3} />
+            </span>
+            <span className="text-slate-600 dark:text-slate-200 group-hover:text-slate-800 dark:group-hover:text-white">
+              {label}
+            </span>
+          </NavLink>
+        ))}
+      </div>
 
       <NavLink
         to="/settings"

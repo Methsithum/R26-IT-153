@@ -115,51 +115,10 @@ function App() {
           }
         />
 
-        {/* --- Focus component (teammate's) --- */}
-        <Route
-          path="/focus"
-          element={
-            <RequireAuth>
-              <HydrateUser>
-                <FocusApp />
-              </HydrateUser>
-            </RequireAuth>
-          }
-        />
-
-        {/* --- Journal component (teammate's) --- */}
-        <Route
-          path="/journal"
-          element={
-            <RequireAuth>
-              <HydrateUser>
-                <JournalHome />
-              </HydrateUser>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/journal/activities"
-          element={
-            <RequireAuth>
-              <HydrateUser>
-                <DailyActivitySelection />
-              </HydrateUser>
-            </RequireAuth>
-          }
-        />
-        <Route
-          path="/journal/game"
-          element={
-            <RequireAuth>
-              <HydrateUser>
-                <GamePage />
-              </HydrateUser>
-            </RequireAuth>
-          }
-        />
-
-        {/* --- Study Planner component (yours) — now auth-protected and sharing the same route tree --- */}
+        {/* --- Every authed page (Study Planner + teammates' Focus/Journal
+            components) shares AppLayout now, so the sidebar - and its
+            navigation to Focus/Journal/Career - is always visible, not just
+            on the Study Planner's own pages. --- */}
         <Route
           element={
             <RequireAuth>
@@ -185,6 +144,14 @@ function App() {
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/profile" element={<Profile />} />
+
+          {/* --- Focus component (teammate's) --- */}
+          <Route path="/focus" element={<FocusApp />} />
+
+          {/* --- Journal component (teammate's) --- */}
+          <Route path="/journal" element={<JournalHome />} />
+          <Route path="/journal/activities" element={<DailyActivitySelection />} />
+          <Route path="/journal/game" element={<GamePage />} />
         </Route>
 
         {/* Unknown URLs fall back to the dashboard rather than a blank page. */}
