@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RefreshCw, Plus } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 import Topbar from "../../Components/academic/Layout/Topbar";
 import ViewToggle from "../../Components/academic/StudyPlanner/ViewToggle";
@@ -7,13 +7,11 @@ import DayView from "../../Components/academic/StudyPlanner/DayView";
 import WeekGrid from "../../Components/academic/StudyPlanner/WeekGrid";
 import MonthGrid from "../../Components/academic/StudyPlanner/MonthGrid";
 import SemesterOverview from "../../Components/academic/StudyPlanner/SemesterOverview";
-import AddSessionModal from "../../Components/academic/StudyPlanner/AddSessionModal";
 import { SkeletonCard } from "../../Components/academic/Shared/Skeletons";
 import { useWeeklySchedule } from "../../hooks/useAcademicData";
 
 export default function StudyPlanner() {
   const [view, setView] = useState("Week");
-  const [modalOpen, setModalOpen] = useState(false);
   const { schedule, loading, error, regenerate } = useWeeklySchedule();
 
   return (
@@ -33,12 +31,6 @@ export default function StudyPlanner() {
                 <RefreshCw size={15} />
               </motion.span>
               Regenerate Plan
-            </button>
-            <button
-              onClick={() => setModalOpen(true)}
-              className="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 rounded-full px-4 py-2 transition-colors"
-            >
-              <Plus size={15} /> Add Session
             </button>
           </div>
         </div>
@@ -60,8 +52,6 @@ export default function StudyPlanner() {
           </>
         )}
       </div>
-
-      <AddSessionModal open={modalOpen} onClose={() => setModalOpen(false)} />
     </div>
   );
 }
