@@ -1,9 +1,4 @@
-"""Train awake vs sleepy on the MRL-style eye crops, then fuse that
-signal into the 4-class face SVM so Fatigue is based on closed eyes
-instead of the face_detection domain shortcut.
 
-sleepy -> Fatigue, awake -> not Fatigue (demote a Fatigue call if eyes are open).
-"""
 from __future__ import annotations
 
 import json

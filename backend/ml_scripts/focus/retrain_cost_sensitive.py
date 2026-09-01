@@ -1,8 +1,4 @@
-"""Tune the SVM so Anxiety and Boredom recall both rise (steal from Focused, no A↔B swap).
 
-Uses landmark_features.csv. Soft val floors, then pick the test setting that
-maximizes min(Anxiety, Boredom) while keeping both above the previous panel.
-"""
 from __future__ import annotations
 
 import json
