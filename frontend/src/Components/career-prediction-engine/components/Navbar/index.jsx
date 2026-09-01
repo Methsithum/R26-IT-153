@@ -9,15 +9,18 @@ import './styles.css';
  */
 const TABS = [
   { to: '', label: 'Dashboard', end: true },
-  { to: 'metrics', label: 'Model Metrics', end: false },
   // TEMPORARY - remove with pages/DataCheck.jsx
   { to: 'data-check', label: 'Data Check', end: false },
 ];
 
 /**
- * Every page segment the feature routes, including "profiles" which is
- * reachable from the dashboard but has no tab. Used to strip the page off
- * the current path to find the feature root.
+ * Every page segment the feature routes - including "profiles" and "metrics",
+ * which are reachable by URL but have no tab. Used to strip the page off the
+ * current path to find the feature root.
+ *
+ * Keep entries here even when the tab is removed: if "/career/metrics" is open
+ * and "metrics" is missing from this list, the remaining tabs resolve against
+ * the full path and build "/career/metrics/data-check".
  */
 const PAGE_SEGMENTS = ['profiles', 'metrics', 'data-check'];
 
