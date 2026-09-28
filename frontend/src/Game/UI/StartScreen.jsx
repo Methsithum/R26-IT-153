@@ -1,7 +1,8 @@
-import { motion } from "framer-motion";
+import { motion as Motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useGameStore } from "../state/GameStateManager";
 import { useActiveMap } from "../state/mapStore";
+import MissionPreview from "./MissionPreview";
 
 export default function StartScreen() {
   const navigate = useNavigate();
@@ -12,11 +13,12 @@ export default function StartScreen() {
 
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm">
-      <motion.div
+      <Motion.div
         initial={{ opacity: 0, scale: 0.94 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="text-center px-8 py-10 rounded-3xl border border-amber-300/25 bg-slate-900/85 shadow-2xl max-w-md"
+          className="text-center p-5 sm:p-8 rounded-3xl border border-amber-300/25 bg-slate-900/95 shadow-2xl w-full max-w-2xl max-h-[95dvh] overflow-y-auto"
       >
+        <MissionPreview />
         <div className="text-amber-300 text-xs uppercase tracking-[0.3em] mb-2">Student Journal</div>
         <h1 className="text-3xl font-bold text-slate-50 mb-1">University Campus Run</h1>
         <p className="text-amber-200/90 text-xs mb-3">
@@ -29,7 +31,7 @@ export default function StartScreen() {
         </p>
         <button
           onClick={() => navigate("/journal/activities")}
-          className="rounded-xl bg-amber-400 hover:bg-amber-300 transition-colors text-slate-900 font-semibold px-6 py-3"
+          className="rounded-xl border-b-4 border-amber-700 bg-amber-400 hover:bg-amber-300 active:translate-y-1 active:border-b-0 transition-all text-slate-900 font-black px-8 py-4"
         >
           {catchingUp ? "Catch up this day" : "Start Today's Run"}
         </button>
@@ -38,7 +40,7 @@ export default function StartScreen() {
           <span>SPACE Jump</span>
           <span>&darr; Slide</span>
         </div>
-      </motion.div>
+      </Motion.div>
     </div>
   );
 }

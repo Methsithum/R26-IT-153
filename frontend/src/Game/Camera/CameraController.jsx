@@ -10,7 +10,7 @@ const BASE_FOV = 55;
 
 export default function CameraController() {
   const { camera } = useThree();
-  const currentPos = useRef(new THREE.Vector3(0, 4.6, -7.5));
+  const currentPos = useRef(new THREE.Vector3(4, 6, -11.5));
   const currentLook = useRef(new THREE.Vector3());
   const phase = useGameStore((s) => s.phase);
   const lastPhase = useRef(phase);
@@ -41,12 +41,13 @@ export default function CameraController() {
     const dt = Math.min(delta, 0.05);
     const celebrating = phase === PHASES.DAY_CELEBRATION;
     const approaching = phase === PHASES.APPROACHING_FINISH;
+    const lobby = phase === PHASES.GAME_START;
 
     const jumpLift = isJumping ? Math.max(0, posY) * 0.18 : 0;
     const targetPos = new THREE.Vector3(
-      posX * 0.6,
+      lobby ? posX + 4 : posX * 0.6,
       posY + FOLLOW_OFFSET.y - jumpLift * 0.4 + (celebrating ? 0.55 : approaching ? 0.2 : 0),
-      posZ + FOLLOW_OFFSET.z - (celebrating ? 0.8 : 0)
+      posZ + FOLLOW_OFFSET.z - (celebrating ? 0.8 : lobby ? 4 : 0)
     );
     const targetLook = new THREE.Vector3(posX, posY + LOOK_OFFSET.y, posZ + LOOK_OFFSET.z);
 

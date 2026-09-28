@@ -36,6 +36,8 @@ export default function Minimap() {
           dot.setAttribute("r", isTarget ? "5" : "3.5");
           dot.setAttribute("fill", isTarget ? "#facc15" : b.color);
           if (isTarget) {
+            dot.setAttribute("class", "campus-target");
+            dot.setAttribute("r", String(5 + Math.sin(performance.now() / 250) * 1.5));
             dot.setAttribute("stroke", "#facc15");
             dot.setAttribute("stroke-width", "1.5");
             dot.setAttribute("opacity", "0.9");
@@ -71,15 +73,18 @@ export default function Minimap() {
 
   return (
     <div className="pointer-events-none rounded-2xl border border-sky-300/20 bg-slate-900/70 backdrop-blur-md p-2 shadow-xl">
+      <div className="mb-2 flex justify-between text-[9px] font-bold tracking-widest text-sky-200"><span>MAP</span><span>↑ N</span></div>
       <svg ref={svgRef} width="74" height={MAP_HEIGHT} viewBox={`0 0 74 ${MAP_HEIGHT}`}>
         {/* road */}
         <rect x="30" y="0" width="14" height={MAP_HEIGHT} fill="#3f4451" rx="4" />
         <g ref={listRef} />
         {/* player marker, fixed near the bottom */}
-        <g ref={playerDotRef} transform={`translate(37, ${MAP_HEIGHT - 26})`}>
-          <circle r="5" fill="#38bdf8" stroke="#0f172a" strokeWidth="1.5" />
+        <g ref={playerDotRef} transform={`translate(37, ${MAP_HEIGHT * VIEW_AHEAD / (VIEW_AHEAD + VIEW_BEHIND)})`}>
+          <circle r="9" fill="#38bdf8" opacity=".15" />
+          <path d="M0-7L5 5 0 3-5 5Z" fill="#38bdf8" stroke="#e0f2fe" strokeWidth="1" />
         </g>
       </svg>
+      <div className="mt-1 text-[8px] text-amber-200">● Destination</div>
     </div>
   );
 }

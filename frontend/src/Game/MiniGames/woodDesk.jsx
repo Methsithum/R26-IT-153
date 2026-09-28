@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion as Motion } from "framer-motion";
 
 export const MONTHS_FULL = [
   "January", "February", "March", "April", "May", "June",
@@ -27,13 +27,13 @@ export const blotterStyle = {
   backgroundPosition: "0 0, 4px 8px",
 };
 
-export function WoodDayGrid({ year, monthIndex, today, selectedDays, onPick }) {
+export function WoodDayGrid({ year, monthIndex, today, selectedDays, onPick, onDropDay }) {
   const total = daysInMonth(monthIndex, year);
   const firstWeekday = new Date(year, monthIndex, 1).getDay();
   const selected = selectedDays instanceof Set ? selectedDays : new Set(selectedDays || []);
 
   return (
-    <div className="rounded-2xl border border-amber-950/15 bg-[#f4efe4] p-3 shadow-inner sm:p-4">
+    <div className="rounded-2xl border border-amber-950/15 bg-[#f4efe4] p-3 shadow-[0_5px_0_#e5d6b9,0_9px_0_#bba783,0_14px_18px_#40200825] sm:p-4">
       <div className="mb-3 text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-950/50">
         {MONTHS_FULL[monthIndex]} {year}
       </div>
@@ -58,12 +58,19 @@ export function WoodDayGrid({ year, monthIndex, today, selectedDays, onPick }) {
             monthIndex === today.getMonth() &&
             year === today.getFullYear();
           return (
-            <motion.button
+            <Motion.button
               key={value}
               type="button"
               onClick={() => onPick(value)}
+              data-calendar-day={value}
+              onDragOver={onDropDay ? (event) => { event.preventDefault(); event.currentTarget.style.outline = "2px solid #b45309"; } : undefined}
+              onDragLeave={(event) => { event.currentTarget.style.outline = ""; }}
+              onDrop={onDropDay ? (event) => { event.preventDefault(); event.currentTarget.style.outline = ""; onDropDay(value, event.dataTransfer.getData("text/plain")); } : undefined}
+              aria-pressed={active}
+              aria-label={`${MONTHS_FULL[monthIndex]} ${value}, ${year}`}
               whileHover={{ y: -2 }}
               whileTap={{ scale: 0.94 }}
+              animate={{ rotate: active ? -3 : 0, scale: active ? 1.04 : 1 }}
               className={`h-9 rounded-xl text-sm font-semibold shadow-sm sm:h-10 ${
                 active
                   ? "bg-amber-800 text-amber-50"
@@ -78,7 +85,7 @@ export function WoodDayGrid({ year, monthIndex, today, selectedDays, onPick }) {
               }
             >
               {value}
-            </motion.button>
+            </Motion.button>
           );
         })}
       </div>
@@ -114,14 +121,14 @@ export function InkStamp({ show, text = "Due" }) {
   return (
     <AnimatePresence>
       {show && (
-        <motion.div
+        <Motion.div
           initial={{ scale: 1.7, opacity: 0, rotate: -28 }}
           animate={{ scale: 1, opacity: 1, rotate: -14 }}
           transition={{ type: "spring", stiffness: 260, damping: 16 }}
-          className="pointer-events-none absolute right-3 top-2 flex h-[72px] w-[72px] items-center justify-center rounded-full border-4 border-red-800/80 text-[10px] font-black uppercase tracking-[0.18em] text-red-800/80"
+          className="campus-ink pointer-events-none absolute right-3 top-2 flex h-[72px] w-[72px] items-center justify-center rounded-full border-4 border-double border-red-800/80 text-[10px] font-black uppercase tracking-[0.18em] text-red-800/80"
         >
           {text}
-        </motion.div>
+        </Motion.div>
       )}
     </AnimatePresence>
   );
@@ -129,7 +136,7 @@ export function InkStamp({ show, text = "Due" }) {
 
 export function StampPress({ disabled, stamping, idleLabel = "Stamp", doneLabel = "Stamped", onClick }) {
   return (
-    <motion.button
+    <Motion.button
       type="button"
       disabled={disabled || stamping}
       onClick={onClick}
@@ -142,7 +149,7 @@ export function StampPress({ disabled, stamping, idleLabel = "Stamp", doneLabel 
       <span className="mt-2 text-[10px] font-semibold uppercase tracking-[0.16em]">
         {stamping ? doneLabel : idleLabel}
       </span>
-    </motion.button>
+    </Motion.button>
   );
 }
 

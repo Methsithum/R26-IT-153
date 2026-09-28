@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { useMemo, useState } from "react";
+import { motion as Motion } from "framer-motion";
 import { play } from "../audio/sfx";
 import { blotterStyle, isoDate, MonthShift, PaperSlip, StampPress, WoodDayGrid } from "./woodDesk";
 
@@ -32,10 +32,6 @@ export default function ExamCalendarSort({ question, onComplete }) {
   const [assigned, setAssigned] = useState({});
   const [stamping, setStamping] = useState(false);
 
-  useEffect(() => {
-    if (!activeId && missing[0]?.id) setActiveId(missing[0].id);
-  }, [missing, activeId]);
-
   const stampedCount = missing.filter((exam) => assigned[exam.id]).length;
   const leftoverCount = missing.length - stampedCount;
   const canConfirm = stampedCount > 0;
@@ -54,17 +50,18 @@ export default function ExamCalendarSort({ question, onComplete }) {
     setMonthIndex(next.getMonth());
   }
 
-  function stampDay(dayNumber) {
-    if (!activeExam) return;
+  function stampDay(dayNumber, examId) {
+    const targetExam = examId ? missing.find((exam) => exam.id === examId) : activeExam;
+    if (!targetExam || stamping) return;
     const iso = isoDate(year, monthIndex, dayNumber);
     play("stamp");
-    if (assigned[activeExam.id] === iso) {
+    if (assigned[targetExam.id] === iso) {
       const nextAssigned = { ...assigned };
-      delete nextAssigned[activeExam.id];
+      delete nextAssigned[targetExam.id];
       setAssigned(nextAssigned);
       return;
     }
-    const nextAssigned = { ...assigned, [activeExam.id]: iso };
+    const nextAssigned = { ...assigned, [targetExam.id]: iso };
     setAssigned(nextAssigned);
     const upcoming = missing.find((exam) => exam.id !== activeExam.id && !nextAssigned[exam.id]);
     if (upcoming) setActiveId(upcoming.id);
@@ -91,7 +88,7 @@ export default function ExamCalendarSort({ question, onComplete }) {
         <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">Exam hall</div>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900">Missing exam dates</h2>
         <p className="mt-2 max-w-2xl text-sm text-stone-600">
-          Pin a paper, stamp its day. Leave blank any date that is not out yet.
+          Drag a paper onto a date, or tap a paper then its day. Leave unreleased dates blank.
         </p>
       </div>
 
@@ -107,9 +104,12 @@ export default function ExamCalendarSort({ question, onComplete }) {
               const date = assigned[exam.id];
               const tilt = ((hashName(exam.id) % 7) - 3) * 1.6;
               return (
-                <motion.button
+                <Motion.button
                   key={exam.id}
                   type="button"
+                  draggable={!stamping}
+                  onDragStart={(event) => { event.dataTransfer.setData("text/plain", exam.id); setActiveId(exam.id); }}
+                  aria-pressed={active}
                   onClick={() => setActiveId(exam.id)}
                   animate={{ rotate: active ? 0 : tilt, y: active ? -4 : 0 }}
                   className="relative rounded-sm border border-amber-900/15 bg-[#fff7ed] px-3 py-3 text-left shadow-md"
@@ -123,7 +123,7 @@ export default function ExamCalendarSort({ question, onComplete }) {
                       Set
                     </span>
                   )}
-                </motion.button>
+                </Motion.button>
               );
             })}
           </div>
@@ -141,6 +141,7 @@ export default function ExamCalendarSort({ question, onComplete }) {
               today={today}
               selectedDays={selectedDays}
               onPick={stampDay}
+              onDropDay={stampDay}
             />
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion as Motion } from "framer-motion";
 import { play } from "../audio/sfx";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -24,8 +24,8 @@ function isoOf(year, month, day) {
 
 function Bead({ label, active, color, onClick }) {
   return (
-    <button type="button" onClick={onClick} className="group relative flex w-full flex-col items-center">
-      <motion.span
+    <button type="button" onClick={onClick} aria-pressed={active} aria-label={`Select ${label}`} className="group relative flex w-full flex-col items-center">
+      <Motion.span
         layout
         animate={{
           y: active ? 10 : 0,
@@ -140,7 +140,7 @@ export default function DeadlineAbacus({ question, onComplete }) {
                 boxShadow: "0 2px 0 rgba(0,0,0,0.35)",
               }}
             />
-            <div className="relative grid grid-cols-12 gap-0.5">
+            <div className="relative grid grid-cols-6 gap-x-0.5 gap-y-4 sm:grid-cols-12">
               {MONTHS.map((label, index) => (
                 <Bead
                   key={label}
@@ -187,7 +187,7 @@ export default function DeadlineAbacus({ question, onComplete }) {
                   month === today.getMonth() &&
                   year === today.getFullYear();
                 return (
-                  <motion.button
+                  <Motion.button
                     key={value}
                     type="button"
                     onClick={() => pickDay(value)}
@@ -210,7 +210,7 @@ export default function DeadlineAbacus({ question, onComplete }) {
                     }
                   >
                     {value}
-                  </motion.button>
+                  </Motion.button>
                 );
               })}
             </div>
@@ -224,19 +224,19 @@ export default function DeadlineAbacus({ question, onComplete }) {
             <div className="mt-1 font-serif text-xl tracking-wide text-stone-900">{pretty}</div>
             <AnimatePresence>
               {stamping && (
-                <motion.div
+                <Motion.div
                   initial={{ scale: 1.7, opacity: 0, rotate: -28 }}
                   animate={{ scale: 1, opacity: 1, rotate: -14 }}
                   transition={{ type: "spring", stiffness: 260, damping: 16 }}
                   className="pointer-events-none absolute right-3 top-2 flex h-[72px] w-[72px] items-center justify-center rounded-full border-4 border-red-800/80 text-[10px] font-black uppercase tracking-[0.18em] text-red-800/80"
                 >
                   Due
-                </motion.div>
+                </Motion.div>
               )}
             </AnimatePresence>
           </div>
 
-          <motion.button
+          <Motion.button
             type="button"
             disabled={stamping}
             onClick={confirm}
@@ -249,7 +249,7 @@ export default function DeadlineAbacus({ question, onComplete }) {
             <span className="mt-2 text-[10px] font-semibold uppercase tracking-[0.16em]">
               {stamping ? "Stamped" : "Stamp"}
             </span>
-          </motion.button>
+          </Motion.button>
         </div>
       </div>
     </div>

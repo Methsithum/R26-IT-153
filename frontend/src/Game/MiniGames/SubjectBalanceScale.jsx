@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
 import { play } from "../audio/sfx";
+import { motion as Motion } from "framer-motion";
+import ExactMark from "./ExactMark";
 
 function subjectOf(question) {
   const exam = question?.context?.missingExams?.[0];
@@ -75,7 +77,7 @@ export default function SubjectBalanceScale({ question, onComplete }) {
             <polygon points="78,132 162,132 172,150 68,150" fill="#8f5a32" />
             <rect x="114" y="58" width="12" height="76" rx="2" fill="#d4b483" />
             <rect x="108" y="48" width="24" height="14" rx="3" fill="#b08d57" />
-            <g transform={`rotate(${tilt} 120 56)`}>
+            <Motion.g animate={{ rotate: tilt }} transition={{ type: "spring", stiffness: 120, damping: 12 }} style={{ transformOrigin: "120px 56px" }}>
               <rect x="28" y="52" width="184" height="8" rx="3" fill="#e8d5a3" />
               <line x1="52" y1="56" x2="52" y2="86" stroke="#8f7350" strokeWidth="3" />
               <line x1="188" y1="56" x2="188" y2="86" stroke="#8f7350" strokeWidth="3" />
@@ -83,7 +85,7 @@ export default function SubjectBalanceScale({ question, onComplete }) {
               <ellipse cx="188" cy="98" rx="28" ry="10" fill="#4d7c0f" />
               <circle cx="52" cy="92" r="10" fill="#b45309" />
               <circle cx="188" cy="90" r={8 + value / 14} fill="#f5d76e" stroke="#5c3a1e" strokeWidth="1.2" />
-            </g>
+            </Motion.g>
             <circle cx="120" cy="56" r="6" fill="#4a3520" />
           </svg>
 
@@ -112,7 +114,9 @@ export default function SubjectBalanceScale({ question, onComplete }) {
           </div>
         </div>
 
+        <ExactMark value={value} onChange={setValue} />
         <button
+          disabled={value == null}
           type="button"
           onClick={() => onComplete(value)}
           className="bg-amber-800 py-3.5 text-sm font-semibold text-amber-50 transition-colors hover:bg-amber-700"

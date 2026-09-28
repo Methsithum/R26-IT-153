@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion as Motion, AnimatePresence } from "framer-motion";
 import {
   BookOpen,
   CalendarDays,
@@ -25,6 +25,8 @@ import DiscardTodayButton from "./DiscardTodayButton";
 import CampusMapsPage from "./CampusMapsPage";
 import ReflectionsPage from "./ReflectionsPage";
 import JournalShell from "./JournalShell";
+import RoadmapContent from "./RoadmapContent";
+import StudentPortrait from "../../Game/UI/StudentPortrait";
 
 const TABS = [
   { id: "open", label: "Open Journal", icon: BookOpen },
@@ -68,7 +70,7 @@ function BookFlip({ pageKey, direction, children, className = "" }) {
   return (
     <div style={{ perspective: 1800 }} className={`self-stretch h-full min-h-0 ${className}`}>
       <AnimatePresence mode="wait" initial={false} custom={direction}>
-        <motion.div
+        <Motion.div
           key={pageKey}
           custom={direction}
           initial={(dir) => ({ rotateY: dir >= 0 ? 78 : -78, opacity: 0.4 })}
@@ -92,7 +94,7 @@ function BookFlip({ pageKey, direction, children, className = "" }) {
             }}
           />
           {children}
-        </motion.div>
+        </Motion.div>
       </AnimatePresence>
     </div>
   );
@@ -139,11 +141,12 @@ function OpenJournalContent({ selectTab }) {
         )}
       </div>
       <div className="mt-6 flex justify-center">
-        <motion.div
+        <Motion.div
           initial={{ rotate: -3, opacity: 0, y: 12 }}
           animate={{ rotate: -2, opacity: 1, y: 0 }}
-          className="bg-white dark:bg-white/5 border border-brand-100 dark:border-white/10 shadow-[var(--shadow-playful)] px-8 py-6 rounded-3xl text-center max-w-sm"
+          className="relative bg-white dark:bg-white/5 border-2 border-brand-100 dark:border-white/10 shadow-[var(--shadow-playful)] px-8 py-6 rounded-3xl text-center max-w-sm"
         >
+          <div className="mb-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest text-brand-500"><Map size={16} /> Daily mission · Day {day}</div>
           <div className="text-xs text-slate-500 dark:text-slate-400 mb-3">
             {catchingUp
               ? `Catch up Day ${day} (${playLabel}) before today's run.`
@@ -162,7 +165,7 @@ function OpenJournalContent({ selectTab }) {
                 ? "View Roadmap"
                 : `Start Game (Day ${day})`}
           </button>
-        </motion.div>
+        </Motion.div>
       </div>
     </div>
   );
@@ -182,154 +185,6 @@ const EXAM_BADGES = {
   DATE_RECORDED: { icon: "📌", color: "#10b981", label: "Date Set" },
   MARK_RECEIVED: { icon: "🏆", color: "#10b981", label: "Mark Received" },
 };
-
-const ROADMAP_ICONS = ["🏛️", "📚", "🏫", "🔬"];
-
-// Candy-Crush-style progression: only Day 1..currentDay are reachable.
-// currentDay is the one playable node; everything beyond it is locked
-// until the current day's run is completed (GameStateManager.startNextDay
-// only then advances `day`).
-const NODE_STYLE = {
-  completed: { fill: "#10b981", stroke: "#059669", label: "#ffffff" },
-  current: { fill: "#7c3aed", stroke: "#5b21b6", label: "#ffffff" },
-  catchup: { fill: "#ec4899", stroke: "#be185d", label: "#ffffff" },
-  locked: { fill: "#e4d9ff", stroke: "#cbb3ff", label: "#7c3aed" },
-};
-
-const NODE_SPACING = 92;
-const LOOKAHEAD_LOCKED_DAYS = 3; // how many locked days are teased beyond today
-
-function RoadmapContent({ onViewDay }) {
-  const navigate = useNavigate();
-  const currentDay = useGameStore((s) => s.day);
-  const dailyCompleted = useGameStore((s) => s.dailyCompleted);
-  const missedDates = useGameStore((s) => s.missedDates);
-  const playDate = useGameStore((s) => s.playDate);
-  const entries = useJournalHistoryStore((s) => s.entries);
-  const completedDays = new Set(entries.map((e) => e.day));
-  const scrollRef = useRef(null);
-  const catchingUp = (missedDates || []).length > 0;
-
-  // Always starts at Day 1 — the path grows with progress and scrolls
-  // rather than compressing older days out of view.
-  const endDay = currentDay + LOOKAHEAD_LOCKED_DAYS;
-  const days = [];
-  for (let d = 1; d <= endDay; d++) days.push(d);
-
-  const H = 240;
-  const W = Math.max(360, 40 + (days.length - 1) * NODE_SPACING + 40);
-  const positions = days.map((d, i) => ({
-    d,
-    x: 40 + i * NODE_SPACING,
-    y: H / 2 + Math.sin(i * 1.4) * 66,
-  }));
-  const pathD = positions.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
-
-  function nodeState(d) {
-    if (d < currentDay) return "completed";
-    if (d === currentDay) {
-      if (dailyCompleted) return "completed";
-      return catchingUp ? "catchup" : "current";
-    }
-    return "locked";
-  }
-
-  function handleNodeClick(d, state) {
-    if (state === "locked") return;
-    if (state === "current" || state === "catchup") {
-      navigate("/journal/activities");
-      return;
-    }
-    // completed — reopen that day's journal entry
-    if (completedDays.has(d)) onViewDay?.(d);
-  }
-
-  function nodeCaption(d, state) {
-    if (state === "catchup") {
-      return formatCampusDate(playDate, { weekday: "short", month: "short", day: "numeric" });
-    }
-    if (state === "current") return "Play Today";
-    return `Day ${d}`;
-  }
-
-  // Bring "Today" into view whenever the roadmap opens or progresses.
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const todayX = 40 + (currentDay - 1) * NODE_SPACING;
-    el.scrollTo({ left: Math.max(0, todayX - el.clientWidth / 2), behavior: "auto" });
-  }, [currentDay]);
-
-  return (
-    <div>
-      <h2 className="font-display text-xl font-bold mb-1 text-slate-800 dark:text-white">Game Roadmap</h2>
-      <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-        {catchingUp
-          ? `Day ${currentDay} is a catch-up for ${formatCampusDate(playDate)}. Play it first — it saves as that date, then today's day unlocks.`
-          : `Complete Day ${currentDay} to unlock Day ${currentDay + 1}.`}
-      </p>
-      <div ref={scrollRef} className="w-full overflow-x-auto pb-2 scrollbar-thin">
-        <svg width={W} height={H} className="select-none block">
-          <path
-            d={pathD}
-            fill="none"
-            stroke="#cbb3ff"
-            strokeWidth={3}
-            strokeDasharray="2 9"
-            strokeLinecap="round"
-            opacity={0.85}
-          />
-          {positions.map(({ d, x, y }, i) => {
-            const state = nodeState(d);
-            const style = NODE_STYLE[state];
-            const r = state === "current" || state === "catchup" ? 19 : 15;
-            const clickable = state !== "locked";
-            const pulse = state === "current" || state === "catchup";
-            return (
-              <g
-                key={d}
-                onClick={() => handleNodeClick(d, state)}
-                style={{ cursor: clickable ? "pointer" : "not-allowed" }}
-              >
-                {i % 3 === 0 && (
-                  <text x={x} y={y - 30} fontSize={17} textAnchor="middle">
-                    {ROADMAP_ICONS[(i / 3) % ROADMAP_ICONS.length]}
-                  </text>
-                )}
-                {pulse && (
-                  <circle cx={x} cy={y} r={r + 7} fill="none" stroke={style.stroke} strokeWidth={2} opacity={0.35}>
-                    <animate attributeName="r" values={`${r + 4};${r + 11};${r + 4}`} dur="1.8s" repeatCount="indefinite" />
-                    <animate attributeName="opacity" values="0.45;0.05;0.45" dur="1.8s" repeatCount="indefinite" />
-                  </circle>
-                )}
-                <circle cx={x} cy={y} r={r} fill={style.fill} stroke={style.stroke} strokeWidth={2} />
-                <text
-                  x={x}
-                  y={y + 4}
-                  fontSize={12}
-                  textAnchor="middle"
-                  fill={style.label}
-                  fontWeight="bold"
-                >
-                  {state === "completed" ? "✓" : state === "locked" ? "🔒" : d}
-                </text>
-                <text x={x} y={y + r + 15} fontSize={9.5} textAnchor="middle" fill="#7c3aed">
-                  {nodeCaption(d, state)}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-      </div>
-      <div className="flex flex-wrap gap-4 mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-        <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#10b981] mr-1" />Completed (tap to view)</span>
-        <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#7c3aed] mr-1" />Today (tap to play)</span>
-        <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#ec4899] mr-1" />Catch-up (saves as that date)</span>
-        <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-[#e4d9ff] mr-1" />Locked</span>
-      </div>
-    </div>
-  );
-}
 
 function journalDateKey(item) {
   return campusDateKey(item?.date || item?.completedAt);
@@ -567,7 +422,7 @@ function GameDetailsContent() {
               <span>{xpToNextLevel(xp)} to Lv {level + 1}</span>
             </div>
             <div className="mt-1 h-2.5 overflow-hidden rounded-full bg-brand-100 dark:bg-white/10 shadow-inner">
-              <motion.div
+              <Motion.div
                 className="h-full rounded-full bg-gradient-to-r from-brand-400 via-brand-500 to-accent-pink"
                 initial={{ width: 0 }}
                 animate={{ width: `${(into / XP_PER_LEVEL) * 100}%` }}
@@ -681,7 +536,7 @@ function CharacterStatsContent() {
   return (
     <div>
       <div className="flex items-center gap-4 mb-5">
-        <LevelRing xp={xp} level={level} size={100} tone="brand" />
+        <div className="relative"><StudentPortrait className="h-28 w-24 rounded-3xl bg-brand-50 dark:bg-white/10 ring-2 ring-brand-200" /><span className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-brand-500 px-3 py-1 text-xs font-bold text-white">LV {level}</span></div>
         <div className="min-w-0">
           <h2 className="font-display text-xl font-bold mb-0.5 truncate text-slate-800 dark:text-white">{playerName || "Student"}</h2>
           <div className="text-sm text-slate-500 dark:text-slate-400">
@@ -718,7 +573,7 @@ function CharacterStatsContent() {
         </div>
       )}
       <div className="w-full h-3 rounded-full bg-brand-100 dark:bg-white/10 overflow-hidden mb-1">
-        <motion.div
+        <Motion.div
           className="h-full bg-gradient-to-r from-brand-400 to-brand-600"
           initial={{ width: 0 }}
           animate={{ width: `${(into / XP_PER_LEVEL) * 100}%` }}
@@ -745,7 +600,7 @@ function CharacterStatsContent() {
                   : "bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10 opacity-55"
               }`}
             >
-              <div className={`text-xl ${unlocked ? "" : "grayscale"}`}>{badge.icon}</div>
+              <div className={`mx-auto flex h-12 w-12 items-center justify-center rounded-full border-4 border-double text-xl shadow-inner ${unlocked ? "border-brand-200 bg-brand-50" : "border-slate-200 grayscale"}`}>{badge.icon}</div>
               <div className={`mt-1 text-[11px] font-bold leading-tight ${unlocked ? "text-brand-700 dark:text-brand-200" : "text-slate-400"}`}>
                 {badge.label}
               </div>
@@ -790,6 +645,7 @@ export default function JournalHome() {
     const openTab = location.state?.openTab;
     if (!openTab || !TAB_CONTENT[openTab]) return;
     selectTab(openTab);
+    if (location.state?.focusDay != null) setFocusDay(location.state.focusDay);
     navigate(".", { replace: true, state: {} });
   }, [location.state, navigate]);
 
@@ -816,7 +672,7 @@ export default function JournalHome() {
         </div>
       }
     >
-      <nav className="flex w-full flex-nowrap items-center gap-1 rounded-2xl bg-white/90 p-1.5 shadow-card ring-1 ring-black/5">
+      <nav aria-label="Journal bookmarks" className="flex w-full flex-nowrap items-start gap-1 overflow-x-auto rounded-2xl bg-white/90 p-1.5 pb-3 shadow-card ring-1 ring-black/5">
         {TABS.map((t) => {
           const Icon = t.icon;
           const active = tab === t.id;
@@ -826,7 +682,9 @@ export default function JournalHome() {
               type="button"
               onClick={() => selectTab(t.id)}
               title={t.label}
-              className={`flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-[12px] font-medium leading-tight transition-all sm:text-[13px] ${
+              aria-current={active ? "page" : undefined}
+              style={{ clipPath: "polygon(0 0,100% 0,100% 100%,50% 88%,0 100%)" }}
+              className={`flex min-w-[100px] flex-1 items-center justify-center gap-1.5 rounded-t-xl px-2 pt-3 pb-5 text-[12px] font-medium leading-tight transition-all sm:text-[13px] ${
                 active
                   ? "bg-gradient-to-r from-brand-500 to-brand-400 text-white shadow-playful"
                   : "text-slate-500 hover:bg-brand-50 hover:text-brand-600"

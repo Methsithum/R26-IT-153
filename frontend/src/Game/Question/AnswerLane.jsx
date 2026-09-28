@@ -1,14 +1,28 @@
 import { Text } from "@react-three/drei";
 import { LANES } from "../state/runnerStore";
+import { PHASES, useGameStore } from "../state/GameStateManager";
+import { useFrame } from "@react-three/fiber";
+import { useRef } from "react";
 
 const LANE_COLORS = ["#fbbf24", "#38bdf8", "#a78bfa", "#34d399"];
 
 export default function AnswerLane({ label, laneIndex, z, active }) {
+  const phase = useGameStore((s) => s.phase);
+  const answer = useGameStore((s) => s.pendingAnswer);
+  const ring = useRef(null);
+  const selected = phase === PHASES.ANSWER_CONFIRMED && answer === label;
+  useFrame(({ clock }) => {
+    if (!ring.current) return;
+    const pulse = (clock.elapsedTime * 1.5) % 1;
+    ring.current.scale.setScalar(1 + pulse * 1.8);
+    ring.current.material.opacity = .7 * (1 - pulse);
+  });
   const x = LANES[laneIndex];
   const color = LANE_COLORS[laneIndex];
 
   return (
     <group position={[x, 0, z]}>
+      {selected && <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[0, .06, 0]}><ringGeometry args={[.9, 1.05, 32]} /><meshBasicMaterial color="#6ee7b7" transparent opacity={.6} /></mesh>}
       <mesh position={[-1.05, 1.35, 0]}>
         <cylinderGeometry args={[0.07, 0.07, 2.7, 8]} />
         <meshStandardMaterial color={active ? color : "#3a5a8f"} />

@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion as Motion, AnimatePresence } from "framer-motion";
 import { PHASES, useGameStore } from "../state/GameStateManager";
 import { getBuildingById } from "../data/buildings";
 import CalendarStamp from "../MiniGames/CalendarStamp";
@@ -60,7 +60,7 @@ export default function SpecialInteractionRouter() {
 
   return (
     <AnimatePresence>
-      <motion.div
+      <Motion.div
         key="building-room"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -75,61 +75,66 @@ export default function SpecialInteractionRouter() {
           }}
         />
 
-        <header className="pointer-events-none relative z-10 flex items-start justify-between px-5 pt-5 sm:px-8">
+        <header className="pointer-events-none relative z-10 flex shrink-0 items-start justify-between gap-2 px-3 pt-3 sm:px-8">
           <div className="ml-14 rounded-2xl border border-white/50 bg-white/70 px-4 py-3 shadow-lg backdrop-blur-md sm:ml-16">
             <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">
               {building?.name ?? "Campus building"}
             </div>
             <div className="mt-1 text-sm text-stone-700">{purposeLabel(subject, activeQuestion, targetBuildingId)}</div>
           </div>
-          <div className="rounded-full border border-white/50 bg-white/70 px-3 py-1 text-xs text-stone-600 shadow-sm backdrop-blur-md">
+          <div className="hidden sm:block rounded-full border border-amber-200/40 bg-slate-900/90 px-3 py-2 text-xs text-amber-200 shadow-sm backdrop-blur-md">
             {missionLabel(activeQuestion, targetBuildingId)}
           </div>
         </header>
 
-        <div className="relative z-10 flex min-h-0 flex-1 items-end justify-center p-4 sm:p-7">
+        <div className="relative z-10 flex min-h-0 flex-1 items-center justify-center p-3 sm:p-5">
           {completed ? (
-            <motion.div
+            <Motion.div
               initial={{ y: 28, opacity: 0, scale: 0.94 }}
               animate={{ y: 0, opacity: 1, scale: 1 }}
               className="pointer-events-auto relative mb-6 overflow-hidden rounded-3xl border border-emerald-200/80 bg-white/92 px-10 py-9 text-center shadow-xl backdrop-blur-md"
             >
-              <motion.div
+              <Motion.div
                 initial={{ scale: 1.8, opacity: 0, rotate: -18 }}
                 animate={{ scale: 1, opacity: 1, rotate: -8 }}
                 transition={{ type: "spring", stiffness: 260, damping: 16 }}
                 className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border-4 border-emerald-600 text-2xl font-black text-emerald-700"
               >
                 ✓
-              </motion.div>
+              </Motion.div>
               <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-700/70">Journal stamp</div>
               <div className="mt-2 text-2xl font-semibold text-stone-900">Saved to your journal</div>
               {subject && <div className="mt-1 text-sm text-stone-500">{subject}</div>}
               <div className="mt-5 flex items-center justify-center gap-6">
-                <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.15 }}>
+                <Motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.15 }}>
                   <div className="text-[10px] uppercase tracking-[0.18em] text-stone-400">Score</div>
                   <div className="text-xl font-black text-amber-800">+300</div>
-                </motion.div>
-                <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.22 }}>
+                </Motion.div>
+                <Motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.22 }}>
                   <div className="text-[10px] uppercase tracking-[0.18em] text-stone-400">XP</div>
                   <div className="text-xl font-black text-emerald-700">+{XP_RULES.INTERACTION}</div>
-                </motion.div>
+                </Motion.div>
               </div>
-            </motion.div>
+            </Motion.div>
           ) : (
-            <motion.div
+            <Motion.div
               initial={{ y: 24, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ duration: 0.35 }}
-              className="pointer-events-auto h-[min(88vh,820px)] w-full max-w-4xl overflow-hidden rounded-[28px] border border-white/60 bg-white/88 shadow-[0_24px_80px_rgba(40,24,8,0.28)] backdrop-blur-md"
+              className="campus-station pointer-events-auto flex h-full max-h-[850px] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border-2 border-amber-200/70"
             >
-              <div className="h-full min-h-0 p-5 sm:p-7">
-                <MiniGameSlot activeQuestion={activeQuestion} onComplete={handleComplete} buildingId={targetBuildingId} />
+              <div className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-900/20 bg-[#2c1810] px-5 py-3 text-amber-100">
+                <span className="text-[10px] font-bold uppercase tracking-[.2em]">◆ Campus station</span>
+                <span className="text-[10px] text-amber-200/70">Select → Review → Record</span>
+                <button type="button" onClick={() => useGameStore.getState().togglePause()} className="rounded-lg border border-amber-200/30 px-3 py-1 text-xs" aria-label="Pause station">Ⅱ Pause</button>
               </div>
-            </motion.div>
+              <div className="campus-station-content min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+                <MiniGameSlot key={activeQuestion?.id} activeQuestion={activeQuestion} onComplete={handleComplete} buildingId={targetBuildingId} />
+              </div>
+            </Motion.div>
           )}
         </div>
-      </motion.div>
+      </Motion.div>
     </AnimatePresence>
   );
 }

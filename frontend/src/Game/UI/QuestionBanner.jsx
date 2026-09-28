@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion as Motion } from "framer-motion";
 import { PHASES, useGameStore } from "../state/GameStateManager";
 import { LANE_NAMES } from "../state/runnerStore";
 
@@ -16,10 +16,10 @@ export default function QuestionBanner() {
   const answers = question?.answers || [];
 
   return (
-    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 w-[min(860px,calc(100%-8rem))] pointer-events-none">
+    <div className="absolute top-40 sm:top-44 left-1/2 -translate-x-1/2 z-20 w-[min(720px,calc(100%-2rem))] pointer-events-none">
       <AnimatePresence>
         {visible && (
-          <motion.div
+          <Motion.div
             key={question.id}
             initial={{ opacity: 0, y: -16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -57,7 +57,7 @@ export default function QuestionBanner() {
                 ))}
               </div>
             )}
-          </motion.div>
+          </Motion.div>
         )}
       </AnimatePresence>
     </div>

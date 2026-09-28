@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion as Motion } from "framer-motion";
 import { Check, Sparkles, ArrowLeft } from "lucide-react";
 import { useGameStore } from "../../Game/state/GameStateManager";
 import { unlockAudio } from "../../Game/audio/sfx";
@@ -8,6 +8,8 @@ import { apiErrorMessage } from "../../services/userApi";
 import { formatCampusDate, isPastCampusDate, localTodayIso } from "../../services/localDate";
 import DiscardTodayButton from "./DiscardTodayButton";
 import JournalShell from "./JournalShell";
+import MissionPreview from "../../Game/UI/MissionPreview";
+import "../../Game/game-ui.css";
 
 const ACTIVITIES = [
   { id: "academic_study", label: "University Lectures", icon: "🎓" },
@@ -91,7 +93,7 @@ export default function DailyActivitySelection() {
         </button>
       }
     >
-      <motion.div
+      <Motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         className="card mx-auto w-full max-w-3xl p-6 sm:p-8"
@@ -119,6 +121,7 @@ export default function DailyActivitySelection() {
             </div>
           ) : (
             <>
+              <MissionPreview />
               <h1 className="font-display text-2xl font-bold text-slate-800 dark:text-white mb-2">
                 {catchingUp ? `What did you do on ${playLabel}?` : "What did you do today?"}
               </h1>
@@ -134,6 +137,7 @@ export default function DailyActivitySelection() {
                     <button
                       key={activity.id}
                       type="button"
+                      aria-pressed={active}
                       onClick={() => toggle(activity.id)}
                       className={`flex items-center gap-3 rounded-2xl border px-4 py-3.5 text-left text-sm font-medium transition-all ${
                         active
@@ -148,6 +152,7 @@ export default function DailyActivitySelection() {
                   );
                 })}
               </div>
+              <p className="mt-4 text-xs font-semibold text-brand-600" aria-live="polite">{selected.length} activities selected for your run</p>
               {error && <p className="text-sm text-high-600 mt-5">{error}</p>}
               <div className="flex items-center justify-between mt-8 gap-3">
                 <button
@@ -167,7 +172,7 @@ export default function DailyActivitySelection() {
               </div>
             </>
         )}
-      </motion.div>
+      </Motion.div>
     </JournalShell>
   );
 }

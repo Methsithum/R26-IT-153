@@ -10,18 +10,20 @@ import LivesDisplay from "./LivesDisplay";
 import ComboBadge from "./ComboBadge";
 import HitFx from "./HitFx";
 import LevelUpBurst from "./LevelUpBurst";
+import RunFeedback from "./RunFeedback";
 
 export default function GameHUD() {
   return (
     <div className="absolute inset-0 pointer-events-none select-none">
       <HitFx />
       <LevelUpBurst />
+      <RunFeedback />
 
       <div className="absolute top-4 left-[4.35rem] sm:left-[4.6rem]">
         <DailyProgress />
       </div>
 
-      <div className="absolute top-4 left-1/2 z-10 -translate-x-1/2">
+      <div className="absolute bottom-16 left-4 sm:bottom-auto sm:top-4 sm:left-1/2 z-10 sm:-translate-x-1/2">
         <LivesDisplay />
         <ComboBadge />
       </div>
@@ -33,7 +35,7 @@ export default function GameHUD() {
         <ScoreDisplay />
       </div>
 
-      <div className="absolute top-24 right-4 flex flex-col items-end gap-3">
+      <div className="absolute bottom-20 right-4 hidden sm:flex flex-col items-end gap-3">
         <ObjectivePanel />
         <Minimap />
       </div>
@@ -45,6 +47,7 @@ export default function GameHUD() {
       <div className="absolute bottom-4 right-4">
         <CampusClock />
       </div>
+      <div className="absolute bottom-16 right-3 max-w-[55%] sm:hidden"><ObjectivePanel /></div>
     </div>
   );
 }

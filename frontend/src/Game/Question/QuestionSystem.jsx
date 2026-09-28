@@ -80,7 +80,7 @@ export default function QuestionSystem() {
   });
 
   if (!activeQuestion || laneZRef.current == null || !activeQuestion.answers) return null;
-  if (![PHASES.QUESTION_APPROACHING, PHASES.ANSWER_SELECTION].includes(phase)) return null;
+  if (![PHASES.QUESTION_APPROACHING, PHASES.ANSWER_SELECTION, PHASES.ANSWER_CONFIRMED].includes(phase)) return null;
 
   return (
     <group>

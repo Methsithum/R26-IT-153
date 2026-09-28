@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion as Motion } from "framer-motion";
 import { play } from "../audio/sfx";
 import { blotterStyle, PaperSlip } from "./woodDesk";
+import ExactMark from "./ExactMark";
 
 const REST = { x: 100, y: 218 };
 const CENTER = { x: 100, y: 100 };
@@ -208,7 +209,9 @@ export default function MarksDartboard({ question, onComplete }) {
             style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(255,247,237,0.45), transparent 70%)" }}
           />
 
-          <svg
+          <Motion.svg
+            animate={{ rotate: stuck ? [0, -1.5, 1.5, 0] : 0 }}
+            transition={{ duration: .35 }}
             ref={svgRef}
             viewBox="0 0 200 240"
             className={`h-[min(58vh,340px)] w-auto max-w-full select-none touch-none drop-shadow-[0_16px_24px_rgba(40,20,8,0.45)] ${
@@ -300,7 +303,7 @@ export default function MarksDartboard({ question, onComplete }) {
               />
             )}
 
-            <motion.g
+            <Motion.g
               initial={false}
               animate={{ x: dart.x, y: dart.y }}
               transition={{ duration: flying ? 0.4 : 0, ease: flying ? [0.15, 0.85, 0.2, 1] : "linear" }}
@@ -312,10 +315,14 @@ export default function MarksDartboard({ question, onComplete }) {
                 <polygon points="1.5,-5 4.4,1.4 -1.4,1.4" fill="#c45c4a" />
                 <circle cx="1.5" cy="22" r="2.3" fill={`url(#${uid}-brass)`} stroke="#5c3a1e" strokeWidth="0.6" />
               </g>
-            </motion.g>
-          </svg>
+            </Motion.g>
+          </Motion.svg>
+          <div className="mt-2 w-full max-w-xs" aria-label="Throw strength">
+            <div className="mb-1 flex justify-between text-[10px] font-bold uppercase tracking-widest text-amber-950"><span>Throw strength</span><span>{Math.round((pull?.len || 0) / MAX_PULL * 100)}%</span></div>
+            <div className="h-2 overflow-hidden rounded-full bg-amber-950/20"><div className="h-full rounded-full bg-amber-700" style={{ width: `${(pull?.len || 0) / MAX_PULL * 100}%` }} /></div>
+          </div>
         </div>
-
+        <ExactMark value={mark} onChange={(next) => { setMark(next); setStuck(true); }} />
         <div className="flex items-stretch gap-3 bg-[#2c1810] px-4 py-4 sm:px-6">
           <PaperSlip
             kicker={stuck ? "Thrown mark" : pull ? "Aiming" : "Mark slip"}
@@ -333,7 +340,7 @@ export default function MarksDartboard({ question, onComplete }) {
             >
               Throw again
             </button>
-            <motion.button
+            <Motion.button
               type="button"
               disabled={!stuck || mark == null}
               onClick={() => onComplete(mark)}
@@ -346,7 +353,7 @@ export default function MarksDartboard({ question, onComplete }) {
               <span className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em]">
                 {stuck ? `Save ${mark}%` : "Throw"}
               </span>
-            </motion.button>
+            </Motion.button>
           </div>
         </div>
       </div>

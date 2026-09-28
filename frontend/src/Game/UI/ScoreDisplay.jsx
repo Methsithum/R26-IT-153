@@ -22,7 +22,7 @@ export default function ScoreDisplay() {
   const into = xpIntoLevel(xp);
 
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-2 [&>div:first-child]:hidden [&>div:last-child]:hidden lg:[&>div:first-child]:block lg:[&>div:last-child]:block">
       <StatCard
         label={`Lv ${level} XP`}
         value={xp.toLocaleString()}

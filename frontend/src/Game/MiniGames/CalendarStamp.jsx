@@ -52,6 +52,7 @@ export default function CalendarStamp({ question, onComplete }) {
         <div className="min-h-0 flex-1 overflow-auto px-4 py-4 sm:px-6" style={blotterStyle}>
           <MonthShift year={year} monthIndex={monthIndex} onShift={shiftMonth} />
           <div className="mx-auto max-w-lg">
+            <div className="mb-2 text-center text-xs font-semibold text-amber-950/70">{day ? `Stamp ready · ${prettyDate(year, monthIndex, day)}` : "Choose a date for your journal"}</div>
             <WoodDayGrid
               year={year}
               monthIndex={monthIndex}

@@ -1,9 +1,14 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion as Motion, AnimatePresence } from "framer-motion";
 import { PHASES, useGameStore } from "../state/GameStateManager";
+import { MapPin } from "lucide-react";
+import { getBuildingById } from "../data/buildings";
 
 export default function ObjectivePanel() {
   const objectiveText = useGameStore((s) => s.objectiveText);
   const phase = useGameStore((s) => s.phase);
+  const index = useGameStore((s) => s.questionIndex);
+  const total = useGameStore((s) => s.questionQueue.length);
+  const target = useGameStore((s) => s.targetBuildingId);
   const finish = phase === PHASES.APPROACHING_FINISH || phase === PHASES.DAY_CELEBRATION;
 
   return (
@@ -15,10 +20,10 @@ export default function ObjectivePanel() {
       }`}
     >
       <div className={`mb-1 text-[10px] uppercase tracking-wide ${finish ? "text-amber-300" : "text-emerald-300/80"}`}>
-        Objective
+        {finish ? "Final destination" : `Mission ${String(Math.min(index + 1, total || 1)).padStart(2, "0")} / ${total || "—"}`}
       </div>
       <AnimatePresence mode="wait">
-        <motion.div
+        <Motion.div
           key={objectiveText}
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
@@ -27,8 +32,9 @@ export default function ObjectivePanel() {
           className="text-sm text-slate-100 font-medium leading-snug"
         >
           {objectiveText}
-        </motion.div>
+        </Motion.div>
       </AnimatePresence>
+      {target && <div className="mt-2 flex items-center gap-1 text-[10px] text-amber-200"><MapPin size={12} />{getBuildingById(target)?.name || "Campus station"}</div>}
     </div>
   );
 }

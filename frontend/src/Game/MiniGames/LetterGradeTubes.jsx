@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { motion } from "framer-motion";
+import { motion as Motion } from "framer-motion";
 import { play } from "../audio/sfx";
 import { blotterStyle, PaperSlip, StampPress } from "./woodDesk";
 import { LETTER_GRADES } from "../data/letterGrades";
@@ -25,7 +25,7 @@ function GradeVial({ grade, filled, selected, onFill, uid }) {
   const full = filled >= FILL_CAP;
 
   return (
-    <motion.button
+    <Motion.button
       type="button"
       onClick={onFill}
       whileHover={{ y: -6 }}
@@ -69,14 +69,15 @@ function GradeVial({ grade, filled, selected, onFill, uid }) {
           opacity="0.35"
         />
 
+        <Motion.rect x="15" width="18" rx="7" fill={grade.bead} fillOpacity=".45" initial={false} animate={{ y: 112 - filled * 20, height: filled * 20 }} transition={{ type: "spring", stiffness: 90, damping: 16 }} />
         {beads.map((on, index) => {
           const cy = 100 - index * 16;
           return (
-            <motion.circle
+            <Motion.circle
               key={`${grade.id}-${index}`}
               cx="24"
               cy={cy}
-              r="7.2"
+              r="3.2"
               fill={`url(#${gid}-bead)`}
               stroke="#5c3a1e"
               strokeWidth="0.6"
@@ -100,7 +101,7 @@ function GradeVial({ grade, filled, selected, onFill, uid }) {
       {grade.fail && (
         <span className="mt-0.5 text-[8px] font-bold uppercase tracking-[0.16em] text-red-800/70">Fail</span>
       )}
-    </motion.button>
+    </Motion.button>
   );
 }
 

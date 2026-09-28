@@ -1,5 +1,7 @@
 import { Canvas } from "@react-three/fiber";
 import { Suspense, useEffect } from "react";
+import { MotionConfig } from "framer-motion";
+import "./game-ui.css";
 import GameScene from "./GameScene";
 import GameHUD from "./UI/GameHUD";
 import StartScreen from "./UI/StartScreen";
@@ -52,7 +54,7 @@ export default function MainGame() {
     phase === PHASES.RETURNING_TO_CAMPUS;
 
   return (
-    <div className="relative w-full h-screen bg-slate-950 overflow-hidden">
+    <MotionConfig reducedMotion="user"><div className="campus-game relative w-full h-dvh bg-slate-950 overflow-hidden">
       <Canvas shadows camera={{ fov: 55, near: 0.1, far: 300 }}>
         <Suspense fallback={null}>
           <GameScene />
@@ -70,6 +72,6 @@ export default function MainGame() {
       {phase === PHASES.GAME_START && <StartScreen />}
       <CelebrationOverlay />
       {phase === PHASES.DAILY_COMPLETION && <DailyCompletionScreen />}
-    </div>
+    </div></MotionConfig>
   );
 }
