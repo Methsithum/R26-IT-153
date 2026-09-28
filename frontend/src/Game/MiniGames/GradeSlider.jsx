@@ -51,7 +51,7 @@ export default function GradeSlider({ question, onComplete }) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-full flex-col gap-1">
       <div className="mb-5">
         <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">Grade board</div>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900">{subject}</h2>
@@ -60,9 +60,9 @@ export default function GradeSlider({ question, onComplete }) {
         </p>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-amber-900/25 shadow-[0_18px_40px_rgba(40,20,8,0.28)]">
+      <div className="flex shrink-0 flex-col overflow-hidden rounded-3xl border border-amber-900/25 shadow-[0_18px_40px_rgba(40,20,8,0.28)]">
         <div
-          className="relative flex min-h-0 flex-1 flex-col items-center justify-center px-6 py-8"
+          className="relative flex shrink-0 flex-col items-center justify-center px-6 py-8"
           style={{
             background:
               "radial-gradient(circle at 50% 20%, rgba(255,255,255,0.08), transparent 46%), linear-gradient(180deg, #1f3d2a 0%, #15261c 100%)",

@@ -29,14 +29,14 @@ export default function DailyProgress() {
           <div className="mt-1 truncate text-[10px] text-slate-300">{playerName || "Explorer"} · {into}/{XP_PER_LEVEL} XP</div>
         </div>
       </div>
-      <div className="mt-2 text-[10px] uppercase tracking-wide text-slate-400">Daily Progress</div>
-      <div className="mt-1 h-2.5 w-full rounded-full bg-slate-700/70 overflow-hidden">
+      <div className="mt-1 flex items-center gap-2"><span className="shrink-0 text-[9px] text-slate-300">Run {pct}%</span>
+      <div className="h-1 flex-1 rounded-full bg-slate-700/70 overflow-hidden">
         <div
           className="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-[width] duration-500"
           style={{ width: `${pct}%` }}
         />
       </div>
-      <div className="mt-1 text-right text-[11px] text-slate-300">{pct}%</div>
+      </div>
     </div>
   );
 }

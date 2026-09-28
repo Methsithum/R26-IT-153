@@ -83,7 +83,7 @@ export default function ExamCalendarSort({ question, onComplete }) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-full flex-col gap-1">
       <div className="mb-4">
         <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">Exam hall</div>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900">Missing exam dates</h2>
@@ -92,8 +92,8 @@ export default function ExamCalendarSort({ question, onComplete }) {
         </p>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-3 overflow-hidden lg:grid-cols-[minmax(200px,0.85fr)_1.35fr]">
-        <div className="min-h-0 overflow-y-auto rounded-3xl p-3" style={blotterStyle}>
+      <div className="grid shrink-0 gap-3 overflow-hidden lg:grid-cols-[minmax(200px,0.85fr)_1.35fr]">
+        <div className="min-h-0 overflow-visible rounded-3xl p-3" style={blotterStyle}>
           <div className="mb-3 text-center text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-950/55">
             Papers
           </div>
@@ -134,7 +134,7 @@ export default function ExamCalendarSort({ question, onComplete }) {
           style={blotterStyle}
         >
           <MonthShift year={year} monthIndex={monthIndex} onShift={shiftMonth} />
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="shrink-0 overflow-visible">
             <WoodDayGrid
               year={year}
               monthIndex={monthIndex}

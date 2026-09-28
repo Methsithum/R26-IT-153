@@ -75,7 +75,7 @@ export default function SpecialInteractionRouter() {
           }}
         />
 
-        <header className="pointer-events-none relative z-10 flex shrink-0 items-start justify-between gap-2 px-3 pt-3 sm:px-8">
+        <header className="station-location pointer-events-none relative z-10 flex shrink-0 items-start justify-between gap-2 px-3 pt-3 sm:px-8">
           <div className="ml-14 rounded-2xl border border-white/50 bg-white/70 px-4 py-3 shadow-lg backdrop-blur-md sm:ml-16">
             <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">
               {building?.name ?? "Campus building"}
@@ -92,7 +92,7 @@ export default function SpecialInteractionRouter() {
             <Motion.div
               initial={{ y: 28, opacity: 0, scale: 0.94 }}
               animate={{ y: 0, opacity: 1, scale: 1 }}
-              className="pointer-events-auto relative mb-6 overflow-hidden rounded-3xl border border-emerald-200/80 bg-white/92 px-10 py-9 text-center shadow-xl backdrop-blur-md"
+              className="pointer-events-auto relative max-h-full overflow-y-auto rounded-3xl border border-emerald-200/80 bg-white px-6 py-6 text-center shadow-xl"
             >
               <Motion.div
                 initial={{ scale: 1.8, opacity: 0, rotate: -18 }}
@@ -121,14 +121,14 @@ export default function SpecialInteractionRouter() {
               initial={{ y: 24, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ duration: 0.35 }}
-              className="campus-station pointer-events-auto flex h-full max-h-[850px] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border-2 border-amber-200/70"
+              className="campus-station pointer-events-auto flex h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden rounded-[20px] border-2 border-amber-200/70"
             >
-              <div className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-900/20 bg-[#2c1810] px-5 py-3 text-amber-100">
+              <div className="flex shrink-0 items-center justify-between gap-2 border-b border-amber-900/20 bg-[#2c1810] px-3 py-2 text-amber-100">
                 <span className="text-[10px] font-bold uppercase tracking-[.2em]">◆ Campus station</span>
-                <span className="text-[10px] text-amber-200/70">Select → Review → Record</span>
+                <span className="hidden sm:block text-[10px] text-amber-200/70">Select → Review → Record</span>
                 <button type="button" onClick={() => useGameStore.getState().togglePause()} className="rounded-lg border border-amber-200/30 px-3 py-1 text-xs" aria-label="Pause station">Ⅱ Pause</button>
               </div>
-              <div className="campus-station-content min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+              <div className="campus-station-content min-h-0 flex-1 overflow-y-auto p-3 sm:p-5" role="region" aria-label="Campus activity — scroll for all controls" tabIndex={0}>
                 <MiniGameSlot key={activeQuestion?.id} activeQuestion={activeQuestion} onComplete={handleComplete} buildingId={targetBuildingId} />
               </div>
             </Motion.div>

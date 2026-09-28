@@ -37,7 +37,7 @@ export default function CalendarStamp({ question, onComplete }) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-full flex-col gap-1">
       <div className="mb-5">
         <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">Notice board</div>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900">{subject}</h2>
@@ -48,8 +48,8 @@ export default function CalendarStamp({ question, onComplete }) {
         </p>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-amber-900/20 shadow-inner">
-        <div className="min-h-0 flex-1 overflow-auto px-4 py-4 sm:px-6" style={blotterStyle}>
+      <div className="flex shrink-0 flex-col overflow-hidden rounded-3xl border border-amber-900/20 shadow-inner">
+        <div className="shrink-0 overflow-visible px-4 py-4 sm:px-6" style={blotterStyle}>
           <MonthShift year={year} monthIndex={monthIndex} onShift={shiftMonth} />
           <div className="mx-auto max-w-lg">
             <div className="mb-2 text-center text-xs font-semibold text-amber-950/70">{day ? `Stamp ready · ${prettyDate(year, monthIndex, day)}` : "Choose a date for your journal"}</div>

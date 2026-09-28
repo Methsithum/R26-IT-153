@@ -11,43 +11,59 @@ import ComboBadge from "./ComboBadge";
 import HitFx from "./HitFx";
 import LevelUpBurst from "./LevelUpBurst";
 import RunFeedback from "./RunFeedback";
+import { useLayoutEffect, useRef } from "react";
+import { PHASES, useGameStore } from "../state/GameStateManager";
 
 export default function GameHUD() {
+  const dock = useRef(null);
+  const phase = useGameStore((s) => s.phase);
+  const answering = phase === PHASES.QUESTION_APPROACHING || phase === PHASES.ANSWER_SELECTION;
+  useLayoutEffect(() => {
+    const element = dock.current;
+    const game = element.closest(".campus-game");
+    const resize = () => game.style.setProperty("--hud-height", `${element.getBoundingClientRect().height}px`);
+    const observer = new ResizeObserver(resize);
+    observer.observe(element);
+    resize();
+    return () => { observer.disconnect(); game.style.removeProperty("--hud-height"); };
+  }, []);
   return (
     <div className="absolute inset-0 pointer-events-none select-none">
       <HitFx />
       <LevelUpBurst />
       <RunFeedback />
 
-      <div className="absolute top-4 left-[4.35rem] sm:left-[4.6rem]">
+      <div ref={dock} className="game-hud-dock">
+      <div className="game-hud-stats">
+      <div className="game-player-status">
         <DailyProgress />
       </div>
 
-      <div className="absolute bottom-16 left-4 sm:bottom-auto sm:top-4 sm:left-1/2 z-10 sm:-translate-x-1/2">
+      <div className="game-vitals">
         <LivesDisplay />
-        <ComboBadge />
+        <div className="game-combo"><ComboBadge /></div>
       </div>
 
-      <QuestionBanner />
-      <FinishAheadBanner />
-
-      <div className="absolute top-4 right-4">
+      <div className="game-score-status">
         <ScoreDisplay />
       </div>
+      </div>
+      <QuestionBanner />
+      </div>
+      <FinishAheadBanner />
 
-      <div className="absolute bottom-20 right-4 hidden sm:flex flex-col items-end gap-3">
+      <div className={`game-side-hud ${answering ? "is-answering" : ""}`}>
         <ObjectivePanel />
         <Minimap />
       </div>
 
-      <div className="absolute bottom-4 left-4">
+      <div className="absolute bottom-4 left-4 max-w-[calc(100%-8rem)]">
         <ControlHints />
       </div>
 
       <div className="absolute bottom-4 right-4">
         <CampusClock />
       </div>
-      <div className="absolute bottom-16 right-3 max-w-[55%] sm:hidden"><ObjectivePanel /></div>
     </div>
   );
 }

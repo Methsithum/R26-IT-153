@@ -163,7 +163,7 @@ export default function LetterGradeTubes({ question, onComplete }) {
       : `${picked}  ·  ${filled}/${FILL_CAP}`;
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-full flex-col gap-1">
       <div className="mb-5">
         <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">
           Results lab
@@ -174,8 +174,8 @@ export default function LetterGradeTubes({ question, onComplete }) {
         </p>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-amber-900/20 shadow-inner">
-        <div className="min-h-0 flex-1 overflow-auto px-3 py-4 sm:px-5" style={blotterStyle}>
+      <div className="flex shrink-0 flex-col overflow-hidden rounded-3xl border border-amber-900/20 shadow-inner">
+        <div className="shrink-0 overflow-visible px-3 py-4 sm:px-5" style={blotterStyle}>
           <div className="mb-3 text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-950/55">
             Fill one vial to the cork
           </div>

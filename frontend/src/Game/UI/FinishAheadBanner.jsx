@@ -24,7 +24,7 @@ export default function FinishAheadBanner() {
   }, [visible]);
 
   return (
-    <div className="absolute top-[5.75rem] left-1/2 z-20 -translate-x-1/2 pointer-events-none">
+    <div className="absolute left-1/2 z-20 -translate-x-1/2 pointer-events-none" style={{ top: "calc(var(--hud-height, 0px) + 12px)" }}>
       <AnimatePresence>
         {visible && (
           <motion.p

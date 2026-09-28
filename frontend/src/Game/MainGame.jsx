@@ -55,13 +55,13 @@ export default function MainGame() {
 
   return (
     <MotionConfig reducedMotion="user"><div className="campus-game relative w-full h-dvh bg-slate-950 overflow-hidden">
-      <Canvas shadows camera={{ fov: 55, near: 0.1, far: 300 }}>
+      <div className="campus-world"><Canvas shadows camera={{ fov: 55, near: 0.1, far: 300 }}>
         <Suspense fallback={null}>
           <GameScene />
         </Suspense>
-      </Canvas>
+      </Canvas></div>
 
-      {!insideBuilding && phase !== PHASES.DAY_CELEBRATION && phase !== PHASES.DAILY_COMPLETION && (
+      {!insideBuilding && phase !== PHASES.GAME_START && phase !== PHASES.DAY_CELEBRATION && phase !== PHASES.DAILY_COMPLETION && (
         <GameHUD />
       )}
       <InteriorExploreHUD />

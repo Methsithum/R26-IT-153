@@ -37,9 +37,9 @@ function toggle(list, value) {
 
 function LibraryShelf({ options, picked, onToggle, onComplete }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-amber-900/20 shadow-inner">
+    <div className="flex shrink-0 flex-col overflow-hidden rounded-3xl border border-amber-900/20 shadow-inner">
       <div
-        className="relative min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-5 pt-6"
+        className="relative shrink-0 overflow-x-auto overflow-y-hidden px-5 pt-6"
         style={{
           background: "linear-gradient(180deg, #4a2c14 0%, #6b3f22 55%, #5c3818 100%)",
         }}
@@ -47,7 +47,7 @@ function LibraryShelf({ options, picked, onToggle, onComplete }) {
         <div className="mb-3 text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-100/70">
           Pull every book you worked on
         </div>
-        <div className="flex h-[190px] items-end justify-center gap-[3px] px-2">
+        <div className="flex h-[190px] min-w-max items-end justify-start gap-[3px] px-2">
           <AnimatePresence initial={false}>
             {options.map((subject) => {
               if (picked.includes(subject)) return null;
@@ -130,9 +130,9 @@ function LibraryShelf({ options, picked, onToggle, onComplete }) {
 
 function LectureTickets({ options, picked, onToggle, onComplete }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-stone-200 shadow-inner">
+    <div className="flex shrink-0 flex-col overflow-hidden rounded-3xl border border-stone-200 shadow-inner">
       <div
-        className="relative min-h-0 flex-1 overflow-auto p-5"
+        className="relative shrink-0 overflow-visible p-5"
         style={{
           backgroundColor: "#c4a574",
           backgroundImage:
@@ -242,7 +242,7 @@ export default function SubjectPicker({ question, onComplete }) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-full flex-col gap-1">
       <div className="mb-5">
         <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">{eyebrow}</div>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900">{title}</h2>

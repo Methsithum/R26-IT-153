@@ -93,7 +93,7 @@ export default function DeadlineAbacus({ question, onComplete }) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-full flex-col gap-1">
       <div className="mb-5">
         <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">
           Deadline desk
@@ -104,7 +104,7 @@ export default function DeadlineAbacus({ question, onComplete }) {
         </p>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-amber-900/25 shadow-[0_18px_40px_rgba(40,20,8,0.28)]">
+      <div className="flex shrink-0 flex-col overflow-hidden rounded-3xl border border-amber-900/25 shadow-[0_18px_40px_rgba(40,20,8,0.28)]">
         <div
           className="relative shrink-0 px-4 pb-4 pt-5 sm:px-6"
           style={{
@@ -155,7 +155,7 @@ export default function DeadlineAbacus({ question, onComplete }) {
         </div>
 
         <div
-          className="relative min-h-0 flex-1 overflow-auto px-4 py-4 sm:px-6"
+          className="relative shrink-0 overflow-visible px-4 py-4 sm:px-6"
           style={{
             backgroundColor: "#c4a574",
             backgroundImage:

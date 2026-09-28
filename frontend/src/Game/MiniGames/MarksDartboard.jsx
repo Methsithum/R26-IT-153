@@ -190,7 +190,7 @@ export default function MarksDartboard({ question, onComplete }) {
     : "Pull back until the mark is right";
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-full flex-col gap-1">
       <div className="mb-5">
         <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">Results board</div>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900">{subject}</h2>
@@ -199,9 +199,9 @@ export default function MarksDartboard({ question, onComplete }) {
         </p>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-amber-900/25 shadow-[0_18px_40px_rgba(40,20,8,0.28)]">
+      <div className="flex shrink-0 flex-col overflow-hidden rounded-3xl border border-amber-900/25 shadow-[0_18px_40px_rgba(40,20,8,0.28)]">
         <div
-          className="relative flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-5 sm:px-6"
+          className="relative flex shrink-0 flex-col items-center justify-center px-4 py-5 sm:px-6"
           style={blotterStyle}
         >
           <div
@@ -214,7 +214,7 @@ export default function MarksDartboard({ question, onComplete }) {
             transition={{ duration: .35 }}
             ref={svgRef}
             viewBox="0 0 200 240"
-            className={`h-[min(58vh,340px)] w-auto max-w-full select-none touch-none drop-shadow-[0_16px_24px_rgba(40,20,8,0.45)] ${
+            className={`h-[clamp(240px,42vh,340px)] w-auto max-w-full select-none touch-none drop-shadow-[0_16px_24px_rgba(40,20,8,0.45)] ${
               stuck || flying ? "cursor-default" : "cursor-grab active:cursor-grabbing"
             }`}
             onPointerDown={onPointerDown}

@@ -78,7 +78,7 @@ export default function ExamSetup({ question, onComplete }) {
   const ready = subjects.length > 0 && kinds.length > 0;
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-full flex-col gap-1">
       <div className="mb-3 shrink-0">
         <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">Exam hall</div>
         <h2 className="mt-1 text-2xl font-semibold tracking-tight text-stone-900 sm:text-3xl">Exam preparation</h2>
@@ -92,7 +92,7 @@ export default function ExamSetup({ question, onComplete }) {
           No registered subjects on this account.
         </div>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-3xl border border-amber-900/20 shadow-inner">
+        <div className="flex shrink-0 flex-col overflow-visible rounded-3xl border border-amber-900/20 shadow-inner">
           <div
             className="relative shrink-0 px-5 pb-0 pt-4"
             style={{ background: "linear-gradient(180deg, #4a2c14 0%, #6b3f22 55%, #5c3818 100%)" }}
@@ -100,7 +100,7 @@ export default function ExamSetup({ question, onComplete }) {
             <div className="mb-3 text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-100/70">
               Pull every subject you prepared
             </div>
-            <div className="flex h-[148px] items-end justify-center gap-3 overflow-x-auto px-1">
+            <div className="flex h-[148px] items-end justify-start gap-3 overflow-x-auto px-1">
               <AnimatePresence initial={false}>
                 {options.map((subject) =>
                   subjects.includes(subject) ? null : (

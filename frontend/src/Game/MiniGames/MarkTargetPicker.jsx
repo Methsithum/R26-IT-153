@@ -53,7 +53,7 @@ export default function MarkTargetPicker({ question, onComplete }) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-full flex-col gap-1">
       <div className="mb-5">
         <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">Marks desk</div>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900">{title}</h2>
@@ -62,8 +62,8 @@ export default function MarkTargetPicker({ question, onComplete }) {
         </p>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-amber-900/20 shadow-inner">
-        <div className="min-h-0 flex-1 overflow-auto p-5" style={blotterStyle}>
+      <div className="flex shrink-0 flex-col overflow-hidden rounded-3xl border border-amber-900/20 shadow-inner">
+        <div className="shrink-0 overflow-visible p-5" style={blotterStyle}>
           <div className="mb-4 text-center text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-950/55">
             Pin one paper to the board
           </div>

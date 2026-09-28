@@ -50,7 +50,7 @@ export default function SubjectBalanceScale({ question, onComplete }) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-full flex-col gap-1">
       <div className="mb-5">
         <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-800/70">Performance desk</div>
         <h2 className="mt-2 text-3xl font-semibold tracking-tight text-stone-900">{subject}</h2>
@@ -59,15 +59,15 @@ export default function SubjectBalanceScale({ question, onComplete }) {
         </p>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-amber-900/25 shadow-[0_18px_40px_rgba(40,20,8,0.28)]">
+      <div className="flex shrink-0 flex-col overflow-hidden rounded-3xl border border-amber-900/25 shadow-[0_18px_40px_rgba(40,20,8,0.28)]">
         <div
-          className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-5"
+          className="flex shrink-0 flex-col items-center justify-center px-4 py-5"
           style={{ background: "linear-gradient(180deg, #c4a574 0%, #a98456 100%)" }}
         >
           <svg
             ref={svgRef}
             viewBox="0 0 240 168"
-            className="h-[min(42vh,280px)] w-full max-w-md cursor-grab touch-none select-none active:cursor-grabbing"
+            className="h-[clamp(200px,36vh,280px)] w-full max-w-md cursor-grab touch-none select-none active:cursor-grabbing"
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}

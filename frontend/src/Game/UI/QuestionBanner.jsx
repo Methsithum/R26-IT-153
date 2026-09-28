@@ -1,6 +1,7 @@
 import { AnimatePresence, motion as Motion } from "framer-motion";
 import { PHASES, useGameStore } from "../state/GameStateManager";
 import { LANE_NAMES } from "../state/runnerStore";
+import { getBuildingById } from "../data/buildings";
 
 const VISIBLE_PHASES = [
   PHASES.QUESTION_APPROACHING,
@@ -16,7 +17,7 @@ export default function QuestionBanner() {
   const answers = question?.answers || [];
 
   return (
-    <div className="absolute top-40 sm:top-44 left-1/2 -translate-x-1/2 z-20 w-[min(720px,calc(100%-2rem))] pointer-events-none">
+    <div className="game-question-slot">
       <AnimatePresence>
         {visible && (
           <Motion.div
@@ -25,20 +26,21 @@ export default function QuestionBanner() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.98 }}
             transition={{ duration: 0.28, ease: "easeOut" }}
-            className="rounded-2xl border-2 border-amber-300/70 bg-slate-950/92 backdrop-blur-md px-5 py-4 shadow-[0_0_28px_rgba(251,191,36,0.28)]"
+            className="game-question-card"
           >
             <p className="text-[10px] uppercase tracking-[0.28em] text-amber-300 mb-1 font-semibold text-center">
-              {answers.length ? "Read, then run the matching lane" : "Question"}
+              {answers.length ? "Read, then run the matching lane" : "Next campus activity"}
             </p>
-            <p className="text-lg sm:text-xl font-bold text-white leading-snug text-center">
+            <p className="text-sm sm:text-base font-bold text-white leading-snug text-center break-words">
               {question.questionText}
             </p>
+            {!answers.length && <p className="mt-1 text-center text-xs text-amber-100">Keep running — answer this at {getBuildingById(question.targetLocation)?.name || "the next campus station"}.</p>}
             {answers.length > 0 && (
-              <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                 {answers.slice(0, 4).map((answer, i) => (
                   <div
                     key={`${answer}-${i}`}
-                    className="rounded-xl border px-2.5 py-2 text-center"
+                    className="rounded-lg border px-2 py-1.5 text-center break-words"
                     style={{
                       borderColor: `${LANE_COLORS[i]}99`,
                       background: `${LANE_COLORS[i]}18`,
@@ -50,7 +52,7 @@ export default function QuestionBanner() {
                     >
                       Lane {i + 1} · {LANE_NAMES[i]}
                     </div>
-                    <div className="text-sm sm:text-[15px] font-semibold text-white leading-snug">
+                    <div className="text-xs sm:text-sm font-semibold text-white leading-snug">
                       {answer}
                     </div>
                   </div>
