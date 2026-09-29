@@ -53,3 +53,13 @@ export async function finishDailyRun({ sessionId, xpEarned, score }) {
   });
   return data;
 }
+
+export async function fetchGamificationSummary(userId) {
+  const { data } = await api.get(`/gamification/${userId}`);
+  return data;
+}
+
+export async function fetchLeaderboard(limit = 10) {
+  const { data } = await api.get("/leaderboard", { params: { limit } });
+  return data;
+}

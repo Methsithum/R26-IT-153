@@ -12,15 +12,17 @@ import {
   MapPin,
   NotebookPen,
   Sparkles,
+  Trophy,
   UserRound,
 } from "lucide-react";
 import { useGameStore } from "../../Game/state/GameStateManager";
 import { useJournalHistoryStore } from "../../Game/state/journalHistoryStore";
 import { buildJournalPage, splitJournalParagraphs } from "../../Game/data/journalNarrative";
-import { BADGE_CATALOG, XP_PER_LEVEL, isBadgeUnlocked, xpIntoLevel, xpToNextLevel } from "../../Game/data/progression";
+import { BADGE_CATALOG, XP_PER_LEVEL, badgeMeta, isBadgeUnlocked, xpIntoLevel, xpToNextLevel } from "../../Game/data/progression";
 import LevelRing from "../../Game/UI/LevelRing";
 import { campusDateKey, formatCampusDate } from "../../services/localDate";
 import { formatExamMark } from "../../Game/data/letterGrades";
+import { fetchGamificationSummary, fetchLeaderboard } from "../../services/journalApi";
 import DiscardTodayButton from "./DiscardTodayButton";
 import CampusMapsPage from "./CampusMapsPage";
 import ReflectionsPage from "./ReflectionsPage";
@@ -34,6 +36,7 @@ const TABS = [
   { id: "reflect", label: "Reflections", icon: Feather },
   { id: "details", label: "Game Details", icon: Sparkles },
   { id: "stats", label: "Character Stats", icon: UserRound },
+  { id: "leaderboard", label: "Leaderboard", icon: Trophy },
 ];
 
 function Page({ children }) {
@@ -662,6 +665,42 @@ function GameDetailsContent() {
   );
 }
 
+function StatTile({ icon, value, label }) {
+  return (
+    <div className="flex flex-col items-center rounded-2xl border border-brand-100 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 shadow-sm">
+      <div className="text-lg leading-none">{icon}</div>
+      <div className="mt-1 text-base font-black tabular-nums text-slate-800 dark:text-white">{value}</div>
+      <div className="text-[9px] uppercase tracking-wide text-slate-400">{label}</div>
+    </div>
+  );
+}
+
+function NextBadgeProgress({ nextBadge }) {
+  if (!nextBadge) return null;
+  const meta = badgeMeta(nextBadge.badge);
+  const pct = Math.round((nextBadge.progress || 0) * 100);
+  return (
+    <div className="mb-5 rounded-2xl border border-brand-100 dark:border-white/10 bg-brand-50/60 dark:bg-white/5 px-4 py-3">
+      <div className="mb-1.5 flex items-center gap-2">
+        <span className="text-lg leading-none grayscale opacity-70">{meta.icon}</span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-xs font-semibold text-slate-700 dark:text-slate-200">Next: {meta.label}</div>
+          <div className="text-[10px] text-slate-400">{nextBadge.current} / {nextBadge.target}</div>
+        </div>
+        <span className="text-[11px] font-bold tabular-nums text-brand-600 dark:text-brand-300">{pct}%</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-brand-100 dark:bg-white/10 shadow-inner">
+        <motion.div
+          className="h-full rounded-full bg-gradient-to-r from-brand-400 to-brand-600"
+          initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function CharacterStatsContent() {
   const xp = useGameStore((s) => s.xp);
   const level = useGameStore((s) => s.level);
@@ -675,8 +714,33 @@ function CharacterStatsContent() {
   const campusYear = useGameStore((s) => s.campusYear);
   const semester = useGameStore((s) => s.semester);
   const gpa = useGameStore((s) => s.gpa);
+  const userId = useGameStore((s) => s.userId);
   const into = xpIntoLevel(xp);
   const journalCount = useJournalHistoryStore((s) => s.entries.length);
+
+  const [summary, setSummary] = useState(null);
+  const [summaryStatus, setSummaryStatus] = useState("loading");
+
+  useEffect(() => {
+    if (!userId) {
+      setSummaryStatus("error");
+      return;
+    }
+    let cancelled = false;
+    setSummaryStatus("loading");
+    fetchGamificationSummary(userId)
+      .then((data) => {
+        if (cancelled) return;
+        setSummary(data);
+        setSummaryStatus("ready");
+      })
+      .catch(() => {
+        if (!cancelled) setSummaryStatus("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   return (
     <div>
@@ -725,7 +789,22 @@ function CharacterStatsContent() {
           transition={{ duration: 0.6, ease: "easeOut" }}
         />
       </div>
-      <div className="text-xs text-slate-400 mb-6">{into} / {XP_PER_LEVEL} XP in this rank</div>
+      <div className="text-xs text-slate-400 mb-5">{into} / {XP_PER_LEVEL} XP in this rank</div>
+
+      {summaryStatus === "loading" && (
+        <p className="mb-5 text-xs italic text-slate-400">Loading campus stats…</p>
+      )}
+      {summaryStatus === "ready" && summary && (
+        <>
+          <div className="mb-5 grid grid-cols-3 gap-2">
+            <StatTile icon="🏆" value={summary.leaderboard_rank ? `#${summary.leaderboard_rank}` : "—"} label="Rank" />
+            <StatTile icon="📔" value={summary.completed_journals ?? 0} label="Journals" />
+            <StatTile icon="✅" value={summary.completed_tasks ?? 0} label="Tasks Done" />
+          </div>
+          <NextBadgeProgress nextBadge={summary.next_badge} />
+        </>
+      )}
+
       <div className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">Achievements</div>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
         {BADGE_CATALOG.map((badge) => {
@@ -758,6 +837,94 @@ function CharacterStatsContent() {
   );
 }
 
+const RANK_ACCENT = {
+  1: "from-yellow-300 to-amber-500",
+  2: "from-slate-300 to-slate-400",
+  3: "from-orange-300 to-orange-500",
+};
+
+function LeaderboardRow({ entry, isYou }) {
+  return (
+    <div
+      className={`flex items-center gap-3 rounded-2xl border px-3 py-2.5 ${
+        isYou
+          ? "border-brand-300 dark:border-brand-400/40 bg-brand-50/80 dark:bg-brand-700/20 shadow-sm"
+          : "border-slate-100 dark:border-white/10 bg-white dark:bg-white/5"
+      }`}
+    >
+      <div
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-black text-white ${
+          RANK_ACCENT[entry.rank] || "from-brand-400 to-brand-600"
+        }`}
+      >
+        {entry.rank}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
+          {entry.name || "Student"}
+          {isYou && <span className="ml-1.5 text-xs font-medium text-brand-500 dark:text-brand-300">(You)</span>}
+        </div>
+        <div className="text-[11px] text-slate-400">
+          Level {entry.level} · {entry.current_streak}-day streak
+        </div>
+      </div>
+      <div className="shrink-0 text-right">
+        <div className="text-sm font-black tabular-nums text-brand-600 dark:text-brand-300">
+          {(entry.combined_score ?? 0).toLocaleString()}
+        </div>
+        <div className="text-[10px] text-slate-400">score</div>
+      </div>
+    </div>
+  );
+}
+
+function LeaderboardContent() {
+  const userId = useGameStore((s) => s.userId);
+  const [entries, setEntries] = useState([]);
+  const [status, setStatus] = useState("loading");
+
+  useEffect(() => {
+    let cancelled = false;
+    setStatus("loading");
+    fetchLeaderboard(20)
+      .then((data) => {
+        if (cancelled) return;
+        const ranked = (data?.leaderboard || []).map((entry, i) => ({ ...entry, rank: i + 1 }));
+        setEntries(ranked);
+        setStatus("ready");
+      })
+      .catch(() => {
+        if (!cancelled) setStatus("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <h2 className="font-display text-xl font-bold mb-1 text-slate-800 dark:text-white">Leaderboard</h2>
+      <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+        Ranked by combined score — total XP plus ten points per streak day.
+      </p>
+      {status === "loading" && <p className="text-sm italic text-slate-400">Loading rankings…</p>}
+      {status === "error" && (
+        <p className="text-sm text-rose-700 dark:text-rose-400">Couldn't load the leaderboard right now.</p>
+      )}
+      {status === "ready" && entries.length === 0 && (
+        <p className="text-sm italic text-slate-400">No ranked students yet.</p>
+      )}
+      {status === "ready" && entries.length > 0 && (
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 scrollbar-thin">
+          {entries.map((entry) => (
+            <LeaderboardRow key={entry.user_id} entry={entry} isYou={entry.user_id === userId} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const TAB_CONTENT = {
   open: OpenJournalContent,
   roadmap: RoadmapContent,
@@ -766,6 +933,7 @@ const TAB_CONTENT = {
   recent: RecentJournalsContent,
   details: GameDetailsContent,
   stats: CharacterStatsContent,
+  leaderboard: LeaderboardContent,
 };
 
 export default function JournalHome() {
