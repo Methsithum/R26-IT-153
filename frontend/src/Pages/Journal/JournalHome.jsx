@@ -667,9 +667,11 @@ function GameDetailsContent() {
 
 function StatTile({ icon, value, label }) {
   return (
-    <div className="flex flex-col items-center rounded-2xl border border-brand-100 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-2.5 shadow-sm">
-      <div className="text-lg leading-none">{icon}</div>
-      <div className="mt-1 text-base font-black tabular-nums text-slate-800 dark:text-white">{value}</div>
+    <div className="flex flex-col items-center gap-1.5 rounded-2xl border border-brand-100 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-3 shadow-sm">
+      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-50 dark:bg-white/10 text-base leading-none">
+        {icon}
+      </div>
+      <div className="text-base font-black tabular-nums text-slate-800 dark:text-white">{value}</div>
       <div className="text-[9px] uppercase tracking-wide text-slate-400">{label}</div>
     </div>
   );
@@ -680,7 +682,7 @@ function NextBadgeProgress({ nextBadge }) {
   const meta = badgeMeta(nextBadge.badge);
   const pct = Math.round((nextBadge.progress || 0) * 100);
   return (
-    <div className="mb-5 rounded-2xl border border-brand-100 dark:border-white/10 bg-brand-50/60 dark:bg-white/5 px-4 py-3">
+    <div className="rounded-2xl border border-brand-100 dark:border-white/10 bg-brand-50/60 dark:bg-white/5 px-4 py-3">
       <div className="mb-1.5 flex items-center gap-2">
         <span className="text-lg leading-none grayscale opacity-70">{meta.icon}</span>
         <div className="min-w-0 flex-1">
@@ -735,7 +737,7 @@ function LearningStyleCard() {
   const meta = result ? BEHAVIOR_META[result.behaviorCategory] : null;
 
   return (
-    <div className="mb-5 rounded-2xl border border-brand-100 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-3.5">
+    <div className="rounded-2xl border border-brand-100 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-3.5">
       <div className="mb-1 flex items-center justify-between gap-3">
         <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">Learning Style</div>
         <button
@@ -773,12 +775,7 @@ function CharacterStatsContent() {
   const streak = useGameStore((s) => s.currentStreak);
   const longestStreak = useGameStore((s) => s.longestStreak);
   const playerName = useGameStore((s) => s.playerName);
-  const subjects = useGameStore((s) => s.subjects);
   const universityName = useGameStore((s) => s.universityName);
-  const degreeName = useGameStore((s) => s.degreeName);
-  const campusYear = useGameStore((s) => s.campusYear);
-  const semester = useGameStore((s) => s.semester);
-  const gpa = useGameStore((s) => s.gpa);
   const userId = useGameStore((s) => s.userId);
   const into = xpIntoLevel(xp);
   const journalCount = useJournalHistoryStore((s) => s.entries.length);
@@ -807,72 +804,86 @@ function CharacterStatsContent() {
     };
   }, [userId]);
 
+  const unlockedCount = BADGE_CATALOG.filter((badge) =>
+    isBadgeUnlocked(badge.key, { badges, currentStreak: streak, longestStreak, xp, journalCount })
+  ).length;
+
   return (
     <div>
-      <div className="flex items-center gap-4 mb-5">
-        <LevelRing xp={xp} level={level} size={100} tone="brand" />
-        <div className="min-w-0">
-          <h2 className="font-display text-xl font-bold mb-0.5 truncate text-slate-800 dark:text-white">{playerName || "Student"}</h2>
-          <div className="text-sm text-slate-500 dark:text-slate-400">
-            Level {level} Student{universityName ? ` · ${universityName}` : ""}
+      <div className="relative overflow-hidden rounded-3xl border border-brand-100 dark:border-white/10 bg-gradient-to-br from-brand-50 via-white to-pink-50 dark:from-brand-700/20 dark:via-[#1a1530] dark:to-pink-500/10 p-4 mb-6 shadow-[var(--shadow-card)]">
+        <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-brand-400/20 blur-2xl" />
+        <div className="relative flex items-center gap-4">
+          <LevelRing xp={xp} level={level} size={92} tone="brand" />
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] uppercase tracking-[0.22em] text-brand-600 dark:text-brand-300 truncate">
+              {universityName || "Campus rank"}
+            </div>
+            <h2 className="font-display text-xl font-black leading-tight text-slate-800 dark:text-white truncate">
+              {playerName || "Student"}
+            </h2>
+            <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-brand-200/70 dark:border-white/10 bg-white/70 dark:bg-white/10 px-2.5 py-1 shadow-inner">
+              <span className="text-sm leading-none">⭐</span>
+              <span className="text-sm font-black tabular-nums text-brand-600 dark:text-brand-300">{xp.toLocaleString()}</span>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-400">XP · Lv {level}</span>
+            </div>
+            <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+              <span>{into.toLocaleString()} / {XP_PER_LEVEL} this rank</span>
+              <span>{xpToNextLevel(xp)} to Lv {level + 1}</span>
+            </div>
+            <div className="mt-1 h-2.5 overflow-hidden rounded-full bg-brand-100 dark:bg-white/10 shadow-inner">
+              <motion.div
+                className="h-full rounded-full bg-gradient-to-r from-brand-400 via-brand-500 to-accent-pink"
+                initial={{ width: 0 }}
+                animate={{ width: `${(into / XP_PER_LEVEL) * 100}%` }}
+                transition={{ duration: 0.7, ease: "easeOut" }}
+              />
+            </div>
           </div>
-          <div className="mt-2 text-xs font-semibold text-brand-600 dark:text-brand-300">
-            {xpToNextLevel(xp)} XP to Level {level + 1}
-          </div>
+          {streak > 0 && (
+            <div className="flex shrink-0 flex-col items-center rounded-2xl border border-orange-200/60 dark:border-white/10 bg-white/90 dark:bg-white/10 px-3 py-2 shadow-inner">
+              <div className="text-xl leading-none">🔥</div>
+              <div className="text-lg font-black leading-none text-medium-600">{streak}</div>
+              <div className="text-[9px] uppercase tracking-wide text-slate-400">streak</div>
+              {longestStreak > 0 && <div className="mt-1 text-[9px] text-medium-600/80">best {longestStreak}</div>}
+            </div>
+          )}
         </div>
       </div>
-      {(degreeName || campusYear || semester || gpa != null) && (
-        <p className="text-sm text-slate-500 dark:text-slate-300 mb-4">
-          {[
-            degreeName,
-            campusYear ? `Year ${campusYear}` : null,
-            semester ? `Semester ${semester}` : null,
-            gpa != null ? `GPA ${Number(gpa).toFixed(2)}` : null,
-            streak ? `${streak}-day streak` : null,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-        </p>
-      )}
-      {subjects.length > 0 && (
-        <div className="mb-5 flex flex-wrap gap-2">
-          {subjects.map((subject) => (
-            <span
-              key={subject}
-              className="rounded-full bg-brand-50 dark:bg-white/10 border border-brand-200/60 dark:border-white/10 px-3 py-1 text-xs text-brand-700 dark:text-brand-200"
-            >
-              {subject}
-            </span>
-          ))}
-        </div>
-      )}
-      <div className="w-full h-3 rounded-full bg-brand-100 dark:bg-white/10 overflow-hidden mb-1">
-        <motion.div
-          className="h-full bg-gradient-to-r from-brand-400 to-brand-600"
-          initial={{ width: 0 }}
-          animate={{ width: `${(into / XP_PER_LEVEL) * 100}%` }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-        />
-      </div>
-      <div className="text-xs text-slate-400 mb-5">{into} / {XP_PER_LEVEL} XP in this rank</div>
 
+      <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-500 dark:text-brand-300">
+        Campus Stats
+      </div>
       {summaryStatus === "loading" && (
-        <p className="mb-5 text-xs italic text-slate-400">Loading campus stats…</p>
+        <p className="mb-6 text-xs italic text-slate-400">Loading campus stats…</p>
+      )}
+      {summaryStatus === "error" && (
+        <p className="mb-6 text-xs text-slate-400">Campus stats aren't available right now.</p>
       )}
       {summaryStatus === "ready" && summary && (
-        <>
-          <div className="mb-5 grid grid-cols-3 gap-2">
+        <div className="mb-6 space-y-3">
+          <div className="grid grid-cols-3 gap-2">
             <StatTile icon="🏆" value={summary.leaderboard_rank ? `#${summary.leaderboard_rank}` : "—"} label="Rank" />
             <StatTile icon="📔" value={summary.completed_journals ?? 0} label="Journals" />
             <StatTile icon="✅" value={summary.completed_tasks ?? 0} label="Tasks Done" />
           </div>
           <NextBadgeProgress nextBadge={summary.next_badge} />
-        </>
+        </div>
       )}
 
-      <LearningStyleCard />
+      <div className="mb-6">
+        <LearningStyleCard />
+      </div>
 
-      <div className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">Achievements</div>
+      <div className="my-5 border-t border-brand-100 dark:border-white/10" />
+
+      <div className="mb-3 flex items-center justify-between">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-500 dark:text-brand-300">
+          Achievements
+        </div>
+        <div className="text-[11px] font-semibold tabular-nums text-slate-400">
+          {unlockedCount} / {BADGE_CATALOG.length}
+        </div>
+      </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
         {BADGE_CATALOG.map((badge) => {
           const unlocked = isBadgeUnlocked(badge.key, {
