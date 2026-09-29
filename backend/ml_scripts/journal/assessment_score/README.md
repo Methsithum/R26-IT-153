@@ -188,6 +188,20 @@ that must already exist. Only `user_id` (must resolve to a real user) and
 `task_id` (if given, must resolve to a real task for that user/subject) are
 validated as "must already exist."
 
+**`GET /assessment-prediction/upcoming/{user_id}`** - read-only. That
+student's upcoming, unmarked, dated exams and tasks (today or later),
+combined and sorted by date ascending, capped at 50. Existing-but-unrelated
+routes `GET /users/{user_id}/exams` and `GET /users/{user_id}/tasks` return
+the student's *full, unfiltered* exam/task lists - this endpoint adds the
+filtering (unmarked, dated, today-or-later), the exam+task combination, the
+sort, and the cap that the frontend's Score Forecast tab needs, reusing
+`feature_builder.to_date()` for date parsing rather than duplicating it.
+Response: `{"user_id": ..., "items": [...]}`, each item
+`{"kind": "exam"|"task", "subject", "exam_type": "mid"|"final"|"lab"|"quiz"|null,
+"task_id": str|null, "title": str|null, "date": "YYYY-MM-DD", "days_left": int}`.
+422 for a malformed `user_id`, 404 if the user doesn't exist - same style as
+`/predict`.
+
 **`GET /assessment-prediction/history/{user_id}?limit=20`** - that student's
 stored predictions, newest first, each including `actualMark`/`actualMarkRaw`
 once known (`null` until a matching mark is saved).

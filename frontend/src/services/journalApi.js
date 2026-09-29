@@ -1,5 +1,6 @@
 import api from "./apiClient";
 import { localTodayIso, campusDateKey } from "./localDate";
+import { apiErrorMessage } from "./userApi";
 
 export async function abandonDailySession(userId, sessionId) {
   const { data } = await api.post("/daily/abandon", {
@@ -67,4 +68,43 @@ export async function fetchLeaderboard(limit = 10) {
 export async function analyzeBehavior(userId) {
   const { data } = await api.post("/behavior/analyze", { user_id: userId });
   return data;
+}
+
+// --- Assessment score prediction ("Score Forecast" tab) ---
+
+export function mapPredictionApiError(err) {
+  if (err?.response?.status === 503) {
+    return new Error("The prediction model is currently unavailable");
+  }
+  if (!err?.response) {
+    return new Error("Network error — please try again.");
+  }
+  return new Error(apiErrorMessage(err, "Something went wrong."));
+}
+
+export async function getUpcomingAssessments(userId) {
+  try {
+    const { data } = await api.get(`/assessment-prediction/upcoming/${userId}`);
+    return data;
+  } catch (err) {
+    throw mapPredictionApiError(err);
+  }
+}
+
+export async function predictAssessment(payload) {
+  try {
+    const { data } = await api.post("/assessment-prediction/predict", payload);
+    return data;
+  } catch (err) {
+    throw mapPredictionApiError(err);
+  }
+}
+
+export async function getPredictionHistory(userId, limit = 20) {
+  try {
+    const { data } = await api.get(`/assessment-prediction/history/${userId}`, { params: { limit } });
+    return data;
+  } catch (err) {
+    throw mapPredictionApiError(err);
+  }
 }

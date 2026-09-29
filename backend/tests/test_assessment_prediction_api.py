@@ -16,7 +16,7 @@ without that unrelated side effect.
 """
 
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -39,8 +39,9 @@ import app.models.journal.learning_pattern as learning_pattern_module
 import app.models.journal.task as task_module
 import app.models.user.user as user_module
 import app.services.assessment_prediction.model_loader as model_loader
-from app.routes.assessment_prediction.predict import PredictRequest, health, history, predict
+from app.routes.assessment_prediction.predict import PredictRequest, health, history, predict, upcoming
 from app.services.assessment_prediction.model_loader import BundleNotFoundError
+from app.services.time_utils import local_today
 
 
 # ===========================================================================
@@ -421,3 +422,80 @@ async def test_task_actual_mark_hook_fills_prediction(monkeypatch, user_oid):
     updated = fake_predictions.find_one({"_id": pending_prediction["_id"]})
     assert updated["actualMark"] == 70.0
     assert fake_tasks.find_one({"_id": task_id})["mark"] == 70
+
+
+# ===========================================================================
+# GET /assessment-prediction/upcoming/{user_id}
+# ===========================================================================
+
+def _iso(days_offset):
+    return (local_today() + timedelta(days=days_offset)).isoformat()
+
+
+@pytest.mark.anyio
+async def test_upcoming_sorted_and_filters_marked_past_undated(monkeypatch, user_oid):
+    fake_out(monkeypatch, user_module, "user_collection", [{"_id": ObjectId(user_oid), "name": "Test"}])
+    fake_out(monkeypatch, exam_module, "exam_collection", [
+        {"_id": ObjectId(), "user_id": user_oid, "subject": "Networks", "exam_type": "final",
+         "date": _iso(10), "mark": None},  # upcoming, unmarked -> included
+        {"_id": ObjectId(), "user_id": user_oid, "subject": "Databases", "exam_type": "mid",
+         "date": _iso(3), "mark": None},  # upcoming, sooner -> included, should come first
+        {"_id": ObjectId(), "user_id": user_oid, "subject": "Marked Subject", "exam_type": "quiz",
+         "date": _iso(5), "mark": 80},  # has a mark -> excluded
+        {"_id": ObjectId(), "user_id": user_oid, "subject": "Past Subject", "exam_type": "lab",
+         "date": _iso(-5), "mark": None},  # in the past -> excluded
+        {"_id": ObjectId(), "user_id": user_oid, "subject": "Undated Subject", "exam_type": "mid",
+         "date": None, "mark": None},  # no date -> excluded
+    ])
+    fake_out(monkeypatch, task_module, "task_collection", [
+        {"_id": ObjectId(), "user_id": user_oid, "subject": "Databases", "title": "Databases assignment",
+         "deadline": _iso(7), "mark": None},  # upcoming, unmarked -> included
+    ])
+
+    body = await upcoming(user_oid)
+
+    assert body["user_id"] == user_oid
+    subjects_in_order = [it["subject"] for it in body["items"]]
+    assert subjects_in_order == ["Databases", "Databases", "Networks"]  # sorted by date: day3 (exam), day7 (task), day10 (exam)
+    assert len(body["items"]) == 3  # marked, past, undated all excluded
+    assert all(it["days_left"] >= 0 for it in body["items"])
+    task_item = next(it for it in body["items"] if it["kind"] == "task")
+    assert task_item["task_id"] is not None
+    assert task_item["title"] == "Databases assignment"
+    exam_item = next(it for it in body["items"] if it["kind"] == "exam" and it["subject"] == "Networks")
+    assert exam_item["exam_type"] == "final"
+    assert exam_item["task_id"] is None
+
+
+@pytest.mark.anyio
+async def test_upcoming_malformed_user_id_returns_422():
+    with pytest.raises(HTTPException) as exc_info:
+        await upcoming("not-an-object-id")
+    assert exc_info.value.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_upcoming_unknown_user_returns_404(monkeypatch):
+    fake_out(monkeypatch, user_module, "user_collection", [])
+    with pytest.raises(HTTPException) as exc_info:
+        await upcoming(str(ObjectId()))
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_upcoming_never_returns_other_users_items(monkeypatch, user_oid):
+    other_user_id = str(ObjectId())
+    fake_out(monkeypatch, user_module, "user_collection", [{"_id": ObjectId(user_oid), "name": "Test"}])
+    fake_out(monkeypatch, exam_module, "exam_collection", [
+        {"_id": ObjectId(), "user_id": user_oid, "subject": "Mine", "exam_type": "mid",
+         "date": _iso(5), "mark": None},
+        {"_id": ObjectId(), "user_id": other_user_id, "subject": "Not Mine", "exam_type": "mid",
+         "date": _iso(5), "mark": None},
+    ])
+    fake_out(monkeypatch, task_module, "task_collection", [])
+
+    body = await upcoming(user_oid)
+
+    subjects = [it["subject"] for it in body["items"]]
+    assert subjects == ["Mine"]
+    assert "Not Mine" not in subjects

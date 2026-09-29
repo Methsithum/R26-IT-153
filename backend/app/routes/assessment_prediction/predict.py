@@ -95,6 +95,18 @@ async def predict(payload: PredictRequest):
     }
 
 
+@router.get("/upcoming/{user_id}")
+async def upcoming(user_id: str):
+    """Read-only: this student's upcoming, unmarked, dated exams and tasks, soonest first."""
+    try:
+        result = await predict_service.list_upcoming(user_id)
+    except predict_service.ValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except predict_service.NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return result
+
+
 @router.get("/history/{user_id}")
 async def history(user_id: str, limit: int = HISTORY_LIMIT_DEFAULT):
     """A student's stored predictions, newest first, including actualMark once known."""

@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Feather,
   History,
+  LineChart,
   Map,
   MapPin,
   NotebookPen,
@@ -26,6 +27,7 @@ import { analyzeBehavior, fetchGamificationSummary, fetchLeaderboard } from "../
 import DiscardTodayButton from "./DiscardTodayButton";
 import CampusMapsPage from "./CampusMapsPage";
 import ReflectionsPage from "./ReflectionsPage";
+import ScoreForecastPage from "./ScoreForecastPage";
 import JournalShell from "./JournalShell";
 
 const TABS = [
@@ -37,6 +39,7 @@ const TABS = [
   { id: "details", label: "Game Details", icon: Sparkles },
   { id: "stats", label: "Character Stats", icon: UserRound },
   { id: "leaderboard", label: "Leaderboard", icon: Trophy },
+  { id: "forecast", label: "Score Forecast", icon: LineChart },
 ];
 
 function Page({ children }) {
@@ -1012,6 +1015,7 @@ const TAB_CONTENT = {
   details: GameDetailsContent,
   stats: CharacterStatsContent,
   leaderboard: LeaderboardContent,
+  forecast: ScoreForecastPage,
 };
 
 export default function JournalHome() {

@@ -25,7 +25,9 @@ from app.services.assessment_prediction.feature_builder import (
     to_date,
 )
 from app.services.assessment_prediction.model_loader import get_bundle
-from app.services.time_utils import local_today_iso
+from app.services.time_utils import local_today, local_today_iso
+
+UPCOMING_LIMIT = 50
 
 EXAM_TYPES = {"mid", "final", "lab", "quiz"}
 ASSESSMENT_KINDS = {"exam", "task"}
@@ -234,3 +236,53 @@ async def build_prediction(
         "assessment_ref": assessment_ref,
         "features": computed,
     }
+
+
+async def list_upcoming(user_id: str) -> dict:
+    """
+    Read-only: a student's upcoming, unmarked, dated exams and tasks (today
+    or later), combined and sorted by date, capped at UPCOMING_LIMIT. Reuses
+    to_date() from feature_builder.py (the same date-parsing this module
+    already uses for predictions) rather than duplicating date-parsing logic.
+    """
+    await _require_user(user_id)
+    today = local_today()
+
+    exams = await ExamModel.find_by_user(user_id)
+    tasks = await TaskModel.find_by_user(user_id)
+
+    items = []
+    for e in exams:
+        if e.get("mark") not in (None, ""):
+            continue
+        d = to_date(e.get("date"))
+        if d is None or d < today:
+            continue
+        items.append({
+            "kind": "exam",
+            "subject": e.get("subject"),
+            "exam_type": e.get("exam_type"),
+            "task_id": None,
+            "title": None,
+            "date": d.isoformat(),
+            "days_left": (d - today).days,
+        })
+
+    for t in tasks:
+        if t.get("mark") not in (None, ""):
+            continue
+        d = to_date(t.get("deadline"))
+        if d is None or d < today:
+            continue
+        items.append({
+            "kind": "task",
+            "subject": t.get("subject"),
+            "exam_type": None,
+            "task_id": t.get("id"),
+            "title": t.get("title"),
+            "date": d.isoformat(),
+            "days_left": (d - today).days,
+        })
+
+    items.sort(key=lambda it: it["date"])
+    return {"user_id": user_id, "items": items[:UPCOMING_LIMIT]}
