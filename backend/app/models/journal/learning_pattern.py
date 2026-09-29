@@ -39,27 +39,3 @@ class LearningPatternModel:
             {"$set": update_data},
             upsert=True
         )
-
-    @staticmethod
-    async def increment_activity_count(user_id: str, activity_type: str):
-        """Increment count for an activity type."""
-        learning_patterns_collection.update_one(
-            {"user_id": user_id},
-            {
-                "$inc": {f"activity_counts.{activity_type}": 1},
-                "$set": {"updated_at": datetime.utcnow()}
-            },
-            upsert=True
-        )
-
-    @staticmethod
-    async def add_subject_study_time(user_id: str, subject: str, minutes: int):
-        """Add study time for a subject."""
-        learning_patterns_collection.update_one(
-            {"user_id": user_id},
-            {
-                "$inc": {f"subject_times.{subject}": minutes},
-                "$set": {"updated_at": datetime.utcnow()}
-            },
-            upsert=True
-        )
