@@ -1,0 +1,5 @@
+method,operating_point,precision,recall,F1,flagged_share,roc_auc
+rule_based,Fixed rule: prev_mean<50 OR no VLE clicks in last 14 days OR num_of_prev_attempts>=1,0.08950426906470149,0.3841973244147157,0.14518549724847943,0.1823029485221879,0.8781242965146817
+ml_default_threshold_40,ML: flag if predicted score < 40 (same as the pass-mark threshold),0.6223146223146223,0.12513935340022297,0.20837684186100477,0.00854017968111928,0.8781242965146817
+ml_matched_recall,"ML: threshold=51.88, chosen so recall matches rule_based recall (0.384)",0.39487252936121453,0.3841973244147157,0.3894617883881904,0.041321922753690093,0.8781242965146817
+ml_threshold_60.73_recall_0.616,ML: threshold=60.73 - an additional operating point (NOT matched to the rule's recall),0.24956231998644604,0.6158026755852842,0.35518225294377687,0.10479623119444148,0.8781242965146817
