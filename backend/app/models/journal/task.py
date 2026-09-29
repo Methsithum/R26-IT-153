@@ -1,8 +1,12 @@
+import logging
+
 from app.config.database import db
 from app.services.journal.journal_constants import MARK_RECEIVED_STAGES, is_mark_check_due
 from app.services.time_utils import as_of_day, local_today_iso, to_local_date
 from bson import ObjectId
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 task_collection = db["tasks"]
 
@@ -227,8 +231,13 @@ class TaskModel:
                 existing["id"],
                 {"mark": mark, "progress_stage": "completed", "last_mark_check": today},
             )
+            try:
+                from app.services.assessment_prediction.actual_mark_hook import on_task_mark_saved
+                await on_task_mark_saved(user_id, subject, mark, existing["id"])
+            except Exception:
+                logger.warning("assessment-prediction hook failed", exc_info=True)
             return
-        await TaskModel.create({
+        created = await TaskModel.create({
             "user_id": user_id,
             "title": f"{subject} assignment",
             "subject": subject,
@@ -237,6 +246,12 @@ class TaskModel:
             "mark": mark,
             "last_mark_check": today,
         })
+        try:
+            from app.services.assessment_prediction.actual_mark_hook import on_task_mark_saved
+            created_id = str(created["_id"]) if created.get("_id") else None
+            await on_task_mark_saved(user_id, subject, mark, created_id)
+        except Exception:
+            logger.warning("assessment-prediction hook failed", exc_info=True)
 
     @staticmethod
     async def record_deadline_check(user_id: str, subject: str):

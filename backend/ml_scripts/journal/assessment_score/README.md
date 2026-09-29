@@ -134,3 +134,173 @@ signal quality; at recall matched to the rule (~38%), ML precision is ~25%
   `assessment_predictions`-style journal data (predicted vs. actual mark
   pairs, once the journal has accumulated enough of them) before making any
   deployed-accuracy claim.
+
+## API
+
+The serving layer lives in `backend/app/` (routes: `app/routes/assessment_prediction/`,
+services: `app/services/assessment_prediction/`, storage model:
+`app/models/assessment_prediction/`, config: `app/config/assessment_prediction_settings.py`)
+- **not** in this `ml_scripts/` folder, which stays training/evaluation-only.
+Only `assessment_score_journal_compatible.joblib` is served; the `full_oulad`
+bundle is research-only and is never loaded by app code.
+
+### Endpoints (prefix `/assessment-prediction`)
+
+**`POST /assessment-prediction/predict`**
+
+Request:
+```json
+{
+  "user_id": "<ObjectId string>",
+  "subject": "Database Systems",
+  "assessment_kind": "exam",
+  "exam_type": "final",
+  "task_id": null,
+  "assessment_date": "2026-11-20"
+}
+```
+`exam_type` (`mid`/`final`/`lab`/`quiz`) is required when `assessment_kind == "exam"`.
+`task_id` is optional when `assessment_kind == "task"`. `assessment_date` is
+optional - falls back to the stored exam date / task deadline, then today.
+
+Response:
+```json
+{
+  "estimated_mark": 64.2,
+  "range_low": 41,
+  "range_high": 87,
+  "below_pass_mark": false,
+  "n_previous_marks": 2,
+  "warning": null,
+  "model_version": "journal_compatible@2026-09-29T19:46:42.745279+00:00",
+  "feature_set": "journal_compatible",
+  "assessment_type_used": "Exam",
+  "prediction_id": "<ObjectId string>"
+}
+```
+`warning` is `"cold_start: low confidence"` when the student has zero usable
+previous marks in that subject (`n_previous_marks == 0`) - the model still
+predicts, just with lower confidence than the training data supports.
+**An unknown/never-seen `subject` is NOT a validation error** - it is treated
+identically to cold start (`n_previous_marks == 0`, same warning), since
+`subject` is a free-text filter over the student's own marks, not a document
+that must already exist. Only `user_id` (must resolve to a real user) and
+`task_id` (if given, must resolve to a real task for that user/subject) are
+validated as "must already exist."
+
+**`GET /assessment-prediction/history/{user_id}?limit=20`** - that student's
+stored predictions, newest first, each including `actualMark`/`actualMarkRaw`
+once known (`null` until a matching mark is saved).
+
+**`GET /assessment-prediction/health`** - `{bundle_loaded, feature_set, model_version}`
+(or `{bundle_loaded: false, detail: "..."}` if the bundle file is missing).
+Never raises - a status check, not the predict path.
+
+### Error codes
+
+| Code | When |
+|---|---|
+| 422 | Malformed `user_id`/`task_id` (not a valid ObjectId string), invalid `assessment_kind`, invalid/missing `exam_type` when `assessment_kind == "exam"` |
+| 404 | No user found for `user_id`; `task_id` given but no matching task for that user/subject |
+| 503 | The joblib bundle file is missing (predict path only - `/health` never 503s) |
+
+A malformed request or missing document never reaches a 500 - only a genuine
+server-side bug would.
+
+### Journal -> OULAD `assessment_type` mapping (assumption, in config)
+
+| Journal | OULAD |
+|---|---|
+| `task` / `assignment` | `TMA` |
+| `quiz` | `CMA` |
+| `mid` / `final` / `lab` | `Exam` |
+
+This is a reasonable-but-arbitrary equivalence, not an official mapping -
+easy to change in `app/config/assessment_prediction_settings.py`.
+
+### Letter-grade -> 0-100 mapping (assumption, in config)
+
+`journal_constants.py` only has `LETTER_GRADE_POINTS` (GPA points, 0.7-4.0
+scale) and `parse_letter_grade()` (validates/normalizes the string, returns
+it unchanged or `None` - does NOT convert to a number). This is **my own
+estimate**, not an official university conversion table:
+
+| Grade | % | Grade | % | Grade | % | Grade | % |
+|---|---|---|---|---|---|---|---|
+| A+ | 95 | B+ | 77 | C+ | 62 | D+ | 47 |
+| A | 87 | B | 72 | C | 57 | D | 42 |
+| A- | 82 | B- | 67 | C- | 52 | D- | 37 |
+
+Note: `journal_constants.LETTER_GRADES` is missing `"D-"` even though
+`LETTER_GRADE_POINTS` and `FAIL_LETTER_GRADES` both have it - a pre-existing
+inconsistency in `journal_constants.py`, left as-is (not this task's job to
+fix). `FAIL_LETTER_GRADES` (the journal's own failing grades) and the
+model's `pass_mark` (40, from OULAD) are two different, uncalibrated scales
+- `below_pass_mark` in the response is informational only, not a claim that
+it matches the journal's own pass/fail definition.
+
+### What is stored (`assessment_predictions` collection)
+
+One upserted document per `(userId, assessmentRef, calendar day the
+prediction was made)`, so repeated same-day calls update one row instead of
+accumulating duplicates: `userId, subject, assessmentKind, assessmentRef,
+assessmentDate, features` (the exact dict fed to the model),
+`estimated, low, high, belowPassMark, modelVersion, createdAt`, plus
+`actualMark`/`actualMarkRaw`/`actualRecordedAt` (all `null` until a matching
+mark is later saved via `ExamModel.set_mark`/`TaskModel.set_mark`, at which
+point a small additive hook fills them in - see `actual_mark_hook.py`).
+
+Also stored, **store-only and never fed to the model**, a `journalSnapshot`
+dict of real journal signals for a future richer model (study minutes over
+the 14/30 days before the assessment, completed-session counts, engagement
+counts, the subject's assignment progress stage, deadline-pressure/low-study/
+overloaded flag counts, and the latest `learning_patterns` values). Built
+read-only from `learning_patterns.py`/`context_utils.py`'s existing
+functions; if anything in it fails, an empty `{}` is stored instead - it
+never breaks a prediction.
+
+### Assumption: previous-mark tie-break on the journal side
+
+Training breaks a tie between same-due-date assessments (for `prev_last`)
+by smallest `id_assessment` (OULAD's own row ordering). The journal has no
+such field, so the serving feature builder uses ascending MongoDB `_id`
+(ObjectId, monotonically increasing by creation time) as the closest
+available analogue - documented here since it's a genuine judgment call,
+not something stated anywhere else. It only affects `prev_last`; `prev_mean`
+and `prev_count` are unaffected by tie order (see
+`app/services/assessment_prediction/feature_builder.py`).
+
+## Limitations (serving layer)
+
+- The served model uses only previous marks + assessment type
+  (`journal_compatible`) - meaningfully weaker than the research-only
+  `full_oulad` model (see the accuracy table above).
+- Journal marks are self-reported by the student through the daily
+  check-in flow, not verified against an institutional record - possible
+  label noise the OULAD training data didn't have.
+- The conformal range is calibrated on OULAD, not on this journal's
+  students - treat it as a starting point, not a guarantee.
+- `below_pass_mark` is informational only (see the letter-grade section
+  above for why it's on a different scale than the journal's own
+  `FAIL_LETTER_GRADES`).
+- **Journal routes, including `/assessment-prediction`, are unauthenticated
+  project-wide: any caller who knows a `user_id` can read that user's
+  predictions and marks via `/history`.** This is an existing, project-wide
+  convention (no journal route has authentication), not something specific
+  to this feature - flagged here because this endpoint surfaces marks and
+  predicted scores, which is more sensitive than most journal data.
+- Retrain on real `assessment_predictions` data (predicted vs. actual mark
+  pairs) before claiming deployed accuracy - the bundle currently serving
+  was trained entirely on OULAD, a different population.
+- `actualMark` is not cleared if the underlying mark is later rolled back
+  (abandon/delete), so it can be stale label data.
+
+### Future work: NOT implemented
+
+- Using the prediction in at-risk alerts (`alerts.py` is untouched).
+- A gamification quest tied to beating the predicted range.
+- Comparing predicted vs. actual mark in the weekly reflection.
+- Any frontend display of predictions.
+- Collecting preparation-level/confidence questions in the daily journal
+  flow (the journal_compatible model has no such signal to use even if it
+  existed today).

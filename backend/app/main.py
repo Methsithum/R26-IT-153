@@ -20,6 +20,9 @@ from app.routes.journal.behavior import router as behavior_router
 # --- Career Prediction Engine component ---
 from app.routes.career_prediction.predict import router as career_router
 
+# --- Assessment Score Prediction component ---
+from app.routes.assessment_prediction.predict import router as assessment_prediction_router
+
 # --- Study Planner component (yours) ---
 from app.routes.study_planner.priority_routes import router as priority_router
 from app.routes.study_planner.explain_routes import router as explain_router
@@ -64,6 +67,9 @@ app.include_router(behavior_router)
 
 # Career Prediction Engine
 app.include_router(career_router)
+
+# Assessment Score Prediction
+app.include_router(assessment_prediction_router)
 
 # Study Planner
 app.include_router(priority_router)

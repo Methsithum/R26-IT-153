@@ -1,8 +1,12 @@
+import logging
+
 from app.config.database import db
 from app.services.journal.journal_constants import is_mark_check_due
 from app.services.time_utils import as_of_day, local_today_iso
 from bson import ObjectId
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 exam_collection = db["exams"]
 
@@ -141,6 +145,13 @@ class ExamModel:
             {"_id": ObjectId(exam_id)},
             {"$set": {"mark": mark, "last_mark_check": today, "updated_at": datetime.utcnow()}},
         )
+        try:
+            from app.services.assessment_prediction.actual_mark_hook import on_exam_mark_saved
+            exam_doc = ExamModel._serialize(exam_collection.find_one({"_id": ObjectId(exam_id)}))
+            if exam_doc:
+                await on_exam_mark_saved(exam_doc, mark)
+        except Exception:
+            logger.warning("assessment-prediction hook failed", exc_info=True)
 
     @staticmethod
     async def record_date_check(exam_id: str):
