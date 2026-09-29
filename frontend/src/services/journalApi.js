@@ -63,3 +63,8 @@ export async function fetchLeaderboard(limit = 10) {
   const { data } = await api.get("/leaderboard", { params: { limit } });
   return data;
 }
+
+export async function analyzeBehavior(userId) {
+  const { data } = await api.post("/behavior/analyze", { user_id: userId });
+  return data;
+}
