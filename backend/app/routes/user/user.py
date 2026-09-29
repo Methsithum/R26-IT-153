@@ -114,8 +114,7 @@ async def get_user_reflections(user_id: str):
     if not user:
         raise HTTPException(404, "User not found")
     weekly = await ReflectionModel.find_weekly_by_user(user_id)
-    semester = await ReflectionModel.find_semester_by_user(user_id)
-    return {"user_id": user_id, "weekly": weekly, "semester": semester}
+    return {"user_id": user_id, "weekly": weekly}
 
 
 @router.get("/{user_id}/gamification")

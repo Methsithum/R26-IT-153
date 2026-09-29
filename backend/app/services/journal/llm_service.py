@@ -244,25 +244,18 @@ Rules:
         pass
     return fallback_daily_journal(qa_history, selected_activities)
 
-def fallback_period_journal(kind: str, answers: Dict[str, str] | None = None) -> Dict[str, Any]:
+def fallback_period_journal(answers: Dict[str, str] | None = None) -> Dict[str, Any]:
     highlights = []
     for question, answer in (answers or {}).items():
         text = str(answer or "").strip()
         if text:
             highlights.append(f"{question}: {text}")
-    if kind == "weekly":
-        narrative = (
-            "This week I paused long enough to look back at the campus days I actually lived, "
-            "not only the ones I meant to have.\n\n"
-            "The check-ins, the unfinished work, and the small wins are on the page now so next week "
-            "does not start from a blank head."
-        )
-    else:
-        narrative = (
-            "This semester I can see a shape in the work: the modules I kept returning to, "
-            "the weeks I showed up, and the places I still need to be kinder to myself. "
-            "Writing it down makes the rest of the term feel like a continuation instead of a restart."
-        )
+    narrative = (
+        "This week I paused long enough to look back at the campus days I actually lived, "
+        "not only the ones I meant to have.\n\n"
+        "The check-ins, the unfinished work, and the small wins are on the page now so next week "
+        "does not start from a blank head."
+    )
     return {"narrative": narrative, "highlights": highlights[:8]}
 
 
@@ -296,47 +289,8 @@ Week sessions:
         if narrative:
             return {
                 "narrative": narrative,
-                "highlights": highlights or fallback_period_journal("weekly", answers)["highlights"],
+                "highlights": highlights or fallback_period_journal(answers)["highlights"],
             }
     except Exception:
         pass
-    return fallback_period_journal("weekly", answers)
-
-
-async def generate_semester_summary(
-    user_name: str,
-    semester_data: str,
-    answers: Dict[str, str] | None = None,
-) -> Dict[str, Any]:
-    prompt = f"""
-You are writing a semester reflection letter for student {user_name}.
-Return JSON only:
-{{
-  "narrative": "4-7 first-person sentences. A letter to themselves about the term so far: workload, consistency, growth, what still needs care. Never mention XP, games, or the app.",
-  "highlights": ["4 to 8 short recap bullets"]
-}}
-
-Semester data:
-{semester_data}
-
-Reflection answers:
-{json.dumps(answers or {}, default=str)}
-"""
-    try:
-        resp = await client.chat.completions.create(
-            model=MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-            temperature=0.7,
-        )
-        data = json.loads(resp.choices[0].message.content)
-        narrative = str(data.get("narrative") or "").strip()
-        highlights = [str(item).strip() for item in (data.get("highlights") or []) if str(item).strip()]
-        if narrative:
-            return {
-                "narrative": narrative,
-                "highlights": highlights or fallback_period_journal("semester", answers)["highlights"],
-            }
-    except Exception:
-        pass
-    return fallback_period_journal("semester", answers)
+    return fallback_period_journal(answers)
