@@ -53,3 +53,13 @@ export async function finishDailyRun({ sessionId, xpEarned, score }) {
   });
   return data;
 }
+
+export async function fetchGamificationSummary(userId) {
+  const { data } = await api.get(`/gamification/${userId}`);
+  return data;
+}
+
+export async function analyzeBehavior(userId) {
+  const { data } = await api.post("/behavior/analyze", { user_id: userId });
+  return data;
+}
