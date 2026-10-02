@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { BarChart3, Database, Gamepad2, Siren, HelpCircle, Brain } from "lucide-react";
 import { useGameStore } from "../../Game/state/GameStateManager";
 import {
@@ -9,7 +10,7 @@ import {
   fetchQuestionBank,
   simulateGamification,
 } from "../../services/journalApi";
-import { LearningStyleCard } from "./JournalHome";
+import LearningStyleCard from "./LearningStyleCard";
 import { LineTrendChart, BarDistributionChart, RadialGauge } from "../../Components/charts/SvgCharts";
 
 const SUB_TABS = [
@@ -23,11 +24,45 @@ const SUB_TABS = [
 
 function SectionCard({ title, subtitle, children }) {
   return (
-    <div className="rounded-2xl border border-brand-100 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-3.5">
-      <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">{title}</div>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -2 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className="rounded-2xl border border-brand-100 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-4 shadow-sm hover:shadow-lg hover:shadow-brand-100/60 dark:hover:shadow-none"
+    >
+      <div className="flex items-baseline justify-between gap-2">
+        <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">{title}</div>
+      </div>
       {subtitle && <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p>}
       <div className="mt-3">{children}</div>
-    </div>
+    </motion.div>
+  );
+}
+
+function StatCard({ icon, value, label, hint }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.92 }}
+      animate={{ opacity: 1, scale: 1 }}
+      whileHover={{ scale: 1.03, y: -2 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      className="rounded-2xl border border-brand-200/70 dark:border-brand-400/30 bg-gradient-to-br from-brand-50 to-pink-50 dark:from-brand-700/20 dark:to-pink-500/10 px-3.5 py-3.5 shadow-sm hover:shadow-md"
+    >
+      <div className="flex items-center gap-2">
+        <span className="text-base leading-none">{icon}</span>
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-brand-500/80 dark:text-brand-300/80">{label}</div>
+      </div>
+      <motion.div
+        key={String(value)}
+        initial={{ opacity: 0.4 }}
+        animate={{ opacity: 1 }}
+        className="mt-1.5 text-2xl font-black tabular-nums text-brand-700 dark:text-brand-200"
+      >
+        {value}
+      </motion.div>
+      {hint && <div className="mt-0.5 text-[11px] text-slate-400">{hint}</div>}
+    </motion.div>
   );
 }
 
@@ -64,21 +99,15 @@ function StudyInsightsTab({ userId }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-2">
-        <SectionCard title="Journals">
-          <div className="text-2xl font-bold text-brand-600">{data.total_completed_journals}</div>
-          <div className="text-[11px] text-slate-400">
-            {data.on_time_journals} on-time · {data.catchup_journals} catch-up
-          </div>
-        </SectionCard>
-        <SectionCard title="Avg study / day">
-          <div className="text-2xl font-bold text-brand-600">{data.study_duration.average_minutes}m</div>
-          <div className="text-[11px] text-slate-400">trend: {data.study_duration.trend}</div>
-        </SectionCard>
-        <SectionCard title="Avg XP / day">
-          <div className="text-2xl font-bold text-brand-600">{data.xp_earned.average_xp}</div>
-          <div className="text-[11px] text-slate-400">trend: {data.xp_earned.trend}</div>
-        </SectionCard>
+      <div className="grid grid-cols-3 gap-2.5">
+        <StatCard
+          icon="📔"
+          label="Journals"
+          value={data.total_completed_journals}
+          hint={`${data.on_time_journals} on-time · ${data.catchup_journals} catch-up`}
+        />
+        <StatCard icon="⏱️" label="Avg study / day" value={`${data.study_duration.average_minutes}m`} hint={`trend: ${data.study_duration.trend}`} />
+        <StatCard icon="⚡" label="Avg XP / day" value={data.xp_earned.average_xp} hint={`trend: ${data.xp_earned.trend}`} />
       </div>
 
       <SectionCard title="Study duration over time" subtitle="Minutes per completed journal, in order">
@@ -274,16 +303,10 @@ function GamificationSimulatorTab() {
 
       {status === "ready" && result && (
         <>
-          <div className="grid grid-cols-3 gap-2">
-            <SectionCard title="Final XP">
-              <div className="text-2xl font-bold text-brand-600">{result.final_total_xp}</div>
-            </SectionCard>
-            <SectionCard title="Current streak">
-              <div className="text-2xl font-bold text-brand-600">{result.final_current_streak}</div>
-            </SectionCard>
-            <SectionCard title="Longest streak">
-              <div className="text-2xl font-bold text-brand-600">{result.final_longest_streak}</div>
-            </SectionCard>
+          <div className="grid grid-cols-3 gap-2.5">
+            <StatCard icon="⚡" label="Final XP" value={result.final_total_xp} />
+            <StatCard icon="🔥" label="Current streak" value={result.final_current_streak} />
+            <StatCard icon="🏆" label="Longest streak" value={result.final_longest_streak} />
           </div>
           <SectionCard title="XP over the simulated plan">
             <LineTrendChart series={result.timeline} valueKey="total_xp" />
@@ -435,22 +458,36 @@ export default function AnalyticsContent() {
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap gap-1.5">
+      <h2 className="font-display text-xl font-bold mb-0.5 text-slate-800 dark:text-white">Analytics</h2>
+      <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+        A read-only look at your own study patterns, data quality, and the rules behind your journal's alerts and badges.
+      </p>
+
+      <div className="mb-4 flex flex-wrap gap-1.5 rounded-2xl bg-brand-50/60 dark:bg-white/5 p-1.5 ring-1 ring-brand-100/70 dark:ring-white/10">
         {SUB_TABS.map((t) => {
           const Icon = t.icon;
           const active = subTab === t.id;
           return (
-            <button
+            <motion.button
               key={t.id}
               type="button"
               onClick={() => setSubTab(t.id)}
-              className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[12px] font-medium transition-all ${
-                active ? "bg-gradient-to-r from-brand-500 to-brand-400 text-white shadow-playful" : "bg-brand-50 text-brand-600 hover:bg-brand-100"
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.97 }}
+              className={`relative flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[12px] font-medium transition-colors ${
+                active ? "text-white shadow-playful" : "text-brand-600 hover:bg-white/70 dark:hover:bg-white/10"
               }`}
             >
-              <Icon size={13} strokeWidth={2.3} />
-              {t.label}
-            </button>
+              {active && (
+                <motion.span
+                  layoutId="analytics-subtab-pill"
+                  className="absolute inset-0 rounded-xl bg-gradient-to-r from-brand-500 to-brand-400"
+                  transition={{ type: "spring", stiffness: 400, damping: 32 }}
+                />
+              )}
+              <Icon size={13} strokeWidth={2.3} className="relative z-10" />
+              <span className="relative z-10">{t.label}</span>
+            </motion.button>
           );
         })}
       </div>
@@ -458,14 +495,22 @@ export default function AnalyticsContent() {
       {!userId ? (
         <p className="text-xs text-slate-400">Sign in to see your analytics.</p>
       ) : (
-        <>
-          {subTab === "insights" && <StudyInsightsTab userId={userId} />}
-          {subTab === "quality" && <DataQualityTab userId={userId} />}
-          {subTab === "behavior" && <BehaviorAnalysisTab />}
-          {subTab === "simulator" && <GamificationSimulatorTab />}
-          {subTab === "alerts" && <AlertRulesExplorerTab userId={userId} />}
-          {subTab === "questions" && <QuestionBankExplorerTab />}
-        </>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={subTab}
+            initial={{ opacity: 0, x: 8 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -8 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+          >
+            {subTab === "insights" && <StudyInsightsTab userId={userId} />}
+            {subTab === "quality" && <DataQualityTab userId={userId} />}
+            {subTab === "behavior" && <BehaviorAnalysisTab />}
+            {subTab === "simulator" && <GamificationSimulatorTab />}
+            {subTab === "alerts" && <AlertRulesExplorerTab userId={userId} />}
+            {subTab === "questions" && <QuestionBankExplorerTab />}
+          </motion.div>
+        </AnimatePresence>
       )}
     </div>
   );
