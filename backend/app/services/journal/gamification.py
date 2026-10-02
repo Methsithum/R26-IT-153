@@ -201,6 +201,22 @@ def _completed_dates(sessions: List[Dict]) -> List[date]:
     )
 
 
+def _on_time_dates(sessions: List[Dict]) -> List[date]:
+    """Dates of journals completed on their due day. Catch-up journals (for a
+    missed past date) count toward history, XP and journal-count badges, but
+    never toward the streak."""
+    return sorted(
+        {
+            day
+            for session in (sessions or [])
+            if session
+            and session.get("completed")
+            and not session.get("is_catchup")
+            and (day := to_local_date(session.get("date")))
+        }
+    )
+
+
 def _streaks_from_dates(days: List[date], today: date | None = None) -> Tuple[int, int]:
     if not days:
         return 0, 0
@@ -266,15 +282,25 @@ async def reconcile_user_progress(
     if tasks is None:
         tasks = await TaskModel.find_by_user(user["id"])
     days = _completed_dates(sessions)
-    current_streak, longest_streak = _streaks_from_dates(days)
+    on_time_days = _on_time_dates(sessions)
+    current_streak, longest_streak = _streaks_from_dates(on_time_days)
     xp = int(user.get("total_xp") or 0) if total_xp is None else max(0, int(total_xp))
-    badges = earned_badge_keys(
+    newly_earned = earned_badge_keys(
         completed_journals=_count_completed_journals(sessions),
         current_streak=current_streak,
         longest_streak=longest_streak,
         total_xp=xp,
         completed_tasks=_count_completed_tasks(tasks),
     )
+    previous_badges = list(user.get("badges") or [])
+    # A streak badge, once earned, is never revoked just because switching to
+    # on-time-only streak dates recomputes a lower current/longest streak for
+    # historical data. Other badge families (journal count, XP, tasks) still
+    # rebuild from scratch so legitimate reverts (e.g. deleting a journal) work.
+    kept_streak_badges = [
+        key for key in previous_badges if key in STREAK_MILESTONES.values() and key not in newly_earned
+    ]
+    badges = newly_earned + kept_streak_badges
     last_date = datetime.combine(days[-1], time.min) if days else None
     patch = {
         "total_xp": xp,
@@ -283,7 +309,6 @@ async def reconcile_user_progress(
         "badges": badges,
         "last_journal_date": last_date,
     }
-    previous_badges = list(user.get("badges") or [])
     changed = (
         int(user.get("current_streak") or 0) != current_streak
         or int(user.get("longest_streak") or 0) != longest_streak

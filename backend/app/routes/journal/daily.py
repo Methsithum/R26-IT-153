@@ -43,7 +43,7 @@ import re
 from datetime import datetime, time
 from typing import Any, Dict, List, Optional
 
-from app.services.time_utils import as_of_day, calendar_datetime, local_today_iso, to_local_date
+from app.services.time_utils import as_of_day, calendar_datetime, local_today, local_today_iso, to_local_date
 
 router = APIRouter(prefix="/daily", tags=["daily"])
 logger = logging.getLogger(__name__)
@@ -957,6 +957,7 @@ async def start_daily_session(req: StartDailyRequest):
         "confirmed_assignment_marks": False,
         "qa_history": [],
         "completed": False,
+        "is_catchup": play_day != local_today(),
         "journal_entry": None,
         "record_snapshot": _record_snapshot(tasks, exams),
         **_pending_fields(question),

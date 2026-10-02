@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  BarChart3,
   BookOpen,
   CalendarDays,
   ChevronLeft,
@@ -26,6 +27,7 @@ import DiscardTodayButton from "./DiscardTodayButton";
 import CampusMapsPage from "./CampusMapsPage";
 import ReflectionsPage from "./ReflectionsPage";
 import JournalShell from "./JournalShell";
+import AnalyticsContent from "./AnalyticsPage";
 
 const TABS = [
   { id: "open", label: "Open Journal", icon: BookOpen },
@@ -35,6 +37,7 @@ const TABS = [
   { id: "reflect", label: "Reflections", icon: Feather },
   { id: "details", label: "Game Details", icon: Sparkles },
   { id: "stats", label: "Character Stats", icon: UserRound },
+  { id: "analytics", label: "Analytics", icon: BarChart3 },
 ];
 
 function Page({ children }) {
@@ -715,7 +718,7 @@ const BEHAVIOR_TONE_CLASSES = {
   high: "border-high-500/25 bg-high-50 dark:bg-high-500/10 text-high-600",
 };
 
-function LearningStyleCard() {
+export function LearningStyleCard() {
   const userId = useGameStore((s) => s.userId);
   const [result, setResult] = useState(null);
   const [status, setStatus] = useState("idle");
@@ -922,6 +925,7 @@ const TAB_CONTENT = {
   recent: RecentJournalsContent,
   details: GameDetailsContent,
   stats: CharacterStatsContent,
+  analytics: AnalyticsContent,
 };
 
 export default function JournalHome() {
