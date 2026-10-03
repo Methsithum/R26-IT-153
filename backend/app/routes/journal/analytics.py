@@ -1,13 +1,8 @@
 from fastapi import APIRouter, HTTPException, Query
-from typing import Optional
 
 from app.models.user.user import UserModel
-from app.schemas.journal.analytics import GamificationSimulatorRequest
-from app.services.journal.analytics.alert_rules import evaluate_alert_rules_for_user, get_alert_rule_catalog
-from app.services.journal.analytics.data_quality import build_data_quality_report
-from app.services.journal.analytics.insights import build_study_insights
-from app.services.journal.analytics.question_catalog import list_question_catalog
-from app.services.journal.analytics.simulator import simulate_gamification
+from app.services.journal.analytics.behavior_latest import get_latest_behavior_analysis
+from app.services.journal.analytics.insights import ALLOWED_WINDOWS, InvalidWindowError, build_learning_patterns
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -19,43 +14,18 @@ async def _require_user(user_id: str) -> dict:
     return user
 
 
-@router.get("/insights/{user_id}")
-async def study_insights(user_id: str):
+@router.get("/learning-patterns/{user_id}")
+async def learning_patterns(user_id: str, window: int = Query(30)):
+    if window not in ALLOWED_WINDOWS:
+        raise HTTPException(422, f"window must be one of {ALLOWED_WINDOWS}")
     await _require_user(user_id)
-    return await build_study_insights(user_id)
+    try:
+        return await build_learning_patterns(user_id, window_days=window)
+    except InvalidWindowError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
-@router.get("/data-quality/{user_id}")
-async def data_quality(user_id: str):
+@router.get("/behavior-latest/{user_id}")
+async def behavior_latest(user_id: str):
     await _require_user(user_id)
-    return await build_data_quality_report(user_id)
-
-
-@router.get("/alert-rules")
-async def alert_rule_catalog():
-    return {"rules": await get_alert_rule_catalog()}
-
-
-@router.get("/alert-rules/{user_id}")
-async def alert_rules_for_user(user_id: str):
-    await _require_user(user_id)
-    return await evaluate_alert_rules_for_user(user_id)
-
-
-@router.get("/question-bank")
-async def question_bank(category: Optional[str] = Query(None), activity: Optional[str] = Query(None)):
-    return list_question_catalog(category=category, activity=activity)
-
-
-@router.post("/gamification-simulator")
-async def gamification_simulator(req: GamificationSimulatorRequest):
-    if len(req.plan) > 90:
-        raise HTTPException(400, "Plan cannot exceed 90 simulated days")
-    plan = [day.model_dump() for day in req.plan]
-    return simulate_gamification(
-        plan,
-        starting_total_xp=req.starting_total_xp,
-        starting_badges=req.starting_badges,
-        starting_completed_journals=req.starting_completed_journals,
-        starting_completed_tasks=req.starting_completed_tasks,
-    )
+    return await get_latest_behavior_analysis(user_id)

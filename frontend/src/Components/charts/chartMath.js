@@ -27,3 +27,24 @@ export function niceNumber(value, decimals = 1) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   return Number(value).toFixed(decimals);
 }
+
+function median(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+// Theil-Sen slope + intercept for a scatter of {x, y} points - median of
+// pairwise slopes, then intercept as the median residual.
+export function theilSenLineFromPoints(points) {
+  const slopes = [];
+  for (let i = 0; i < points.length; i++) {
+    for (let j = i + 1; j < points.length; j++) {
+      const dx = points[j].x - points[i].x;
+      if (dx !== 0) slopes.push((points[j].y - points[i].y) / dx);
+    }
+  }
+  const slope = slopes.length ? median(slopes) : 0;
+  const intercept = median(points.map((p) => p.y - slope * p.x));
+  return { slope, intercept };
+}
