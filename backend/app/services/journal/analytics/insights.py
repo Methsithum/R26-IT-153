@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
 from app.models.journal.daily_session import DailySessionModel
+from app.models.user.user import UserModel
 from app.services.journal.gamification import _on_time_dates, _streaks_from_dates
 from app.services.time_utils import LOCAL_TZ, local_today, to_local_date
 
@@ -119,6 +120,13 @@ async def build_learning_patterns(user_id: str, window_days: int = 30) -> Dict:
     all_sessions = await DailySessionModel.find_user_sessions(user_id)
     today = local_today()
     window_start = today - timedelta(days=window_days - 1)
+
+    user = await UserModel.find_by_id(user_id)
+    account_created = to_local_date(user.get("created_at")) if user else None
+    account_age_days = (today - account_created).days + 1 if account_created else None
+    # Don't let a brand-new account's small window get judged against the full
+    # window_days - cap the "days observed" at how long the account has existed.
+    effective_window_days = min(window_days, account_age_days) if account_age_days else window_days
 
     completed = _completed(all_sessions)
     in_window = [s for s in completed if window_start <= to_local_date(s["date"]) <= today]
@@ -315,6 +323,8 @@ async def build_learning_patterns(user_id: str, window_days: int = 30) -> Dict:
             "n_sessions": n_sessions,
             "n_active_days": n_active_days,
             "window_days": window_days,
+            "account_age_days": account_age_days,
+            "effective_window_days": effective_window_days,
             "generated_at": datetime.utcnow().isoformat() + "Z",
             "xp_note": "XP values include all rewards recorded for the journal (journal Q&A plus any campus mini-game run), not only the per-journal check-in amount.",
         },

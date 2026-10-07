@@ -28,7 +28,6 @@ import CampusMapsPage from "./CampusMapsPage";
 import ReflectionsPage from "./ReflectionsPage";
 import JournalShell from "./JournalShell";
 import AnalyticsContent from "./AnalyticsPage";
-import LearningStyleCard from "./LearningStyleCard";
 
 const TABS = [
   { id: "open", label: "Open Journal", icon: BookOpen },
@@ -814,12 +813,6 @@ function CharacterStatsContent() {
           <NextBadgeProgress nextBadge={summary.next_badge} />
         </div>
       )}
-
-      <div className="mb-6">
-        <LearningStyleCard />
-      </div>
-
-      <div className="my-5 border-t border-brand-100 dark:border-white/10" />
 
       <div className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">Achievements</div>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">

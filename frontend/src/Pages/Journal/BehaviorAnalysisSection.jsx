@@ -147,7 +147,11 @@ export default function BehaviorAnalysisSection({ userId, demoMode }) {
               />
             </div>
             <div className="flex items-center justify-center">
-              <RadialGauge value={snapshot.meta.n_active_days} max={14} label="active days of 14" />
+              <RadialGauge
+                value={snapshot.meta.n_active_days}
+                max={snapshot.meta.effective_window_days || 14}
+                label={`active days of ${snapshot.meta.effective_window_days || 14}`}
+              />
             </div>
           </div>
         </div>

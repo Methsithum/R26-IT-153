@@ -5,6 +5,7 @@ from openai import AsyncOpenAI
 from app.config.settings import settings
 from app.models.journal.daily_session import DailySessionModel
 from app.models.journal.task import TaskModel
+from app.models.user.user import UserModel
 from app.services.journal.learning_patterns import aggregate_learning_patterns
 
 client = AsyncOpenAI(api_key=settings.openai_api_key)
@@ -48,6 +49,7 @@ Analyze the structured activity snapshot and choose EXACTLY ONE category from:
 Rules:
 - Assign one category only.
 - Provide reasoning in 2-3 sentences.
+- "observation_window_days" is how many days this account has actually existed (capped at 14), NOT a fixed 14-day period. "activity_frequency" is already computed against that real window. If the account is only a few days old, judge activity relative to observation_window_days, not against a full 14-day expectation - do not call a new account "Low Engagement" just because its totals look small on an absolute scale.
 - This classification is ONLY for analytics/reporting/insights. It MUST NOT influence question generation.
 
 Return JSON only in this format:
@@ -77,6 +79,16 @@ async def build_activity_snapshot(user_id: str) -> Dict[str, Any]:
             recent_sessions.append(session)
         if session_date and (last_activity_date is None or session_date > last_activity_date):
             last_activity_date = session_date
+
+    user = await UserModel.find_by_id(user_id)
+    account_created = _parse_datetime(user.get("created_at")) if user else None
+    if account_created and account_created.tzinfo is None:
+        account_created = account_created.replace(tzinfo=timezone.utc)
+    account_age_days = (now - account_created).days + 1 if account_created else None
+    # Don't divide by a fixed 14-day window for an account that hasn't existed
+    # that long - a brand-new user with 1 session out of 1 possible day is not
+    # "low engagement", they just haven't had 14 days yet.
+    observation_window_days = min(14, account_age_days) if account_age_days else 14
 
     total_study_minutes = sum(s.get("study_duration_minutes", 0) or 0 for s in recent_sessions)
     avg_study_hours = round((total_study_minutes / max(len(recent_sessions), 1)) / 60, 2) if recent_sessions else 0
@@ -121,10 +133,12 @@ async def build_activity_snapshot(user_id: str) -> Dict[str, Any]:
     patterns = await aggregate_learning_patterns(user_id)
 
     return {
+        "account_age_days": account_age_days,
+        "observation_window_days": observation_window_days,
         "study_hours_avg_per_day": avg_study_hours,
         "study_hours_last_14_days": round(total_study_minutes / 60, 2),
         "total_sessions_last_14_days": len(recent_sessions),
-        "activity_frequency": round(len(recent_sessions) / 14, 2),
+        "activity_frequency": round(len(recent_sessions) / observation_window_days, 2),
         "assignment_progress": assignment_progress,
         "deadline_proximity": {
             "nearest_deadline_days": nearest_deadline,
