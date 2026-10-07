@@ -20,6 +20,39 @@ const TONE_CLASSES = {
   high: "border-high-500/25 bg-high-50 dark:bg-high-500/10 text-high-600",
 };
 
+function snapshotRows(snap) {
+  if (!snap) return [];
+  const dp = snap.deadline_proximity || {};
+  const tc = snap.task_completion_history || {};
+  const ed = snap.engagement_distribution || {};
+  const ap = snap.assignment_progress || {};
+  return [
+    {
+      label: "Observation window",
+      value:
+        snap.account_age_days != null
+          ? `${snap.observation_window_days} days (account is ${snap.account_age_days} days old)`
+          : `${snap.observation_window_days} days`,
+    },
+    { label: "Avg study hours / day", value: `${snap.study_hours_avg_per_day ?? 0} h` },
+    { label: "Total study hours (window)", value: `${snap.study_hours_last_14_days ?? 0} h` },
+    { label: "Total journal sessions (window)", value: snap.total_sessions_last_14_days ?? 0 },
+    { label: "Activity frequency", value: `${Math.round((snap.activity_frequency ?? 0) * 100)}% of window days` },
+    { label: "Engagement trend", value: snap.engagement_trend || "insufficient_data" },
+    { label: "Engagement (high / medium / low)", value: `${ed.high ?? 0} / ${ed.medium ?? 0} / ${ed.low ?? 0}` },
+    {
+      label: "Assignment progress",
+      value: Object.keys(ap).length ? Object.entries(ap).map(([k, v]) => `${k}: ${v}`).join(", ") : "none recorded",
+    },
+    { label: "Tasks completed", value: `${tc.completed_tasks ?? 0} / ${tc.total_tasks ?? 0}` },
+    {
+      label: "Deadline proximity",
+      value: `nearest ${dp.nearest_deadline_days ?? "—"}d · due≤3d: ${dp.due_within_3_days ?? 0} · due≤7d: ${dp.due_within_7_days ?? 0} · overdue: ${dp.overdue ?? 0}`,
+    },
+    { label: "Last activity", value: snap.last_activity_date ? new Date(snap.last_activity_date).toLocaleString() : "—" },
+  ];
+}
+
 export default function BehaviorAnalysisSection({ userId, demoMode }) {
   const [latest, setLatest] = useState(null);
   const [latestStatus, setLatestStatus] = useState("loading");
@@ -61,6 +94,7 @@ export default function BehaviorAnalysisSection({ userId, demoMode }) {
         reasoning: result.reasoning,
         created_at: result.generatedAt,
         generated_at: result.generatedAt,
+        snapshotOfActivityData: result.snapshotOfActivityData,
       });
       setRunStatus("ready");
     } catch {
@@ -103,6 +137,24 @@ export default function BehaviorAnalysisSection({ userId, demoMode }) {
           <p className="text-sm text-slate-400">No behaviour analysis has been run yet.</p>
         )}
       </motion.div>
+
+      {/* variables used */}
+      {latest?.available && latest.snapshotOfActivityData && (
+        <div className="rounded-3xl border border-black/5 dark:border-white/5 bg-white dark:bg-[#1a1530] px-4 py-4 shadow-[0_4px_14px_-4px_rgb(23_15_46_/_0.08)]">
+          <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">Variables used for this verdict</div>
+          <p className="mt-0.5 text-xs text-slate-400">
+            Not compared against other students - the AI reads these numbers from your own activity and picks one of the 5 archetypes below.
+          </p>
+          <ul className="mt-3 space-y-1.5">
+            {snapshotRows(latest.snapshotOfActivityData).map((row) => (
+              <li key={row.label} className="flex items-baseline justify-between gap-3 text-xs">
+                <span className="text-slate-400">{row.label}</span>
+                <span className="text-right font-medium text-slate-700 dark:text-slate-200">{row.value}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* archetype row */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">

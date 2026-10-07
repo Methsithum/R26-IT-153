@@ -179,5 +179,19 @@ export function buildDemoBehaviorLatest() {
     created_at: new Date().toISOString(),
     generated_at: new Date().toISOString(),
     demo: true,
+    snapshotOfActivityData: {
+      account_age_days: 21,
+      observation_window_days: 14,
+      study_hours_avg_per_day: 1.4,
+      study_hours_last_14_days: 9.8,
+      total_sessions_last_14_days: 7,
+      activity_frequency: 0.5,
+      assignment_progress: { in_progress: 2, completed: 3 },
+      deadline_proximity: { nearest_deadline_days: 4, due_within_3_days: 0, due_within_7_days: 2, overdue: 0 },
+      task_completion_history: { total_tasks: 6, completed_tasks: 3 },
+      engagement_trend: "stable",
+      engagement_distribution: { high: 4, medium: 2, low: 1 },
+      last_activity_date: new Date().toISOString(),
+    },
   };
 }
