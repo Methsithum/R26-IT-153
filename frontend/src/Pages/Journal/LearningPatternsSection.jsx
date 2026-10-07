@@ -89,10 +89,6 @@ export default function LearningPatternsSection({ userId, windowDays, demoMode }
     return <p className="text-xs text-slate-400">Learning patterns aren't available right now.</p>;
   }
 
-  const totalMinutes = data.daily_series.reduce((sum, d) => sum + d.study_minutes, 0);
-  const totalXp = data.daily_series.reduce((sum, d) => sum + d.xp, 0);
-  const totalSessions = data.daily_series.reduce((sum, d) => sum + d.sessions, 0) || 1;
-  const minutesRecorded = data.recordedness.study_minutes_recorded_share > 0;
   const engagementRecorded = data.engagement_distribution.any_recorded;
 
   return (
@@ -102,17 +98,9 @@ export default function LearningPatternsSection({ userId, windowDays, demoMode }
       )}
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         <KpiTile icon="📔" label="Journals" value={data.meta.n_sessions} color={BRAND[500]} sparkValues={data.daily_series.map((d) => d.sessions)} />
         <KpiTile icon="📅" label="Active days" value={data.meta.n_active_days} color={BRAND[500]} />
-        <KpiTile
-          icon="⏱️"
-          label="Study minutes"
-          value={minutesRecorded ? totalMinutes : "Not recorded"}
-          color={PINK}
-          sparkValues={minutesRecorded ? data.daily_series.map((d) => d.study_minutes) : null}
-        />
-        <KpiTile icon="⚡" label="Avg XP / journal" value={Math.round(totalXp / totalSessions)} color={PINK} sparkValues={data.daily_series.map((d) => d.xp)} />
         <KpiTile icon="🔥" label="Current streak" value={data.calendar.current_streak} hint="on-time days only" color={BRAND[500]} />
         <KpiTile icon="🏆" label="Longest streak" value={data.calendar.longest_streak} hint="on-time days only" color={BRAND[500]} />
       </div>

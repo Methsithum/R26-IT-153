@@ -218,14 +218,23 @@ async def build_learning_patterns(user_id: str, window_days: int = 30) -> Dict:
     }
 
     # --- subject effort (top 8 + other) ---
+    # A session can cover several subjects (e.g. a lecture subject and an
+    # assignment subject on the same day) - today_subjects holds all of them,
+    # while subject_focus is just whichever one was answered last. Crediting
+    # only subject_focus would silently drop every other subject from a
+    # multi-subject session.
     subject_minutes: Dict[str, int] = {}
     subject_journals: Dict[str, int] = {}
     for s in in_window:
-        subj = s.get("subject_focus")
-        if not subj:
+        subjects = s.get("today_subjects") or ([s["subject_focus"]] if s.get("subject_focus") else [])
+        if not subjects:
             continue
-        subject_minutes[subj] = subject_minutes.get(subj, 0) + int(s.get("study_duration_minutes") or 0)
-        subject_journals[subj] = subject_journals.get(subj, 0) + 1
+        minutes = int(s.get("study_duration_minutes") or 0)
+        for subj in subjects:
+            if not subj:
+                continue
+            subject_minutes[subj] = subject_minutes.get(subj, 0) + minutes
+            subject_journals[subj] = subject_journals.get(subj, 0) + 1
     minutes_recorded = any(v > 0 for v in subject_minutes.values())
     sort_key = subject_minutes if minutes_recorded else subject_journals
     ordered_subjects = sorted(sort_key.keys(), key=lambda k: sort_key[k], reverse=True)
