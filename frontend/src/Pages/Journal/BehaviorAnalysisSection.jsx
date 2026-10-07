@@ -236,6 +236,7 @@ export default function BehaviorAnalysisSection({ userId, demoMode }) {
         created_at: result.generatedAt,
         generated_at: result.generatedAt,
         snapshotOfActivityData: result.snapshotOfActivityData,
+        nextSteps: result.nextSteps,
       });
       setRunStatus("ready");
     } catch {
@@ -248,6 +249,9 @@ export default function BehaviorAnalysisSection({ userId, demoMode }) {
   }
 
   const current = latest?.available ? ARCHETYPES.find((a) => a.key === latest.behaviorCategory) : null;
+  const aiTips = latest?.available && Array.isArray(latest.nextSteps) ? latest.nextSteps : [];
+  const tipsFromAi = aiTips.length > 0;
+  const tips = tipsFromAi ? aiTips : latest?.available ? actionTips(latest.behaviorCategory, latest.snapshotOfActivityData) : [];
   const noRecordedActivity = snapshot && snapshot.recordedness.study_minutes_recorded_share === 0 && !snapshot.engagement_distribution.any_recorded;
 
   return (
@@ -280,14 +284,23 @@ export default function BehaviorAnalysisSection({ userId, demoMode }) {
       </motion.div>
 
       {/* next steps */}
-      {latest?.available && actionTips(latest.behaviorCategory, latest.snapshotOfActivityData).length > 0 && (
+      {tips.length > 0 && (
         <div className="rounded-3xl border border-black/5 dark:border-white/5 bg-white dark:bg-[#1a1530] px-4 py-4 shadow-[0_4px_14px_-4px_rgb(23_15_46_/_0.08)]">
-          <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">What you can do next</div>
-          <p className="mt-0.5 text-xs text-slate-400">Suggestions matched to your pattern and your current deadlines.</p>
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            {actionTips(latest.behaviorCategory, latest.snapshotOfActivityData).map((tip, i) => (
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">What you can do next</div>
+            <span className="rounded-full bg-brand-50 dark:bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-brand-600 dark:text-brand-300">
+              {tipsFromAi ? "✨ AI-suggested" : "Rule-based"}
+            </span>
+          </div>
+          <p className="mt-0.5 text-xs text-slate-400">
+            {tipsFromAi
+              ? "Generated with your verdict from the same activity numbers shown below."
+              : "Suggestions matched to your pattern and your current deadlines."}
+          </p>
+          <div className={`mt-3 grid grid-cols-1 gap-2.5 ${tips.length >= 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+            {tips.map((tip, i) => (
               <motion.div
-                key={tip.title}
+                key={`${i}-${tip.title}`}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: i * 0.08, ease: "easeOut" }}

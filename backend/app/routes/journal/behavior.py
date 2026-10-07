@@ -21,6 +21,7 @@ async def analyze_behavior_category(req: BehaviorAnalysisRequest):
         "studentId": req.user_id,
         "behaviorCategory": analysis["behaviorCategory"],
         "reasoning": analysis["reasoning"],
+        "nextSteps": analysis["nextSteps"],
         "timestamp": datetime.utcnow(),
         "snapshotOfActivityData": snapshot
     }
@@ -31,6 +32,7 @@ async def analyze_behavior_category(req: BehaviorAnalysisRequest):
         studentId=req.user_id,
         behaviorCategory=analysis["behaviorCategory"],
         reasoning=analysis["reasoning"],
+        nextSteps=analysis["nextSteps"],
         generatedAt=record["timestamp"],
         snapshotOfActivityData=snapshot
     )

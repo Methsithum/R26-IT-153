@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Dict, Any
+from typing import Dict, Any, List
 from datetime import datetime
 
 class BehaviorAnalysisRequest(BaseModel):
@@ -9,5 +9,6 @@ class BehaviorAnalysisResponse(BaseModel):
     studentId: str
     behaviorCategory: str
     reasoning: str
+    nextSteps: List[Dict[str, str]] = []
     generatedAt: datetime
     snapshotOfActivityData: Dict[str, Any]

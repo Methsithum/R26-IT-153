@@ -52,10 +52,22 @@ Rules:
 - "observation_window_days" is how many days this account has actually existed (capped at 14), NOT a fixed 14-day period. "activity_frequency" is already computed against that real window. If the account is only a few days old, judge activity relative to observation_window_days, not against a full 14-day expectation - do not call a new account "Low Engagement" just because its totals look small on an absolute scale.
 - This classification is ONLY for analytics/reporting/insights. It MUST NOT influence question generation.
 
+Next steps rules:
+- Give 2-3 concrete actions the student can take in the next few days, matched to the chosen category.
+- Ground every action in the snapshot. Only quote numbers that appear in it (e.g. nearest_deadline_days, overdue, not_started counts). Never invent deadlines, subjects, task names or numbers.
+- If the account is only a few days old, keep the tone encouraging and focus on building a daily journaling habit.
+- Put the most urgent action first (overdue work, deadlines within 3 days).
+- "title": at most 6 words. "text": one or two sentences, at most 30 words, addressed to the student as "you".
+- "icon": a single emoji that fits the action.
+- Be supportive and practical, never judgemental, and give no medical or mental-health advice.
+
 Return JSON only in this format:
 {{
   "behaviorCategory": "...",
-  "reasoning": "..."
+  "reasoning": "...",
+  "nextSteps": [
+    {{"icon": "...", "title": "...", "text": "..."}}
+  ]
 }}
 
 Activity snapshot:
@@ -156,7 +168,28 @@ async def build_activity_snapshot(user_id: str) -> Dict[str, Any]:
     }
 
 
-async def analyze_behavior(snapshot: Dict[str, Any]) -> Dict[str, str]:
+MAX_NEXT_STEPS = 3
+
+
+def _clean_next_steps(raw: Any) -> List[Dict[str, str]]:
+    if not isinstance(raw, list):
+        return []
+    steps = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or "").strip()
+        text = str(item.get("text") or "").strip()
+        if not title or not text:
+            continue
+        icon = str(item.get("icon") or "").strip()
+        steps.append({"icon": icon if 0 < len(icon) <= 8 else "💡", "title": title[:80], "text": text[:300]})
+        if len(steps) == MAX_NEXT_STEPS:
+            break
+    return steps
+
+
+async def analyze_behavior(snapshot: Dict[str, Any]) -> Dict[str, Any]:
     prompt = _build_behavior_prompt(snapshot)
     resp = await client.chat.completions.create(
         model=MODEL,
@@ -172,4 +205,8 @@ async def analyze_behavior(snapshot: Dict[str, Any]) -> Dict[str, str]:
         category = "Low Engagement Student"
         reasoning = reasoning or "The activity snapshot does not show consistent or high engagement signals."
 
-    return {"behaviorCategory": category, "reasoning": reasoning}
+    return {
+        "behaviorCategory": category,
+        "reasoning": reasoning,
+        "nextSteps": _clean_next_steps(data.get("nextSteps")),
+    }
