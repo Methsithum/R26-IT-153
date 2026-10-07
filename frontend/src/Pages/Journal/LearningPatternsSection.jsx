@@ -1,27 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { fetchLearningPatterns } from "../../services/journalApi";
 import { buildDemoLearningPatterns } from "../../Components/charts/demoData";
 import { useCountUp } from "../../Components/charts/useCountUp";
 import {
-  formatMinutes,
   formatNumber,
   mostActiveWeekdayCaption,
   subjectCaption,
-  trendCaption,
-  correlationCaption,
-  weekStartIso,
 } from "../../Components/charts/chartHelpers";
 import { BRAND, PINK } from "../../Components/charts/chartTheme";
 import ChartCard from "../../Components/charts/ChartCard";
 import BarChart from "../../Components/charts/BarChart";
-import Histogram from "../../Components/charts/Histogram";
-import LineAreaChart from "../../Components/charts/LineAreaChart";
-import CalendarHeatmap from "../../Components/charts/CalendarHeatmap";
-import ScatterPlot from "../../Components/charts/ScatterPlot";
 import DonutChart from "../../Components/charts/DonutChart";
 import Sparkline from "../../Components/charts/Sparkline";
-import ProgressBar from "../../Components/charts/ProgressBar";
 
 function KpiTile({ icon, label, value, suffix = "", hint, sparkValues, color }) {
   const isNumeric = typeof value === "number";
@@ -85,34 +76,6 @@ export default function LearningPatternsSection({ userId, windowDays, demoMode }
     };
   }, [userId, windowDays, demoMode]);
 
-  const weeklyOnTimeVsCatchup = useMemo(() => {
-    if (!data) return null;
-    const buckets = {};
-    for (const d of data.daily_series) {
-      const wk = weekStartIso(d.date);
-      buckets[wk] = buckets[wk] || { on_time: 0, catch_up: 0 };
-      if (d.timing === "on_time") buckets[wk].on_time += d.sessions;
-      else if (d.timing === "catch_up") buckets[wk].catch_up += d.sessions;
-    }
-    const weeks = Object.keys(buckets).sort();
-    return {
-      categories: weeks,
-      series: [
-        { key: "on_time", label: "On-time", color: BRAND[500], values: weeks.map((w) => buckets[w].on_time) },
-        { key: "catch_up", label: "Catch-up", color: BRAND[300], values: weeks.map((w) => buckets[w].catch_up) },
-      ],
-    };
-  }, [data]);
-
-  const xpMovingAverage = useMemo(() => {
-    if (!data) return [];
-    const xps = data.daily_series.map((d) => d.xp);
-    return xps.map((_, i) => {
-      const slice = xps.slice(Math.max(0, i - 2), i + 1);
-      return slice.reduce((a, b) => a + b, 0) / slice.length;
-    });
-  }, [data]);
-
   if (status === "loading") {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -131,9 +94,6 @@ export default function LearningPatternsSection({ userId, windowDays, demoMode }
   const totalSessions = data.daily_series.reduce((sum, d) => sum + d.sessions, 0) || 1;
   const minutesRecorded = data.recordedness.study_minutes_recorded_share > 0;
   const engagementRecorded = data.engagement_distribution.any_recorded;
-
-  const minutesSeries = data.daily_series.map((d) => ({ date: d.date, value: d.study_minutes }));
-  const anomalyDates = data.anomalies.items.map((a) => a.date);
 
   return (
     <div className="space-y-4">
@@ -157,49 +117,6 @@ export default function LearningPatternsSection({ userId, windowDays, demoMode }
         <KpiTile icon="🏆" label="Longest streak" value={data.calendar.longest_streak} hint="on-time days only" color={BRAND[500]} />
       </div>
 
-      {/* weekly minutes */}
-      <ChartCard
-        title="Weekly study minutes"
-        subtitle="Total minutes logged each week, with on-time vs catch-up journals below"
-        caption={minutesRecorded ? `${formatMinutes(totalMinutes)} total over ${data.meta.n_active_days} active days.` : undefined}
-        howCalculated="Sums study_duration_minutes across all completed journals in each calendar week (Monday start)."
-        emptyState={!minutesRecorded ? <EmptyNote>Study time is not recorded in these journals (all values are 0). Trends need recorded study time.</EmptyNote> : null}
-      >
-        <BarChart
-          categories={weeklyOnTimeVsCatchup.categories}
-          series={[{ key: "minutes", label: "Minutes", color: BRAND[500], values: data.weekly_aggregates.map((w) => w.total_minutes) }]}
-        />
-        <div className="mt-3 border-t border-brand-50 dark:border-white/10 pt-2">
-          <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">On-time vs catch-up journals</p>
-          <BarChart categories={weeklyOnTimeVsCatchup.categories} series={weeklyOnTimeVsCatchup.series} mode="stacked" height={70} valueLabels={false} showLegend />
-        </div>
-      </ChartCard>
-
-      {/* daily minutes trend */}
-      <ChartCard
-        title="Daily study minutes"
-        subtitle="Theil-Sen trend line, anomalies ringed"
-        caption={minutesRecorded ? trendCaption(data.trends.study_minutes) : undefined}
-        howCalculated={`Theil-Sen slope (median of pairwise slopes) + Mann-Kendall significance test, threshold |Z| >= ${data.trends.study_minutes.mann_kendall.threshold_z}. Needs at least 7 active days; you have ${data.meta.n_active_days}.`}
-        emptyState={!minutesRecorded ? <EmptyNote>Study time is not recorded in these journals (all values are 0). Trends need recorded study time.</EmptyNote> : null}
-      >
-        <LineAreaChart series={minutesSeries} color={BRAND[500]} trendSlope={data.trends.study_minutes.slope_per_day} anomalyDates={anomalyDates} />
-        {!data.anomalies.eligible && (
-          <p className="mt-1 text-[10px] text-slate-400">
-            Anomaly detection needs at least {data.anomalies.min_active_days_required} active days; you have {data.meta.n_active_days}.
-          </p>
-        )}
-      </ChartCard>
-
-      {/* calendar heatmap */}
-      <ChartCard
-        title="Journal calendar"
-        subtitle="Journal date - catch-up journals are placed on the day they describe, so this calendar shows journal coverage, not the day you played."
-        howCalculated="Each cell is a journal date in the window: on-time, catch-up (backfilled for a missed day), completed with unknown timing, or no journal."
-      >
-        <CalendarHeatmap cells={data.calendar.cells} />
-      </ChartCard>
-
       {/* weekday pattern */}
       <ChartCard
         title="Weekday pattern"
@@ -208,21 +125,6 @@ export default function LearningPatternsSection({ userId, windowDays, demoMode }
         howCalculated={`Shannon entropy of the weekday counts, normalized 0..1. ${data.weekday_distribution.normalized_entropy === null ? "Not enough spread yet to show a consistency score." : `Consistency: ${Math.round(data.weekday_distribution.normalized_entropy * 100)}% evenly spread across weekdays.`}`}
       >
         <BarChart categories={data.weekday_distribution.labels} series={[{ key: "journals", label: "Journals", color: BRAND[500], values: data.weekday_distribution.journals }]} />
-      </ChartCard>
-
-      {/* XP per journal */}
-      <ChartCard
-        title="XP earned per journal (as stored)"
-        subtitle="3-journal moving average shown as the dark line"
-        howCalculated={data.meta.xp_note}
-      >
-        <BarChart
-          categories={data.daily_series.map((d) => d.date.slice(5))}
-          series={[{ key: "xp", label: "XP", color: PINK, values: data.daily_series.map((d) => d.xp) }]}
-          overlayLine={xpMovingAverage}
-          overlayLineLabel="3-journal avg"
-          valueLabels={false}
-        />
       </ChartCard>
 
       {/* engagement */}
@@ -258,44 +160,19 @@ export default function LearningPatternsSection({ userId, windowDays, demoMode }
       </div>
 
       {/* subjects */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <ChartCard
-          title={`Subjects by ${data.subject_effort.sorted_by}`}
-          caption={subjectCaption(data.subject_effort.rows)}
-          howCalculated={`Sorted by ${data.subject_effort.sorted_by} recorded per subject. Normalized entropy: ${data.subject_effort.normalized_entropy === null ? "not enough subjects with data" : Math.round(data.subject_effort.normalized_entropy * 100) + "%"}.`}
-          emptyState={!data.subject_effort.rows.length ? <EmptyNote>No subjects recorded yet.</EmptyNote> : null}
-        >
-          <BarChart
-            orientation="horizontal"
-            categories={data.subject_effort.rows.map((r) => r.subject)}
-            series={[{ key: "effort", label: data.subject_effort.sorted_by, color: BRAND[500], values: data.subject_effort.rows.map((r) => (data.subject_effort.sorted_by === "minutes" ? r.minutes : r.journals)) }]}
-            sorted
-          />
-        </ChartCard>
-        <ChartCard title="Subject share" howCalculated="Same subject totals as a share of the window.">
-          <DonutChart segments={data.subject_effort.rows.map((r) => ({ label: r.subject, value: data.subject_effort.sorted_by === "minutes" ? r.minutes : r.journals }))} />
-        </ChartCard>
-      </div>
-
-      {/* histogram + scatter */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <ChartCard
-          title="Study-minutes distribution"
-          subtitle="Days with recorded minutes only"
-          howCalculated={data.minutes_histogram.method}
-          emptyState={!minutesRecorded ? <EmptyNote>Study time is not recorded in these journals (all values are 0).</EmptyNote> : null}
-        >
-          <Histogram bins={{ labels: data.minutes_histogram.bin_labels, counts: data.minutes_histogram.counts }} />
-        </ChartCard>
-        <ChartCard
-          title="Study time vs XP"
-          caption={correlationCaption(data.scatter.correlation)}
-          howCalculated="Spearman rank correlation; null when either side never varies or n < 10."
-          emptyState={data.scatter.correlation.rho === null ? <EmptyNote>Not enough variation to compute a correlation ({data.scatter.correlation.reason}).</EmptyNote> : null}
-        >
-          <ScatterPlot points={data.scatter.points.map((p) => ({ x: p.study_minutes, y: p.xp, label: p.date }))} xLabel="minutes" yLabel="XP" />
-        </ChartCard>
-      </div>
+      <ChartCard
+        title={`Subjects by ${data.subject_effort.sorted_by}`}
+        caption={subjectCaption(data.subject_effort.rows)}
+        howCalculated={`Sorted by ${data.subject_effort.sorted_by} recorded per subject. Normalized entropy: ${data.subject_effort.normalized_entropy === null ? "not enough subjects with data" : Math.round(data.subject_effort.normalized_entropy * 100) + "%"}.`}
+        emptyState={!data.subject_effort.rows.length ? <EmptyNote>No subjects recorded yet.</EmptyNote> : null}
+      >
+        <BarChart
+          orientation="horizontal"
+          categories={data.subject_effort.rows.map((r) => r.subject)}
+          series={[{ key: "effort", label: data.subject_effort.sorted_by, color: BRAND[500], values: data.subject_effort.rows.map((r) => (data.subject_effort.sorted_by === "minutes" ? r.minutes : r.journals)) }]}
+          sorted
+        />
+      </ChartCard>
 
       {/* hour of day */}
       {data.hour_of_day && (
@@ -307,15 +184,6 @@ export default function LearningPatternsSection({ userId, windowDays, demoMode }
           <BarChart categories={Array.from({ length: 24 }, (_, h) => String(h))} series={[{ key: "count", label: "Journals", color: BRAND[500], values: data.hour_of_day.counts }]} valueLabels={false} />
         </ChartCard>
       )}
-
-      {/* recorded-ness */}
-      <ChartCard title="Recorded-ness" subtitle="How much of this window actually has each field filled in" howCalculated="Share of sessions in the window with a non-zero/non-empty value for each field.">
-        <div className="space-y-3">
-          <ProgressBar label="Study time recorded" fraction={data.recordedness.study_minutes_recorded_share} />
-          <ProgressBar label="Engagement recorded" fraction={data.recordedness.engagement_recorded_share} color={PINK} />
-          <ProgressBar label="Subjects recorded" fraction={data.recordedness.subjects_recorded_share} />
-        </div>
-      </ChartCard>
 
       <p className="text-[11px] text-slate-400 text-center">
         {formatNumber(data.meta.n_sessions)} sessions generated this view at {new Date(data.meta.generated_at).toLocaleString()}.
