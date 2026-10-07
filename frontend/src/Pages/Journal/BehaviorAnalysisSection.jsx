@@ -20,36 +20,57 @@ const TONE_CLASSES = {
   high: "border-high-500/25 bg-high-50 dark:bg-high-500/10 text-high-600",
 };
 
-function snapshotRows(snap) {
+function snapshotGroups(snap) {
   if (!snap) return [];
   const dp = snap.deadline_proximity || {};
   const tc = snap.task_completion_history || {};
   const ed = snap.engagement_distribution || {};
   const ap = snap.assignment_progress || {};
+  const days = (n) => `${n} ${n === 1 ? "day" : "days"}`;
   return [
     {
-      label: "Observation window",
-      value:
-        snap.account_age_days != null
-          ? `${snap.observation_window_days} days (account is ${snap.account_age_days} days old)`
-          : `${snap.observation_window_days} days`,
+      title: "Context",
+      rows: [
+        {
+          label: "Observation window",
+          value:
+            snap.account_age_days != null
+              ? `${days(snap.observation_window_days)} (account is ${days(snap.account_age_days)} old)`
+              : days(snap.observation_window_days),
+        },
+        { label: "Last activity", value: snap.last_activity_date ? new Date(snap.last_activity_date).toLocaleString() : "—" },
+      ],
     },
-    { label: "Avg study hours / day", value: `${snap.study_hours_avg_per_day ?? 0} h` },
-    { label: "Total study hours (window)", value: `${snap.study_hours_last_14_days ?? 0} h` },
-    { label: "Total journal sessions (window)", value: snap.total_sessions_last_14_days ?? 0 },
-    { label: "Activity frequency", value: `${Math.round((snap.activity_frequency ?? 0) * 100)}% of window days` },
-    { label: "Engagement trend", value: snap.engagement_trend || "insufficient_data" },
-    { label: "Engagement (high / medium / low)", value: `${ed.high ?? 0} / ${ed.medium ?? 0} / ${ed.low ?? 0}` },
     {
-      label: "Assignment progress",
-      value: Object.keys(ap).length ? Object.entries(ap).map(([k, v]) => `${k}: ${v}`).join(", ") : "none recorded",
+      title: "Engagement & consistency",
+      rows: [
+        { label: "Engagement trend", value: snap.engagement_trend || "insufficient_data" },
+        { label: "Engagement (high / medium / low)", value: `${ed.high ?? 0} / ${ed.medium ?? 0} / ${ed.low ?? 0}` },
+        { label: "Activity frequency", value: `${Math.round((snap.activity_frequency ?? 0) * 100)}% of window days` },
+        { label: "Journal sessions", value: snap.total_sessions_last_14_days ?? 0 },
+      ],
     },
-    { label: "Tasks completed", value: `${tc.completed_tasks ?? 0} / ${tc.total_tasks ?? 0}` },
     {
-      label: "Deadline proximity",
-      value: `nearest ${dp.nearest_deadline_days ?? "—"}d · due≤3d: ${dp.due_within_3_days ?? 0} · due≤7d: ${dp.due_within_7_days ?? 0} · overdue: ${dp.overdue ?? 0}`,
+      title: "Deadline & task pressure",
+      rows: [
+        {
+          label: "Deadline proximity",
+          value: `nearest ${dp.nearest_deadline_days ?? "—"}d · due≤3d: ${dp.due_within_3_days ?? 0} · due≤7d: ${dp.due_within_7_days ?? 0} · overdue: ${dp.overdue ?? 0}`,
+        },
+        {
+          label: "Assignment progress",
+          value: Object.keys(ap).length ? Object.entries(ap).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`).join(", ") : "none recorded",
+        },
+        { label: "Tasks completed", value: `${tc.completed_tasks ?? 0} / ${tc.total_tasks ?? 0}` },
+      ],
     },
-    { label: "Last activity", value: snap.last_activity_date ? new Date(snap.last_activity_date).toLocaleString() : "—" },
+    {
+      title: "Study effort",
+      rows: [
+        { label: "Avg study hours / session", value: `${snap.study_hours_avg_per_day ?? 0} h` },
+        { label: "Total study hours", value: `${snap.study_hours_last_14_days ?? 0} h` },
+      ],
+    },
   ];
 }
 
@@ -145,14 +166,23 @@ export default function BehaviorAnalysisSection({ userId, demoMode }) {
           <p className="mt-0.5 text-xs text-slate-400">
             Not compared against other students - the AI reads these numbers from your own activity and picks one of the 5 archetypes below.
           </p>
-          <ul className="mt-3 space-y-1.5">
-            {snapshotRows(latest.snapshotOfActivityData).map((row) => (
-              <li key={row.label} className="flex items-baseline justify-between gap-3 text-xs">
-                <span className="text-slate-400">{row.label}</span>
-                <span className="text-right font-medium text-slate-700 dark:text-slate-200">{row.value}</span>
-              </li>
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+            {snapshotGroups(latest.snapshotOfActivityData).map((group, i) => (
+              <div key={group.title} className="rounded-2xl bg-brand-50/50 dark:bg-white/5 px-3 py-2.5">
+                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-brand-500 dark:text-brand-300">
+                  {i + 1}. {group.title}
+                </div>
+                <ul className="space-y-1.5">
+                  {group.rows.map((row) => (
+                    <li key={row.label} className="flex items-baseline justify-between gap-3 text-xs">
+                      <span className="text-slate-400">{row.label}</span>
+                      <span className="text-right font-medium text-slate-700 dark:text-slate-200">{row.value}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
       )}
 
