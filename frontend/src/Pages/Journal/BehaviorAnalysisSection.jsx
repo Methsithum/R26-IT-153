@@ -20,6 +20,126 @@ const TONE_CLASSES = {
   high: "border-high-500/25 bg-high-50 dark:bg-high-500/10 text-high-600",
 };
 
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+function actionTips(category, snap) {
+  const s = snap || {};
+  const dp = s.deadline_proximity || {};
+  const ap = s.assignment_progress || {};
+  const notStarted = ap.not_started || 0;
+  const open = notStarted + (ap.in_progress || 0);
+  const nearest = dp.nearest_deadline_days;
+  const hasNearest = nearest != null && nearest >= 0;
+  const windowDays = s.observation_window_days || 14;
+  const sessions = s.total_sessions_last_14_days ?? 0;
+  const isNew = s.account_age_days != null && s.account_age_days < 7;
+
+  const urgent = [];
+  if (dp.overdue > 0) {
+    urgent.push({
+      icon: "🚨",
+      title: `${plural(dp.overdue, "task")} overdue`,
+      text: "Message your lecturer today about a late submission or an extension - asking early leaves you more options.",
+    });
+  }
+  if (dp.due_within_3_days > 0) {
+    urgent.push({
+      icon: "⏳",
+      title: `${dp.due_within_3_days} due within 3 days`,
+      text: "Block one focused session today for the closest deadline before starting anything new.",
+    });
+  }
+
+  const startEarly = hasNearest
+    ? `Your nearest deadline is in ${plural(nearest, "day")}. Do the first 30 minutes of it today, not the night before.`
+    : "When the next assignment arrives, do the first 30 minutes on the day you get it.";
+  const notStartedTip =
+    notStarted > 0
+      ? {
+          icon: "📂",
+          title: `${plural(notStarted, "assignment")} not started`,
+          text: "Pick one and just open it today - writing the outline is enough to break the start barrier.",
+        }
+      : null;
+
+  const byCategory = {
+    "Consistent Learner": [
+      {
+        icon: "🧭",
+        title: "Keep the rhythm",
+        text: `You journaled on ${sessions} of ${plural(windowDays, "day")}. Keep the same daily time slot so the habit holds through exam weeks.`,
+      },
+      {
+        icon: "🎯",
+        title: "Raise the challenge",
+        text: "Spend one session this week on your weakest subject - steady habits are the best time to fix gaps.",
+      },
+    ],
+    "Highly Engaged Student": [
+      {
+        icon: "🔋",
+        title: "Protect your energy",
+        text: "Your engagement is high. Plan one lighter day each week so it doesn't turn into burnout.",
+      },
+      {
+        icon: "📈",
+        title: "Turn effort into results",
+        text: "Review the feedback on work you've already submitted and note one thing to improve next time.",
+      },
+    ],
+    "Last-Minute Learner": [
+      { icon: "⏰", title: "Start before it's urgent", text: startEarly },
+      notStartedTip,
+      {
+        icon: "🪜",
+        title: "Use checkpoints",
+        text: "Split each assignment into 3 parts and set the first checkpoint a week before the due date.",
+      },
+    ],
+    "Overloaded Student": [
+      {
+        icon: "🗂️",
+        title: "One thing at a time",
+        text:
+          open > 0
+            ? `You have ${plural(open, "open assignment")}. Rank them by deadline and focus only on the top one today.`
+            : "Rank your tasks by deadline and focus only on the top one today.",
+      },
+      {
+        icon: "🤝",
+        title: "Ask for help early",
+        text: "An extension requested a week ahead is far easier to get than one asked the night before.",
+      },
+      {
+        icon: "✂️",
+        title: "Free up time",
+        text: "Postpone one non-academic commitment this week to make room for your studies.",
+      },
+    ],
+    "Low Engagement Student": [
+      isNew
+        ? {
+            icon: "🌱",
+            title: "You're just getting started",
+            text: `Your account is ${plural(s.account_age_days, "day")} old. Journal every day this week so the analysis has a real pattern to read.`,
+          }
+        : {
+            icon: "🌱",
+            title: "Small daily step",
+            text: `You journaled on ${sessions} of ${plural(windowDays, "day")}. Aim for a quick check-in every day this week - consistency beats length.`,
+          },
+      {
+        icon: "⏱️",
+        title: "One focus session",
+        text: "Pick one subject and do a single 25-minute focus session today. Small wins rebuild momentum.",
+      },
+      notStartedTip,
+    ],
+  };
+
+  return [...urgent, ...(byCategory[category] || [])].filter(Boolean).slice(0, 3);
+}
+
 function snapshotGroups(snap) {
   if (!snap) return [];
   const dp = snap.deadline_proximity || {};
@@ -158,6 +278,31 @@ export default function BehaviorAnalysisSection({ userId, demoMode }) {
           <p className="text-sm text-slate-400">No behaviour analysis has been run yet.</p>
         )}
       </motion.div>
+
+      {/* next steps */}
+      {latest?.available && actionTips(latest.behaviorCategory, latest.snapshotOfActivityData).length > 0 && (
+        <div className="rounded-3xl border border-black/5 dark:border-white/5 bg-white dark:bg-[#1a1530] px-4 py-4 shadow-[0_4px_14px_-4px_rgb(23_15_46_/_0.08)]">
+          <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">What you can do next</div>
+          <p className="mt-0.5 text-xs text-slate-400">Suggestions matched to your pattern and your current deadlines.</p>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            {actionTips(latest.behaviorCategory, latest.snapshotOfActivityData).map((tip, i) => (
+              <motion.div
+                key={tip.title}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: i * 0.08, ease: "easeOut" }}
+                className="rounded-2xl border border-brand-200/70 dark:border-brand-400/30 bg-gradient-to-br from-brand-50 to-pink-50 dark:from-brand-700/20 dark:to-pink-500/10 px-3.5 py-3"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-lg leading-none">{tip.icon}</span>
+                  <div className="text-xs font-bold text-brand-700 dark:text-brand-200">{tip.title}</div>
+                </div>
+                <p className="mt-1.5 text-xs leading-snug text-slate-600 dark:text-slate-300">{tip.text}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* variables used */}
       {latest?.available && latest.snapshotOfActivityData && (
