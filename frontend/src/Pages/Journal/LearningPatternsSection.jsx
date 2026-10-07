@@ -119,8 +119,8 @@ export default function LearningPatternsSection({ userId, windowDays, demoMode }
 
       {/* weekday pattern */}
       <ChartCard
-        title="Weekday pattern"
-        subtitle="Journals per weekday (hover for minutes)"
+        title="Journals completed by day of week"
+        subtitle="Journals per day of week (hover for minutes)"
         caption={mostActiveWeekdayCaption(data.weekday_distribution.journals)}
         howCalculated={`Shannon entropy of the weekday counts, normalized 0..1. ${data.weekday_distribution.normalized_entropy === null ? "Not enough spread yet to show a consistency score." : `Consistency: ${Math.round(data.weekday_distribution.normalized_entropy * 100)}% evenly spread across weekdays.`}`}
       >
