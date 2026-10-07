@@ -237,6 +237,7 @@ export default function BehaviorAnalysisSection({ userId, demoMode }) {
         generated_at: result.generatedAt,
         snapshotOfActivityData: result.snapshotOfActivityData,
         nextSteps: result.nextSteps,
+        trigger: "manual",
       });
       setRunStatus("ready");
     } catch {
@@ -273,13 +274,13 @@ export default function BehaviorAnalysisSection({ userId, demoMode }) {
               <div className="text-base font-bold">{latest.behaviorCategory}</div>
               <p className="mt-1 text-sm leading-snug opacity-90">{latest.reasoning}</p>
               <p className="mt-2 text-[11px] opacity-70">
-                {latest.created_at && new Date(latest.created_at).toLocaleString()} - AI-generated pattern description based on your journal
-                activity. It is not a diagnosis or a judgement.
+                {latest.created_at && `${latest.trigger === "auto" ? "Auto-updated" : "Analyzed"} ${new Date(latest.created_at).toLocaleString()} - `}
+                AI-generated pattern description based on your journal activity. It is not a diagnosis or a judgement.
               </p>
             </div>
           </div>
         ) : (
-          <p className="text-sm text-slate-400">No behaviour analysis has been run yet.</p>
+          <p className="text-sm text-slate-400">Your first analysis appears automatically after you finish a daily journal.</p>
         )}
       </motion.div>
 
@@ -403,14 +404,17 @@ export default function BehaviorAnalysisSection({ userId, demoMode }) {
           <p className="mb-2 text-xs text-slate-400">Little recorded activity data in the last 14 days, so the result may not be meaningful.</p>
         )}
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-[11px] text-slate-400">This sends a summary of your last 14 days of journal activity to the AI service.</p>
+          <p className="text-[11px] text-slate-400">
+            Updates automatically each time you finish a daily journal. A summary of your recent journal activity (up to 14 days) is sent to
+            the AI service to do this.
+          </p>
           <button
             type="button"
             onClick={runAnalysis}
             disabled={demoMode || runStatus === "loading"}
-            className="rounded-full bg-brand-500 px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+            className="rounded-full border border-brand-200 dark:border-white/15 px-3 py-1 text-[11px] font-semibold text-brand-600 dark:text-brand-300 transition-colors hover:bg-brand-50 dark:hover:bg-white/10 disabled:opacity-50"
           >
-            {runStatus === "loading" ? "Analyzing…" : "Analyze my behaviour"}
+            {runStatus === "loading" ? "Analyzing…" : "↻ Re-analyze now"}
           </button>
         </div>
         {runStatus === "error" && (

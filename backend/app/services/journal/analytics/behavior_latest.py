@@ -16,6 +16,7 @@ async def get_latest_behavior_analysis(user_id: str) -> Dict:
         "behaviorCategory": record.get("behaviorCategory"),
         "reasoning": record.get("reasoning"),
         "nextSteps": record.get("nextSteps") or [],
+        "trigger": record.get("trigger") or "manual",
         "created_at": record.get("created_at"),
         "generated_at": record.get("timestamp"),
         "snapshotOfActivityData": record.get("snapshotOfActivityData"),

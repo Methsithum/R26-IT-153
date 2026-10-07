@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from app.schemas.journal.daily import (
     StartDailyRequest,
     AnswerRequest,
@@ -36,6 +36,7 @@ from app.services.journal.journal_constants import (
     parse_letter_grade,
 )
 from app.services.journal.alerts import generate_proactive_alerts
+from app.services.journal.behavior_analysis import auto_behavior_analysis
 from app.services.journal.learning_patterns import aggregate_learning_patterns
 import json
 import logging
@@ -972,7 +973,7 @@ async def start_daily_session(req: StartDailyRequest):
 
 
 @router.post("/answer", response_model=NextQuestionResponse)
-async def answer_question(req: AnswerRequest):
+async def answer_question(req: AnswerRequest, background_tasks: BackgroundTasks):
     session = await DailySessionModel.find_by_id(req.session_id)
     if not session or session.get("completed"):
         raise HTTPException(400, "Invalid or already completed session")
@@ -1076,6 +1077,7 @@ async def answer_question(req: AnswerRequest):
         page = await _complete_session(
             req.session_id, session, qa_list, decision.get("task_updates") or [], update_data
         )
+        background_tasks.add_task(auto_behavior_analysis, session["user_id"])
         return NextQuestionResponse(
             session_id=req.session_id,
             completed=True,

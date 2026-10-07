@@ -1,8 +1,10 @@
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 from openai import AsyncOpenAI
 from app.config.settings import settings
+from app.models.journal.behavior_analysis import BehaviorAnalysisModel
 from app.models.journal.daily_session import DailySessionModel
 from app.models.journal.task import TaskModel
 from app.models.user.user import UserModel
@@ -10,6 +12,7 @@ from app.services.journal.learning_patterns import aggregate_learning_patterns
 
 client = AsyncOpenAI(api_key=settings.openai_api_key)
 MODEL = settings.openai_model
+logger = logging.getLogger(__name__)
 
 BEHAVIOR_CATEGORIES = [
     "Consistent Learner",
@@ -210,3 +213,30 @@ async def analyze_behavior(snapshot: Dict[str, Any]) -> Dict[str, Any]:
         "reasoning": reasoning,
         "nextSteps": _clean_next_steps(data.get("nextSteps")),
     }
+
+
+async def run_and_store_behavior_analysis(user_id: str, trigger: str) -> Dict[str, Any]:
+    """trigger is "manual" (button) or "auto" (after a daily journal), kept on
+    the record so the two can be told apart when evaluating the classifier."""
+    snapshot = await build_activity_snapshot(user_id)
+    analysis = await analyze_behavior(snapshot)
+    record = {
+        "studentId": user_id,
+        "behaviorCategory": analysis["behaviorCategory"],
+        "reasoning": analysis["reasoning"],
+        "nextSteps": analysis["nextSteps"],
+        "trigger": trigger,
+        "timestamp": datetime.utcnow(),
+        "snapshotOfActivityData": snapshot,
+    }
+    await BehaviorAnalysisModel.create(record)
+    return record
+
+
+async def auto_behavior_analysis(user_id: str) -> None:
+    # Runs as a background task after the journal response is sent, so a
+    # failure here must never surface to the student.
+    try:
+        await run_and_store_behavior_analysis(user_id, trigger="auto")
+    except Exception:
+        logger.exception("Automatic behaviour analysis failed for user %s", user_id)
