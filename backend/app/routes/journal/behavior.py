@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from app.services.auth import require_journal_owner
 from app.schemas.journal.analysis import BehaviorAnalysisRequest, BehaviorAnalysisResponse
 from app.models.user.user import UserModel
 from app.services.journal.behavior_analysis import run_and_store_behavior_analysis
 
-router = APIRouter(prefix="/behavior", tags=["behavior"])
+router = APIRouter(prefix="/behavior", tags=["behavior"], dependencies=[Depends(require_journal_owner)])
 
 
 @router.post("/analyze", response_model=BehaviorAnalysisResponse)

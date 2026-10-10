@@ -1,6 +1,7 @@
 from datetime import timedelta
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
+from app.services.auth import require_journal_owner
 from app.schemas.journal.reflection import WeeklyReflectionRequest
 from app.models.journal.reflection import ReflectionModel
 from app.models.journal.daily_session import DailySessionModel
@@ -8,7 +9,7 @@ from app.models.user.user import UserModel
 from app.services.journal.llm_service import generate_weekly_summary
 from app.services.time_utils import calendar_datetime, local_today, to_local_date
 
-router = APIRouter(prefix="/reflection", tags=["reflection"])
+router = APIRouter(prefix="/reflection", tags=["reflection"], dependencies=[Depends(require_journal_owner)])
 
 WEEKLY_MIN_JOURNALS = 1
 

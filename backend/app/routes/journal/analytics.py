@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
+from app.services.auth import require_journal_owner
 
 from app.models.user.user import UserModel
 from app.services.journal.analytics.behavior_latest import get_latest_behavior_analysis
 from app.services.journal.analytics.insights import ALLOWED_WINDOWS, InvalidWindowError, build_learning_patterns
 
-router = APIRouter(prefix="/analytics", tags=["analytics"])
+router = APIRouter(prefix="/analytics", tags=["analytics"], dependencies=[Depends(require_journal_owner)])
 
 
 async def _require_user(user_id: str) -> dict:

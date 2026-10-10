@@ -1,11 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from app.schemas.user.user import UserCreate, UserLogin, UserResponse
 from app.models.user.user import UserModel
 from app.models.journal.daily_session import DailySessionModel
 from app.models.journal.task import TaskModel
 from app.models.journal.reflection import ReflectionModel
 from app.models.journal.exam import ExamModel
-from app.services.auth import verify_password
+from app.services.auth import verify_password, issue_access_token, require_journal_owner
 from app.services.journal.gamification import (
     level_from_xp,
     progress_bundle,
@@ -49,7 +49,9 @@ async def register_user(user_data: UserCreate):
         raise HTTPException(400, "Add at least one registered subject")
     doc = await UserModel.create({**user_data.model_dump(), "subjects": subjects})
     doc["id"] = str(doc["_id"])
-    return _to_response(doc, [])
+    response = _to_response(doc, [])
+    response.access_token = issue_access_token(doc["id"])
+    return response
 
 
 @router.post("/login", response_model=UserResponse)
@@ -62,7 +64,9 @@ async def login_user(payload: UserLogin):
     UserModel.touch_last_seen(user["id"])
     sessions = await DailySessionModel.find_user_sessions(user["id"])
     user = await reconcile_user_progress(user, sessions)
-    return _to_response(user, sessions)
+    response = _to_response(user, sessions)
+    response.access_token = issue_access_token(user["id"])
+    return response
 
 
 @router.post("/", response_model=UserResponse)
@@ -70,7 +74,7 @@ async def create_user(user_data: UserCreate):
     return await register_user(user_data)
 
 
-@router.get("/{user_id}", response_model=UserResponse)
+@router.get("/{user_id}", response_model=UserResponse, dependencies=[Depends(require_journal_owner)])
 async def get_user(user_id: str):
     user = await UserModel.find_by_id(user_id)
     if not user:
@@ -80,7 +84,7 @@ async def get_user(user_id: str):
     return _to_response(user, sessions)
 
 
-@router.get("/{user_id}/sessions")
+@router.get("/{user_id}/sessions", dependencies=[Depends(require_journal_owner)])
 async def get_user_sessions(user_id: str):
     user = await UserModel.find_by_id(user_id)
     if not user:
@@ -89,7 +93,7 @@ async def get_user_sessions(user_id: str):
     return {"user_id": user_id, "sessions": sessions}
 
 
-@router.get("/{user_id}/tasks")
+@router.get("/{user_id}/tasks", dependencies=[Depends(require_journal_owner)])
 async def get_user_tasks(user_id: str):
     user = await UserModel.find_by_id(user_id)
     if not user:
@@ -99,7 +103,7 @@ async def get_user_tasks(user_id: str):
     return {"user_id": user_id, "tasks": tasks}
 
 
-@router.get("/{user_id}/exams")
+@router.get("/{user_id}/exams", dependencies=[Depends(require_journal_owner)])
 async def get_user_exams(user_id: str):
     user = await UserModel.find_by_id(user_id)
     if not user:
@@ -108,7 +112,7 @@ async def get_user_exams(user_id: str):
     return {"user_id": user_id, "exams": exams}
 
 
-@router.get("/{user_id}/reflections")
+@router.get("/{user_id}/reflections", dependencies=[Depends(require_journal_owner)])
 async def get_user_reflections(user_id: str):
     user = await UserModel.find_by_id(user_id)
     if not user:
@@ -118,7 +122,7 @@ async def get_user_reflections(user_id: str):
     return {"user_id": user_id, "weekly": weekly, "semester": semester}
 
 
-@router.get("/{user_id}/gamification")
+@router.get("/{user_id}/gamification", dependencies=[Depends(require_journal_owner)])
 async def get_user_gamification(user_id: str):
     user = await UserModel.find_by_id(user_id)
     if not user:

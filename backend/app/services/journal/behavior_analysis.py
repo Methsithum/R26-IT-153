@@ -8,7 +8,8 @@ from app.models.journal.behavior_analysis import BehaviorAnalysisModel
 from app.models.journal.daily_session import DailySessionModel
 from app.models.journal.task import TaskModel
 from app.models.user.user import UserModel
-from app.services.journal.learning_patterns import aggregate_learning_patterns
+from app.services.time_utils import local_today, to_local_date, calendar_datetime, LOCAL_TZ
+from app.services.journal.journal_constants import MARK_RECEIVED_STAGES
 
 client = AsyncOpenAI(api_key=settings.openai_api_key)
 MODEL = settings.openai_model
@@ -54,6 +55,8 @@ Rules:
 - Provide reasoning in 2-3 sentences.
 - "observation_window_days" is how many days this account has actually existed (capped at 14), NOT a fixed 14-day period. "activity_frequency" is already computed against that real window. If the account is only a few days old, judge activity relative to observation_window_days, not against a full 14-day expectation - do not call a new account "Low Engagement" just because its totals look small on an absolute scale.
 - This classification is ONLY for analytics/reporting/insights. It MUST NOT influence question generation.
+- Engagement distribution is a count, not a temporal trend. Never describe it as improving or declining.
+- If fewer than 7 active days are recorded, describe this as an early snapshot with insufficient history for a stable pattern or temporal trend. Do not infer improvement from account age or a single day.
 
 Next steps rules:
 - Give 2-3 concrete actions the student can take in the next few days, matched to the chosen category.
@@ -79,34 +82,35 @@ Activity snapshot:
 
 
 async def build_activity_snapshot(user_id: str) -> Dict[str, Any]:
-    now = datetime.utcnow().replace(tzinfo=timezone.utc)
-    cutoff = now - timedelta(days=14)
+    today = local_today()
+    cutoff = today - timedelta(days=13)
 
     sessions = await DailySessionModel.find_user_sessions(user_id)
     recent_sessions = []
     last_activity_date = None
 
     for session in sessions:
-        session_date = _parse_datetime(session.get("date") or session.get("created_at"))
-        if session_date and session_date.tzinfo is None:
-            session_date = session_date.replace(tzinfo=timezone.utc)
-        if session_date and session_date >= cutoff:
+        if not session.get("completed"):
+            continue
+        session_date = to_local_date(session.get("date"))
+        if session_date and cutoff <= session_date <= today:
             recent_sessions.append(session)
-        if session_date and (last_activity_date is None or session_date > last_activity_date):
+        if session_date and session_date <= today and (last_activity_date is None or session_date > last_activity_date):
             last_activity_date = session_date
 
     user = await UserModel.find_by_id(user_id)
-    account_created = _parse_datetime(user.get("created_at")) if user else None
-    if account_created and account_created.tzinfo is None:
-        account_created = account_created.replace(tzinfo=timezone.utc)
-    account_age_days = (now - account_created).days + 1 if account_created else None
+    account_created = to_local_date(user.get("created_at")) if user else None
+    account_age_days = max(1, (today - account_created).days + 1) if account_created else None
     # Don't divide by a fixed 14-day window for an account that hasn't existed
     # that long - a brand-new user with 1 session out of 1 possible day is not
     # "low engagement", they just haven't had 14 days yet.
     observation_window_days = min(14, account_age_days) if account_age_days else 14
 
-    total_study_minutes = sum(s.get("study_duration_minutes", 0) or 0 for s in recent_sessions)
-    avg_study_hours = round((total_study_minutes / max(len(recent_sessions), 1)) / 60, 2) if recent_sessions else 0
+    # A legacy account can have backfilled dates older than its creation record.
+    recent_sessions = [s for s in recent_sessions if to_local_date(s["date"]) >= today - timedelta(days=observation_window_days - 1)]
+    active_dates = {to_local_date(s["date"]) for s in recent_sessions}
+    total_study_minutes = sum(max(0, s.get("study_duration_minutes", 0) or 0) for s in recent_sessions)
+    avg_study_hours = round(total_study_minutes / max(len(active_dates), 1) / 60, 2)
 
     engagement_levels = [s.get("engagement") for s in recent_sessions if s.get("engagement")]
     engagement_distribution = {
@@ -130,22 +134,21 @@ async def build_activity_snapshot(user_id: str) -> Dict[str, Any]:
             stage = task.get("progress_stage") or "unknown"
             assignment_progress[stage] = assignment_progress.get(stage, 0) + 1
 
-        deadline = _parse_datetime(task.get("deadline"))
+        stage = str(task.get("progress_stage") or "").lower()
+        if stage in MARK_RECEIVED_STAGES or stage == "joined":
+            continue
+        deadline = to_local_date(task.get("deadline"))
         if deadline:
-            if deadline.tzinfo is None:
-                deadline = deadline.replace(tzinfo=timezone.utc)
-            days_left = (deadline - now).days
+            days_left = (deadline - today).days
             deadlines.append(days_left)
             if days_left < 0:
                 overdue_count += 1
-            if days_left <= 3:
+            if 0 <= days_left <= 3:
                 due_soon_3 += 1
-            if days_left <= 7:
+            if 0 <= days_left <= 7:
                 due_soon_7 += 1
 
     nearest_deadline = min(deadlines) if deadlines else None
-
-    patterns = await aggregate_learning_patterns(user_id)
 
     return {
         "account_age_days": account_age_days,
@@ -153,7 +156,9 @@ async def build_activity_snapshot(user_id: str) -> Dict[str, Any]:
         "study_hours_avg_per_day": avg_study_hours,
         "study_hours_last_14_days": round(total_study_minutes / 60, 2),
         "total_sessions_last_14_days": len(recent_sessions),
-        "activity_frequency": round(len(recent_sessions) / observation_window_days, 2),
+        "active_days_last_14_days": len(active_dates),
+        "activity_frequency": round(len(active_dates) / observation_window_days, 2),
+        "study_average_basis": "active journal day",
         "assignment_progress": assignment_progress,
         "deadline_proximity": {
             "nearest_deadline_days": nearest_deadline,
@@ -165,9 +170,9 @@ async def build_activity_snapshot(user_id: str) -> Dict[str, Any]:
             "total_tasks": total_tasks,
             "completed_tasks": completed_tasks
         },
-        "engagement_trend": patterns.get("engagement_trend", "insufficient_data"),
+        "engagement_trend": "insufficient_data" if len(active_dates) < 7 else "not_measured",
         "engagement_distribution": engagement_distribution,
-        "last_activity_date": last_activity_date
+        "last_activity_date": calendar_datetime(last_activity_date).replace(tzinfo=LOCAL_TZ) if last_activity_date else None,
     }
 
 
@@ -208,18 +213,36 @@ async def analyze_behavior(snapshot: Dict[str, Any]) -> Dict[str, Any]:
         category = "Low Engagement Student"
         reasoning = reasoning or "The activity snapshot does not show consistent or high engagement signals."
 
-    return {
+    analysis = {
         "behaviorCategory": category,
         "reasoning": reasoning,
         "nextSteps": _clean_next_steps(data.get("nextSteps")),
     }
+    if snapshot.get("active_days_last_14_days", 0) < 7:
+        days = snapshot.get("active_days_last_14_days", 0)
+        window = snapshot.get("observation_window_days", 14)
+        analysis["reasoning"] = (
+            f"Your journal records {days} active day(s) within a {window}-day observation window. "
+            "This is an early activity snapshot, with insufficient history to establish improvement, decline, or a stable learning pattern."
+        )
+        analysis["nextSteps"] = [
+            {"icon": "📝", "title": "Keep a daily journal", "text": "Keep recording your campus activity so future feedback has more history to reflect on."},
+            {"icon": "🔎", "title": "Review your recorded activity", "text": "Check your journal and academic records for accuracy before relying on a pattern summary."},
+        ]
+    return analysis
 
 
 async def run_and_store_behavior_analysis(user_id: str, trigger: str) -> Dict[str, Any]:
     """trigger is "manual" (button) or "auto" (after a daily journal), kept on
     the record so the two can be told apart when evaluating the classifier."""
-    snapshot = await build_activity_snapshot(user_id)
-    analysis = await analyze_behavior(snapshot)
+    revision = await BehaviorAnalysisModel.revision(user_id)
+    await BehaviorAnalysisModel.set_state(user_id, "running", revision)
+    try:
+        snapshot = await build_activity_snapshot(user_id)
+        analysis = await analyze_behavior(snapshot)
+    except Exception:
+        await BehaviorAnalysisModel.set_state(user_id, "failed", revision, "Analysis could not be completed. Please try again.")
+        raise
     record = {
         "studentId": user_id,
         "behaviorCategory": analysis["behaviorCategory"],
@@ -228,8 +251,10 @@ async def run_and_store_behavior_analysis(user_id: str, trigger: str) -> Dict[st
         "trigger": trigger,
         "timestamp": datetime.utcnow(),
         "snapshotOfActivityData": snapshot,
+        "journal_revision": revision,
     }
     await BehaviorAnalysisModel.create(record)
+    await BehaviorAnalysisModel.set_state(user_id, "ready", revision)
     return record
 
 

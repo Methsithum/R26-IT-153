@@ -31,7 +31,7 @@ function actionTips(category, snap) {
   const nearest = dp.nearest_deadline_days;
   const hasNearest = nearest != null && nearest >= 0;
   const windowDays = s.observation_window_days || 14;
-  const sessions = s.total_sessions_last_14_days ?? 0;
+  const sessions = s.active_days_last_14_days ?? s.total_sessions_last_14_days ?? 0;
   const isNew = s.account_age_days != null && s.account_age_days < 7;
 
   const urgent = [];
@@ -164,7 +164,7 @@ function snapshotGroups(snap) {
     {
       title: "Engagement & consistency",
       rows: [
-        { label: "Engagement trend", value: snap.engagement_trend || "insufficient_data" },
+        { label: "Temporal engagement evidence", value: snap.engagement_trend || "insufficient_data" },
         { label: "Engagement (high / medium / low)", value: `${ed.high ?? 0} / ${ed.medium ?? 0} / ${ed.low ?? 0}` },
         { label: "Activity frequency", value: `${Math.round((snap.activity_frequency ?? 0) * 100)}% of window days` },
         { label: "Journal sessions", value: snap.total_sessions_last_14_days ?? 0 },
@@ -187,7 +187,7 @@ function snapshotGroups(snap) {
     {
       title: "Study effort",
       rows: [
-        { label: "Avg study hours / session", value: `${snap.study_hours_avg_per_day ?? 0} h` },
+        { label: "Avg study hours / active day", value: `${snap.study_hours_avg_per_day ?? 0} h` },
         { label: "Total study hours", value: `${snap.study_hours_last_14_days ?? 0} h` },
       ],
     },
@@ -239,8 +239,11 @@ export default function BehaviorAnalysisSection({ userId, demoMode }) {
         nextSteps: result.nextSteps,
         trigger: "manual",
       });
+      setSnapshot(await fetchLearningPatterns(userId, 14));
+      setLatestStatus("ready");
       setRunStatus("ready");
     } catch {
+      setLatest({ available: false, status: "failed", error: "Analysis could not be completed. Please try again." });
       setRunStatus("error");
     }
   }
@@ -280,7 +283,17 @@ export default function BehaviorAnalysisSection({ userId, demoMode }) {
             </div>
           </div>
         ) : (
-          <p className="text-sm text-slate-400">Your first analysis appears automatically after you finish a daily journal.</p>
+          <p role="status" className="text-sm text-slate-500">
+            {latestStatus === "error"
+              ? "Your analysis could not be loaded. Try running the analysis again."
+              : latest?.status === "failed"
+                ? latest.error || "Analysis failed. Please try again."
+                : latest?.status === "stale"
+                  ? "Your journal has changed. Run the analysis again for updated feedback."
+                  : latest?.status === "running"
+                    ? "Your analysis is being updated."
+                    : "Your first analysis appears automatically after you finish a daily journal."}
+          </p>
         )}
       </motion.div>
 

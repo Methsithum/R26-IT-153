@@ -644,9 +644,11 @@ def _forced_date_followup(
         if subject not in already_checked
     ]
     if needed:
+        task = _current_assignment_by_subject(tasks).get(needed[0]) or {}
         return {
             "question": get_question("asg-deadline-check"),
             "subject": needed[0],
+            "task_id": task.get("id"),
             "missing_exams": None,
             "subject_options": None,
         }

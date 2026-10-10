@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from app.services.auth import require_journal_owner
 from app.models.user.user import UserModel
 from app.services.journal.learning_patterns import get_learning_insights
 import logging
 
-router = APIRouter(prefix="/learning-insights", tags=["learning-insights"])
+router = APIRouter(prefix="/learning-insights", tags=["learning-insights"], dependencies=[Depends(require_journal_owner)])
 logger = logging.getLogger(__name__)
 
 

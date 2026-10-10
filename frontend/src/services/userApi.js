@@ -12,6 +12,10 @@ export function readStoredUser() {
 }
 
 export function storeUser(user) {
+  const existing = readStoredUser();
+  if (existing?.id === user?.id && existing?.access_token && !user.access_token) {
+    user = { ...user, access_token: existing.access_token };
+  }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
   return user;
 }
@@ -46,7 +50,7 @@ export async function refreshStoredUser() {
     const { data } = await api.get(`/users/${existing.id}`);
     return storeUser(data);
   } catch (err) {
-    if (err?.response?.status === 404) {
+    if ([401, 404].includes(err?.response?.status)) {
       clearStoredUser();
       return null;
     }

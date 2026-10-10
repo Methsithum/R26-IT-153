@@ -169,8 +169,13 @@ class TaskModel:
         return existing
 
     @staticmethod
-    async def set_deadline(user_id: str, subject: str, deadline: str):
-        existing = await TaskModel.find_assignment(user_id, subject)
+    async def set_deadline(user_id: str, subject: str, deadline: str, task_id: str | None = None):
+        if task_id:
+            existing = await TaskModel.find_by_id(task_id)
+            if not existing or existing.get("user_id") != user_id or existing.get("subject") != subject or existing.get("task_type") != "assignment":
+                raise ValueError("The selected assignment does not belong to this subject and user")
+        else:
+            existing = await TaskModel.find_assignment(user_id, subject)
         if existing:
             await TaskModel.update(existing["id"], {"deadline": deadline})
             return
