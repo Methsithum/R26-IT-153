@@ -60,9 +60,40 @@ export default function TabMonitoring({
               : "Paused — resume to continue from the same focus and distraction totals"
         }
         right={
-          <Badge color={statusMeta.color}>
-            {statusMeta.badge}
-          </Badge>
+          <>
+            <Badge color={statusMeta.color}>
+              {statusMeta.badge}
+            </Badge>
+            {sessionStatus === "ended" ? (
+              <button
+                onClick={startSession}
+                className="px-4 py-1.5 rounded-xl font-semibold text-sm border transition-all"
+                style={{ backgroundColor: "#22c55e15", borderColor: "#22c55e40", color: "#22c55e" }}
+              >
+                ▶ Start Session
+              </button>
+            ) : (
+              <button
+                onClick={sessionOn ? pauseSession : resumeSession}
+                className="px-4 py-1.5 rounded-xl font-semibold text-sm border transition-all"
+                style={{
+                  backgroundColor: sessionOn ? "#f59e0b15" : "#22c55e15",
+                  borderColor: sessionOn ? "#f59e0b40" : "#22c55e40",
+                  color: sessionOn ? "#d97706" : "#22c55e",
+                }}
+              >
+                {sessionOn ? "⏸ Pause Session" : "▶ Resume Session"}
+              </button>
+            )}
+            <button
+              onClick={endSession}
+              disabled={sessionStatus === "ended"}
+              className="px-4 py-1.5 rounded-xl font-semibold text-sm border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ backgroundColor: "#ef444415", borderColor: "#ef444440", color: "#ef4444" }}
+            >
+              ⏹ End Session
+            </button>
+          </>
         }
       />
 
@@ -71,7 +102,7 @@ export default function TabMonitoring({
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 0 }}>
             <div
               className="rounded-2xl overflow-hidden relative"
-              style={{ paddingBottom: "56.25%", background: "#0f172a", border: "1px solid rgba(0,0,0,0.06)" }}
+              style={{ aspectRatio: "16 / 9", maxHeight: "50vh", width: "100%", background: "#0f172a", border: "1px solid rgba(0,0,0,0.06)" }}
             >
               <video
                 ref={displayVideoRef}
@@ -132,74 +163,6 @@ export default function TabMonitoring({
             </div>
           </Card>
 
-          <Card className="p-5 fu-stagger" style={{ "--fu-i": 1 }}>
-            <SectionTitle
-              title="State Confidence"
-              subtitle="Model probability across the four tracked states"
-              className="mb-5"
-            />
-            <div className="space-y-4">
-              {CLASSES.map((cls) => {
-                const isHighest = cls === topClass;
-                const pct = isHighest ? (probs[cls] || 0) * 100 : 0;
-                return (
-                  <div key={cls}>
-                    <div className="flex justify-between mb-1.5">
-                      <span
-                        className="flex items-center gap-2 text-sm"
-                        style={{ color: isHighest ? STATE_CFG[cls].color : "#78716c", fontWeight: isHighest ? 700 : 400 }}
-                      >
-                        {STATE_CFG[cls].icon} {cls}
-                        {isHighest && (
-                          <span
-                            className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-                            style={{ backgroundColor: `${STATE_CFG[cls].color}18`, color: STATE_CFG[cls].color }}
-                          >
-                            highest
-                          </span>
-                        )}
-                      </span>
-                      <span className="text-sm font-bold" style={{ color: STATE_CFG[cls].color }}>
-                        {Math.round(pct)}%
-                      </span>
-                    </div>
-                    <Meter pct={pct} color={STATE_CFG[cls].color} height={12} glow={isHighest} />
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
-        </div>
-
-        <div className="col-span-12 md:col-span-5 flex flex-col gap-4">
-          <Card
-            className="p-6 text-center transition-all duration-700 fu-stagger relative overflow-hidden"
-            style={{
-              "--fu-i": 2,
-              background: `linear-gradient(135deg,${shownCfg.color}15,rgba(255,255,255,0.5))`,
-              borderColor: shownCfg.border,
-              boxShadow: `0 0 40px ${shownCfg.color}15`,
-            }}
-          >
-            <div
-              className="absolute rounded-full blur-3xl pointer-events-none left-1/2 -translate-x-1/2 -top-16"
-              style={{ width: 200, height: 200, backgroundColor: shownCfg.color, opacity: 0.12 }}
-            />
-            <div className="relative">
-              <div className="text-6xl mb-3">{shownCfg.icon}</div>
-              <p className="text-3xl font-bold mb-1" style={{ color: shownCfg.color }}>{shownCfg.label}</p>
-              <p className="text-xs text-slate-600 uppercase tracking-widest">
-                {showingNoFace ? "Look at the camera to resume detection" : "Detected State"}
-              </p>
-              <div className="mt-5 max-w-55 mx-auto">
-                <Meter pct={displayConfidence * 100} color={shownCfg.color} height={8} glow />
-                <p className="text-xs font-semibold mt-2" style={{ color: shownCfg.color }}>
-                  Confidence: {Math.round(displayConfidence * 100)}%
-                </p>
-              </div>
-            </div>
-          </Card>
-
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 3 }}>
             <SectionTitle
               title="Manual Override"
@@ -238,35 +201,74 @@ export default function TabMonitoring({
               <DataRow icon="⏱" label="This Session (focus)" value={formatHM(focusMin, { allowSeconds: true })} color="#22c55e" />
               <DataRow icon="😴" label="This Session (distraction)" value={formatHM(distMin, { allowSeconds: true })} color="#f97316" last />
             </div>
-            {sessionStatus === "ended" ? (
-              <button
-                onClick={startSession}
-                className="w-full mt-4 py-2.5 rounded-xl font-semibold text-sm border transition-all"
-                style={{ backgroundColor: "#22c55e15", borderColor: "#22c55e40", color: "#22c55e" }}
-              >
-                ▶ Start Session
-              </button>
-            ) : (
-              <button
-                onClick={sessionOn ? pauseSession : resumeSession}
-                className="w-full mt-4 py-2.5 rounded-xl font-semibold text-sm border transition-all"
-                style={{
-                  backgroundColor: sessionOn ? "#f59e0b15" : "#22c55e15",
-                  borderColor: sessionOn ? "#f59e0b40" : "#22c55e40",
-                  color: sessionOn ? "#d97706" : "#22c55e",
-                }}
-              >
-                {sessionOn ? "⏸ Pause Session" : "▶ Resume Session"}
-              </button>
-            )}
-            <button
-              onClick={endSession}
-              disabled={sessionStatus === "ended"}
-              className="w-full mt-2 py-2.5 rounded-xl font-semibold text-sm border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ backgroundColor: "#ef444415", borderColor: "#ef444440", color: "#ef4444" }}
-            >
-              ⏹ End Session
-            </button>
+          </Card>
+        </div>
+
+        <div className="col-span-12 md:col-span-5 flex flex-col gap-4">
+          <Card
+            className="p-4 text-center transition-all duration-700 fu-stagger relative overflow-hidden"
+            style={{
+              "--fu-i": 2,
+              background: `linear-gradient(135deg,${shownCfg.color}15,rgba(255,255,255,0.5))`,
+              borderColor: shownCfg.border,
+              boxShadow: `0 0 40px ${shownCfg.color}15`,
+            }}
+          >
+            <div
+              className="absolute rounded-full blur-3xl pointer-events-none left-1/2 -translate-x-1/2 -top-16"
+              style={{ width: 200, height: 200, backgroundColor: shownCfg.color, opacity: 0.12 }}
+            />
+            <div className="relative">
+              <div className="text-5xl mb-2">{shownCfg.icon}</div>
+              <p className="text-3xl font-bold mb-1" style={{ color: shownCfg.color }}>{shownCfg.label}</p>
+              <p className="text-xs text-slate-600 uppercase tracking-widest">
+                {showingNoFace ? "Look at the camera to resume detection" : "Detected State"}
+              </p>
+              <div className="mt-3 max-w-55 mx-auto">
+                <Meter pct={displayConfidence * 100} color={shownCfg.color} height={8} glow />
+                <p className="text-xs font-semibold mt-2" style={{ color: shownCfg.color }}>
+                  Confidence: {Math.round(displayConfidence * 100)}%
+                </p>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-5 fu-stagger" style={{ "--fu-i": 1 }}>
+            <SectionTitle
+              title="State Confidence"
+              subtitle="Model probability across the four tracked states"
+              className="mb-3"
+            />
+            <div className="space-y-3">
+              {CLASSES.map((cls) => {
+                const isHighest = cls === topClass;
+                const pct = isHighest ? (probs[cls] || 0) * 100 : 0;
+                return (
+                  <div key={cls}>
+                    <div className="flex justify-between mb-1.5">
+                      <span
+                        className="flex items-center gap-2 text-sm"
+                        style={{ color: isHighest ? STATE_CFG[cls].color : "#78716c", fontWeight: isHighest ? 700 : 400 }}
+                      >
+                        {STATE_CFG[cls].icon} {cls}
+                        {isHighest && (
+                          <span
+                            className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                            style={{ backgroundColor: `${STATE_CFG[cls].color}18`, color: STATE_CFG[cls].color }}
+                          >
+                            highest
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-sm font-bold" style={{ color: STATE_CFG[cls].color }}>
+                        {Math.round(pct)}%
+                      </span>
+                    </div>
+                    <Meter pct={pct} color={STATE_CFG[cls].color} height={10} glow={isHighest} />
+                  </div>
+                );
+              })}
+            </div>
           </Card>
         </div>
       </div>
