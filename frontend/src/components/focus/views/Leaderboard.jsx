@@ -1,9 +1,25 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Card from "../Card";
 import { PageHeader, SectionTitle, Meter, Badge, EmptyState } from "../ui";
 import { formatHM } from "../../../lib/focusTime";
+import { getLeaderboard } from "../../../lib/focusApi";
 
 const TOP_N = 10;
+
+const fmtDay = (d, withYear = false) =>
+  d.toLocaleDateString(undefined, { month: "short", day: "numeric", ...(withYear ? { year: "numeric" } : {}) });
+
+// Last 7 days including today, matching the backend's weekly window (local dates).
+function weekRangeLabel() {
+  const end = new Date();
+  const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - 6);
+  return `${fmtDay(start)} – ${fmtDay(end, true)}`;
+}
+
+function localMonthKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
 function medal(rank) {
   if (rank === 1) return "🥇";
@@ -18,15 +34,50 @@ function initials(name) {
 }
 
 export default function TabLeaderboard({
-  rows = [],
+  rows: dailyRows = [],
+  weeklyRows = [],
+  monthlyRows = [],
   loading = false,
   focusMin,
   distMin,
   lifetimeMin,
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [period, setPeriod] = useState("daily");
+  const currentMonth = useMemo(localMonthKey, []);
+  const [month, setMonth] = useState(currentMonth);
+  const [pastRows, setPastRows] = useState([]);
+  const [pastLoading, setPastLoading] = useState(false);
+  const viewingPast = period === "monthly" && month < currentMonth;
+
+  // Past months don't change, so fetch the chosen one once; the current month
+  // keeps using the polled monthlyRows.
+  useEffect(() => {
+    if (!viewingPast) return;
+    let cancelled = false;
+    setPastLoading(true);
+    getLeaderboard("monthly", month)
+      .then((r) => { if (!cancelled) setPastRows(Array.isArray(r) ? r : []); })
+      .catch(() => { if (!cancelled) setPastRows([]); })
+      .finally(() => { if (!cancelled) setPastLoading(false); });
+    return () => { cancelled = true; };
+  }, [viewingPast, month]);
+
+  const PERIODS = {
+    daily: { label: "Daily", when: "today", rows: dailyRows },
+    weekly: { label: "Weekly", when: weekRangeLabel(), rows: weeklyRows },
+    monthly: {
+      label: "Monthly",
+      when: viewingPast
+        ? new Date(`${month}-01T00:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" })
+        : "this month",
+      rows: viewingPast ? pastRows : monthlyRows,
+    },
+  };
+  const rows = PERIODS[period].rows;
+  const when = PERIODS[period].when;
   const you = rows.find((r) => r.is_you);
-  const topFocus = rows.reduce((max, r) => Math.max(max, (r.focus_hours || 0) * 60 + (r.focus_minutes || 0)), 0);
+  const topXp = rows.reduce((max, r) => Math.max(max, r.challenge_points || 0), 0);
   const onlineCount = rows.filter((r) => r.online).length;
   const hasMore = rows.length > TOP_N;
   const visible = useMemo(() => {
@@ -41,19 +92,42 @@ export default function TabLeaderboard({
       <PageHeader
         icon="🏆"
         title="Leaderboard"
-        subtitle="All students in the system, ranked by today's focused time"
+        subtitle={`All students, ranked by XP earned in ${when}`}
         right={<Badge color="#22c55e">{rows.length} students</Badge>}
       />
+
+      <select
+        value={period}
+        onChange={(e) => { setPeriod(e.target.value); setExpanded(false); }}
+        className="mb-4 px-4 py-2 rounded-xl border text-sm font-semibold bg-white/70 outline-none"
+        style={{ borderColor: "#22c55e50", color: "#16a34a" }}
+        aria-label="Leaderboard period"
+      >
+        {Object.entries(PERIODS).map(([key, p]) => (
+          <option key={key} value={key}>{p.label}</option>
+        ))}
+      </select>
+      {period === "monthly" && (
+        <input
+          type="month"
+          value={month}
+          max={currentMonth}
+          onChange={(e) => { if (e.target.value) { setMonth(e.target.value); setExpanded(false); } }}
+          className="mb-4 ml-2 px-4 py-2 rounded-xl border text-sm font-semibold bg-white/70 outline-none"
+          style={{ borderColor: "#22c55e50", color: "#16a34a" }}
+          aria-label="Leaderboard month"
+        />
+      )}
 
       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-12 md:col-span-7">
           <Card className="p-6 fu-stagger" style={{ "--fu-i": 0 }}>
             <SectionTitle
               title={expanded || !hasMore ? "All students" : `Top ${TOP_N}`}
-              subtitle={onlineCount ? `${onlineCount} in the app right now` : "Ranked by today’s focus"}
+              subtitle={onlineCount ? `${onlineCount} in the app right now` : `Ranked by XP · ${when}`}
               className="mb-5"
             />
-            {loading && rows.length === 0 ? (
+            {(loading || pastLoading) && rows.length === 0 ? (
               <EmptyState icon="🏆" title="Loading…" />
             ) : rows.length === 0 ? (
               <EmptyState icon="🏆" title="No students yet" hint="Accounts that sign up will appear here." />
@@ -88,11 +162,11 @@ export default function TabLeaderboard({
                             </span>
                           )}
                         </div>
-                        <Meter pct={topFocus > 0 ? (mins / topFocus) * 100 : 0} color={color} height={6} glow={isYou} />
+                        <Meter pct={topXp > 0 ? ((r.challenge_points || 0) / topXp) * 100 : 0} color={color} height={6} glow={isYou} />
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="font-bold leading-none" style={{ color }}>{formatHM(mins)}</p>
-                        <p className="text-[11px] text-slate-500 mt-1">{r.challenge_points ?? 0} XP</p>
+                        <p className="font-bold leading-none" style={{ color }}>{r.challenge_points ?? 0} XP</p>
+                        <p className="text-[11px] text-slate-500 mt-1">{formatHM(mins)}</p>
                       </div>
                     </div>
                   );
@@ -140,7 +214,7 @@ export default function TabLeaderboard({
             <ul className="space-y-2 text-xs text-slate-600 leading-relaxed">
               <li className="flex gap-2"><span>👥</span><span>Every student with an account is listed, online or not.</span></li>
               <li className="flex gap-2"><span>🟢</span><span>Green “online” means they have Focus open right now.</span></li>
-              <li className="flex gap-2"><span>⏱</span><span>Rank is today’s focused time, then XP if times are equal.</span></li>
+              <li className="flex gap-2"><span>⏱</span><span>Rank is XP earned in {when}, then focused time if XP is equal. Weekly and monthly add up each day’s XP.</span></li>
               <li className="flex gap-2"><span>👤</span><span>Names come from each student’s account, not dummy rows.</span></li>
             </ul>
           </Card>

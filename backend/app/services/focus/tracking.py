@@ -168,6 +168,16 @@ def get_daily_stats(date_str: str, user_id: str = DEFAULT_USER) -> FocusDailySta
     return _rewrite_if_legacy(doc)
 
 
+def get_range_stats_by_user(start: str, end: str) -> dict[str, list[FocusDailyStats]]:
+    """All students' daily rows between two dates ("YYYY-MM-DD", inclusive),
+    grouped by user_id. One query; read-only (legacy rows are not rewritten)."""
+    out: dict[str, list[FocusDailyStats]] = {}
+    for doc in _collection().find({"date": {"$gte": start, "$lte": end}}):
+        stats = stats_from_doc(doc)
+        out.setdefault(stats.user_id, []).append(stats)
+    return out
+
+
 def get_weekly_stats(end_date_str: str | None = None, user_id: str = DEFAULT_USER) -> list[FocusDailyStats]:
     """Last 7 days (inclusive of end_date, default today), oldest first."""
     end = date_cls.fromisoformat(end_date_str) if end_date_str else date_cls.today()

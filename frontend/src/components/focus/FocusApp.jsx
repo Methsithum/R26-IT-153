@@ -111,6 +111,8 @@ export default function FocusApp() {
   const [lifetimeBaseMin, setLifetimeBaseMin] = useState(0);
   const [account] = useState(() => readStoredUser());
   const [boardRows, setBoardRows] = useState([]);
+  const [weeklyRows, setWeeklyRows] = useState([]);
+  const [monthlyRows, setMonthlyRows] = useState([]);
   const [boardLoading, setBoardLoading] = useState(true);
 
   const showModalRef = useRef(showModal);
@@ -312,9 +314,11 @@ export default function FocusApp() {
     let cancelled = false;
     const loadBoard = async () => {
       try {
-        const rows = await getLeaderboard();
+        const [rows, weekly, monthly] = await Promise.all([getLeaderboard("daily"), getLeaderboard("weekly"), getLeaderboard("monthly")]);
         if (!cancelled) {
           setBoardRows(Array.isArray(rows) ? rows : []);
+          setWeeklyRows(Array.isArray(weekly) ? weekly : []);
+          setMonthlyRows(Array.isArray(monthly) ? monthly : []);
           setBoardLoading(false);
         }
       } catch {
@@ -554,6 +558,8 @@ export default function FocusApp() {
     leaderboard: (
       <TabLeaderboard
         rows={boardRows}
+        weeklyRows={weeklyRows}
+        monthlyRows={monthlyRows}
         loading={boardLoading}
         focusMin={todayFocusMin}
         distMin={todayDistMin}

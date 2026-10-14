@@ -50,9 +50,9 @@ export async function getFocusProfile() {
   return data;
 }
 
-export async function getLeaderboard() {
+export async function getLeaderboard(period = "daily", month = null) {
   const { data } = await axios.get(`${API_BASE}/focus/leaderboard`, {
-    params: withUser(),
+    params: withUser(month ? { period, month } : { period }),
   });
   return data;
 }
