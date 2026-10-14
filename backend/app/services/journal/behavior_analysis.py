@@ -6,6 +6,7 @@ from openai import AsyncOpenAI
 from app.config.settings import settings
 from app.models.journal.behavior_analysis import BehaviorAnalysisModel
 from app.models.journal.daily_session import DailySessionModel
+from app.models.journal.exam import ExamModel
 from app.models.journal.task import TaskModel
 from app.models.user.user import UserModel
 from app.services.time_utils import local_today, to_local_date, calendar_datetime, LOCAL_TZ
@@ -57,12 +58,13 @@ Rules:
 - This classification is ONLY for analytics/reporting/insights. It MUST NOT influence question generation.
 - Engagement distribution is a count, not a temporal trend. Never describe it as improving or declining.
 - If fewer than 7 active days are recorded, describe this as an early snapshot with insufficient history for a stable pattern or temporal trend. Do not infer improvement from account age or a single day.
+- "exam_proximity" is NOT the same as "deadline_proximity". deadline_proximity.overdue means the student missed submitting their own work - that is a negative signal. exam_proximity only counts exams that haven't happened yet (a past exam date is simply over, never "overdue" or missed work). Read exam_proximity as upcoming preparation urgency (how soon the student needs to study), not as a missed obligation, and never call it "overdue".
 
 Next steps rules:
 - Give 2-3 concrete actions the student can take in the next few days, matched to the chosen category.
-- Ground every action in the snapshot. Only quote numbers that appear in it (e.g. nearest_deadline_days, overdue, not_started counts). Never invent deadlines, subjects, task names or numbers.
+- Ground every action in the snapshot. Only quote numbers that appear in it (e.g. nearest_deadline_days, overdue, not_started counts, nearest_exam_days). Never invent deadlines, exam dates, subjects, task names or numbers.
 - If the account is only a few days old, keep the tone encouraging and focus on building a daily journaling habit.
-- Put the most urgent action first (overdue work, deadlines within 3 days).
+- Put the most urgent action first (overdue work, deadlines within 3 days, then exams within 3 days).
 - "title": at most 6 words. "text": one or two sentences, at most 30 words, addressed to the student as "you".
 - "icon": a single emoji that fits the action.
 - Be supportive and practical, never judgemental, and give no medical or mental-health advice.
@@ -150,6 +152,22 @@ async def build_activity_snapshot(user_id: str) -> Dict[str, Any]:
 
     nearest_deadline = min(deadlines) if deadlines else None
 
+    # Exams aren't deadlines the student can be "overdue" on - an exam date
+    # is a fixed future event, not submittable work, so a past date just
+    # means the exam already happened (not a missed obligation). Kept as a
+    # separate field from deadline_proximity so the AI reads it as
+    # preparation urgency, never as overdue/missed work.
+    exams = await ExamModel.find_by_user(user_id)
+    upcoming_exam_days = []
+    for exam in exams:
+        exam_date = to_local_date(exam.get("date"))
+        if not exam_date:
+            continue
+        days_left = (exam_date - today).days
+        if days_left >= 0:
+            upcoming_exam_days.append(days_left)
+    nearest_exam = min(upcoming_exam_days) if upcoming_exam_days else None
+
     return {
         "account_age_days": account_age_days,
         "observation_window_days": observation_window_days,
@@ -169,6 +187,12 @@ async def build_activity_snapshot(user_id: str) -> Dict[str, Any]:
         "task_completion_history": {
             "total_tasks": total_tasks,
             "completed_tasks": completed_tasks
+        },
+        "exam_proximity": {
+            "nearest_exam_days": nearest_exam,
+            "exams_within_3_days": sum(1 for d in upcoming_exam_days if d <= 3),
+            "exams_within_7_days": sum(1 for d in upcoming_exam_days if d <= 7),
+            "total_upcoming_exams": len(upcoming_exam_days)
         },
         "engagement_trend": "insufficient_data" if len(active_dates) < 7 else "not_measured",
         "engagement_distribution": engagement_distribution,

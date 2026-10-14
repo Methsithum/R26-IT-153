@@ -146,6 +146,7 @@ function snapshotGroups(snap) {
   const tc = snap.task_completion_history || {};
   const ed = snap.engagement_distribution || {};
   const ap = snap.assignment_progress || {};
+  const ep = snap.exam_proximity || {};
   const days = (n) => `${n} ${n === 1 ? "day" : "days"}`;
   return [
     {
@@ -182,6 +183,15 @@ function snapshotGroups(snap) {
           value: Object.keys(ap).length ? Object.entries(ap).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`).join(", ") : "none recorded",
         },
         { label: "Tasks completed", value: `${tc.completed_tasks ?? 0} / ${tc.total_tasks ?? 0}` },
+      ],
+    },
+    {
+      title: "Upcoming exams",
+      rows: [
+        {
+          label: "Exam proximity",
+          value: `nearest ${ep.nearest_exam_days ?? "—"}d · within 3d: ${ep.exams_within_3_days ?? 0} · within 7d: ${ep.exams_within_7_days ?? 0} · upcoming: ${ep.total_upcoming_exams ?? 0}`,
+        },
       ],
     },
     {
