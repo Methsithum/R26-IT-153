@@ -174,10 +174,10 @@ function snapshotGroups(snap) {
     {
       title: "Deadline & task pressure",
       rows: [
-        {
-          label: "Deadline proximity",
-          value: `nearest ${dp.nearest_deadline_days ?? "—"}d · due≤3d: ${dp.due_within_3_days ?? 0} · due≤7d: ${dp.due_within_7_days ?? 0} · overdue: ${dp.overdue ?? 0}`,
-        },
+        { label: "Nearest deadline", value: dp.nearest_deadline_days != null ? days(dp.nearest_deadline_days) : "—" },
+        { label: "Due within 3 days", value: dp.due_within_3_days ?? 0 },
+        { label: "Due within 7 days", value: dp.due_within_7_days ?? 0 },
+        { label: "Overdue", value: dp.overdue ?? 0 },
         {
           label: "Assignment progress",
           value: Object.keys(ap).length ? Object.entries(ap).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`).join(", ") : "none recorded",
@@ -188,10 +188,10 @@ function snapshotGroups(snap) {
     {
       title: "Upcoming exams",
       rows: [
-        {
-          label: "Exam proximity",
-          value: `nearest ${ep.nearest_exam_days ?? "—"}d · within 3d: ${ep.exams_within_3_days ?? 0} · within 7d: ${ep.exams_within_7_days ?? 0} · upcoming: ${ep.total_upcoming_exams ?? 0}`,
-        },
+        { label: "Nearest exam", value: ep.nearest_exam_days != null ? days(ep.nearest_exam_days) : "—" },
+        { label: "Within 3 days", value: ep.exams_within_3_days ?? 0 },
+        { label: "Within 7 days", value: ep.exams_within_7_days ?? 0 },
+        { label: "Total upcoming", value: ep.total_upcoming_exams ?? 0 },
       ],
     },
     {
