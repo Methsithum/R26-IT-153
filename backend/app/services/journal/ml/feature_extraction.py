@@ -31,6 +31,27 @@ FEATURE_NAMES = [
 # rather than 0, which would read as "due today".
 NO_DEADLINE_FALLBACK = 999
 
+FEATURE_LABELS = {
+    "study_hours_avg_per_day": "Avg study hours / active day",
+    "study_hours_last_14_days": "Total study hours (14d)",
+    "total_sessions_last_14_days": "Journal sessions (14d)",
+    "active_days_last_14_days": "Active days (14d)",
+    "activity_frequency": "Activity frequency",
+    "nearest_deadline_days": "Days to nearest deadline",
+    "due_within_3_days": "Tasks due within 3 days",
+    "due_within_7_days": "Tasks due within 7 days",
+    "overdue": "Overdue tasks",
+    "total_tasks": "Total tasks",
+    "completed_tasks": "Completed tasks",
+    "nearest_exam_days": "Days to nearest exam",
+    "exams_within_3_days": "Exams within 3 days",
+    "exams_within_7_days": "Exams within 7 days",
+    "total_upcoming_exams": "Total upcoming exams",
+    "engagement_high": "High-engagement days",
+    "engagement_medium": "Medium-engagement days",
+    "engagement_low": "Low-engagement days",
+}
+
 
 def extract_features(snapshot: Dict[str, Any]) -> List[float]:
     deadline = snapshot.get("deadline_proximity", {}) or {}

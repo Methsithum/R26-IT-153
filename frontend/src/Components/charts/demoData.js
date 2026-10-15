@@ -179,6 +179,14 @@ export function buildDemoBehaviorLatest() {
     created_at: new Date().toISOString(),
     generated_at: new Date().toISOString(),
     demo: true,
+    mlConfidence: 0.82,
+    mlFeatureContributions: [
+      { feature: "activity_frequency", label: "Activity frequency", value: 0.5, weightShare: 0.3 },
+      { feature: "engagement_high", label: "High-engagement days", value: 4, weightShare: 0.22 },
+      { feature: "completed_tasks", label: "Completed tasks", value: 3, weightShare: 0.18 },
+      { feature: "study_hours_avg_per_day", label: "Avg study hours / active day", value: 1.4, weightShare: 0.16 },
+      { feature: "overdue", label: "Overdue tasks", value: 0, weightShare: 0.14 },
+    ],
     snapshotOfActivityData: {
       account_age_days: 21,
       observation_window_days: 14,

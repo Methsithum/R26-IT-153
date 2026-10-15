@@ -11,7 +11,7 @@ from app.models.journal.task import TaskModel
 from app.models.user.user import UserModel
 from app.services.time_utils import local_today, to_local_date, calendar_datetime, as_of_day, LOCAL_TZ
 from app.services.journal.journal_constants import MARK_RECEIVED_STAGES
-from app.services.journal.ml.behavior_predictor import predict_category, model_available
+from app.services.journal.ml.behavior_predictor import predict_category, model_available, top_feature_contributions
 
 client = AsyncOpenAI(api_key=settings.openai_api_key)
 MODEL = settings.openai_model
@@ -242,11 +242,13 @@ async def analyze_behavior(snapshot: Dict[str, Any]) -> Dict[str, Any]:
     # the LLM choose if the model hasn't been trained yet.
     ml_category = None
     ml_confidence = None
+    ml_feature_contributions = []
     if model_available():
         try:
             ml_result = predict_category(snapshot)
             ml_category = ml_result["category"]
             ml_confidence = ml_result["confidence"]
+            ml_feature_contributions = top_feature_contributions(snapshot)
         except Exception:
             logger.exception("Behaviour classifier prediction failed, falling back to LLM categorization")
 
@@ -270,6 +272,7 @@ async def analyze_behavior(snapshot: Dict[str, Any]) -> Dict[str, Any]:
         "reasoning": reasoning,
         "nextSteps": _clean_next_steps(data.get("nextSteps")),
         "mlConfidence": ml_confidence,
+        "mlFeatureContributions": ml_feature_contributions,
     }
     if snapshot.get("active_days_last_14_days", 0) < 7:
         days = snapshot.get("active_days_last_14_days", 0)
@@ -302,6 +305,7 @@ async def run_and_store_behavior_analysis(user_id: str, trigger: str) -> Dict[st
         "reasoning": analysis["reasoning"],
         "nextSteps": analysis["nextSteps"],
         "mlConfidence": analysis.get("mlConfidence"),
+        "mlFeatureContributions": analysis.get("mlFeatureContributions") or [],
         "trigger": trigger,
         "timestamp": datetime.utcnow(),
         "snapshotOfActivityData": snapshot,

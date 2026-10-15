@@ -25,4 +25,6 @@ async def get_latest_behavior_analysis(user_id: str) -> Dict:
         "created_at": record.get("created_at"),
         "generated_at": record.get("timestamp"),
         "snapshotOfActivityData": record.get("snapshotOfActivityData"),
+        "mlConfidence": record.get("mlConfidence"),
+        "mlFeatureContributions": record.get("mlFeatureContributions") or [],
     }

@@ -4,11 +4,11 @@ instead of asking the LLM to pick the category itself.
 """
 
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import joblib
 
-from app.services.journal.ml.feature_extraction import extract_features
+from app.services.journal.ml.feature_extraction import FEATURE_LABELS, extract_features
 
 MODEL_PATH = Path(__file__).parent / "behavior_model.joblib"
 
@@ -41,3 +41,31 @@ def predict_category(snapshot: Dict[str, Any]) -> Dict[str, Any]:
     confidence = float(max(probabilities))
 
     return {"category": category, "confidence": round(confidence, 3)}
+
+
+def top_feature_contributions(snapshot: Dict[str, Any], limit: int = 6) -> List[Dict[str, Any]]:
+    """Which of this snapshot's numbers the model leans on most, ranked by
+    the trained RandomForest's global feature_importances_. This is a
+    global ranking (which variables the model relies on overall), not a
+    per-prediction explanation (e.g. SHAP) - it's shown next to each
+    student's own values so the two together read as "why this verdict"."""
+    bundle = _load()
+    model = bundle["model"]
+    feature_names = bundle["feature_names"]
+    values = extract_features(snapshot)
+    importances = model.feature_importances_
+
+    ranked = sorted(
+        zip(feature_names, importances, values), key=lambda row: row[1], reverse=True
+    )[:limit]
+    total = sum(imp for _, imp, _ in ranked) or 1.0
+    return [
+        {
+            "feature": name,
+            "label": FEATURE_LABELS.get(name, name),
+            "value": value,
+            "importance": round(float(imp), 4),
+            "weightShare": round(float(imp) / total, 4),
+        }
+        for name, imp, value in ranked
+    ]

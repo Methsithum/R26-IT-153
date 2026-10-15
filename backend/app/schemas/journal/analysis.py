@@ -12,3 +12,5 @@ class BehaviorAnalysisResponse(BaseModel):
     nextSteps: List[Dict[str, str]] = []
     generatedAt: datetime
     snapshotOfActivityData: Dict[str, Any]
+    mlConfidence: float | None = None
+    mlFeatureContributions: List[Dict[str, Any]] = []

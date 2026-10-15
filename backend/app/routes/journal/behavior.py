@@ -22,4 +22,6 @@ async def analyze_behavior_category(req: BehaviorAnalysisRequest):
         nextSteps=record["nextSteps"],
         generatedAt=record["timestamp"],
         snapshotOfActivityData=record["snapshotOfActivityData"],
+        mlConfidence=record.get("mlConfidence"),
+        mlFeatureContributions=record.get("mlFeatureContributions") or [],
     )
