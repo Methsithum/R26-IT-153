@@ -34,8 +34,10 @@ from app.services.journal.career_clarity import (
 from app.services.journal.journal_constants import (
     ASSIGNMENT_STATUS_ANSWERS,
     EXAM_KINDS,
+    engagement_from_focus_answer,
     filter_allowed_activities,
     parse_letter_grade,
+    study_minutes_from_answer,
 )
 from app.services.journal.alerts import generate_proactive_alerts
 from app.services.journal.behavior_analysis import auto_behavior_analysis
@@ -372,7 +374,20 @@ async def _record_structured_answer(session: dict, answer: str) -> dict:
     meta = session.get("pending_meta") or {}
     field = meta.get("context_field")
     user_id = session["user_id"]
+    pending_qid = session.get("pending_question_id")
     updates: dict = {}
+
+    if pending_qid in {"study-duration", "study-duration-b", "asg-hours", "exam-hours", "proj-hours"}:
+        minutes = study_minutes_from_answer(answer)
+        if minutes:
+            updates["study_duration_minutes"] = (session.get("study_duration_minutes") or 0) + minutes
+        return updates
+
+    if pending_qid in {"study-focus", "study-focus-b"}:
+        engagement = engagement_from_focus_answer(answer)
+        if engagement:
+            updates["engagement"] = engagement
+        return updates
 
     if field in {"examDates", "exam-dates-check", "examMark", "exam-mark-check"}:
         owned = {str(exam["id"]) for exam in await ExamModel.find_by_user(user_id)}

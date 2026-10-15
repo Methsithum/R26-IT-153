@@ -9,8 +9,9 @@ from app.models.journal.daily_session import DailySessionModel
 from app.models.journal.exam import ExamModel
 from app.models.journal.task import TaskModel
 from app.models.user.user import UserModel
-from app.services.time_utils import local_today, to_local_date, calendar_datetime, LOCAL_TZ
+from app.services.time_utils import local_today, to_local_date, calendar_datetime, as_of_day, LOCAL_TZ
 from app.services.journal.journal_constants import MARK_RECEIVED_STAGES
+from app.services.journal.ml.behavior_predictor import predict_category, model_available
 
 client = AsyncOpenAI(api_key=settings.openai_api_key)
 MODEL = settings.openai_model
@@ -45,11 +46,22 @@ def _count_completed_tasks(tasks: List[Dict[str, Any]]) -> int:
     return count
 
 
-def _build_behavior_prompt(snapshot: Dict[str, Any]) -> str:
+def _build_behavior_prompt(snapshot: Dict[str, Any], fixed_category: str | None = None) -> str:
+    if fixed_category:
+        category_instruction = (
+            f'A trained classifier has already assigned the category "{fixed_category}" '
+            'from this snapshot\'s numeric features. Use that exact category in '
+            '"behaviorCategory" - do not change it. Your job is only to write the '
+            "reasoning and next steps that explain and support that category."
+        )
+    else:
+        category_instruction = (
+            "Analyze the structured activity snapshot and choose EXACTLY ONE category from:\n"
+            f"{json.dumps(BEHAVIOR_CATEGORIES)}."
+        )
     return f"""
 You are a behavioral analysis assistant for university productivity data.
-Analyze the structured activity snapshot and choose EXACTLY ONE category from:
-{json.dumps(BEHAVIOR_CATEGORIES)}.
+{category_instruction}
 
 Rules:
 - Assign one category only.
@@ -83,8 +95,10 @@ Activity snapshot:
 """
 
 
-async def build_activity_snapshot(user_id: str) -> Dict[str, Any]:
-    today = local_today()
+async def build_activity_snapshot(user_id: str, as_of: Any = None) -> Dict[str, Any]:
+    """as_of lets the ML training script replay the snapshot at past dates;
+    live callers leave it unset and get the real campus today."""
+    today = as_of_day(as_of)
     cutoff = today - timedelta(days=13)
 
     sessions = await DailySessionModel.find_user_sessions(user_id)
@@ -222,7 +236,21 @@ def _clean_next_steps(raw: Any) -> List[Dict[str, str]]:
 
 
 async def analyze_behavior(snapshot: Dict[str, Any]) -> Dict[str, Any]:
-    prompt = _build_behavior_prompt(snapshot)
+    # The classifier (trained on the labelled synthetic test accounts) picks
+    # the category from the snapshot's numeric features; the LLM only writes
+    # the reasoning/next-steps text for that category. Falls back to letting
+    # the LLM choose if the model hasn't been trained yet.
+    ml_category = None
+    ml_confidence = None
+    if model_available():
+        try:
+            ml_result = predict_category(snapshot)
+            ml_category = ml_result["category"]
+            ml_confidence = ml_result["confidence"]
+        except Exception:
+            logger.exception("Behaviour classifier prediction failed, falling back to LLM categorization")
+
+    prompt = _build_behavior_prompt(snapshot, fixed_category=ml_category)
     resp = await client.chat.completions.create(
         model=MODEL,
         messages=[{"role": "user", "content": prompt}],
@@ -230,7 +258,7 @@ async def analyze_behavior(snapshot: Dict[str, Any]) -> Dict[str, Any]:
         temperature=0.2
     )
     data = json.loads(resp.choices[0].message.content)
-    category = data.get("behaviorCategory")
+    category = ml_category or data.get("behaviorCategory")
     reasoning = data.get("reasoning", "")
 
     if category not in BEHAVIOR_CATEGORIES:
@@ -241,6 +269,7 @@ async def analyze_behavior(snapshot: Dict[str, Any]) -> Dict[str, Any]:
         "behaviorCategory": category,
         "reasoning": reasoning,
         "nextSteps": _clean_next_steps(data.get("nextSteps")),
+        "mlConfidence": ml_confidence,
     }
     if snapshot.get("active_days_last_14_days", 0) < 7:
         days = snapshot.get("active_days_last_14_days", 0)
@@ -272,6 +301,7 @@ async def run_and_store_behavior_analysis(user_id: str, trigger: str) -> Dict[st
         "behaviorCategory": analysis["behaviorCategory"],
         "reasoning": analysis["reasoning"],
         "nextSteps": analysis["nextSteps"],
+        "mlConfidence": analysis.get("mlConfidence"),
         "trigger": trigger,
         "timestamp": datetime.utcnow(),
         "snapshotOfActivityData": snapshot,

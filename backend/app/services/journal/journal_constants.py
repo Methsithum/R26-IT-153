@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Final
+from typing import Final, Optional
 
 from app.services.time_utils import local_today
 
@@ -35,6 +35,39 @@ ASSIGNMENT_STATUS_ANSWERS: Final[dict[str, str]] = {
     "almost done": "in_progress",
     "submitted": "report_completed",
     "yes submitted": "report_completed",
+}
+
+# The "how long" choice questions (study-duration, asg-hours, exam-hours,
+# proj-hours in question_bank.py) never give a number, so each lane answer
+# maps to a minutes estimate (midpoint of its range). Answers for whichever
+# of these were asked that day accumulate into study_duration_minutes.
+STUDY_DURATION_MINUTES: Final[dict[str, int]] = {
+    "none": 0,
+    "under 1 hour": 45,
+    "a short burst": 45,
+    "1 2 hours": 90,
+    "about an hour or two": 90,
+    "1 3 hours": 120,
+    "2 3 hours": 150,
+    "a solid block": 150,
+    "2 4 hours": 180,
+    "more than 3 hours": 210,
+    "most of the day": 210,
+    "more than 4 hours": 270,
+}
+
+# "study-focus"/"study-focus-b" are the direct engagement proxy question -
+# how focused the student was maps straight to the engagement level used by
+# gamification, alerts and the behaviour-analysis snapshot/classifier.
+ENGAGEMENT_FROM_FOCUS: Final[dict[str, str]] = {
+    "very focused": "high",
+    "yes locked in": "high",
+    "mostly focused": "medium",
+    "mostly": "medium",
+    "some distractions": "medium",
+    "on and off": "medium",
+    "need a better plan": "low",
+    "barely": "low",
 }
 
 INTERNSHIP_PROGRESS_STAGES: Final[set[str]] = {
@@ -89,6 +122,21 @@ def is_mark_check_due(last_check, today=None) -> bool:
         except Exception:
             return True
     return (today - last).days >= MARK_CHECK_INTERVAL_DAYS
+
+
+def _normalize_lane_text(value) -> str:
+    text = str(value or "").strip().lower()
+    for ch in "_-–—,":
+        text = text.replace(ch, " ")
+    return " ".join(text.split())
+
+
+def study_minutes_from_answer(answer) -> Optional[int]:
+    return STUDY_DURATION_MINUTES.get(_normalize_lane_text(answer))
+
+
+def engagement_from_focus_answer(answer) -> Optional[str]:
+    return ENGAGEMENT_FROM_FOCUS.get(_normalize_lane_text(answer))
 
 
 def normalize_activity(activity: str) -> str:
