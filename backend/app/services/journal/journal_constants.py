@@ -37,37 +37,28 @@ ASSIGNMENT_STATUS_ANSWERS: Final[dict[str, str]] = {
     "yes submitted": "report_completed",
 }
 
-# The "how long" choice questions (study-duration, asg-hours, exam-hours,
-# proj-hours in question_bank.py) never give a number, so each lane answer
-# maps to a minutes estimate (midpoint of its range). Answers for whichever
-# of these were asked that day accumulate into study_duration_minutes.
-STUDY_DURATION_MINUTES: Final[dict[str, int]] = {
-    "none": 0,
-    "under 1 hour": 45,
-    "a short burst": 45,
-    "1 2 hours": 90,
-    "about an hour or two": 90,
-    "1 3 hours": 120,
-    "2 3 hours": 150,
-    "a solid block": 150,
-    "2 4 hours": 180,
-    "more than 3 hours": 210,
-    "most of the day": 210,
-    "more than 4 hours": 270,
+# Each "how long" question (intent_id, not the literal question id) is stored
+# in the `questions` collection in many reworded variants for variety (e.g.
+# "exam-hours" has "exam-hours-v0003" with options ["< 1h","1-2h","2-4h","4h+"]
+# alongside the base wording ["Under 1 hour","1-2 hours","2-4 hours","More
+# than 4 hours"]) - every variant keeps the same option COUNT and ORDER, only
+# the wording changes. So instead of matching answer text, this maps the
+# answer's POSITION among that question instance's own options to a minutes
+# estimate for that intent - it keeps working for any future reworded variant
+# without needing a new dictionary entry per phrasing.
+STUDY_DURATION_MINUTES_BY_INTENT: Final[dict[str, list[int]]] = {
+    "study-duration": [45, 90, 150, 210],   # <1h, 1-2h, 2-3h, >3h
+    "exam-hours": [45, 90, 180, 270],       # <1h, 1-2h, 2-4h, >4h
+    "proj-hours": [45, 90, 180, 270],       # <1h, 1-2h, 2-4h, >4h
+    "asg-hours": [0, 45, 120, 210],         # none, <1h, 1-3h, >3h
 }
 
-# "study-focus"/"study-focus-b" are the direct engagement proxy question -
-# how focused the student was maps straight to the engagement level used by
-# gamification, alerts and the behaviour-analysis snapshot/classifier.
-ENGAGEMENT_FROM_FOCUS: Final[dict[str, str]] = {
-    "very focused": "high",
-    "yes locked in": "high",
-    "mostly focused": "medium",
-    "mostly": "medium",
-    "some distractions": "medium",
-    "on and off": "medium",
-    "need a better plan": "low",
-    "barely": "low",
+# "study-focus" is the direct engagement proxy question - how focused the
+# student was maps straight to the engagement level used by gamification,
+# alerts and the behaviour-analysis snapshot/classifier. Same reworded-variant
+# issue as above, so this is index-based too.
+ENGAGEMENT_FROM_FOCUS_BY_INTENT: Final[dict[str, list[str]]] = {
+    "study-focus": ["high", "medium", "medium", "low"],
 }
 
 INTERNSHIP_PROGRESS_STAGES: Final[set[str]] = {
@@ -131,12 +122,30 @@ def _normalize_lane_text(value) -> str:
     return " ".join(text.split())
 
 
-def study_minutes_from_answer(answer) -> Optional[int]:
-    return STUDY_DURATION_MINUTES.get(_normalize_lane_text(answer))
+def _option_index(answer, options: list[str] | None) -> Optional[int]:
+    if not options:
+        return None
+    target = _normalize_lane_text(answer)
+    for i, option in enumerate(options):
+        if _normalize_lane_text(option) == target:
+            return i
+    return None
 
 
-def engagement_from_focus_answer(answer) -> Optional[str]:
-    return ENGAGEMENT_FROM_FOCUS.get(_normalize_lane_text(answer))
+def study_minutes_from_answer(intent_id: str, answer, options: list[str] | None) -> Optional[int]:
+    buckets = STUDY_DURATION_MINUTES_BY_INTENT.get(intent_id)
+    index = _option_index(answer, options)
+    if buckets is None or index is None or index >= len(buckets):
+        return None
+    return buckets[index]
+
+
+def engagement_from_focus_answer(intent_id: str, answer, options: list[str] | None) -> Optional[str]:
+    levels = ENGAGEMENT_FROM_FOCUS_BY_INTENT.get(intent_id)
+    index = _option_index(answer, options)
+    if levels is None or index is None or index >= len(levels):
+        return None
+    return levels[index]
 
 
 def normalize_activity(activity: str) -> str:
