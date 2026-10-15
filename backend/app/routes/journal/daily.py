@@ -33,7 +33,9 @@ from app.services.journal.career_clarity import (
 )
 from app.services.journal.journal_constants import (
     ASSIGNMENT_STATUS_ANSWERS,
+    ENGAGEMENT_FROM_FOCUS_BY_INTENT,
     EXAM_KINDS,
+    STUDY_DURATION_MINUTES_BY_INTENT,
     engagement_from_focus_answer,
     filter_allowed_activities,
     parse_letter_grade,
@@ -375,16 +377,22 @@ async def _record_structured_answer(session: dict, answer: str) -> dict:
     field = meta.get("context_field")
     user_id = session["user_id"]
     pending_qid = session.get("pending_question_id")
+    # intent_id groups a question with all its reworded variants (e.g.
+    # "exam-hours-v0003" shares intent_id "exam-hours" with the base
+    # question) - matching on intent, not the literal id, so any variant
+    # the picker serves still gets captured.
+    pending_intent = meta.get("intent_id") or pending_qid
+    pending_options = session.get("pending_options")
     updates: dict = {}
 
-    if pending_qid in {"study-duration", "study-duration-b", "asg-hours", "exam-hours", "proj-hours"}:
-        minutes = study_minutes_from_answer(answer)
-        if minutes:
+    if pending_intent in STUDY_DURATION_MINUTES_BY_INTENT:
+        minutes = study_minutes_from_answer(pending_intent, answer, pending_options)
+        if minutes is not None:
             updates["study_duration_minutes"] = (session.get("study_duration_minutes") or 0) + minutes
         return updates
 
-    if pending_qid in {"study-focus", "study-focus-b"}:
-        engagement = engagement_from_focus_answer(answer)
+    if pending_intent in ENGAGEMENT_FROM_FOCUS_BY_INTENT:
+        engagement = engagement_from_focus_answer(pending_intent, answer, pending_options)
         if engagement:
             updates["engagement"] = engagement
         return updates
