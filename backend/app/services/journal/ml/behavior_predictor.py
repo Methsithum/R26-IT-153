@@ -43,7 +43,7 @@ def predict_category(snapshot: Dict[str, Any]) -> Dict[str, Any]:
     return {"category": category, "confidence": round(confidence, 3)}
 
 
-def top_feature_contributions(snapshot: Dict[str, Any], limit: int = 6) -> List[Dict[str, Any]]:
+def top_feature_contributions(snapshot: Dict[str, Any], limit: Optional[int] = None) -> List[Dict[str, Any]]:
     """Which of this snapshot's numbers the model leans on most, ranked by
     the trained RandomForest's global feature_importances_. This is a
     global ranking (which variables the model relies on overall), not a
@@ -57,7 +57,9 @@ def top_feature_contributions(snapshot: Dict[str, Any], limit: int = 6) -> List[
 
     ranked = sorted(
         zip(feature_names, importances, values), key=lambda row: row[1], reverse=True
-    )[:limit]
+    )
+    if limit is not None:
+        ranked = ranked[:limit]
     total = sum(imp for _, imp, _ in ranked) or 1.0
     return [
         {

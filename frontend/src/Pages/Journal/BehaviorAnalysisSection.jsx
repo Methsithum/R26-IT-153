@@ -151,33 +151,78 @@ function actionTips(category, snap) {
   return [...urgent, ...(byCategory[category] || [])].filter(Boolean).slice(0, 3);
 }
 
+const MEDALS = ["🥇", "🥈", "🥉"];
+
 function FeatureContributionBars({ rows }) {
   if (!rows?.length) return null;
-  const maxShare = Math.max(...rows.map((r) => r.weightShare), 0.01);
+  const maxShare = Math.max(...rows.map((r) => r.weightShare), 0.0001);
+  const topThree = rows.slice(0, 3);
+  const rest = rows.slice(3);
+
   return (
-    <div className="space-y-2.5">
-      {rows.map((row) => {
-        const pct = Math.max(4, (row.weightShare / maxShare) * 100);
-        return (
-          <div key={row.feature} className="text-[11px]">
-            <div className="mb-1 flex items-baseline justify-between gap-2">
-              <span className="font-medium text-slate-600 dark:text-slate-200">{row.label}</span>
-              <span className="shrink-0 text-slate-400">
-                your value: <span className="font-semibold text-slate-600 dark:text-slate-200">{formatFeatureValue(row.feature, row.value)}</span>
-              </span>
+    <div className="space-y-4">
+      {/* key drivers - the 3 variables the model weighs most, at a glance */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        {topThree.map((row, i) => (
+          <motion.div
+            key={row.feature}
+            initial={{ opacity: 0, y: 10, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.35, delay: i * 0.1, ease: "easeOut" }}
+            className="rounded-2xl border border-brand-200/70 dark:border-brand-400/30 bg-gradient-to-br from-brand-50 to-pink-50 dark:from-brand-700/20 dark:to-pink-500/10 px-3 py-2.5"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-base leading-none">{MEDALS[i]}</span>
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: i * 0.1 + 0.3 }}
+                className="text-[10px] font-bold text-brand-600 dark:text-brand-300"
+              >
+                {Math.round(row.weightShare * 100)}% weight
+              </motion.span>
             </div>
-            <div className="relative h-4 rounded-lg bg-brand-50 dark:bg-white/5 overflow-hidden">
-              <motion.div
-                className="h-full rounded-lg"
-                style={{ background: `linear-gradient(90deg, ${BRAND[500]}, ${BRAND[500]}88)` }}
-                initial={{ width: 0 }}
-                animate={{ width: `${pct}%` }}
-                transition={{ duration: 0.6, ease: "easeOut" }}
-              />
+            <div className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-100">{row.label}</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-300">
+              your value: <span className="font-semibold text-brand-700 dark:text-brand-200">{formatFeatureValue(row.feature, row.value)}</span>
             </div>
-          </div>
-        );
-      })}
+          </motion.div>
+        ))}
+      </div>
+
+      {/* full ranked breakdown - all 18 model variables */}
+      <div className="space-y-2">
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Full breakdown · all {rows.length} model variables</div>
+        {rest.map((row, i) => {
+          const pct = Math.max(3, (row.weightShare / maxShare) * 100);
+          return (
+            <motion.div
+              key={row.feature}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3, delay: 0.3 + i * 0.03, ease: "easeOut" }}
+              className="text-[11px]"
+            >
+              <div className="mb-1 flex items-baseline justify-between gap-2">
+                <span className="font-medium text-slate-600 dark:text-slate-200">{row.label}</span>
+                <span className="shrink-0 text-slate-400">
+                  your value: <span className="font-semibold text-slate-600 dark:text-slate-200">{formatFeatureValue(row.feature, row.value)}</span>
+                  <span className="ml-1.5 text-brand-500 dark:text-brand-300">{Math.round(row.weightShare * 100)}%</span>
+                </span>
+              </div>
+              <div className="relative h-3.5 rounded-lg bg-brand-50 dark:bg-white/5 overflow-hidden">
+                <motion.div
+                  className="h-full rounded-lg"
+                  style={{ background: `linear-gradient(90deg, ${BRAND[500]}, ${BRAND[500]}88)` }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${pct}%` }}
+                  transition={{ duration: 0.5, delay: 0.3 + i * 0.03, ease: "easeOut" }}
+                />
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
     </div>
   );
 }
