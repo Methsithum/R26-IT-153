@@ -35,8 +35,10 @@ export function predictCluster(behaviorFeatures) {
 }
 
 /** POST /schedule — { weekly_free_slots, tasks } -> { schedule, overload_warning, tasks } */
-export function createSchedule(weeklyFreeSlots, tasks) {
-  return unwrap(client.post("/schedule", { weekly_free_slots: weeklyFreeSlots, tasks }));
+// blockedSlots: manually rescheduled sessions ({ date, start_time, end_time })
+// the generator must keep free - see fetchBlockedSlots() below.
+export function createSchedule(weeklyFreeSlots, tasks, blockedSlots = []) {
+  return unwrap(client.post("/schedule", { weekly_free_slots: weeklyFreeSlots, tasks, blocked_slots: blockedSlots }));
 }
 
 /**
@@ -48,20 +50,26 @@ export function createSchedule(weeklyFreeSlots, tasks) {
  * "Next"/"Previous" click - the Week view then slices whichever 7-day
  * window is currently being viewed out of this single response.
  */
-export function createMultiWeekSchedule(weeklyFreeSlots, tasks, weeksAhead) {
+export function createMultiWeekSchedule(weeklyFreeSlots, tasks, weeksAhead, blockedSlots = []) {
   return unwrap(
-    client.post("/multi-week-schedule", { weekly_free_slots: weeklyFreeSlots, tasks, weeks_ahead: weeksAhead ?? null })
+    client.post("/multi-week-schedule", {
+      weekly_free_slots: weeklyFreeSlots,
+      tasks,
+      weeks_ahead: weeksAhead ?? null,
+      blocked_slots: blockedSlots,
+    })
   );
 }
 
 /** POST /reschedule — previous schedule + remaining free slots + completed/new tasks -> same shape as /schedule */
-export function rescheduleSchedule({ previousSchedule, remainingFreeSlots, completedTaskIds, newTasks }) {
+export function rescheduleSchedule({ previousSchedule, remainingFreeSlots, completedTaskIds, newTasks, blockedSlots = [] }) {
   return unwrap(
     client.post("/reschedule", {
       previous_schedule: previousSchedule,
       remaining_free_slots: remainingFreeSlots,
       completed_task_ids: completedTaskIds,
       new_tasks: newTasks || [],
+      blocked_slots: blockedSlots,
     })
   );
 }
@@ -98,6 +106,87 @@ export function createRealTask({ userId, subject, title, deadline, weight }) {
  */
 export function completeTask(taskId) {
   return unwrap(client.patch(`/tasks/${taskId}/complete`));
+}
+
+/**
+ * PATCH /exams/{id}/plan - records which half of the day an exam is in
+ * ("morning" | "afternoon") and/or whether after-exam revision for the next
+ * day's exam is allowed (exam_plan_routes.py).
+ */
+export function updateExamPlan(examId, userId, { examSession, afterExamRevision }) {
+  return unwrap(
+    client.patch(`/exams/${examId}/plan`, {
+      user_id: userId,
+      exam_session: examSession ?? null,
+      after_exam_revision: afterExamRevision ?? null,
+    })
+  );
+}
+
+// --- Study-session history + permission-first missed-session flow ---
+// (backend/app/routes/study_planner/session_routes.py). `session` is a
+// SessionInput: { date, time_slot, task_id, module, duration_minutes,
+// task_type, deadline_date } - see toSessionInput() in sessionTracking.js.
+
+/** POST /sessions/snapshot - append-only save; already-stored sessions are left untouched. */
+export function snapshotSessions(userId, sessions) {
+  return unwrap(client.post("/sessions/snapshot", { user_id: userId, sessions }));
+}
+
+/** POST /sessions/mark - "done" | "missed". Marking missed only records it; nothing is moved. */
+export function markSession(userId, session, status) {
+  return unwrap(client.post("/sessions/mark", { user_id: userId, session, status }));
+}
+
+/** GET /sessions - stored sessions (with their status) between two ISO dates, inclusive. */
+export function fetchSessionHistory(userId, startDate, endDate) {
+  return unwrap(client.get("/sessions", { params: { user_id: userId, start_date: startDate, end_date: endDate } }));
+}
+
+/** GET /sessions/pending-decisions - missed sessions the student hasn't decided about yet. */
+export function fetchPendingDecisions(userId) {
+  return unwrap(client.get("/sessions/pending-decisions", { params: { user_id: userId } }));
+}
+
+/** GET /sessions/blocked - upcoming manually booked slots, for every schedule generation call. */
+export function fetchBlockedSlots(userId) {
+  return unwrap(client.get("/sessions/blocked", { params: { user_id: userId } }));
+}
+
+/** GET /sessions/stats - done/missed/pending counts + completion_rate. */
+export function fetchSessionStats(userId) {
+  return unwrap(client.get("/sessions/stats", { params: { user_id: userId } }));
+}
+
+/** POST /sessions/{id}/suggest-slots - free slots in "this" or "next" week, up to the deadline. */
+export function suggestSlots(sessionId, { userId, week, weeklyFreeSlots, occupied }) {
+  return unwrap(
+    client.post(`/sessions/${sessionId}/suggest-slots`, {
+      user_id: userId,
+      week,
+      weekly_free_slots: weeklyFreeSlots,
+      occupied,
+    })
+  );
+}
+
+/** POST /sessions/{id}/reschedule-to - books the ONE slot the student picked (409 if it's no longer free). */
+export function rescheduleSessionTo(sessionId, { userId, week, weeklyFreeSlots, occupied, date, timeSlot }) {
+  return unwrap(
+    client.post(`/sessions/${sessionId}/reschedule-to`, {
+      user_id: userId,
+      week,
+      weekly_free_slots: weeklyFreeSlots,
+      occupied,
+      date,
+      time_slot: timeSlot,
+    })
+  );
+}
+
+/** POST /sessions/{id}/decline - "don't reschedule": stays missed, schedule untouched. */
+export function declineReschedule(sessionId, userId) {
+  return unwrap(client.post(`/sessions/${sessionId}/decline`, { user_id: userId }));
 }
 
 export default client;

@@ -11,12 +11,26 @@ import { CODE_MODULE_ENCODING, ASSESSMENT_TYPE_ENCODING, buildDateFeatureFromDea
 import { buildWeeklyModuleAllocation } from "../utils/studyAllocation";
 import { buildWeeklyFreeSlots } from "../utils/freeSlotGenerator";
 import { buildNotificationsFromRealData } from "../utils/notificationBuilder";
-import { toLocalDateStr } from "../utils/dateHelpers";
+import { addDays, toLocalDateStr } from "../utils/dateHelpers";
+import { recordKey, toSessionInput } from "../utils/sessionTracking";
 import {
   updateTaskWeight as apiUpdateTaskWeight,
   updateTaskDeadline as apiUpdateTaskDeadline,
   completeTask as apiCompleteTask,
+  snapshotSessions as apiSnapshotSessions,
+  markSession as apiMarkSession,
+  fetchSessionHistory as apiFetchSessionHistory,
+  fetchPendingDecisions as apiFetchPendingDecisions,
+  fetchBlockedSlots as apiFetchBlockedSlots,
+  rescheduleSessionTo as apiRescheduleSessionTo,
+  declineReschedule as apiDeclineReschedule,
+  updateExamPlan as apiUpdateExamPlan,
 } from "../services/academicApi";
+
+// How far back pushFrozenHistory() re-sends locally frozen days on login -
+// the backend ignores already-stored sessions, so this is only a bound on
+// request size, not a correctness concern.
+const HISTORY_BACKFILL_DAYS = 30;
 
 const MODULE_COLORS = ["brand", "teal", "pink", "orange"];
 // The trained model only knows 7 fixed OULAD module categories (AAA-GGG) —
@@ -176,6 +190,9 @@ function buildFromJournal({ tasks = [], exams = [], subjects = [] }) {
       moduleName: e.subject,
       date: String(e.date).slice(0, 10),
       type: e.exam_type || "Exam",
+      // Back-to-back exam planning (utils/examDay.js) - null until asked.
+      examSession: e.exam_session || null,
+      afterExamRevision: e.after_exam_revision ?? null,
     }));
 
   return { modules, assignments, exams: mappedExams };
@@ -248,6 +265,10 @@ export const useAcademicStore = create(
       syncProfileFromUser: (gameState) => {
         if (!gameState?.userId) return;
         set((s) => ({
+          // The real account id - the only id the study_sessions history
+          // is keyed by. Stays null until a real login, which disables
+          // session marking rather than writing history under a mock id.
+          userId: gameState.userId,
           profile: {
             ...s.profile,
             id: gameState.userId,
@@ -409,6 +430,31 @@ export const useAcademicStore = create(
         apiUpdateTaskWeight(taskId, weight).catch(() => {});
       },
 
+      // Exam time (morning/afternoon) + after-exam revision answer for a
+      // back-to-back exam cluster. Saved to the real exam documents first;
+      // then the cached plans are dropped so prep hours are recomputed with
+      // the revision credit (utils/examDay.js's applyRevisionCredit).
+      examPlanCluster: null, // the cluster whose ExamPlanModal is open
+      openExamPlan: (cluster) => set({ examPlanCluster: cluster }),
+      closeExamPlan: () => set({ examPlanCluster: null }),
+      saveExamPlans: async (plans) => {
+        const { userId } = get();
+        if (userId) {
+          await Promise.all(plans.map((p) => apiUpdateExamPlan(p.examId, userId, p)));
+        }
+        get().freezePastDates();
+        set((s) => ({
+          exams: s.exams.map((e) => {
+            const plan = plans.find((p) => p.examId === e.id);
+            return plan ? { ...e, examSession: plan.examSession, afterExamRevision: plan.afterExamRevision } : e;
+          }),
+          examPlanCluster: null,
+          scheduleResponse: null,
+          todoList: [],
+          multiWeekSchedule: null,
+        }));
+      },
+
       updateExamDate: (examId, newDate) => {
         set((s) => ({
           exams: s.exams.map((e) => (e.id === examId ? { ...e, date: newDate } : e)),
@@ -478,6 +524,7 @@ export const useAcademicStore = create(
         const today = toLocalDateStr(new Date());
         const historical = { ...s.historicalScheduleByDate };
         let changed = false;
+        const newlyFrozen = [];
 
         // Source 1: scheduleResponse - the live, /reschedule-integrated
         // single-week response, keyed by WEEKDAY NAME relative to whatever
@@ -495,6 +542,7 @@ export const useAcademicStore = create(
             source: "scheduleResponse",
           };
           changed = true;
+          newlyFrozen.push(s.scheduleGeneratedDate);
         }
 
         // Source 2: multiWeekSchedule - already real-ISO-date-keyed, covers
@@ -513,11 +561,145 @@ export const useAcademicStore = create(
                 source: "multiWeekSchedule",
               };
               changed = true;
+              newlyFrozen.push(dateStr);
             }
           }
         }
 
-        if (changed) set({ historicalScheduleByDate: historical });
+        // Source 3: the REST of scheduleResponse's window. It covers 7 real
+        // dates (scheduleGeneratedDate .. +6, each weekday bucket resolving
+        // to the next such date - schedule_engine.py's resolve_day_date), and
+        // it's persisted while multiWeekSchedule is not - so after a reload
+        // it's the only surviving record of what those days showed. Without
+        // this, a plan generated Monday and next opened Thursday froze only
+        // Monday, and Tuesday/Wednesday showed "Historical data not
+        // available". Lowest priority: only fills dates still unclaimed.
+        if (s.scheduleResponse?.schedule && s.scheduleGeneratedDate) {
+          const genDate = new Date(`${s.scheduleGeneratedDate}T00:00:00`);
+          for (let offset = 1; offset < 7; offset++) {
+            const day = addDays(genDate, offset);
+            const dateStr = toLocalDateStr(day);
+            if (dateStr >= today) break;
+            if (historical[dateStr]) continue;
+            const weekdayName = day.toLocaleDateString("en-US", { weekday: "long" });
+            historical[dateStr] = {
+              sessions: s.scheduleResponse.schedule[weekdayName] || [],
+              tasksRegistry: s.scheduleResponse.tasks || {},
+              frozenAt: new Date().toISOString(),
+              source: "scheduleResponse",
+            };
+            changed = true;
+            newlyFrozen.push(dateStr);
+          }
+        }
+
+        if (changed) {
+          set({ historicalScheduleByDate: historical });
+          get().pushFrozenHistory(newlyFrozen);
+        }
+      },
+
+      // --- Permanent session history (MongoDB study_sessions) ---
+      // localStorage above is only this browser's cache; the backend is the
+      // durable record of what was planned and whether it was really done.
+      userId: null,
+      // recordKey(record) -> stored session (status, reschedule_decision, ...)
+      sessionRecords: {},
+      // Upcoming manually rescheduled slots - sent as blocked_slots with every
+      // /schedule, /multi-week-schedule and /reschedule call so the generator
+      // never puts another task on top of them.
+      blockedSlots: [],
+      // Missed sessions with no decision yet (popup closed without choosing).
+      pendingDecisions: [],
+      // The missed session whose "this week / next week / don't reschedule"
+      // popup is open (MissedSessionModal), or null.
+      rescheduleTarget: null,
+
+      // Sends frozen days to the backend (append-only there). `dates`
+      // defaults to every locally frozen day in the last HISTORY_BACKFILL_DAYS
+      // - used once per login, since days frozen while logged out (or
+      // before this feature existed) only ever reached localStorage.
+      pushFrozenHistory: (dates) => {
+        const { userId, historicalScheduleByDate } = get();
+        if (!userId) return;
+        const cutoff = toLocalDateStr(addDays(new Date(), -HISTORY_BACKFILL_DAYS));
+        const targetDates = dates || Object.keys(historicalScheduleByDate).filter((d) => d >= cutoff);
+        const sessions = targetDates.flatMap((date) => {
+          const record = historicalScheduleByDate[date];
+          return (record?.sessions || []).map((item) => toSessionInput(date, item, record.tasksRegistry));
+        });
+        if (sessions.length) apiSnapshotSessions(userId, sessions).catch(() => {});
+      },
+
+      loadSessionRecords: async (startDate, endDate) => {
+        const { userId } = get();
+        if (!userId) return;
+        const records = await apiFetchSessionHistory(userId, startDate, endDate);
+        set((s) => {
+          const next = Object.fromEntries(
+            Object.entries(s.sessionRecords).filter(([, r]) => r.date < startDate || r.date > endDate)
+          );
+          records.forEach((r) => (next[recordKey(r)] = r));
+          return { sessionRecords: next };
+        });
+      },
+
+      loadSessionMeta: async () => {
+        const { userId } = get();
+        if (!userId) return;
+        const [blockedSlots, pendingDecisions] = await Promise.all([
+          apiFetchBlockedSlots(userId),
+          apiFetchPendingDecisions(userId),
+        ]);
+        set({ blockedSlots, pendingDecisions });
+      },
+
+      _storeRecord: (record) =>
+        set((s) => ({
+          sessionRecords: { ...s.sessionRecords, [recordKey(record)]: record },
+          pendingDecisions:
+            record.status === "missed" && record.reschedule_decision === "pending"
+              ? [...s.pendingDecisions.filter((p) => p.id !== record.id), record]
+              : s.pendingDecisions.filter((p) => p.id !== record.id),
+        })),
+
+      // "done" | "missed". Marking missed ONLY records it and opens the
+      // permission popup - it never moves anything by itself.
+      markSessionStatus: async (sessionInput, status) => {
+        const { userId } = get();
+        if (!userId) throw new Error("Log in to track your study sessions.");
+        const record = await apiMarkSession(userId, sessionInput, status);
+        get()._storeRecord(record);
+        if (record.status === "missed" && record.reschedule_decision === "pending") set({ rescheduleTarget: record });
+        return record;
+      },
+
+      openRescheduleModal: (record) => set({ rescheduleTarget: record }),
+      closeRescheduleModal: () => set({ rescheduleTarget: null }),
+
+      // Books the ONE slot the student picked. The backend re-checks it's
+      // still free and before the deadline (409 otherwise).
+      confirmReschedule: async (record, { week, weeklyFreeSlots, occupied, date, timeSlot }) => {
+        const { userId } = get();
+        const result = await apiRescheduleSessionTo(record.id, { userId, week, weeklyFreeSlots, occupied, date, timeSlot });
+        get()._storeRecord(result.missed);
+        get()._storeRecord(result.new_session);
+        set((s) => ({
+          blockedSlots: [
+            ...s.blockedSlots,
+            { date: result.new_session.date, start_time: result.new_session.start_time, end_time: result.new_session.end_time },
+          ],
+          rescheduleTarget: null,
+        }));
+        return result;
+      },
+
+      declineSessionReschedule: async (record) => {
+        const { userId } = get();
+        const updated = await apiDeclineReschedule(record.id, userId);
+        get()._storeRecord(updated);
+        set({ rescheduleTarget: null });
+        return updated;
       },
 
       // --- Notifications (mock) ---

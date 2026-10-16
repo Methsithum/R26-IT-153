@@ -27,6 +27,9 @@ from app.routes.study_planner.schedule_routes import router as schedule_router
 from app.routes.study_planner.todo_routes import router as todo_router
 from app.routes.study_planner.cluster_routes import router as cluster_router
 from app.routes.study_planner.task_routes import router as task_router
+from app.routes.study_planner.session_routes import router as session_router
+from app.routes.study_planner.exam_plan_routes import router as exam_plan_router
+from app.models.study_planner.study_session import StudySessionModel
 
 
 app = FastAPI(title="Smart Uni Guide API")
@@ -45,6 +48,7 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     UserModel.ensure_gpa_field()
+    StudySessionModel.ensure_indexes()
 
 
 # --- Register routers ---
@@ -72,6 +76,8 @@ app.include_router(schedule_router)
 app.include_router(todo_router)
 app.include_router(cluster_router)
 app.include_router(task_router)
+app.include_router(session_router)
+app.include_router(exam_plan_router)
 
 
 @app.get("/")
