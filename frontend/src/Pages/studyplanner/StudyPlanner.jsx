@@ -11,6 +11,7 @@ import MissedSessionModal from "../../Components/academic/StudyPlanner/MissedSes
 import PendingDecisionsBanner from "../../Components/academic/StudyPlanner/PendingDecisionsBanner";
 import ExamPlanModal from "../../Components/academic/StudyPlanner/ExamPlanModal";
 import ExamClusterBanner from "../../Components/academic/StudyPlanner/ExamClusterBanner";
+import SemesterSetupPrompt from "../../Components/academic/StudyPlanner/SemesterSetupPrompt";
 import { SkeletonCard } from "../../Components/academic/Shared/Skeletons";
 import { useWeeklySchedule } from "../../hooks/useAcademicData";
 
@@ -40,6 +41,7 @@ export default function StudyPlanner() {
         </div>
 
         <ExamClusterBanner />
+        <SemesterSetupPrompt />
         <PendingDecisionsBanner />
 
         {error && (

@@ -7,12 +7,21 @@ import {
   MOCK_EXAMS,
   MOCK_SETTINGS,
 } from "../mocks/academicMocks";
-import { CODE_MODULE_ENCODING, ASSESSMENT_TYPE_ENCODING, buildDateFeatureFromDeadline, DEFAULT_PRIOR_AVG_SCORE, DEFAULT_ASSIGNMENT_WEIGHT } from "../utils/featureNameMap";
+import {
+  ASSESSMENT_TYPE_ENCODING,
+  buildDateFeatureFromDeadline,
+  DEFAULT_PRIOR_AVG_SCORE,
+  DEFAULT_ASSIGNMENT_WEIGHT,
+  NEUTRAL_FEATURE_DEFAULTS,
+  UNKNOWN_MODULE_ENC,
+} from "../utils/featureNameMap";
 import { buildWeeklyModuleAllocation } from "../utils/studyAllocation";
 import { buildWeeklyFreeSlots } from "../utils/freeSlotGenerator";
 import { buildNotificationsFromRealData } from "../utils/notificationBuilder";
 import { addDays, toLocalDateStr } from "../utils/dateHelpers";
 import { recordKey, toSessionInput } from "../utils/sessionTracking";
+import { applyEngagement, plannedWeeklyMinutesBySubject } from "../utils/engagement";
+import { applySemesterSetup } from "../utils/semesterSetup";
 import {
   updateTaskWeight as apiUpdateTaskWeight,
   updateTaskDeadline as apiUpdateTaskDeadline,
@@ -25,6 +34,9 @@ import {
   rescheduleSessionTo as apiRescheduleSessionTo,
   declineReschedule as apiDeclineReschedule,
   updateExamPlan as apiUpdateExamPlan,
+  fetchEngagementFeatures as apiFetchEngagementFeatures,
+  fetchSemesterSetup as apiFetchSemesterSetup,
+  saveSemesterSetup as apiSaveSemesterSetup,
 } from "../services/academicApi";
 
 // How far back pushFrozenHistory() re-sends locally frozen days on login -
@@ -33,12 +45,6 @@ import {
 const HISTORY_BACKFILL_DAYS = 30;
 
 const MODULE_COLORS = ["brand", "teal", "pink", "orange"];
-// The trained model only knows 7 fixed OULAD module categories (AAA-GGG) —
-// it has never seen a real subject name. Each real subject gets mapped
-// positionally onto one of those categories so /predict-priority etc. still
-// work; this is an approximation forced by the model's fixed training
-// categories, not a claim that e.g. "Operating Systems" literally is "AAA".
-const MODEL_MODULE_CODES = Object.keys(CODE_MODULE_ENCODING);
 
 function slugifySubject(subject) {
   return String(subject || "unknown")
@@ -111,8 +117,6 @@ function buildFromJournal({ tasks = [], exams = [], subjects = [] }) {
     .filter((t) => t?.subject && (t.task_type === "assignment" || !t.task_type))
     .map((t) => {
       const module = modules.find((m) => m.name === t.subject);
-      const modelCodeIndex = subjectNames.indexOf(t.subject) % MODEL_MODULE_CODES.length;
-      const modelCode = MODEL_MODULE_CODES[modelCodeIndex];
       const isCompleted = t.mark != null || String(t.progress_stage || "").toLowerCase() === "completed";
       const deadlineDate = t.deadline ? String(t.deadline).slice(0, 10) : null;
       const isMissed = !isCompleted && deadlineDate && deadlineDate < todayIso;
@@ -165,19 +169,14 @@ function buildFromJournal({ tasks = [], exams = [], subjects = [] }) {
           // "days remaining" value is wrong here.
           date: buildDateFeatureFromDeadline(finalDeadlineDate),
           weight,
-          num_of_prev_attempts: 0,
-          studied_credits: 60,
-          module_presentation_length: 240,
-          date_registration: -30,
+          // Features the app doesn't measure yet: OULAD training medians,
+          // so they stay neutral (see NEUTRAL_FEATURE_DEFAULTS).
+          ...NEUTRAL_FEATURE_DEFAULTS,
           // See DEFAULT_PRIOR_AVG_SCORE's own doc comment (featureNameMap.js)
           // for why this is the OULAD dataset mean, not an arbitrary number.
           prior_avg_score: module?.hasGradeData ? module.currentGrade : DEFAULT_PRIOR_AVG_SCORE,
-          avg_weekly_clicks: 15,
-          clicks_trend: 0,
-          active_weeks_ratio: 0.5,
-          has_vle_activity: 1,
           assessment_type_enc: ASSESSMENT_TYPE_ENCODING.TMA,
-          code_module_enc: CODE_MODULE_ENCODING[modelCode],
+          code_module_enc: UNKNOWN_MODULE_ENC,
         },
       };
     });
@@ -228,6 +227,35 @@ export function migrateAcademicStore(persisted, version) {
     persisted.predictedPriorities = {};
     persisted.scheduleResponse = null;
     persisted.todoList = [];
+  }
+  if (version < 9) {
+    // Neutral (training-median) fallbacks + module-agnostic prediction
+    // replaced the old placeholder feature values. Rewrite persisted feature
+    // rows and drop cached predictions. The cached schedule is NOT dropped
+    // here (freezePastDates must still capture its past days first) - it's
+    // only flagged, and useWeeklySchedule regenerates it through
+    // setSchedule, which freezes before overwriting.
+    if (Array.isArray(persisted.assignments)) {
+      persisted.assignments = persisted.assignments.map((a) => {
+        if (!a.featureRow) return a;
+        // Only journal tasks explicitly flagged as having NO real weight
+        // carried the old placeholder - a weight typed in by hand (or a
+        // mock/manual entry without the flag) is real and kept.
+        const placeholderWeight = a.hasRealWeight === false;
+        return {
+          ...a,
+          weight: placeholderWeight ? DEFAULT_ASSIGNMENT_WEIGHT : a.weight,
+          featureRow: {
+            ...a.featureRow,
+            ...NEUTRAL_FEATURE_DEFAULTS,
+            weight: placeholderWeight ? DEFAULT_ASSIGNMENT_WEIGHT : a.featureRow.weight,
+            code_module_enc: UNKNOWN_MODULE_ENC,
+          },
+        };
+      });
+    }
+    persisted.predictedPriorities = {};
+    persisted.scheduleStale = true;
   }
   return persisted;
 }
@@ -349,13 +377,61 @@ export const useAcademicStore = create(
           const sameTasks = oldIds.size === newIds.size && [...oldIds].every((id) => newIds.has(id));
           return {
             modules: built.modules,
-            assignments: built.assignments,
+            // Re-apply the last known real engagement, so a re-sync doesn't
+            // drop back to neutral defaults until loadEngagement() returns.
+            assignments: applySemesterSetup(
+              applyEngagement(built.assignments, s.engagementBySubject).assignments,
+              s.semesterSetup
+            ).assignments,
             exams: built.exams,
             ...(sameTasks ? {} : { scheduleResponse: null, todoList: [], multiWeekSchedule: null }),
           };
         });
         get().recomputeSemesterAllocation();
         get().recomputeNotifications();
+      },
+
+      // Real engagement per subject from the journal's study logs (backend
+      // engagement_service.py), measured against this planner's own weekly
+      // allocation. Replaces the neutral defaults once a subject has a
+      // completed week of history; changed values invalidate cached
+      // predictions and the cached plan.
+      engagementBySubject: {},
+      loadEngagement: async () => {
+        const { userId, modules, semesterAllocation } = get();
+        if (!userId || !modules.length) return;
+        const engagementBySubject = await apiFetchEngagementFeatures(
+          userId,
+          plannedWeeklyMinutesBySubject(modules, semesterAllocation)
+        );
+        const { assignments, changed } = applyEngagement(get().assignments, engagementBySubject);
+        set(changed
+          ? { engagementBySubject, assignments, predictedPriorities: {}, scheduleStale: true }
+          : { engagementBySubject });
+      },
+
+      // One-time Semester setup (credits, repeat attempts, registration,
+      // semester dates) - the real values behind four model features. Saved
+      // on the user's own document; applied to every assignment's feature
+      // row (utils/semesterSetup.js). A change invalidates cached
+      // predictions and the cached plan, like engagement above.
+      semesterSetup: null,
+      _applySemesterSetup: (semesterSetup) => {
+        const { assignments, changed } = applySemesterSetup(get().assignments, semesterSetup);
+        set(changed
+          ? { semesterSetup, assignments, predictedPriorities: {}, scheduleStale: true }
+          : { semesterSetup });
+      },
+      loadSemesterSetup: async () => {
+        const { userId } = get();
+        if (!userId) return;
+        const setup = await apiFetchSemesterSetup(userId);
+        if (setup) get()._applySemesterSetup(setup);
+      },
+      saveSemesterSetup: async (setup) => {
+        const { userId } = get();
+        if (!userId) throw new Error("Log in to save your semester setup.");
+        get()._applySemesterSetup(await apiSaveSemesterSetup(userId, setup));
       },
 
       addAssignment: (assignment) => {
@@ -478,13 +554,17 @@ export const useAcademicStore = create(
       // Persisted alongside scheduleResponse specifically so freezePastDates()
       // can still resolve it correctly after a reload on a later day.
       scheduleGeneratedDate: null,
+      // True when the cached scheduleResponse was generated with an older
+      // feature definition (see migrateAcademicStore v9) - useWeeklySchedule
+      // regenerates it.
+      scheduleStale: false,
       todoList: [],
       setSchedule: (scheduleResponse) => {
         // Freeze whatever the OLD scheduleResponse/multiWeekSchedule held for
         // any date that has since become past, using their content as it was
         // immediately before this call overwrites it - see freezePastDates().
         get().freezePastDates();
-        set({ scheduleResponse, scheduleGeneratedDate: toLocalDateStr(new Date()) });
+        set({ scheduleResponse, scheduleGeneratedDate: toLocalDateStr(new Date()), scheduleStale: false });
       },
       setRemainingFreeSlots: (slots) => set({ remainingFreeSlots: slots }),
       setTodoList: (todoList) => set({ todoList }),
@@ -778,7 +858,9 @@ export const useAcademicStore = create(
         remainingFreeSlots: s.remainingFreeSlots,
         scheduleResponse: s.scheduleResponse,
         scheduleGeneratedDate: s.scheduleGeneratedDate,
+        scheduleStale: s.scheduleStale,
         historicalScheduleByDate: s.historicalScheduleByDate,
+        semesterSetup: s.semesterSetup,
         todoList: s.todoList,
         notifications: s.notifications,
         settings: s.settings,
@@ -803,7 +885,8 @@ export const useAcademicStore = create(
       // already set by the store initializer above, so no transform is
       // needed for existing persisted state; the version bump exists purely
       // as a changelog marker for this schema addition.
-      version: 8,
+      // v9: neutral feature defaults + UNKNOWN_MODULE_ENC (see the v9 branch).
+      version: 9,
       migrate: migrateAcademicStore,
     }
   )

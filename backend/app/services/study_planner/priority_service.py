@@ -47,6 +47,16 @@ FEATURE_ORDER = [
 ]
 
 
+# code_module_enc sentinel: "this task's module isn't one of the 7 OULAD
+# training modules" - true for every real subject in the app (a real
+# "Data Structures" module has no OULAD equivalent). Rather than pinning it
+# to an arbitrary training module (whose learned module-specific effect would
+# then leak into the prediction), the prediction is averaged over all 7
+# module codes - see expand_unknown_module().
+UNKNOWN_MODULE_ENC = -1
+DEFAULT_MODULE_CODE_COUNT = 7
+
+
 class PriorityServiceError(Exception):
     """Raised for validation failures or when the model failed to load at startup."""
 
@@ -99,6 +109,27 @@ def validate_and_build_feature_row(task_features: dict) -> pd.DataFrame:
     return pd.DataFrame([row])[FEATURE_ORDER]
 
 
+def module_code_count() -> int:
+    try:
+        return len(_label_encoders["code_module"].classes_)
+    except Exception:
+        return DEFAULT_MODULE_CODE_COUNT
+
+
+def expand_unknown_module(row_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    One row per training module code when code_module_enc is UNKNOWN_MODULE_ENC
+    (otherwise the row unchanged). Callers average the model's output over
+    these rows, so the result reflects a module-agnostic "typical module".
+    """
+    if int(row_df.at[0, "code_module_enc"]) != UNKNOWN_MODULE_ENC:
+        return row_df
+    n = module_code_count()
+    rows = pd.concat([row_df] * n, ignore_index=True)
+    rows["code_module_enc"] = [float(i) for i in range(n)]
+    return rows
+
+
 def predict_priority(task_features: dict) -> dict:
     """
     task_features: dict with exactly the 13 keys in FEATURE_ORDER.
@@ -108,10 +139,12 @@ def predict_priority(task_features: dict) -> dict:
     if _model is None:
         raise PriorityServiceError("Priority model is not loaded - check server startup logs.")
 
-    row_df = validate_and_build_feature_row(task_features)
+    row_df = expand_unknown_module(validate_and_build_feature_row(task_features))
 
-    pred_idx = int(_model.predict(row_df)[0])
-    proba = _model.predict_proba(row_df)[0]
+    # Mean class probability over the (possibly expanded) rows - a single
+    # row when the module is known, all 7 module codes when it isn't.
+    proba = _model.predict_proba(row_df).mean(axis=0)
+    pred_idx = int(proba.argmax())
 
     priority_label = CLASS_ORDER[pred_idx]
     confidence = float(proba[pred_idx])

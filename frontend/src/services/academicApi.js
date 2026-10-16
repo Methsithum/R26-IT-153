@@ -123,6 +123,28 @@ export function updateExamPlan(examId, userId, { examSession, afterExamRevision 
   );
 }
 
+/**
+ * POST /engagement-features - the priority model's 4 engagement features per
+ * subject from the student's real journal study logs, measured against
+ * plannedWeeklyMinutes ({ subjectName: minutes }). Subjects without a
+ * completed week of history are omitted (keep neutral defaults for them).
+ */
+export function fetchEngagementFeatures(userId, plannedWeeklyMinutes) {
+  return unwrap(
+    client.post("/engagement-features", { user_id: userId, planned_weekly_minutes: plannedWeeklyMinutes })
+  );
+}
+
+/** GET /semester-setup/{userId} - the saved Semester setup, or null if never filled in. */
+export function fetchSemesterSetup(userId) {
+  return unwrap(client.get(`/semester-setup/${userId}`));
+}
+
+/** PUT /semester-setup - { semester_start, semester_end, registered_on, subjects: { name: { credits, prev_attempts } } } */
+export function saveSemesterSetup(userId, setup) {
+  return unwrap(client.put("/semester-setup", { user_id: userId, ...setup }));
+}
+
 // --- Study-session history + permission-first missed-session flow ---
 // (backend/app/routes/study_planner/session_routes.py). `session` is a
 // SessionInput: { date, time_slot, task_id, module, duration_minutes,

@@ -232,29 +232,33 @@ function weightDetailSentence(weightValue) {
 
 export function resolveExplanationDisplay(finalResult, daysRemainingValue, explanation, options = {}) {
   if (!finalResult || !explanation) return null;
-  const { hasPriorScoreData = true, hasRealWeight = true, weightValue = null } = options;
+  const {
+    hasPriorScoreData = true,
+    hasRealWeight = true,
+    hasEngagementData = false,
+    hasSemesterData = false,
+    weightValue = null,
+  } = options;
   const excludeKeys = [
     ...(hasPriorScoreData ? [] : ["prior_avg_score"]),
     ...(hasRealWeight ? [] : ["weight"]),
-    // assessment_type_enc, module_presentation_length, and code_module_enc
-    // are always excluded, unconditionally - not a no-data cold-start case
-    // like the two above, but a permanent one for all three: none is real,
-    // meaningful per-task information the way weight or the deadline are.
-    // Assessment Type was removed as a form field entirely and
-    // module_presentation_length has never had a real source at all - both
-    // are always sent to the model as the exact same fixed constant for
-    // every task (AddAcademicData.jsx / useAcademicStore.js /
-    // academicMocks.js). code_module_enc is different but no more
-    // meaningful: the model only ever learned 7 fixed OULAD categories
-    // (AAA-GGG), so a real subject like "Probability & Statistics" gets
-    // mapped onto one of them by ARBITRARY LIST POSITION
-    // (subjectNames.indexOf(subject) % 7, same files) - nothing about that
-    // mapping reflects anything real about the subject. Citing any of the
-    // three as a genuine "why" reason - or showing it as a contributing
-    // factor bar - would misrepresent an artifact of the encoding as if it
-    // were something that actually varied and mattered for this task.
+    // Engagement is only real once the journal has a completed week of
+    // study logs for this subject (utils/engagement.js) - until then it's a
+    // neutral training-median default and must not be cited as a reason.
+    ...(hasEngagementData ? [] : ["avg_weekly_clicks", "clicks_trend", "active_weeks_ratio", "has_vle_activity"]),
+    // Real only once the student has filled in Semester setup
+    // (utils/semesterSetup.js) - until then neutral training medians
+    // (NEUTRAL_FEATURE_DEFAULTS), so never a genuine "why".
+    ...(hasSemesterData ? [] : ["num_of_prev_attempts", "studied_credits", "date_registration", "module_presentation_length"]),
+    // assessment_type_enc and code_module_enc are always excluded,
+    // unconditionally - a permanent case, not a cold-start one: neither is
+    // real per-task information. Assessment Type isn't collected (always
+    // sent as the same fixed TMA constant), and code_module_enc is averaged
+    // out over all 7 OULAD training modules (UNKNOWN_MODULE_ENC - a real
+    // subject has no OULAD equivalent), so the backend already reports it
+    // as a 0 contribution. Citing either as a "why" reason would present an
+    // artifact of the encoding as something that varied for this task.
     "assessment_type_enc",
-    "module_presentation_length",
     "code_module_enc",
   ];
 

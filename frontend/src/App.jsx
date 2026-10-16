@@ -92,6 +92,9 @@ function HydrateUser({ children }) {
           exams: world.exams,
           subjects: user.subjects,
         });
+        // Real engagement needs the synced subjects + their allocation.
+        useAcademicStore.getState().loadEngagement().catch(() => {});
+        useAcademicStore.getState().loadSemesterSetup().catch(() => {});
       } catch {
         // Offline — local stored progress still applies.
       }

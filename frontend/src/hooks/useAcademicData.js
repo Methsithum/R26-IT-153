@@ -104,8 +104,8 @@ export function useWeeklySchedule() {
   useEffect(() => {
     // Also regenerate a cached plan that still has sessions on an exam day
     // (made before that exam was known) - exam days must stay empty.
-    const { scheduleGeneratedDate } = useAcademicStore.getState();
-    if (!scheduleResponse || scheduleHasExamDayItems(scheduleResponse, scheduleGeneratedDate, exams)) {
+    const { scheduleGeneratedDate, scheduleStale } = useAcademicStore.getState();
+    if (!scheduleResponse || scheduleStale || scheduleHasExamDayItems(scheduleResponse, scheduleGeneratedDate, exams)) {
       generate().catch(() => {});
     }
     // Re-checks whenever `assignments` or `weeklyFreeSlots` changes (not

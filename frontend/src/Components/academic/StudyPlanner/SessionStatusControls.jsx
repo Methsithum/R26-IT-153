@@ -15,6 +15,9 @@ export default function SessionStatusControls({ sessionInput, record, compact = 
   const openRescheduleModal = useAcademicStore((s) => s.openRescheduleModal);
   const [saving, setSaving] = useState(null);
   const [error, setError] = useState(null);
+  // After "Studied" only that badge is shown; "Change" brings both buttons
+  // back so a mis-tap can still be corrected.
+  const [changing, setChanging] = useState(false);
 
   if (!userId) return null;
 
@@ -24,11 +27,16 @@ export default function SessionStatusControls({ sessionInput, record, compact = 
   const locked = !!record?.rescheduled_to;
 
   async function mark(next) {
-    if (locked || saving || next === status) return;
+    if (next === status) {
+      setChanging(false);
+      return;
+    }
+    if (locked || saving) return;
     setSaving(next);
     setError(null);
     try {
       await markSessionStatus(sessionInput, next);
+      setChanging(false);
     } catch (e) {
       setError(e.message || "Couldn't save.");
     } finally {
@@ -36,14 +44,37 @@ export default function SessionStatusControls({ sessionInput, record, compact = 
     }
   }
 
-  const size = compact ? 10 : 12;
-  const base = `inline-flex items-center gap-0.5 rounded-full font-semibold transition-colors disabled:opacity-50 ${
-    compact ? "text-[9px] px-1.5 py-0.5" : "text-[11px] px-2 py-0.5"
+  // Sized as real tap targets (min 32px tall), not tiny chips - these are
+  // the main action on a past/today session card. Each button also has a
+  // visible border when unselected so "Missed" doesn't read as plain text.
+  const size = compact ? 13 : 15;
+  const base = `inline-flex items-center justify-center gap-1 rounded-lg border font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-h-8 ${
+    compact ? "text-xs px-2 py-1.5" : "text-sm px-3 py-2"
   }`;
+
+  if (status === "done" && !changing) {
+    return (
+      <div className="mt-1.5 space-y-1">
+        <div className={`${base} w-full bg-low-500 border-low-500 text-white`} role="status">
+          <Check size={size} /> Studied
+        </div>
+        {!locked && (
+          <button
+            type="button"
+            onClick={() => setChanging(true)}
+            className={`${compact ? "text-[11px]" : "text-xs"} font-medium text-slate-500 dark:text-slate-300 underline underline-offset-2 hover:text-slate-700`}
+          >
+            Change
+          </button>
+        )}
+        {error && <p className="text-[11px] text-high-600">{error}</p>}
+      </div>
+    );
+  }
 
   return (
     <div className="mt-1.5 space-y-1">
-      <div className="flex items-center gap-1 flex-wrap">
+      <div className="grid grid-cols-2 gap-1.5">
         <button
           type="button"
           onClick={() => mark("done")}
@@ -51,8 +82,8 @@ export default function SessionStatusControls({ sessionInput, record, compact = 
           title="I studied in this session"
           className={`${base} ${
             status === "done"
-              ? "bg-low-500 text-white"
-              : "bg-white/70 dark:bg-white/10 text-low-600 hover:bg-low-50 dark:hover:bg-low-500/20"
+              ? "bg-low-500 border-low-500 text-white"
+              : "bg-white dark:bg-white/10 border-low-500/40 text-low-600 hover:bg-low-50 dark:hover:bg-low-500/20"
           }`}
         >
           <Check size={size} /> {status === "done" ? "Studied" : "Did it"}
@@ -64,8 +95,8 @@ export default function SessionStatusControls({ sessionInput, record, compact = 
           title="I didn't study in this session"
           className={`${base} ${
             status === "missed"
-              ? "bg-high-500 text-white"
-              : "bg-white/70 dark:bg-white/10 text-high-600 hover:bg-high-50 dark:hover:bg-high-500/20"
+              ? "bg-high-500 border-high-500 text-white"
+              : "bg-white dark:bg-white/10 border-high-500/40 text-high-600 hover:bg-high-50 dark:hover:bg-high-500/20"
           }`}
         >
           <X size={size} /> Missed
@@ -77,18 +108,18 @@ export default function SessionStatusControls({ sessionInput, record, compact = 
           <button
             type="button"
             onClick={() => openRescheduleModal(record)}
-            className={`${base} bg-medium-50 dark:bg-medium-500/15 text-medium-600 hover:opacity-80`}
+            className={`${base} w-full border-medium-500/40 bg-medium-50 dark:bg-medium-500/15 text-medium-600 hover:opacity-80`}
           >
             <Repeat size={size} /> {DECISION_LABELS.pending}
           </button>
         ) : (
-          <p className={`${compact ? "text-[9px]" : "text-[11px]"} text-slate-400 font-medium`}>
+          <p className={`${compact ? "text-[11px]" : "text-xs"} text-slate-500 dark:text-slate-300 font-medium`}>
             {DECISION_LABELS[record.reschedule_decision]}
           </p>
         )
       )}
 
-      {error && <p className="text-[10px] text-high-600">{error}</p>}
+      {error && <p className="text-[11px] text-high-600">{error}</p>}
     </div>
   );
 }
