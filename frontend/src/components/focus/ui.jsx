@@ -1,3 +1,4 @@
+// FOCUS GUIDE: Shared screen elements such as headings, meters, badges, and statistic tiles.
 import React from "react";
 import Card from "./Card";
 

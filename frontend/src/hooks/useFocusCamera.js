@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { predictFocusState } from "../lib/focusApi";
 
+// FOCUS GUIDE: Capture interval and number of recent predictions used for majority voting.
 const PREDICT_INTERVAL_MS = 2000;
 const SMOOTH_N = 4; // ~8s window so Fatigue / Anxiety can surface without a 20s wait
 
@@ -38,6 +39,7 @@ export function useFocusCamera(active, onDetection) {
     let cancelled = false;
     setInternalStatus("starting");
 
+    // FOCUS GUIDE: Ask for webcam video only; audio is disabled.
     navigator.mediaDevices
       .getUserMedia({ video: { width: 640, height: 480 }, audio: false })
       .then((s) => {
@@ -79,9 +81,11 @@ export function useFocusCamera(active, onDetection) {
       canvas.width  = video.videoWidth;
       canvas.height = video.videoHeight;
       canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+      // FOCUS GUIDE: Convert the captured canvas frame to a JPEG image for the prediction API.
       const base64 = canvas.toDataURL("image/jpeg", 0.8);
 
       try {
+        // FOCUS GUIDE: Backend response contains face detection, state, confidence, and class scores.
         const result = await predictFocusState(base64);
         setPredictError(null);
         setFaceDetected(result.face_detected);

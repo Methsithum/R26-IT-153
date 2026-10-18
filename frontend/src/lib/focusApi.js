@@ -14,6 +14,7 @@ function withUser(params = {}) {
   return { user_id: getFocusUserId(), ...params };
 }
 
+// FOCUS GUIDE: Send a webcam image to POST /focus/predict.
 export async function predictFocusState(base64Image) {
   const { data } = await axios.post(`${API_BASE}/focus/predict`, {
     image: base64Image,
@@ -21,6 +22,7 @@ export async function predictFocusState(base64Image) {
   return data;
 }
 
+// FOCUS GUIDE: Save the logged-in student's cumulative daily summary.
 export async function saveFocusSession(payload) {
   const { data } = await axios.post(`${API_BASE}/focus/sessions`, {
     ...payload,
@@ -29,6 +31,7 @@ export async function saveFocusSession(payload) {
   return data;
 }
 
+// FOCUS GUIDE: Fetch saved daily and weekly summaries for the Focus screens.
 export async function getDailyReport(date) {
   const { data } = await axios.get(`${API_BASE}/focus/reports/daily`, {
     params: withUser(date ? { date } : {}),

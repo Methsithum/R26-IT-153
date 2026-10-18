@@ -1,3 +1,4 @@
+// FOCUS GUIDE: Shared settings: state colours, tree levels, achievements, activity steps, and tab names.
 export const CLASSES = ["Focused","Fatigue","Anxiety","Boredom"];
 
 export const STATE_CFG = {

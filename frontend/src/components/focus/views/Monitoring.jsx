@@ -1,3 +1,4 @@
+// FOCUS GUIDE: Live Monitoring screen: shows the camera, session buttons, detected state, and confidence bars.
 import React, { useEffect, useRef } from "react";
 import Card from "../Card";
 import { CLASSES, STATE_CFG } from "../focusData";
@@ -30,7 +31,7 @@ export default function TabMonitoring({
     CLASSES[0],
   );
 
-  // Head turned away => the frontal Haar cascade finds nothing => no prediction runs
+  // If the backend finds no face, no new state prediction is available
   // at all, and `state` still holds the last reading. This card claims "Detected
   // State", so while nothing is detected it has to say so instead of that stale value.
   const showingNoFace = sessionOn && camStatus === "live" && !faceDetected;
@@ -49,6 +50,7 @@ export default function TabMonitoring({
 
   return (
     <div className="fu-view">
+      {/* FOCUS GUIDE: Page heading and Start / Pause / Resume / End Session buttons. */}
       <PageHeader
         icon="📷"
         title="Live Monitoring"
@@ -104,6 +106,7 @@ export default function TabMonitoring({
               className="rounded-2xl overflow-hidden relative"
               style={{ aspectRatio: "16 / 9", maxHeight: "50vh", width: "100%", background: "#0f172a", border: "1px solid rgba(0,0,0,0.06)" }}
             >
+              {/* FOCUS GUIDE: Visible webcam preview; frame capture is handled in useFocusCamera.js. */}
               <video
                 ref={displayVideoRef}
                 autoPlay
@@ -139,6 +142,7 @@ export default function TabMonitoring({
                 </div>
               )}
 
+              {/* FOCUS GUIDE: Show the backend prediction error over the camera preview. */}
               {predictError && (
                 <div
                   className="absolute bottom-3 left-3 right-3 px-3 py-2 rounded-lg text-xs text-white"
@@ -163,7 +167,9 @@ export default function TabMonitoring({
             </div>
           </Card>
 
+          {/* FOCUS GUIDE: Manual Override buttons call handleStateSelect in FocusApp.jsx. */}
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 3 }}>
+            {/* FOCUS GUIDE: Manual Override section. */}
             <SectionTitle
               title="Manual Override"
               subtitle={
@@ -194,7 +200,9 @@ export default function TabMonitoring({
             </div>
           </Card>
 
+          {/* FOCUS GUIDE: Session Info displays the current session totals from FocusApp.jsx. */}
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 4 }}>
+            {/* FOCUS GUIDE: Session Info section. */}
             <SectionTitle title="Session Info" className="mb-2" />
             <div>
               <DataRow icon="⚡" label="Session Status" value={statusMeta.label} color={statusMeta.color} />
@@ -205,6 +213,7 @@ export default function TabMonitoring({
         </div>
 
         <div className="col-span-12 md:col-span-5 flex flex-col gap-4">
+          {/* FOCUS GUIDE: Detected State card shows the state label, icon, and confidence meter. */}
           <Card
             className="p-4 text-center transition-all duration-700 fu-stagger relative overflow-hidden"
             style={{
@@ -234,12 +243,14 @@ export default function TabMonitoring({
           </Card>
 
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 1 }}>
+            {/* FOCUS GUIDE: State Confidence section. */}
             <SectionTitle
               title="State Confidence"
               subtitle="Model probability across the four tracked states"
               className="mb-3"
             />
             <div className="space-y-3">
+              {/* FOCUS GUIDE: Four state rows; currently only the highest-scoring state shows its score. */}
               {CLASSES.map((cls) => {
                 const isHighest = cls === topClass;
                 const pct = isHighest ? (probs[cls] || 0) * 100 : 0;

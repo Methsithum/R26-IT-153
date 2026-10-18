@@ -1,3 +1,4 @@
+// FOCUS GUIDE: Leaderboard screen: shows daily, weekly, and monthly student rankings received from the backend.
 import { useEffect, useMemo, useState } from "react";
 import Card from "../Card";
 import { PageHeader, SectionTitle, Meter, Badge, EmptyState } from "../ui";
@@ -122,6 +123,7 @@ export default function TabLeaderboard({
       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-12 md:col-span-7">
           <Card className="p-6 fu-stagger" style={{ "--fu-i": 0 }}>
+            {/* FOCUS GUIDE: Loading… section. */}
             <SectionTitle
               title={expanded || !hasMore ? "All students" : `Top ${TOP_N}`}
               subtitle={onlineCount ? `${onlineCount} in the app right now` : `Ranked by XP · ${when}`}
@@ -188,6 +190,7 @@ export default function TabLeaderboard({
 
         <div className="col-span-12 md:col-span-5 flex flex-col gap-4">
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 1 }}>
+            {/* FOCUS GUIDE: Your totals section. */}
             <SectionTitle title="Your totals" className="mb-4" />
             <div className="grid grid-cols-1 gap-3">
               <div className="rounded-xl border p-3" style={{ borderColor: "#22c55e20", backgroundColor: "#22c55e08" }}>
@@ -210,6 +213,7 @@ export default function TabLeaderboard({
           </Card>
 
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 2 }}>
+            {/* FOCUS GUIDE: How ranking works section. */}
             <SectionTitle title="How ranking works" className="mb-3" />
             <ul className="space-y-2 text-xs text-slate-600 leading-relaxed">
               <li className="flex gap-2"><span>👥</span><span>Every student with an account is listed, online or not.</span></li>

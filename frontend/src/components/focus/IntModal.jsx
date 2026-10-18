@@ -1,3 +1,4 @@
+// FOCUS GUIDE: Support activity popup: shows steps and accepts the student's completion checkboxes.
 import React, { useEffect, useState } from "react";
 import { pickIntervention } from "./focusData";
 
@@ -36,6 +37,7 @@ export default function IntModal({ open, onClose, type, onComplete }) {
         <p className="text-xs font-semibold mb-4" style={{ color: cfg.color }}>This challenge costs 5 points.</p>
 
         <div className="space-y-2 mb-4">
+          {/* FOCUS GUIDE: Activity step buttons toggle the student's completion checkmarks. */}
           {cfg.steps.map((step, index) => {
             const complete = done.includes(index);
             return (
@@ -58,6 +60,7 @@ export default function IntModal({ open, onClose, type, onComplete }) {
           <button onClick={onClose} className="px-4 py-2 rounded-xl border text-sm font-semibold text-slate-700 bg-white hover:bg-slate-50" style={{ borderColor: "rgba(148,163,184,0.24)" }}>
             Close
           </button>
+          {/* FOCUS GUIDE: Done is enabled only after every step is ticked. */}
           <button onClick={() => onComplete && onComplete(type)} disabled={!finished} className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-50" style={{ backgroundColor: cfg.color }}>
             {finished ? "Done" : "Tick all steps to finish"}
           </button>

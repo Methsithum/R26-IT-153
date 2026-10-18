@@ -1,3 +1,4 @@
+// FOCUS GUIDE: Main controller: connects screens, session timers, camera results, activities, and saved data.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { STATE_CFG, LEVEL_DATA, ACHIEVEMENTS_LIST, pickChallengeType, challengePointsFor, levelIndexFromPoints } from "./focusData";
 import { useFocusCamera } from "../../hooks/useFocusCamera";
@@ -15,6 +16,7 @@ import TabReport from "./views/Report";
 import TabProfile from "./views/Profile";
 import { readStoredUser } from "../../services/userApi";
 
+// FOCUS GUIDE: Timing settings for manual selection, automatic activities, check-ins, and saving.
 const MANUAL_OVERRIDE_LOCK_MS = 5000;
 const HIGH_CONFIDENCE = 0.70;
 /** Flip to false after the demo video — restores 5 min boost / challenge / check-in. */
@@ -55,6 +57,7 @@ function pickClearFemaleVoice(voices) {
   return ranked[0] || null;
 }
 
+// FOCUS GUIDE: Reads the check-in message aloud using the browser speech service.
 function speakCheckIn(text = CHECKIN_PROMPT) {
   if (typeof window === "undefined" || !window.speechSynthesis) return;
   const synth = window.speechSynthesis;
@@ -85,6 +88,7 @@ function speakCheckIn(text = CHECKIN_PROMPT) {
 }
 
 export default function FocusApp() {
+  // FOCUS GUIDE: React state holds the selected screen and the values displayed on it.
   const [tab, setTab] = useState("dashboard");
   const [state, setState] = useState("Focused");
   const [sessionFocusMin, setSessionFocusMin] = useState(0);
@@ -206,6 +210,7 @@ export default function FocusApp() {
   const todayFocusMin = todayBaseFocus + sessionFocusMin;
   const todayDistMin = todayBaseDist + sessionDistMin;
 
+  // FOCUS GUIDE: Build today's cumulative summary for the save request.
   const sessionPayload = useCallback(() => ({
     focus_minutes: todayBaseFocusRef.current + sessionFocusRef.current,
     distraction_minutes: todayBaseDistRef.current + sessionDistRef.current,
@@ -217,6 +222,7 @@ export default function FocusApp() {
     first_hour: firstHourRef.current,
   }), [todayGoal]);
 
+  // FOCUS GUIDE: Send summary data to the backend; images are sent by the camera hook separately.
   const persistSession = useCallback(async () => {
     if (!persistReadyRef.current) return;
     try {
@@ -333,6 +339,7 @@ export default function FocusApp() {
     };
   }, []);
 
+  // FOCUS GUIDE: Start / Pause / Resume / End button handlers are defined here.
   const pauseSession = useCallback(() => setSessionStatus("paused"), []);
   const resumeSession = useCallback(() => {
     if (sessionStatus === "ended") return;
@@ -351,6 +358,7 @@ export default function FocusApp() {
     setSessionStatus("active");
   }, []);
 
+  // FOCUS GUIDE: Save totals and keep the ended session values for the Session Report screen.
   const endSession = useCallback(async () => {
     if (sessionStatus === "ended") return;
     countingRef.current = false;
@@ -403,6 +411,7 @@ export default function FocusApp() {
   const unbreakable = (liveWeek.days || []).length === 7
     && (liveWeek.days || []).every((d) => combineHM(d.focus_hours, d.focus_minutes) > 0);
   const hour = firstHourRef.current;
+  // FOCUS GUIDE: Decide which achievement cards are earned using live values and saved history.
   const earnedByKey = {
     sprint25: everSprint25 || longestStreakRef.current >= SPRINT_STREAK_MIN || savedAchievements.includes("sprint25"),
     calmQuest5: calmQuestCount >= 5 || savedAchievements.includes("calmQuest5"),
@@ -416,6 +425,7 @@ export default function FocusApp() {
   };
   const liveAchievements = ACHIEVEMENTS_LIST.map((a) => ({ ...a, earned: !!earnedByKey[a.key] }));
 
+  // FOCUS GUIDE: Open the support popup, count the challenge, and show tree feedback.
   const openChallenge = useCallback((type) => {
     if (showModalRef.current) return;
     showModalRef.current = true;
@@ -427,6 +437,7 @@ export default function FocusApp() {
     persistSession();
   }, [persistSession, playTreeFx]);
 
+  // FOCUS GUIDE: Manual Override buttons use this handler; this is a user selection, not a prediction.
   const handleStateSelect = (nextState) => {
     if (sessionStatus !== "active") return;
     lastManualRef.current = Date.now();
@@ -434,6 +445,7 @@ export default function FocusApp() {
     if (["Fatigue", "Anxiety", "Boredom"].includes(nextState)) openChallenge(nextState);
   };
 
+  // FOCUS GUIDE: Receive camera results, update time and streaks, and check activity trigger conditions.
   const handleDetection = useCallback((nextState, _probs, elapsedMs, confidence) => {
     if (!countingRef.current) return;
     if (Date.now() - lastManualRef.current < MANUAL_OVERRIDE_LOCK_MS) return;
@@ -444,6 +456,7 @@ export default function FocusApp() {
       firstHourRef.current = new Date().getHours();
     }
 
+    // FOCUS GUIDE: Focused results add focus time; other results add distraction time below.
     if (nextState === "Focused") {
       focusStreakRef.current += elapsedMs;
       const newStreak = Math.floor(focusStreakRef.current / 60000);
@@ -477,6 +490,7 @@ export default function FocusApp() {
       setSessionDistMin(+sessionDistRef.current.toFixed(2));
     }
 
+    // FOCUS GUIDE: An automatic activity needs the same non-focused state sustained at 70% or higher.
     const isDistracted = nextState !== "Focused";
     const isHighConfidence = (confidence || 0) >= HIGH_CONFIDENCE;
 
@@ -494,6 +508,7 @@ export default function FocusApp() {
     }
   }, [openChallenge, playTreeFx]);
 
+  // FOCUS GUIDE: Done in the activity popup updates completion counts and closes the popup.
   const handleInterventionComplete = useCallback((type) => {
     setInterventionCounts((c) => {
       const next = { ...c, [type]: (c[type] || 0) + 1 };
@@ -511,6 +526,7 @@ export default function FocusApp() {
     ? STATE_CFG.NoFace
     : cfg;
 
+  // FOCUS GUIDE: Match each navigation tab to its screen and pass that screen its data and handlers.
   const VIEWS = {
     dashboard: (
       <TabDashboard
@@ -615,6 +631,7 @@ export default function FocusApp() {
         onOpenProfile={() => setTab("profile")}
       />
 
+      {/* FOCUS GUIDE: Hidden video and canvas capture frames even when another Focus tab is open. */}
       <video ref={captureVideoRef} autoPlay playsInline muted
         style={{ position: "fixed", top: 0, left: 0, width: 1, height: 1, opacity: 0, pointerEvents: "none" }} />
       <canvas ref={canvasRef} style={{ display: "none" }} />
@@ -630,6 +647,7 @@ export default function FocusApp() {
         </div>
       )}
 
+      {/* FOCUS GUIDE: Quick Check-in popup with Yes / No buttons. */}
       {showCheckIn && (
         <div className="fixed bottom-6 right-6 z-50 w-80 fu-view">
           <div className="rounded-3xl p-5 border border-slate-200" style={{ background: "rgba(255,255,255,0.95)", backdropFilter: "blur(20px)", boxShadow: "0 12px 40px -8px rgba(15,23,42,0.18), 0 0 40px rgba(34,197,94,0.15)" }}>
@@ -652,6 +670,7 @@ export default function FocusApp() {
         </div>
       )}
 
+      {/* FOCUS GUIDE: Notice shown when an unanswered check-in pauses the session. */}
       {showPauseNotice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(15,23,42,0.35)", backdropFilter: "blur(8px)" }}>
           <div className="w-full max-w-md rounded-3xl border p-6 shadow-2xl" style={{ backgroundColor: "rgba(255,255,255,0.96)", borderColor: "#f59e0b50" }}>

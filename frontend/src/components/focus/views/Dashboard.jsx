@@ -1,3 +1,4 @@
+// FOCUS GUIDE: Dashboard screen: shows today's totals, tree, daily goal, achievements, and weekly activity.
 import React from "react";
 import Card from "../Card";
 import TreeSVG from "../TreeSVG";
@@ -129,6 +130,7 @@ export default function TabDashboard({
               className="rounded-2xl border p-4"
               style={{ borderColor: "#22c55e28", backgroundColor: "rgba(255,255,255,0.5)" }}
             >
+              {/* FOCUS GUIDE: Daily goal section. */}
               <SectionTitle
                 title="Daily goal"
                 subtitle={`${formatHM(focusMin)} / ${formatHM(todayGoal)} focused`}
@@ -147,6 +149,7 @@ export default function TabDashboard({
       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-12 md:col-span-7 flex flex-col gap-4">
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 1 }}>
+            {/* FOCUS GUIDE: Today's balance section. */}
             <SectionTitle
               title="Today's balance"
               subtitle={distMin > 0 ? `${formatHM(distMin)} distracted · ${Math.round(distPct)}% of tracked time` : "Nothing but focus so far"}
@@ -173,6 +176,7 @@ export default function TabDashboard({
           </Card>
 
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 2 }}>
+            {/* FOCUS GUIDE: Recent badges section. */}
             <SectionTitle title="Recent badges" className="mb-3" />
             {earnedAchievements.length > 0 ? (
               <div className="flex gap-2 flex-wrap">
@@ -195,6 +199,7 @@ export default function TabDashboard({
 
         <div className="col-span-12 md:col-span-5">
           <Card className="p-5 h-full fu-stagger" style={{ "--fu-i": 3 }}>
+            {/* FOCUS GUIDE: This week section. */}
             <SectionTitle
               title="This week"
               subtitle={week ? `${formatHM(week.totalFocus || 0)} focused` : "Loading…"}

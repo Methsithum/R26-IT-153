@@ -1,3 +1,4 @@
+// FOCUS GUIDE: Top navigation: shows the student, session controls, status, and screen tabs.
 import React from "react";
 import { TABS } from "./focusData";
 import { formatHM } from "../../lib/focusTime";

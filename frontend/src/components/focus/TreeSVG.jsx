@@ -1,3 +1,4 @@
+// FOCUS GUIDE: Draws the tree artwork and its growth and feedback animations.
 import React, { useId } from "react";
 import { STATE_CFG, TREE_MOOD, levelIndexFromPoints } from "./focusData";
 

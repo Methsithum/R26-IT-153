@@ -1,3 +1,4 @@
+// FOCUS GUIDE: Focus Tree screen: shows the tree level, XP progress, growth stages, and growth rules.
 import React from "react";
 import Card from "../Card";
 import TreeSVG from "../TreeSVG";
@@ -95,6 +96,7 @@ export default function TabTree({ state, streak, focusMin, LEVEL_DATA: LD = LEVE
       </div>
 
       <Card className="p-4 fu-stagger" style={{ "--fu-i": 1 }}>
+        {/* FOCUS GUIDE: Growth Journey section. */}
         <SectionTitle title="Growth Journey" subtitle="Every level your tree can reach" className="mb-3" />
         <div className="relative">
           <div className="absolute left-[13px] top-2 bottom-2 w-px bg-slate-200" />
@@ -139,6 +141,7 @@ export default function TabTree({ state, streak, focusMin, LEVEL_DATA: LD = LEVE
       </Card>
 
       <Card className="p-5 fu-stagger" style={{ "--fu-i": 2 }}>
+        {/* FOCUS GUIDE: Tree State Guide section. */}
         <SectionTitle
           title="Tree State Guide"
           subtitle="Happy while this session is mostly focused; sad once distraction leads"
@@ -184,6 +187,7 @@ export default function TabTree({ state, streak, focusMin, LEVEL_DATA: LD = LEVE
       </Card>
 
       <Card className="p-5 fu-stagger" style={{ "--fu-i": 3 }}>
+        {/* FOCUS GUIDE: How the tree grows section. */}
         <SectionTitle title="How the tree grows" subtitle="Level is today's XP. Challenges cost 5 XP." className="mb-2" />
         <div>
           {GROWTH_RULES.map((p, i) => (

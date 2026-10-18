@@ -1,3 +1,4 @@
+// FOCUS GUIDE: Shared card container used by the Focus screens.
 import React from "react";
 
 // `hover` opts a card into the lift/shadow interaction — used for tiles that
