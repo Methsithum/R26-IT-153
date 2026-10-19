@@ -45,13 +45,12 @@ export async function deleteTodayJournal(userId, date = localTodayIso()) {
   return data;
 }
 
-export async function finishDailyRun({ sessionId, xpEarned, score, mouseClicks, keyClicks }) {
+export async function finishDailyRun({ sessionId, xpEarned, score, totalClicks }) {
   const { data } = await api.post("/daily/finish", {
     session_id: sessionId,
     xp_earned: xpEarned,
     score,
-    mouse_clicks: mouseClicks,
-    key_clicks: keyClicks,
+    total_clicks: totalClicks,
   });
   return data;
 }
