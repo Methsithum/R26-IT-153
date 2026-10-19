@@ -1,4 +1,4 @@
-// FOCUS GUIDE: Draws the tree artwork and its growth and feedback animations.
+// VIVA SI: Tree එක SVG shapes වලින් අඳියි. Level අනුව හැඩයත් state අනුව පෙනුමත් වෙනස් කරයි. | FOCUS GUIDE: Draws the tree artwork and its growth and feedback animations.
 import React, { useId } from "react";
 import { STATE_CFG, TREE_MOOD, levelIndexFromPoints } from "./focusData";
 
@@ -16,6 +16,7 @@ export default function TreeSVG({ state, points, size = 220, fx = null, fxKey = 
   const watering = fx === "water";
   const wilting = fx === "wilt";
 
+  // VIVA SI: Water / wilt effects සහ state එක අනුව tree animation එක තෝරයි.
   const motion = watering
     ? "treeBob 0.6s ease-in-out infinite"
     : wilting

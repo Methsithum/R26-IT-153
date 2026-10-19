@@ -1,6 +1,7 @@
-// FOCUS GUIDE: Shared settings: state colours, tree levels, achievements, activity steps, and tab names.
+// VIVA SI: State වර්ණ, tree XP සීමා, badge විස්තර, activity instructions සහ tab නම් මෙතැනයි. | FOCUS GUIDE: Shared settings: state colours, tree levels, achievements, activity steps, and tab names.
 export const CLASSES = ["Focused","Fatigue","Anxiety","Boredom"];
 
+// VIVA SI: States වල icons සහ colours. NoFace කියන්නේ model class එකක් නොව UI message එකකි.
 export const STATE_CFG = {
   Focused: { color:"#22c55e", bg:"#22c55e12", border:"#22c55e35", icon:"🎯", label:"Focused"  },
   Fatigue: { color:"#f97316", bg:"#f9731612", border:"#f9731635", icon:"😴", label:"Fatigue"  },
@@ -20,6 +21,7 @@ export const TREE_MOOD = {
   NoFace:  { emoji: "😶", line: "Your tree is waiting until you're back in frame." },
 };
 
+// VIVA SI: Tree stages සඳහා XP සීමා: 0, 30, 60, 85. Minutes මත level තීරණය නොවේ.
 export const LEVEL_DATA = [
   { name: "Seedling",      min: 0,  max: 30,  icon: "🌱" },
   { name: "Growing Plant", min: 30, max: 60,  icon: "🌿" },
@@ -27,6 +29,7 @@ export const LEVEL_DATA = [
   { name: "Golden Tree",   min: 85, max: 100, icon: "✨" },
 ];
 
+// VIVA SI: ලැබුණු XP අනුව tree stage index එක තෝරයි.
 export function levelIndexFromPoints(points) {
   const xp = Math.max(0, Number(points) || 0);
   return Math.max(0, LEVEL_DATA.filter((l) => xp >= l.min).length - 1);
@@ -34,6 +37,7 @@ export function levelIndexFromPoints(points) {
 
 // Achievement definitions only — `earned` is computed from persisted Mongo
 // history (weekly days, streaks, interventions) in FocusApp, not hardcoded.
+// VIVA SI: Badge names, descriptions සහ badge points මෙතැනයි; unlock conditions FocusApp.earnedByKey තුළයි.
 export const ACHIEVEMENTS_LIST = [
   { id:1, key:"sprint25",     name:"25-min Sprint",   icon:"⚡", desc:"Focus 25 min straight",      pts:50  },
   { id:2, key:"calmQuest5",   name:"Stress Buster",   icon:"🧘", desc:"Complete 5 Calm Quests",     pts:30  },
@@ -46,6 +50,7 @@ export const ACHIEVEMENTS_LIST = [
   { id:9, key:"zenMaster",    name:"Zen Master",      icon:"☯️", desc:"10 Calm Quests completed",    pts:70  },
 ];
 
+// VIVA SI: Fatigue / Anxiety / Boredom සඳහා කලින් ලියූ activity instructions මෙතැනයි; AI text generation නොවේ.
 export const INTERVENTIONS = {
   Focused: [
     {
@@ -309,11 +314,13 @@ export const CHALLENGE_POINT_COST = 5;
 export const DAILY_CHALLENGE_POINTS = 100;
 export const DISTRACTION_TYPES = ["Fatigue", "Anxiety", "Boredom"];
 
+// VIVA SI: XP = boosts x 5 අඩු challenges x 5. අගය 0 සිට 100 අතර තබයි.
 export function challengePointsFor(taken, boosts = 0) {
   const raw = CHALLENGE_POINT_COST * Math.max(0, boosts || 0) - CHALLENGE_POINT_COST * Math.max(0, taken || 0);
   return Math.max(0, Math.min(DAILY_CHALLENGE_POINTS, raw));
 }
 
+// VIVA SI: Distraction state එකක් නම් එය ගනී; නැත්නම් activity type එකක් අහඹු ලෙස තෝරයි.
 export function pickChallengeType(current) {
   if (DISTRACTION_TYPES.includes(current)) return current;
   return DISTRACTION_TYPES[Math.floor(Math.random() * DISTRACTION_TYPES.length)];
@@ -321,6 +328,7 @@ export function pickChallengeType(current) {
 
 const lastPickedIndex = {};
 
+// VIVA SI: තෝරාගත් type එකේ activity ලැයිස්තුවෙන් එකක් අහඹු ලෙස තෝරයි.
 export function pickIntervention(type) {
   const list = INTERVENTIONS[type] || INTERVENTIONS.Focused;
   const color = STATE_CFG[type]?.color || STATE_CFG.Focused.color;

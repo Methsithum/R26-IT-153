@@ -1,4 +1,4 @@
-// FOCUS GUIDE: Profile screen: shows account details and the student's Focus statistics.
+// VIVA SI: Studentගේ account details, totals සහ logout button පෙන්වයි. | FOCUS GUIDE: Profile screen: shows account details and the student's Focus statistics.
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import Card from "../Card";
@@ -36,6 +36,7 @@ export default function TabProfile({
     { label: "Year / semester", value: user?.campus_year && user?.semester ? `Y${user.campus_year} · Sem ${user.semester}` : "—" },
   ];
 
+  // VIVA SI: Logout කිරීමේදී account session ඉවත් කර login වෙත යවයි.
   function handleLogout() {
     leaveFocusPresence();
     clearStoredUser();
@@ -66,7 +67,7 @@ export default function TabProfile({
                 <p className="text-sm text-slate-500 truncate">{user?.email}</p>
               </div>
             </div>
-            {/* FOCUS GUIDE: Account section. */}
+            {/* VIVA SI: Account කොටස තිරයේ පෙන්වන code එක මෙතැනයි. | FOCUS GUIDE: Account section. */}
             <SectionTitle title="Account" className="mb-3" />
             <div className="space-y-2.5">
               {rows.map((row) => (
@@ -89,7 +90,7 @@ export default function TabProfile({
 
         <div className="col-span-12 md:col-span-7">
           <Card className="p-6 fu-stagger" style={{ "--fu-i": 1 }}>
-            {/* FOCUS GUIDE: Today in Focus section. */}
+            {/* VIVA SI: Today in Focus කොටස තිරයේ පෙන්වන code එක මෙතැනයි. | FOCUS GUIDE: Today in Focus section. */}
             <SectionTitle title="Today in Focus" subtitle="Only your stats — other students have their own" className="mb-4" />
             <div className="grid grid-cols-2 gap-3">
               {[

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { predictFocusState } from "../lib/focusApi";
 
-// FOCUS GUIDE: Capture interval and number of recent predictions used for majority voting.
+// VIVA SI: තත්පර දෙකකට frame එකක් යවයි; recent predictions හතරෙන් වැඩිපුර ලැබුණු state එක ගනී. | FOCUS GUIDE: Capture interval and number of recent predictions used for majority voting.
 const PREDICT_INTERVAL_MS = 2000;
 const SMOOTH_N = 4; // ~8s window so Fatigue / Anxiety can surface without a 20s wait
 
@@ -14,6 +14,7 @@ const ZERO_PROBS = { Focused: 0, Fatigue: 0, Anxiety: 0, Boredom: 0 };
  * tab, so the session keeps running when the user switches tabs instead of
  * restarting the camera every time Monitoring mounts/unmounts.
  */
+// VIVA SI: Camera stream සහ backend prediction loop පාලනය කරන custom React hook එකයි.
 export function useFocusCamera(active, onDetection) {
   const captureVideoRef = useRef(null); // hidden <video>, always mounted, feeds the canvas capture
   const canvasRef  = useRef(null);
@@ -39,7 +40,7 @@ export function useFocusCamera(active, onDetection) {
     let cancelled = false;
     setInternalStatus("starting");
 
-    // FOCUS GUIDE: Ask for webcam video only; audio is disabled.
+    // VIVA SI: Browser camera permission ඉල්ලා video stream එක අරියි. Audio ගන්නේ නැහැ. | FOCUS GUIDE: Ask for webcam video only; audio is disabled.
     navigator.mediaDevices
       .getUserMedia({ video: { width: 640, height: 480 }, audio: false })
       .then((s) => {
@@ -58,6 +59,7 @@ export function useFocusCamera(active, onDetection) {
 
     return () => {
       cancelled = true;
+      // VIVA SI: Pause / End / component cleanup වන විට camera tracks නවතයි.
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
       setStream(null);
@@ -81,14 +83,15 @@ export function useFocusCamera(active, onDetection) {
       canvas.width  = video.videoWidth;
       canvas.height = video.videoHeight;
       canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
-      // FOCUS GUIDE: Convert the captured canvas frame to a JPEG image for the prediction API.
+      // VIVA SI: Canvas එකේ frame එක JPEG Base64 image එකක් කර prediction API එකට යවන්න සකස් කරයි. | FOCUS GUIDE: Convert the captured canvas frame to a JPEG image for the prediction API.
       const base64 = canvas.toDataURL("image/jpeg", 0.8);
 
       try {
-        // FOCUS GUIDE: Backend response contains face detection, state, confidence, and class scores.
+        // VIVA SI: Backend එකෙන් face_detected, state, confidence සහ probs අගයන් ලබාගනී. | FOCUS GUIDE: Backend response contains face detection, state, confidence, and class scores.
         const result = await predictFocusState(base64);
         setPredictError(null);
         setFaceDetected(result.face_detected);
+        // VIVA SI: Face එක නැත්නම් scores zero කර return වෙයි; time update callback එක යවන්නේ නැහැ.
         if (!result.face_detected || !result.state) {
           // Zero the readout, but deliberately keep historyRef: face detection drops
           // out on a large share of frames, so clearing the vote on every gap would
@@ -102,6 +105,7 @@ export function useFocusCamera(active, onDetection) {
 
         // Majority vote over recent predictions so a single noisy frame
         // can't flip the whole app's state / retrigger the modal.
+        // VIVA SI: Recent results හතරෙන් majority vote ගනී; එක frame එකකින් state එක හදිසියේ මාරු වීම අඩු කරයි.
         const hist = historyRef.current;
         hist.push(result.state);
         if (hist.length > SMOOTH_N) hist.shift();
@@ -112,6 +116,7 @@ export function useFocusCamera(active, onDetection) {
         const smoothedConfidence = result.probs[smoothed] ?? result.confidence;
         setConfidence(smoothedConfidence); // must describe `smoothed` -- the state the UI actually shows
 
+        // VIVA SI: Smooth කළ state එක FocusApp.handleDetection වෙත යවා counters update කරවයි.
         onDetection?.(smoothed, result.probs, PREDICT_INTERVAL_MS, smoothedConfidence);
       } catch (err) {
         setPredictError(err?.response?.data?.detail || "Backend unavailable");

@@ -1,4 +1,4 @@
-// FOCUS GUIDE: Focus Tree screen: shows the tree level, XP progress, growth stages, and growth rules.
+// VIVA SI: My Tree screen එක: tree level, XP progress, Growth Journey සහ rules පෙන්වයි. | FOCUS GUIDE: Focus Tree screen: shows the tree level, XP progress, growth stages, and growth rules.
 import React from "react";
 import Card from "../Card";
 import TreeSVG from "../TreeSVG";
@@ -23,10 +23,12 @@ const GROWTH_RULES = [
 export default function TabTree({ state, streak, focusMin, LEVEL_DATA: LD = LEVEL_DATA, challengePoints = 0, treeFx = null, treeFxNonce = 0 }) {
   const cfg = STATE_CFG[state] || STATE_CFG.Focused;
   const mood = TREE_MOOD[state] || TREE_MOOD.Focused;
+  // VIVA SI: XP අනුව tree level එක ගනී. Level සීමා focusData.LEVEL_DATA තුළයි.
   const lv = levelIndexFromPoints(challengePoints);
   const current = LD[lv];
   const next = LD[lv + 1];
   const bandSize = next ? next.min - current.min : 1;
+  // VIVA SI: ඊළඟ tree level එකට යන්න තව කොපමණ progress තියෙනවාද ගණනය කරයි.
   const levelPct = next ? ((challengePoints - current.min) / bandSize) * 100 : 100;
   const toNext = next ? Math.max(next.min - challengePoints, 0) : 0;
 
@@ -96,7 +98,7 @@ export default function TabTree({ state, streak, focusMin, LEVEL_DATA: LD = LEVE
       </div>
 
       <Card className="p-4 fu-stagger" style={{ "--fu-i": 1 }}>
-        {/* FOCUS GUIDE: Growth Journey section. */}
+        {/* VIVA SI: Growth Journey කොටස තිරයේ පෙන්වන code එක මෙතැනයි. | FOCUS GUIDE: Growth Journey section. */}
         <SectionTitle title="Growth Journey" subtitle="Every level your tree can reach" className="mb-3" />
         <div className="relative">
           <div className="absolute left-[13px] top-2 bottom-2 w-px bg-slate-200" />
@@ -141,7 +143,7 @@ export default function TabTree({ state, streak, focusMin, LEVEL_DATA: LD = LEVE
       </Card>
 
       <Card className="p-5 fu-stagger" style={{ "--fu-i": 2 }}>
-        {/* FOCUS GUIDE: Tree State Guide section. */}
+        {/* VIVA SI: Tree State Guide කොටස තිරයේ පෙන්වන code එක මෙතැනයි. | FOCUS GUIDE: Tree State Guide section. */}
         <SectionTitle
           title="Tree State Guide"
           subtitle="Happy while this session is mostly focused; sad once distraction leads"
@@ -187,7 +189,7 @@ export default function TabTree({ state, streak, focusMin, LEVEL_DATA: LD = LEVE
       </Card>
 
       <Card className="p-5 fu-stagger" style={{ "--fu-i": 3 }}>
-        {/* FOCUS GUIDE: How the tree grows section. */}
+        {/* VIVA SI: How the tree grows කොටස තිරයේ පෙන්වන code එක මෙතැනයි. | FOCUS GUIDE: How the tree grows section. */}
         <SectionTitle title="How the tree grows" subtitle="Level is today's XP. Challenges cost 5 XP." className="mb-2" />
         <div>
           {GROWTH_RULES.map((p, i) => (

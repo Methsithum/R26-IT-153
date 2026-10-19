@@ -1,4 +1,4 @@
-// FOCUS GUIDE: Live Monitoring screen: shows the camera, session buttons, detected state, and confidence bars.
+// VIVA SI: Camera preview, session buttons, manual selection, detected state සහ scores පෙන්වන screen එකයි. | FOCUS GUIDE: Live Monitoring screen: shows the camera, session buttons, detected state, and confidence bars.
 import React, { useEffect, useRef } from "react";
 import Card from "../Card";
 import { CLASSES, STATE_CFG } from "../focusData";
@@ -50,7 +50,7 @@ export default function TabMonitoring({
 
   return (
     <div className="fu-view">
-      {/* FOCUS GUIDE: Page heading and Start / Pause / Resume / End Session buttons. */}
+      {/* VIVA SI: Live Monitoring heading එක සහ Start / Pause / Resume / End buttons මෙතැනයි. Logic ඇත්තේ FocusApp.jsx තුළයි. | FOCUS GUIDE: Page heading and Start / Pause / Resume / End Session buttons. */}
       <PageHeader
         icon="📷"
         title="Live Monitoring"
@@ -106,7 +106,7 @@ export default function TabMonitoring({
               className="rounded-2xl overflow-hidden relative"
               style={{ aspectRatio: "16 / 9", maxHeight: "50vh", width: "100%", background: "#0f172a", border: "1px solid rgba(0,0,0,0.06)" }}
             >
-              {/* FOCUS GUIDE: Visible webcam preview; frame capture is handled in useFocusCamera.js. */}
+              {/* VIVA SI: තිරයේ webcam preview එක පෙන්වයි. Camera එක අරින්නේ හා frames ගන්නේ useFocusCamera.js තුළයි. | FOCUS GUIDE: Visible webcam preview; frame capture is handled in useFocusCamera.js. */}
               <video
                 ref={displayVideoRef}
                 autoPlay
@@ -142,7 +142,7 @@ export default function TabMonitoring({
                 </div>
               )}
 
-              {/* FOCUS GUIDE: Show the backend prediction error over the camera preview. */}
+              {/* VIVA SI: Prediction API එකේ error එකක් camera preview එක උඩ පෙන්වයි. | FOCUS GUIDE: Show the backend prediction error over the camera preview. */}
               {predictError && (
                 <div
                   className="absolute bottom-3 left-3 right-3 px-3 py-2 rounded-lg text-xs text-white"
@@ -167,9 +167,9 @@ export default function TabMonitoring({
             </div>
           </Card>
 
-          {/* FOCUS GUIDE: Manual Override buttons call handleStateSelect in FocusApp.jsx. */}
+          {/* VIVA SI: Manual buttons ඔබන විට state එක තෝරන්නේ මෙතැනයි. මෙය automatic prediction එකක් නොවේ. | FOCUS GUIDE: Manual Override buttons call handleStateSelect in FocusApp.jsx. */}
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 3 }}>
-            {/* FOCUS GUIDE: Manual Override section. */}
+            {/* VIVA SI: Manual Override කොටස තිරයේ පෙන්වන code එක මෙතැනයි. | FOCUS GUIDE: Manual Override section. */}
             <SectionTitle
               title="Manual Override"
               subtitle={
@@ -200,9 +200,9 @@ export default function TabMonitoring({
             </div>
           </Card>
 
-          {/* FOCUS GUIDE: Session Info displays the current session totals from FocusApp.jsx. */}
+          {/* VIVA SI: මේ session එකේ status, focus time සහ distraction time පෙන්වයි; අගයන් එන්නේ FocusApp.jsx එකෙනි. | FOCUS GUIDE: Session Info displays the current session totals from FocusApp.jsx. */}
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 4 }}>
-            {/* FOCUS GUIDE: Session Info section. */}
+            {/* VIVA SI: Session Info කොටස තිරයේ පෙන්වන code එක මෙතැනයි. | FOCUS GUIDE: Session Info section. */}
             <SectionTitle title="Session Info" className="mb-2" />
             <div>
               <DataRow icon="⚡" label="Session Status" value={statusMeta.label} color={statusMeta.color} />
@@ -213,7 +213,7 @@ export default function TabMonitoring({
         </div>
 
         <div className="col-span-12 md:col-span-5 flex flex-col gap-4">
-          {/* FOCUS GUIDE: Detected State card shows the state label, icon, and confidence meter. */}
+          {/* VIVA SI: හඳුනාගත් state එකේ නම, icon එක සහ confidence meter එක මෙතැන පෙන්වයි. | FOCUS GUIDE: Detected State card shows the state label, icon, and confidence meter. */}
           <Card
             className="p-4 text-center transition-all duration-700 fu-stagger relative overflow-hidden"
             style={{
@@ -243,14 +243,14 @@ export default function TabMonitoring({
           </Card>
 
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 1 }}>
-            {/* FOCUS GUIDE: State Confidence section. */}
+            {/* VIVA SI: State Confidence කොටස තිරයේ පෙන්වන code එක මෙතැනයි. | FOCUS GUIDE: State Confidence section. */}
             <SectionTitle
               title="State Confidence"
               subtitle="Model probability across the four tracked states"
               className="mb-3"
             />
             <div className="space-y-3">
-              {/* FOCUS GUIDE: Four state rows; currently only the highest-scoring state shows its score. */}
+              {/* VIVA SI: States හතරේ rows සාදයි. දැනට වැඩිම score එකට පමණක් අගය පෙන්වා අනෙක් bars zero කරයි. | FOCUS GUIDE: Four state rows; currently only the highest-scoring state shows its score. */}
               {CLASSES.map((cls) => {
                 const isHighest = cls === topClass;
                 const pct = isHighest ? (probs[cls] || 0) * 100 : 0;

@@ -1,4 +1,4 @@
-// FOCUS GUIDE: Main controller: connects screens, session timers, camera results, activities, and saved data.
+// VIVA SI: තිර සියල්ල සම්බන්ධ කරන ප්‍රධාන file එකයි. Session, camera results, activities සහ save කිරීම මෙතැන පාලනය වේ. | FOCUS GUIDE: Main controller: connects screens, session timers, camera results, activities, and saved data.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { STATE_CFG, LEVEL_DATA, ACHIEVEMENTS_LIST, pickChallengeType, challengePointsFor, levelIndexFromPoints } from "./focusData";
 import { useFocusCamera } from "../../hooks/useFocusCamera";
@@ -16,7 +16,7 @@ import TabReport from "./views/Report";
 import TabProfile from "./views/Profile";
 import { readStoredUser } from "../../services/userApi";
 
-// FOCUS GUIDE: Timing settings for manual selection, automatic activities, check-ins, and saving.
+// VIVA SI: Demo කාල සීමා, manual override කාලය, check-in සහ save intervals මෙතැන වෙනස් කළ හැක. | FOCUS GUIDE: Timing settings for manual selection, automatic activities, check-ins, and saving.
 const MANUAL_OVERRIDE_LOCK_MS = 5000;
 const HIGH_CONFIDENCE = 0.70;
 /** Flip to false after the demo video — restores 5 min boost / challenge / check-in. */
@@ -57,7 +57,7 @@ function pickClearFemaleVoice(voices) {
   return ranked[0] || null;
 }
 
-// FOCUS GUIDE: Reads the check-in message aloud using the browser speech service.
+// VIVA SI: Check-in පණිවිඩය browser එකේ හඬින් කියවන්නේ මෙතැනයි. | FOCUS GUIDE: Reads the check-in message aloud using the browser speech service.
 function speakCheckIn(text = CHECKIN_PROMPT) {
   if (typeof window === "undefined" || !window.speechSynthesis) return;
   const synth = window.speechSynthesis;
@@ -88,7 +88,7 @@ function speakCheckIn(text = CHECKIN_PROMPT) {
 }
 
 export default function FocusApp() {
-  // FOCUS GUIDE: React state holds the selected screen and the values displayed on it.
+  // VIVA SI: තෝරාගත් tab එක, detected state එක සහ තිරයේ පෙන්වන අගයන් React state තුළ තබයි. | FOCUS GUIDE: React state holds the selected screen and the values displayed on it.
   const [tab, setTab] = useState("dashboard");
   const [state, setState] = useState("Focused");
   const [sessionFocusMin, setSessionFocusMin] = useState(0);
@@ -140,6 +140,7 @@ export default function FocusApp() {
   const persistSessionRef = useRef(async () => {});
   useEffect(() => { showModalRef.current = showModal; }, [showModal]);
 
+  // VIVA SI: Tree එකට water / wilt animation දී තත්පර දෙකකින් ඉවත් කරයි.
   const playTreeFx = useCallback((kind) => {
     setTreeFx(kind);
     setTreeFxNonce((n) => n + 1);
@@ -189,6 +190,7 @@ export default function FocusApp() {
   }, [showCheckIn, checkInAns]);
 
   useEffect(() => {
+    // VIVA SI: Check-in එකට තත්පර 15ක් පිළිතුරු නැත්නම් session එක pause කරයි.
     if (!showCheckIn || checkInAns !== null) return;
     const id = setTimeout(() => {
       setShowCheckIn(false);
@@ -210,7 +212,7 @@ export default function FocusApp() {
   const todayFocusMin = todayBaseFocus + sessionFocusMin;
   const todayDistMin = todayBaseDist + sessionDistMin;
 
-  // FOCUS GUIDE: Build today's cumulative summary for the save request.
+  // VIVA SI: අද දවසේ එකතු වූ totals backend එකට යවන payload එක මෙතැන සාදයි. | FOCUS GUIDE: Build today's cumulative summary for the save request.
   const sessionPayload = useCallback(() => ({
     focus_minutes: todayBaseFocusRef.current + sessionFocusRef.current,
     distraction_minutes: todayBaseDistRef.current + sessionDistRef.current,
@@ -222,7 +224,7 @@ export default function FocusApp() {
     first_hour: firstHourRef.current,
   }), [todayGoal]);
 
-  // FOCUS GUIDE: Send summary data to the backend; images are sent by the camera hook separately.
+  // VIVA SI: Session summary එක backend එකට save කරයි. Camera images යවන්නේ useFocusCamera.js එකෙනි. | FOCUS GUIDE: Send summary data to the backend; images are sent by the camera hook separately.
   const persistSession = useCallback(async () => {
     if (!persistReadyRef.current) return;
     try {
@@ -239,6 +241,7 @@ export default function FocusApp() {
     let cancelled = false;
     (async () => {
       try {
+        // VIVA SI: Screen එක load වෙද්දී කලින් save කළ daily, weekly සහ profile data එකවර ගනී.
         const [report, week, profile] = await Promise.all([
           getDailyReport(),
           getWeeklyReport(),
@@ -288,6 +291,7 @@ export default function FocusApp() {
       persistSession();
       return;
     }
+    // VIVA SI: Active session summary එක විනාඩියකට වරක් save කරයි.
     const id = setInterval(persistSession, SAVE_INTERVAL_MS);
     return () => {
       clearInterval(id);
@@ -296,6 +300,7 @@ export default function FocusApp() {
   }, [sessionOn, persistSession]);
 
   useEffect(() => {
+    // VIVA SI: Focus page එක open බව heartbeat එකකින් backend එකට දන්වයි; මේක session active බව නොවේ.
     const beat = async () => {
       try {
         await pingFocusPresence();
@@ -318,6 +323,7 @@ export default function FocusApp() {
 
   useEffect(() => {
     let cancelled = false;
+    // VIVA SI: Daily / weekly / monthly rankings නැවත ගෙන leaderboard update කරයි.
     const loadBoard = async () => {
       try {
         const [rows, weekly, monthly] = await Promise.all([getLeaderboard("daily"), getLeaderboard("weekly"), getLeaderboard("monthly")]);
@@ -339,7 +345,7 @@ export default function FocusApp() {
     };
   }, []);
 
-  // FOCUS GUIDE: Start / Pause / Resume / End button handlers are defined here.
+  // VIVA SI: Start, Pause සහ Resume buttons වලට අදාළ functions මෙතැනයි. | FOCUS GUIDE: Start / Pause / Resume / End button handlers are defined here.
   const pauseSession = useCallback(() => setSessionStatus("paused"), []);
   const resumeSession = useCallback(() => {
     if (sessionStatus === "ended") return;
@@ -352,13 +358,14 @@ export default function FocusApp() {
     setSessionFocusMin(0);
     setSessionDistMin(0);
     focusStreakRef.current = 0;
+    // VIVA SI: Start Session කරන විට අලුත් session එකේ boost tracking reset කරයි.
     boostTierRef.current = 0;
     setStreak(0);
     sprintBonusReadyRef.current = true;
     setSessionStatus("active");
   }, []);
 
-  // FOCUS GUIDE: Save totals and keep the ended session values for the Session Report screen.
+  // VIVA SI: End Session කළ විට totals save කර report එක සඳහා අවසන් session අගයන් තබයි. | FOCUS GUIDE: Save totals and keep the ended session values for the Session Report screen.
   const endSession = useCallback(async () => {
     if (sessionStatus === "ended") return;
     countingRef.current = false;
@@ -396,8 +403,10 @@ export default function FocusApp() {
   const treeDistMin = sessionStatus === "ended" ? (reportDistMin ?? 0) : sessionDistMin;
   // Tree mood follows the session total, not the live frame: happy while
   // focused time is ahead (or tied), sad once overall distraction overtakes it.
+  // VIVA SI: Tree mood එක තීරණය කරන්නේ session focus total හා distraction total සසඳලාය; live facial state එකෙන් නොවේ.
   const treeState = treeFocusMin >= treeDistMin ? "Focused" : "Boredom";
   const lifetimeMin = lifetimeBaseMin + todayFocusMin;
+  // VIVA SI: XP ගණනය focusData.js හි challengePointsFor function එකට භාර දෙයි.
   const challengePoints = challengePointsFor(challengesTaken, focusBoosts);
   const lv = levelIndexFromPoints(challengePoints);
 
@@ -411,7 +420,7 @@ export default function FocusApp() {
   const unbreakable = (liveWeek.days || []).length === 7
     && (liveWeek.days || []).every((d) => combineHM(d.focus_hours, d.focus_minutes) > 0);
   const hour = firstHourRef.current;
-  // FOCUS GUIDE: Decide which achievement cards are earned using live values and saved history.
+  // VIVA SI: Badge unlock වීමේ සැබෑ frontend කොන්දේසි මෙතැනයි. නම හෝ description එකට වඩා මේ conditions බලන්න. | FOCUS GUIDE: Decide which achievement cards are earned using live values and saved history.
   const earnedByKey = {
     sprint25: everSprint25 || longestStreakRef.current >= SPRINT_STREAK_MIN || savedAchievements.includes("sprint25"),
     calmQuest5: calmQuestCount >= 5 || savedAchievements.includes("calmQuest5"),
@@ -425,7 +434,7 @@ export default function FocusApp() {
   };
   const liveAchievements = ACHIEVEMENTS_LIST.map((a) => ({ ...a, earned: !!earnedByKey[a.key] }));
 
-  // FOCUS GUIDE: Open the support popup, count the challenge, and show tree feedback.
+  // VIVA SI: Activity popup එක අරියි; challenge count වැඩි කර tree animation එක පෙන්වයි. | FOCUS GUIDE: Open the support popup, count the challenge, and show tree feedback.
   const openChallenge = useCallback((type) => {
     if (showModalRef.current) return;
     showModalRef.current = true;
@@ -437,7 +446,7 @@ export default function FocusApp() {
     persistSession();
   }, [persistSession, playTreeFx]);
 
-  // FOCUS GUIDE: Manual Override buttons use this handler; this is a user selection, not a prediction.
+  // VIVA SI: Manual buttons ඔබන විට state එක තෝරන්නේ මෙතැනයි. මෙය automatic prediction එකක් නොවේ. | FOCUS GUIDE: Manual Override buttons use this handler; this is a user selection, not a prediction.
   const handleStateSelect = (nextState) => {
     if (sessionStatus !== "active") return;
     lastManualRef.current = Date.now();
@@ -445,7 +454,7 @@ export default function FocusApp() {
     if (["Fatigue", "Anxiety", "Boredom"].includes(nextState)) openChallenge(nextState);
   };
 
-  // FOCUS GUIDE: Receive camera results, update time and streaks, and check activity trigger conditions.
+  // VIVA SI: Backend එකෙන් ආ state එක ගෙන focus time, distraction time, streak සහ activity trigger update කරයි. | FOCUS GUIDE: Receive camera results, update time and streaks, and check activity trigger conditions.
   const handleDetection = useCallback((nextState, _probs, elapsedMs, confidence) => {
     if (!countingRef.current) return;
     if (Date.now() - lastManualRef.current < MANUAL_OVERRIDE_LOCK_MS) return;
@@ -456,7 +465,7 @@ export default function FocusApp() {
       firstHourRef.current = new Date().getHours();
     }
 
-    // FOCUS GUIDE: Focused results add focus time; other results add distraction time below.
+    // VIVA SI: Focused නම් focus time එකතු කරයි; නැත්නම් පහළ else කොටසෙන් distraction time එකතු කරයි. | FOCUS GUIDE: Focused results add focus time; other results add distraction time below.
     if (nextState === "Focused") {
       focusStreakRef.current += elapsedMs;
       const newStreak = Math.floor(focusStreakRef.current / 60000);
@@ -490,7 +499,7 @@ export default function FocusApp() {
       setSessionDistMin(+sessionDistRef.current.toFixed(2));
     }
 
-    // FOCUS GUIDE: An automatic activity needs the same non-focused state sustained at 70% or higher.
+    // VIVA SI: එකම distraction state එක අවශ්‍ය කාලය පුරා 70% හෝ වැඩි score එකකින් තිබුණොත් activity එක අරියි. | FOCUS GUIDE: An automatic activity needs the same non-focused state sustained at 70% or higher.
     const isDistracted = nextState !== "Focused";
     const isHighConfidence = (confidence || 0) >= HIGH_CONFIDENCE;
 
@@ -508,7 +517,7 @@ export default function FocusApp() {
     }
   }, [openChallenge, playTreeFx]);
 
-  // FOCUS GUIDE: Done in the activity popup updates completion counts and closes the popup.
+  // VIVA SI: Activity එකේ Done ඔබන විට completion count update කර popup එක වසයි. | FOCUS GUIDE: Done in the activity popup updates completion counts and closes the popup.
   const handleInterventionComplete = useCallback((type) => {
     setInterventionCounts((c) => {
       const next = { ...c, [type]: (c[type] || 0) + 1 };
@@ -526,7 +535,7 @@ export default function FocusApp() {
     ? STATE_CFG.NoFace
     : cfg;
 
-  // FOCUS GUIDE: Match each navigation tab to its screen and pass that screen its data and handlers.
+  // VIVA SI: Tab නමට අදාළ screen එක තෝරා එයට අවශ්‍ය data සහ button functions props ලෙස යවයි. | FOCUS GUIDE: Match each navigation tab to its screen and pass that screen its data and handlers.
   const VIEWS = {
     dashboard: (
       <TabDashboard
@@ -631,7 +640,7 @@ export default function FocusApp() {
         onOpenProfile={() => setTab("profile")}
       />
 
-      {/* FOCUS GUIDE: Hidden video and canvas capture frames even when another Focus tab is open. */}
+      {/* VIVA SI: වෙනත් Focus tab එකක සිටියත් frames ගන්න භාවිත කරන සැඟවුණු video සහ canvas මෙතැනයි. | FOCUS GUIDE: Hidden video and canvas capture frames even when another Focus tab is open. */}
       <video ref={captureVideoRef} autoPlay playsInline muted
         style={{ position: "fixed", top: 0, left: 0, width: 1, height: 1, opacity: 0, pointerEvents: "none" }} />
       <canvas ref={canvasRef} style={{ display: "none" }} />
@@ -647,7 +656,7 @@ export default function FocusApp() {
         </div>
       )}
 
-      {/* FOCUS GUIDE: Quick Check-in popup with Yes / No buttons. */}
+      {/* VIVA SI: Are you focusing right now? popup එක සහ Yes / No buttons මෙතැනයි. | FOCUS GUIDE: Quick Check-in popup with Yes / No buttons. */}
       {showCheckIn && (
         <div className="fixed bottom-6 right-6 z-50 w-80 fu-view">
           <div className="rounded-3xl p-5 border border-slate-200" style={{ background: "rgba(255,255,255,0.95)", backdropFilter: "blur(20px)", boxShadow: "0 12px 40px -8px rgba(15,23,42,0.18), 0 0 40px rgba(34,197,94,0.15)" }}>
@@ -670,7 +679,7 @@ export default function FocusApp() {
         </div>
       )}
 
-      {/* FOCUS GUIDE: Notice shown when an unanswered check-in pauses the session. */}
+      {/* VIVA SI: Check-in එකට පිළිතුරු නැති නිසා session pause වූ විට පෙන්වන පණිවිඩයයි. | FOCUS GUIDE: Notice shown when an unanswered check-in pauses the session. */}
       {showPauseNotice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: "rgba(15,23,42,0.35)", backdropFilter: "blur(8px)" }}>
           <div className="w-full max-w-md rounded-3xl border p-6 shadow-2xl" style={{ backgroundColor: "rgba(255,255,255,0.96)", borderColor: "#f59e0b50" }}>
@@ -701,6 +710,7 @@ export default function FocusApp() {
         </div>
       )}
 
+      {/* VIVA SI: Support popup UI එකට open/close/type/complete functions සම්බන්ධ කරන තැනයි. */}
       <IntModal open={showModal} type={challengeType} onClose={() => { showModalRef.current = false; setShowModal(false); }} onComplete={handleInterventionComplete} />
     </div>
   );

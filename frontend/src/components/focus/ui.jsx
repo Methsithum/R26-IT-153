@@ -1,4 +1,4 @@
-// FOCUS GUIDE: Shared screen elements such as headings, meters, badges, and statistic tiles.
+// VIVA SI: නැවත භාවිත කරන headings, badges, progress bars, rings සහ statistic cards මෙතැනයි. | FOCUS GUIDE: Shared screen elements such as headings, meters, badges, and statistic tiles.
 import React from "react";
 import Card from "./Card";
 
@@ -8,6 +8,7 @@ import Card from "./Card";
 // hexes — nothing in here introduces a color of its own beyond the slate
 // neutrals already used across the app.
 
+// VIVA SI: Screen එකේ main heading, subtitle සහ දකුණු පැත්තේ controls පෙන්වයි.
 export function PageHeader({ icon, title, subtitle, right }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
@@ -23,6 +24,7 @@ export function PageHeader({ icon, title, subtitle, right }) {
   );
 }
 
+// VIVA SI: Card එකක් ඇතුළේ heading සහ subtitle පෙන්වයි.
 export function SectionTitle({ title, subtitle, right, className = "" }) {
   return (
     <div className={`flex items-start justify-between gap-3 ${className}`}>
@@ -35,6 +37,7 @@ export function SectionTitle({ title, subtitle, right, className = "" }) {
   );
 }
 
+// VIVA SI: කුඩා coloured label එක පෙන්වයි.
 export function Badge({ color, children, soft = true, className = "" }) {
   return (
     <span
@@ -52,6 +55,7 @@ export function Badge({ color, children, soft = true, className = "" }) {
 
 // A filled track. `pct` is clamped so an out-of-range value can't overflow the
 // rail, and NaN (from a 0/0 ratio before any data exists) renders as empty.
+// VIVA SI: ලැබුණු percentage එක horizontal progress bar එකක් ලෙස පෙන්වයි.
 export function Meter({ pct, color, height = 8, glow = false, sheen = false, track = "#cbd5e1" }) {
   const safe = Number.isFinite(pct) ? Math.max(0, Math.min(pct, 100)) : 0;
   return (
@@ -68,6 +72,7 @@ export function Meter({ pct, color, height = 8, glow = false, sheen = false, tra
   );
 }
 
+// VIVA SI: Percentage එක circular progress ring එකක් ලෙස අඳියි.
 export function ProgressRing({ pct, color, size = 120, stroke = 10, children, track = "#e2e8f0" }) {
   const safe = Number.isFinite(pct) ? Math.max(0, Math.min(pct, 100)) : 0;
   const r = (size - stroke) / 2;
@@ -95,6 +100,7 @@ export function ProgressRing({ pct, color, size = 120, stroke = 10, children, tr
   );
 }
 
+// VIVA SI: Icon, label සහ value සහිත statistic card එක පෙන්වයි.
 export function StatTile({ icon, label, value, unit, color, sub, index = 0 }) {
   return (
     <Card hover className="p-4 fu-stagger" style={{ "--fu-i": index }}>
@@ -118,6 +124,7 @@ export function StatTile({ icon, label, value, unit, color, sub, index = 0 }) {
 
 // Key/value line used by the summary lists. `last` drops the divider so the
 // final row doesn't leave a dangling rule above the card padding.
+// VIVA SI: Label සහ value දෙපසට දමා එක් data row එකක් පෙන්වයි.
 export function DataRow({ label, value, color, icon, last = false }) {
   return (
     <div className={`flex items-center justify-between gap-3 py-2.5 ${last ? "" : "border-b border-slate-200"}`}>
@@ -132,6 +139,7 @@ export function DataRow({ label, value, color, icon, last = false }) {
   );
 }
 
+// VIVA SI: Data නැති විට පෙන්වන message එකයි.
 export function EmptyState({ icon = "📭", title, hint }) {
   return (
     <div className="flex flex-col items-center justify-center text-center py-8 px-4">

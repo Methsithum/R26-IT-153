@@ -1,8 +1,9 @@
-// FOCUS GUIDE: Achievements screen: shows earned and locked study milestone badges.
+// VIVA SI: Unlock කළ badges සහ locked badges වෙන් කර collection progress පෙන්වයි. | FOCUS GUIDE: Achievements screen: shows earned and locked study milestone badges.
 import React from "react";
 import Card from "../Card";
 import { PageHeader, SectionTitle, Meter, ProgressRing, Badge } from "../ui";
 
+// VIVA SI: එක් badge card එකක icon, lock, description සහ points පෙන්වයි.
 function AchievementCard({ a, index }) {
   const color = a.earned ? "#f59e0b" : "#64748b";
   return (
@@ -49,8 +50,10 @@ function AchievementCard({ a, index }) {
 }
 
 export default function TabAchievements({ ACHIEVEMENTS_LIST }) {
+  // VIVA SI: Earned සහ locked badges වෙන් කරයි; unlock conditions මෙතැන ගණනය නොකරයි.
   const earned = ACHIEVEMENTS_LIST.filter((a) => a.earned);
   const locked = ACHIEVEMENTS_LIST.filter((a) => !a.earned);
+  // VIVA SI: Badge points එකතුවයි. මේ අගය tree XP එකට සමාන නොවේ.
   const earnedPts = earned.reduce((s, a) => s + a.pts, 0);
   const totalPts = ACHIEVEMENTS_LIST.reduce((s, a) => s + a.pts, 0);
   const completion = ACHIEVEMENTS_LIST.length
@@ -74,7 +77,7 @@ export default function TabAchievements({ ACHIEVEMENTS_LIST }) {
           </ProgressRing>
 
           <div className="flex-1 w-full">
-            {/* FOCUS GUIDE: Collection Progress section. */}
+            {/* VIVA SI: Collection Progress කොටස තිරයේ පෙන්වන code එක මෙතැනයි. | FOCUS GUIDE: Collection Progress section. */}
             <SectionTitle
               title="Collection Progress"
               subtitle={`${earnedPts.toLocaleString()} of ${totalPts.toLocaleString()} achievement points collected`}
@@ -103,7 +106,7 @@ export default function TabAchievements({ ACHIEVEMENTS_LIST }) {
 
       {earned.length > 0 && (
         <>
-          {/* FOCUS GUIDE: Unlocked section. */}
+          {/* VIVA SI: Unlocked කොටස තිරයේ පෙන්වන code එක මෙතැනයි. | FOCUS GUIDE: Unlocked section. */}
           <SectionTitle title="Unlocked" subtitle="Badges earned from persisted time and streaks" className="mb-3" />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
             {earned.map((a, i) => <AchievementCard key={a.id} a={a} index={i} />)}
@@ -113,7 +116,7 @@ export default function TabAchievements({ ACHIEVEMENTS_LIST }) {
 
       {locked.length > 0 && (
         <>
-          {/* FOCUS GUIDE: Still Locked section. */}
+          {/* VIVA SI: Still Locked කොටස තිරයේ පෙන්වන code එක මෙතැනයි. | FOCUS GUIDE: Still Locked section. */}
           <SectionTitle title="Still Locked" subtitle="Keep focusing to unlock these" className="mb-3" />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {locked.map((a, i) => <AchievementCard key={a.id} a={a} index={i} />)}
