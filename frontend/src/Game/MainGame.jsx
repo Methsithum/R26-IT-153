@@ -43,18 +43,18 @@ export default function MainGame() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  // Count mouse clicks and key presses for the current session (skipped before start / after finish)
+  // Count mouse clicks + key presses together for the current session (skipped before start / after finish)
   useEffect(() => {
     function countableNow() {
       const p = useGameStore.getState().phase;
       return p !== PHASES.GAME_START && p !== PHASES.DAILY_COMPLETION;
     }
     function onMouseDown() {
-      if (countableNow()) useGameStore.getState().recordMouseClick();
+      if (countableNow()) useGameStore.getState().recordClick();
     }
     function onKeyDown(e) {
       if (e.repeat) return;
-      if (countableNow()) useGameStore.getState().recordKeyClick();
+      if (countableNow()) useGameStore.getState().recordClick();
     }
     window.addEventListener("mousedown", onMouseDown);
     window.addEventListener("keydown", onKeyDown);
