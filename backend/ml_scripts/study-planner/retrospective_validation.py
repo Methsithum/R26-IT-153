@@ -2,7 +2,7 @@
 retrospective_validation.py
 
 Retrospective, non-circular validation of the deployed priority model
-(OrdinalMonotonicPriorityModel, Section 5c) against real historical outcomes.
+(OrdinalPriorityModel, Section 5c) against real historical outcomes.
 
 ===========================================================================
 THE CIRCULARITY PROBLEM THIS SCRIPT IS DESIGNED TO AVOID
@@ -67,7 +67,7 @@ MODEL_PATH = os.path.join(BACKEND_DIR, "app", "models", "study_planner", "priori
 
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
-from app.services.study_planner.ordinal_monotonic_model import CLASS_ORDER  # noqa: E402
+from app.services.study_planner.ordinal_priority_model import CLASS_ORDER  # noqa: E402
 
 RANDOM_STATE = 42
 FEATURE_ORDER = [

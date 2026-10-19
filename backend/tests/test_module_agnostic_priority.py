@@ -14,7 +14,7 @@ from app.services.study_planner.priority_service import (
     predict_priority,
     validate_and_build_feature_row,
 )
-from app.services.study_planner.ordinal_monotonic_model import CLASS_ORDER
+from app.services.study_planner.ordinal_priority_model import CLASS_ORDER
 
 
 @pytest.fixture
