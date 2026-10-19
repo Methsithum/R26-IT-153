@@ -140,70 +140,6 @@ function actionTips(category, snap) {
   return [...urgent, ...(byCategory[category] || [])].filter(Boolean).slice(0, 3);
 }
 
-function snapshotGroups(snap) {
-  if (!snap) return [];
-  const dp = snap.deadline_proximity || {};
-  const tc = snap.task_completion_history || {};
-  const ed = snap.engagement_distribution || {};
-  const ap = snap.assignment_progress || {};
-  const ep = snap.exam_proximity || {};
-  const days = (n) => `${n} ${n === 1 ? "day" : "days"}`;
-  return [
-    {
-      title: "Context",
-      rows: [
-        {
-          label: "Observation window",
-          value:
-            snap.account_age_days != null
-              ? `${days(snap.observation_window_days)} (account is ${days(snap.account_age_days)} old)`
-              : days(snap.observation_window_days),
-        },
-        { label: "Last activity", value: snap.last_activity_date ? new Date(snap.last_activity_date).toLocaleString() : "—" },
-      ],
-    },
-    {
-      title: "Engagement & consistency",
-      rows: [
-        { label: "Temporal engagement evidence", value: snap.engagement_trend || "insufficient_data" },
-        { label: "Engagement (high / medium / low)", value: `${ed.high ?? 0} / ${ed.medium ?? 0} / ${ed.low ?? 0}` },
-        { label: "Activity frequency", value: `${Math.round((snap.activity_frequency ?? 0) * 100)}% of window days` },
-        { label: "Journal sessions", value: snap.total_sessions_last_14_days ?? 0 },
-      ],
-    },
-    {
-      title: "Deadline & task pressure",
-      rows: [
-        { label: "Nearest deadline", value: dp.nearest_deadline_days != null ? days(dp.nearest_deadline_days) : "—" },
-        { label: "Due within 3 days", value: dp.due_within_3_days ?? 0 },
-        { label: "Due within 7 days", value: dp.due_within_7_days ?? 0 },
-        { label: "Overdue", value: dp.overdue ?? 0 },
-        {
-          label: "Assignment progress",
-          value: Object.keys(ap).length ? Object.entries(ap).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`).join(", ") : "none recorded",
-        },
-        { label: "Tasks completed", value: `${tc.completed_tasks ?? 0} / ${tc.total_tasks ?? 0}` },
-      ],
-    },
-    {
-      title: "Upcoming exams",
-      rows: [
-        { label: "Nearest exam", value: ep.nearest_exam_days != null ? days(ep.nearest_exam_days) : "—" },
-        { label: "Within 3 days", value: ep.exams_within_3_days ?? 0 },
-        { label: "Within 7 days", value: ep.exams_within_7_days ?? 0 },
-        { label: "Total upcoming", value: ep.total_upcoming_exams ?? 0 },
-      ],
-    },
-    {
-      title: "Study effort",
-      rows: [
-        { label: "Avg study hours / active day", value: `${snap.study_hours_avg_per_day ?? 0} h` },
-        { label: "Total study hours", value: `${snap.study_hours_last_14_days ?? 0} h` },
-      ],
-    },
-  ];
-}
-
 export default function BehaviorAnalysisSection({ userId, demoMode }) {
   const [latest, setLatest] = useState(null);
   const [latestStatus, setLatestStatus] = useState("loading");
@@ -374,32 +310,6 @@ export default function BehaviorAnalysisSection({ userId, demoMode }) {
         </div>
       )}
 
-      {/* variables used */}
-      {latest?.available && latest.snapshotOfActivityData && (
-        <div className="rounded-3xl border border-black/5 dark:border-white/5 bg-white dark:bg-[#1a1530] px-4 py-4 shadow-[0_4px_14px_-4px_rgb(23_15_46_/_0.08)]">
-          <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">Variables used for this verdict</div>
-          <p className="mt-0.5 text-xs text-slate-400">
-            Not compared against other students - the AI reads these numbers from your own activity and picks one of the 5 archetypes below.
-          </p>
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-            {snapshotGroups(latest.snapshotOfActivityData).map((group, i) => (
-              <div key={group.title} className="rounded-2xl bg-brand-50/50 dark:bg-white/5 px-3 py-2.5">
-                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-brand-500 dark:text-brand-300">
-                  {i + 1}. {group.title}
-                </div>
-                <ul className="space-y-1.5">
-                  {group.rows.map((row) => (
-                    <li key={row.label} className="flex items-baseline justify-between gap-3 text-xs">
-                      <span className="text-slate-400">{row.label}</span>
-                      <span className="text-right font-medium text-slate-700 dark:text-slate-200">{row.value}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* archetype row */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
