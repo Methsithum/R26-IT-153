@@ -1,19 +1,19 @@
 """
-ordinal_monotonic_model.py
+ordinal_priority_model.py
 
-Canonical, importable definition of OrdinalMonotonicPriorityModel - the
-deployed Priority model wraps two monotonically-constrained binary XGBoost
+Canonical, importable definition of OrdinalPriorityModel - the
+deployed Priority model wraps two deadline-constrained binary XGBoost
 classifiers (P(priority >= Medium), P(priority >= High)) as a single
 Low/Medium/High predictor. See PROJECT CONTEXT.md Section 5c for the full
-story: the original single multi:softmax XGBClassifier had no monotonic
+story: the original single multi:softmax XGBClassifier had no deadline-consistent
 guarantee on `date`, so a task due tomorrow could predict LOWER priority than
 an otherwise-identical task due a month later. Fixed by retraining with a
-monotonic constraint - see ml_scripts/study-planner/train_priority_model_monotonic.py.
+deadline constraint - see ml_scripts/study-planner/train_priority_model_constrained.py.
 
 This lives here (not in ml_scripts/) because it is genuinely production code:
 app/models/study_planner/priority_model.joblib is a pickled instance of this
 exact class, and joblib/pickle resolve a class by its *importable module
-path* at load time - `app.services.study_planner.ordinal_monotonic_model`,
+path* at load time - `app.services.study_planner.ordinal_priority_model`,
 matching this file's location, must exist unchanged for priority_service.py
 and explain_service.py to be able to unpickle it. Do not move or rename this
 file without re-pickling the model, and do not delete it while
@@ -25,13 +25,13 @@ import numpy as np
 CLASS_ORDER = ["Low", "Medium", "High"]  # index 0/1/2 - matches predict()'s return value
 
 
-class OrdinalMonotonicPriorityModel:
+class OrdinalPriorityModel:
     """
     model_medium: binary XGBClassifier predicting P(priority >= Medium), i.e. NOT Low.
     model_high:   binary XGBClassifier predicting P(priority >= High).
     Both trained with the same monotone_constraints on `date` (decreasing), so both
     cumulative probabilities are guaranteed non-increasing in `date` - see the
-    training script for why a single multi-class monotonic model can't express this
+    training script for why a single multi-class constrained model can't express this
     (opposite-signed requirements for Low vs. High under one shared constraint).
     """
 

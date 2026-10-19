@@ -12,9 +12,9 @@ at a time instead of the whole test set (that script is not imported here,
 since importing it would re-run its full batch SHAP computation as a
 module-level side effect).
 
---- Ordinal monotonic model (PROJECT CONTEXT.md Section 5c) ---
-priority_model.joblib is now an OrdinalMonotonicPriorityModel (see
-ordinal_monotonic_model.py): two binary XGBClassifiers, model_medium
+--- Ordinal constrained model (PROJECT CONTEXT.md Section 5c) ---
+priority_model.joblib is now an OrdinalPriorityModel (see
+ordinal_priority_model.py): two binary XGBClassifiers, model_medium
 (P(priority >= Medium)) and model_high (P(priority >= High)), NOT a single
 multi-class XGBClassifier. A single shap.TreeExplainer built against the
 wrapper itself would fail (shap needs a real tree booster, not a Python
@@ -34,7 +34,7 @@ import os
 import joblib
 import pandas as pd
 
-from app.services.study_planner.ordinal_monotonic_model import CLASS_ORDER
+from app.services.study_planner.ordinal_priority_model import CLASS_ORDER
 from app.services.study_planner.priority_service import (
     FEATURE_ORDER,
     UNKNOWN_MODULE_ENC,
@@ -71,7 +71,7 @@ try:
 except FileNotFoundError as e:
     logger.error(
         "explain_service: STARTUP ERROR - missing model artifact: %s. "
-        "Run ml_scripts/study-planner/train_priority_model_monotonic.py first. "
+        "Run ml_scripts/study-planner/train_priority_model_constrained.py first. "
         "explain_task() will raise ExplainServiceError until this is fixed.",
         e,
     )
@@ -82,7 +82,7 @@ except ImportError:
     )
 except AttributeError:
     logger.exception(
-        "explain_service: STARTUP ERROR - priority_model.joblib is not an OrdinalMonotonicPriorityModel "
+        "explain_service: STARTUP ERROR - priority_model.joblib is not an OrdinalPriorityModel "
         "(no .model_medium/.model_high). Was the wrong artifact deployed?"
     )
 except Exception:

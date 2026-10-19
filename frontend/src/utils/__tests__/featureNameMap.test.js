@@ -84,7 +84,7 @@ describe("buildDateFeatureFromDeadline: output always within the trained range [
     expect(value).toBeLessThan(20); // well within the "urgent" end of the range
   });
 
-  it("monotonic in real days-remaining: further out always maps to a larger (or equal) value", () => {
+  it("deadline-consistent in real days-remaining: further out always maps to a larger (or equal) value", () => {
     const nearer = buildDateFeatureFromDeadline("2026-09-01", from);
     const further = buildDateFeatureFromDeadline("2026-09-15", from);
     expect(further).toBeGreaterThan(nearer);

@@ -1,7 +1,7 @@
 """
 Regression tests for the leakage-suspicion guard (PROJECT CONTEXT.md
 Section 4). Tests the real, shared `leakage_guard.py` module now imported by
-both train_priority_model.py and train_priority_model_monotonic.py (see
+both train_priority_model.py and train_priority_model_constrained.py (see
 those files' refactor) - not a reimplementation of the check.
 """
 import numpy as np
@@ -37,8 +37,8 @@ class TestFindLeakageSuspectsOnRealProductionArtifacts:
         suspects = find_leakage_suspects(df)
         assert suspects.empty, f"Unexpected leakage-suspect model(s) in production comparison: {suspects['Model'].tolist()}"
 
-    def test_monotonic_model_comparison_does_not_trigger(self, ml_outputs_dir):
-        df = pd.read_csv(ml_outputs_dir / "monotonic_vs_original_comparison.csv")
+    def test_constrained_model_comparison_does_not_trigger(self, ml_outputs_dir):
+        df = pd.read_csv(ml_outputs_dir / "constrained_vs_original_comparison.csv")
         suspects = find_leakage_suspects(df)
         assert suspects.empty, f"Unexpected leakage-suspect model(s): {suspects['Model'].tolist()}"
 

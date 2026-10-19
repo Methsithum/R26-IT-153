@@ -1,9 +1,9 @@
 """
 The single most important regression test in this suite (PROJECT CONTEXT.md
-Section 5c): the deployed OrdinalMonotonicPriorityModel must guarantee
+Section 5c): the deployed OrdinalPriorityModel must guarantee
 P(High) is non-increasing and P(Low) is non-decreasing as `date` rises,
 for a fixed feature vector. This is a direct port of the original
-verification sweep from train_priority_model_monotonic.py Section 9, run
+verification sweep from train_priority_model_constrained.py Section 9, run
 here against the ACTUAL deployed artifact
 (app/models/study_planner/priority_model.joblib), not a freshly-trained copy -
 so this test fails if a future retrain or model swap ever regresses the
@@ -49,16 +49,16 @@ def _base_row(**overrides):
     return row
 
 
-def test_deployed_model_is_the_ordinal_monotonic_wrapper(deployed_model):
+def test_deployed_model_is_the_ordinal_wrapper(deployed_model):
     """
     Regression guard for the documented Section 15/16 guardrail: do not swap
-    the ordinal monotonic wrapper back for a plain XGBClassifier without
+    the ordinal constrained wrapper back for a plain XGBClassifier without
     understanding why it was introduced. A plain classifier has no
     `.model_medium`/`.model_high` and would silently reintroduce the
     date-inversion bug.
     """
     assert hasattr(deployed_model, "model_medium"), (
-        "Deployed priority_model.joblib is NOT an OrdinalMonotonicPriorityModel "
+        "Deployed priority_model.joblib is NOT an OrdinalPriorityModel "
         "(missing .model_medium) - this would reintroduce the date-vs-priority inversion bug."
     )
     assert hasattr(deployed_model, "model_high")
@@ -77,23 +77,23 @@ def test_p_high_non_increasing_and_p_low_non_decreasing_across_full_date_range(d
     low_diffs = np.diff(p_low)
 
     assert np.all(high_diffs <= 1e-9), (
-        f"P(High) is NOT non-increasing across the date sweep - monotonicity regression! "
+        f"P(High) is NOT non-increasing across the date sweep - deadline ordering regression! "
         f"Violating diffs: {high_diffs[high_diffs > 1e-9]}"
     )
     assert np.all(low_diffs >= -1e-9), (
-        f"P(Low) is NOT non-decreasing across the date sweep - monotonicity regression! "
+        f"P(Low) is NOT non-decreasing across the date sweep - deadline ordering regression! "
         f"Violating diffs: {low_diffs[low_diffs < -1e-9]}"
     )
 
 
 @pytest.mark.parametrize("weight,prior_avg_score", [(20, 65), (5, 30), (40, 90), (100, 0)])
-def test_monotonicity_holds_across_different_fixed_feature_combinations(deployed_model, weight, prior_avg_score):
+def test_deadline_ordering_holds_across_different_fixed_feature_combinations(deployed_model, weight, prior_avg_score):
     """The guarantee must hold for ANY fixed set of other features, not just one hand-picked combination."""
     dates = np.linspace(TRAINED_DATE_MIN, TRAINED_DATE_MAX, 15)
     rows = pd.DataFrame([_base_row(date=d, weight=weight, prior_avg_score=prior_avg_score) for d in dates])[FEATURE_ORDER]
     proba = deployed_model.predict_proba(rows)
     p_high = proba[:, CLASS_ORDER.index("High")]
-    assert np.all(np.diff(p_high) <= 1e-9), f"P(High) non-monotonic for weight={weight}, prior_avg_score={prior_avg_score}"
+    assert np.all(np.diff(p_high) <= 1e-9), f"P(High) not deadline-ordered for weight={weight}, prior_avg_score={prior_avg_score}"
 
 
 def test_the_exact_originally_reported_inversion_is_fixed(deployed_model):
