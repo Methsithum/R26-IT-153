@@ -247,6 +247,8 @@ export default function BehaviorAnalysisSection({ userId, demoMode }) {
         generated_at: result.generatedAt,
         snapshotOfActivityData: result.snapshotOfActivityData,
         nextSteps: result.nextSteps,
+        modelConfidence: result.modelConfidence,
+        topFeatures: result.topFeatures,
         trigger: "manual",
       });
       setSnapshot(await fetchLearningPatterns(userId, 14));
@@ -284,7 +286,14 @@ export default function BehaviorAnalysisSection({ userId, demoMode }) {
           <div className={`flex items-start gap-3 rounded-2xl border px-4 py-3.5 ${TONE_CLASSES[current?.tone || "medium"]}`}>
             <span className="text-2xl leading-none">{current?.icon || "🧭"}</span>
             <div className="min-w-0">
-              <div className="text-base font-bold">{latest.behaviorCategory}</div>
+              <div className="flex items-center gap-2">
+                <div className="text-base font-bold">{latest.behaviorCategory}</div>
+                {typeof latest.modelConfidence === "number" && (
+                  <span className="rounded-full bg-black/5 dark:bg-white/10 px-2 py-0.5 text-[10px] font-semibold opacity-80">
+                    ML confidence {Math.round(latest.modelConfidence * 100)}%
+                  </span>
+                )}
+              </div>
               <p className="mt-1 text-sm leading-snug opacity-90">{latest.reasoning}</p>
               <p className="mt-2 text-[11px] opacity-70">
                 {latest.created_at && `${latest.trigger === "auto" ? "Auto-updated" : "Analyzed"} ${new Date(latest.created_at).toLocaleString()} - `}
@@ -336,6 +345,30 @@ export default function BehaviorAnalysisSection({ userId, demoMode }) {
                 </div>
                 <p className="mt-1.5 text-xs leading-snug text-slate-600 dark:text-slate-300">{tip.text}</p>
               </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* why this verdict */}
+      {latest?.available && Array.isArray(latest.topFeatures) && latest.topFeatures.length > 0 && (
+        <div className="rounded-3xl border border-black/5 dark:border-white/5 bg-white dark:bg-[#1a1530] px-4 py-4 shadow-[0_4px_14px_-4px_rgb(23_15_46_/_0.08)]">
+          <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">Why this verdict</div>
+          <p className="mt-0.5 text-xs text-slate-400">
+            The factors the ML classifier relies on most, shown with your own values for each.
+          </p>
+          <div className="mt-3 space-y-2">
+            {latest.topFeatures.map((f) => (
+              <div key={f.feature} className="flex items-center gap-3">
+                <div className="w-40 shrink-0 text-xs text-slate-500 dark:text-slate-300">{f.label}</div>
+                <div className="flex-1 h-2 rounded-full bg-brand-50 dark:bg-white/10 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-brand-400 dark:bg-brand-500"
+                    style={{ width: `${Math.round((f.weightShare || 0) * 100)}%` }}
+                  />
+                </div>
+                <div className="w-16 shrink-0 text-right text-xs font-medium text-slate-700 dark:text-slate-200">{f.value}</div>
+              </div>
             ))}
           </div>
         </div>
