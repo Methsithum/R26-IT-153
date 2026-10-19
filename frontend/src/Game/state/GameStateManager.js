@@ -227,6 +227,7 @@ export const useGameStore = create((set, get) => ({
   sessionCompleted: false,
   backendJournalEntry: null,
   backendJournalHighlights: [],
+  inputStats: { mouseClicks: 0, keyClicks: 0 },
 
   questionQueue: [],
   questionIndex: 0,
@@ -337,6 +338,7 @@ export const useGameStore = create((set, get) => ({
       examKinds,
       sessionId: res.session_id,
       sessionCompleted: false,
+      inputStats: { mouseClicks: 0, keyClicks: 0 },
       backendJournalEntry: null,
       backendJournalHighlights: [],
       questionQueue: [first],
@@ -364,6 +366,16 @@ export const useGameStore = create((set, get) => ({
     } catch {
       // Keep local records if the world fetch fails.
     }
+  },
+
+  // Count one mouse click during the current session
+  recordMouseClick: () => {
+    set((s) => ({ inputStats: { ...s.inputStats, mouseClicks: s.inputStats.mouseClicks + 1 } }));
+  },
+
+  // Count one key press during the current session
+  recordKeyClick: () => {
+    set((s) => ({ inputStats: { ...s.inputStats, keyClicks: s.inputStats.keyClicks + 1 } }));
   },
 
   takeHit: () => {
@@ -721,6 +733,7 @@ export const useGameStore = create((set, get) => ({
       runStartXp,
       backendJournalEntry,
       backendJournalHighlights,
+      inputStats,
     } = get();
     const previousLevel = level;
     const playedDay = day;
@@ -740,7 +753,13 @@ export const useGameStore = create((set, get) => ({
 
     try {
       if (sessionId) {
-        const data = await finishDailyRun({ sessionId, xpEarned: sessionXp, score });
+        const data = await finishDailyRun({
+          sessionId,
+          xpEarned: sessionXp,
+          score,
+          mouseClicks: inputStats?.mouseClicks || 0,
+          keyClicks: inputStats?.keyClicks || 0,
+        });
         const persistedXp = data.total_xp ?? finalXp;
         const next = {
           ...xpPatch({ ...get() }, persistedXp, {}),

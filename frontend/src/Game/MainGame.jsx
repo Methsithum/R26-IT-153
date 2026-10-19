@@ -43,6 +43,27 @@ export default function MainGame() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // Count mouse clicks and key presses for the current session (skipped before start / after finish)
+  useEffect(() => {
+    function countableNow() {
+      const p = useGameStore.getState().phase;
+      return p !== PHASES.GAME_START && p !== PHASES.DAILY_COMPLETION;
+    }
+    function onMouseDown() {
+      if (countableNow()) useGameStore.getState().recordMouseClick();
+    }
+    function onKeyDown(e) {
+      if (e.repeat) return;
+      if (countableNow()) useGameStore.getState().recordKeyClick();
+    }
+    window.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
+
   const insideBuilding =
     phase === PHASES.TRANSITION_TO_BUILDING ||
     phase === PHASES.ENTERING_BUILDING ||
