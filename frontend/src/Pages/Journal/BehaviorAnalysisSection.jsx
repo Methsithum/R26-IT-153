@@ -291,21 +291,48 @@ export default function BehaviorAnalysisSection({ userId, demoMode }) {
         <div className="rounded-3xl border border-black/5 dark:border-white/5 bg-white dark:bg-[#1a1530] px-4 py-4 shadow-[0_4px_14px_-4px_rgb(23_15_46_/_0.08)]">
           <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">Why this verdict</div>
           <p className="mt-0.5 text-xs text-slate-400">
-            The factors the ML classifier relies on most, shown with your own values for each.
+            The top factors the ML classifier weighed, ranked by how much each one drove this verdict.
           </p>
-          <div className="mt-3 space-y-2">
-            {latest.topFeatures.map((f) => (
-              <div key={f.feature} className="flex items-center gap-3">
-                <div className="w-40 shrink-0 text-xs text-slate-500 dark:text-slate-300">{f.label}</div>
-                <div className="flex-1 h-2 rounded-full bg-brand-50 dark:bg-white/10 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-brand-400 dark:bg-brand-500"
-                    style={{ width: `${Math.round((f.weightShare || 0) * 100)}%` }}
-                  />
-                </div>
-                <div className="w-16 shrink-0 text-right text-xs font-medium text-slate-700 dark:text-slate-200">{f.value}</div>
-              </div>
-            ))}
+          <div className="mt-4 space-y-3.5">
+            {(() => {
+              const maxImportance = Math.max(...latest.topFeatures.map((f) => f.importance || 0), 0.0001);
+              return latest.topFeatures.map((f, i) => {
+                const rankPct = Math.max(4, Math.round(((f.importance || 0) / maxImportance) * 100));
+                const weightPct = Math.round((f.weightShare || 0) * 100);
+                return (
+                  <motion.div
+                    key={f.feature}
+                    initial={{ opacity: 0, x: -6 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.3, delay: i * 0.06, ease: "easeOut" }}
+                  >
+                    <div className="flex items-baseline justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-brand-100 dark:bg-brand-400/20 text-[9px] font-bold text-brand-600 dark:text-brand-300">
+                          {i + 1}
+                        </span>
+                        <span className="truncate text-xs font-medium text-slate-600 dark:text-slate-300">{f.label}</span>
+                      </div>
+                      <div className="flex shrink-0 items-baseline gap-1.5">
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-100">{f.value}</span>
+                        <span className="rounded-full bg-brand-50 dark:bg-white/10 px-1.5 py-0.5 text-[9px] font-semibold text-brand-500 dark:text-brand-300">
+                          {weightPct}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-1.5 h-2 rounded-full bg-brand-50 dark:bg-white/10 overflow-hidden">
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{ background: `linear-gradient(90deg, ${BRAND[500]}, ${BRAND[400]})` }}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${rankPct}%` }}
+                        transition={{ duration: 0.6, delay: i * 0.06, ease: "easeOut" }}
+                      />
+                    </div>
+                  </motion.div>
+                );
+              });
+            })()}
           </div>
         </div>
       )}
