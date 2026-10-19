@@ -6,10 +6,10 @@ exposes predict_priority() for the study-planner API routes to call per
 request.
 
 Reuses the exact artifact produced by
-ml_scripts/study-planner/train_priority_model_monotonic.py (see PROJECT
+ml_scripts/study-planner/train_priority_model_constrained.py (see PROJECT
 CONTEXT.md Section 5c) - this module does not retrain or re-derive anything,
-it only runs inference. priority_model.joblib is an OrdinalMonotonicPriorityModel
-(app/services/study_planner/ordinal_monotonic_model.py), not a plain
+it only runs inference. priority_model.joblib is an OrdinalPriorityModel
+(app/services/study_planner/ordinal_priority_model.py), not a plain
 XGBClassifier - its .predict() already returns an index into CLASS_ORDER
 (Low/Medium/High), so no separate label-encoder artifact is needed anymore.
 Do NOT swap this back for a plain unconstrained XGBClassifier without reading
@@ -23,7 +23,7 @@ import os
 import joblib
 import pandas as pd
 
-from app.services.study_planner.ordinal_monotonic_model import CLASS_ORDER
+from app.services.study_planner.ordinal_priority_model import CLASS_ORDER
 
 logger = logging.getLogger(__name__)
 
@@ -73,11 +73,11 @@ _label_encoders = None
 try:
     _model = joblib.load(MODEL_PATH)
     _label_encoders = joblib.load(LABEL_ENCODERS_PATH)
-    logger.info("priority_service: loaded priority_model.joblib (OrdinalMonotonicPriorityModel), label_encoders.joblib")
+    logger.info("priority_service: loaded priority_model.joblib (OrdinalPriorityModel), label_encoders.joblib")
 except FileNotFoundError as e:
     logger.error(
         "priority_service: STARTUP ERROR - missing model artifact: %s. "
-        "Run ml_scripts/study-planner/train_priority_model_monotonic.py to generate it. "
+        "Run ml_scripts/study-planner/train_priority_model_constrained.py to generate it. "
         "predict_priority() will raise PriorityServiceError until this is fixed.",
         e,
     )

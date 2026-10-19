@@ -1,7 +1,7 @@
 """
 API endpoint smoke tests (httpx TestClient against the real FastAPI app) -
 one per study-planner endpoint, plus a dedicated regression test for the
-/explain + ordinal-wrapper compatibility issue found during the monotonic
+/explain + ordinal-wrapper compatibility issue found during the deadline-consistent
 model deployment (Section 5c/6): a single shap.TreeExplainer cannot be built
 against the wrapper itself, since it's not a tree booster - explain_service.py
 was rewritten to build one TreeExplainer per underlying binary model instead.

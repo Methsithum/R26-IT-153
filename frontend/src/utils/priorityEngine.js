@@ -2,7 +2,7 @@
 //
 // Rule-based layer on top of the ML priority model's output. Not a fix for
 // the model — the model itself is already correct (PROJECT CONTEXT.md
-// Section 5c: the OrdinalMonotonicPriorityModel guarantees priority never
+// Section 5c: the OrdinalPriorityModel guarantees priority never
 // falls as a deadline gets nearer, HOLDING OTHER FEATURES FIXED). What that
 // guarantee does NOT cover on its own is consistency ACROSS different
 // tasks: weight and prior performance can genuinely dominate the model's
@@ -22,10 +22,10 @@
 //
 // This layer takes real days-until-deadline as the DOMINANT factor (a
 // deadline-driven "base tier"), then lets the ML label shift the result by
-// at most one tier as a secondary modifier. The Section 5c monotonic
+// at most one tier as a secondary modifier. The Section 5c deadline-consistent
 // guarantee is what makes it safe to trust the ML label for that modifier
 // at all - an unconstrained model's label could point the wrong direction
-// entirely; the monotonic model's only points the "wrong" amount.
+// entirely; the constrained model's only points the "wrong" amount.
 
 import { daysRemaining } from "./dateHelpers";
 import { buildShapSentence, humanizeContributions, lowerFirst } from "./featureNameMap";
@@ -70,7 +70,7 @@ export function computeBaseTier(daysRemaining, taskType = "assignment") {
  *
  * The ±1 clamp is the cross-task dominance requirement (Section 5d): the
  * now-reliable ML signal (trustworthy at all only because of the Section 5c
- * monotonic fix - an unconstrained model's label could disagree with the
+ * deadline-consistent fix - an unconstrained model's label could disagree with the
  * deadline in either direction for the wrong reasons) can nudge a task's
  * displayed priority by at most one tier from where its deadline alone would
  * put it. A high-weight task due in 10 days can be pushed from its base
