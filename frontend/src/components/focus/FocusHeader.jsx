@@ -1,4 +1,3 @@
-// VIVA SI: උඩ navigation bar එක: නම, profile button, status, time, points, check-in සහ tabs පෙන්වයි. | FOCUS GUIDE: Top navigation: shows the student, session controls, status, and screen tabs.
 import React from "react";
 import { TABS } from "./focusData";
 import { formatHM } from "../../lib/focusTime";
@@ -58,7 +57,6 @@ export default function FocusHeader({
             </div>
           </div>
 
-          {/* VIVA SI: Session control, focused time, XP සහ Check-in buttons මෙතැන පෙන්වයි. */}
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => {
@@ -124,8 +122,6 @@ export default function FocusHeader({
           </div>
         </div>
 
-        {/* Pill tabs: the active tab carries the live state color so the chrome
-            tracks the same signal as the header chip. */}
         <div className="flex gap-1 pb-2 overflow-x-auto scrollbar-hide">
           {TABS.map((t) => {
             const active = tab === t.id;

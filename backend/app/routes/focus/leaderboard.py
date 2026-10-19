@@ -13,7 +13,6 @@ router = APIRouter(prefix="/focus", tags=["focus"])
 
 @router.post("/presence")
 def presence(user_id: str):
-    """Mark this user as online (heartbeat while Focus is open)."""
     uid = (user_id or "").strip()
     if not uid or uid == tracking.DEFAULT_USER:
         return {"ok": False}
@@ -30,7 +29,6 @@ def presence_leave(user_id: str):
 
 
 def _month_window(month: str | None, now: date_cls) -> tuple[str, str]:
-    """(first, last) day of `month` ("YYYY-MM"); the current month ends today."""
     try:
         first = date_cls.fromisoformat(f"{month}-01") if month else now.replace(day=1)
     except ValueError:
@@ -43,7 +41,6 @@ def _month_window(month: str | None, now: date_cls) -> tuple[str, str]:
 
 
 def _range_totals(days: list, uid: str):
-    """Sum a student's daily rows over a period into one FocusDailyStats row."""
     focus = sum(d.total_focus_minutes for d in days)
     distraction = sum(d.total_distraction_minutes for d in days)
     tracked = focus + distraction
@@ -63,9 +60,6 @@ def _range_totals(days: list, uid: str):
 
 @router.get("/leaderboard", response_model=list[LeaderboardEntry])
 def leaderboard(user_id: str, period: str = "daily", month: str | None = None):
-    """Every registered student, ranked by XP (then focused minutes) for today
-    (period=daily), the last 7 days (weekly) or a calendar month (monthly; `month=YYYY-MM`, default the
-    current month)."""
     viewer = (user_id or "").strip() or tracking.DEFAULT_USER
     if viewer != tracking.DEFAULT_USER:
         UserModel.touch_last_seen(viewer)

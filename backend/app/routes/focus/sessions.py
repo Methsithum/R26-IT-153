@@ -18,14 +18,6 @@ router = APIRouter(prefix="/focus", tags=["focus"])
 
 @router.post("/sessions", response_model=SaveSessionResponse)
 def save_session(req: SaveSessionRequest):
-    """Upserts today's stats for `user_id`. The frontend already keeps a
-    running total client-side, so this is called periodically with the
-    latest cumulative snapshot rather than a delta.
-
-    Incoming totals are raw minutes; they are split into hours + leftover
-    minutes before being written. Emotional-domain scores are stored on the
-    day document and on a per-user snapshot keyed only by user_id.
-    """
     user_id = (req.user_id or "").strip() or tracking.DEFAULT_USER
     date = date_cls.today().isoformat()
     existing = tracking.get_daily_stats(date, user_id)

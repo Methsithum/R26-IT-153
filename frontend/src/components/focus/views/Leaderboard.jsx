@@ -1,4 +1,3 @@
-// VIVA SI: Backend එකෙන් එන ranks පෙන්වයි. Daily / Weekly / Monthly සහ Show more පාලනය මෙතැනයි. | FOCUS GUIDE: Leaderboard screen: shows daily, weekly, and monthly student rankings received from the backend.
 import { useEffect, useMemo, useState } from "react";
 import Card from "../Card";
 import { PageHeader, SectionTitle, Meter, Badge, EmptyState } from "../ui";
@@ -10,7 +9,6 @@ const TOP_N = 10;
 const fmtDay = (d, withYear = false) =>
   d.toLocaleDateString(undefined, { month: "short", day: "numeric", ...(withYear ? { year: "numeric" } : {}) });
 
-// Last 7 days including today, matching the backend's weekly window (local dates).
 function weekRangeLabel() {
   const end = new Date();
   const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - 6);
@@ -44,7 +42,6 @@ export default function TabLeaderboard({
   lifetimeMin,
 }) {
   const [expanded, setExpanded] = useState(false);
-  // VIVA SI: Daily / Weekly / Monthly dropdown එකෙන් තෝරාගත් period එක තබයි.
   const [period, setPeriod] = useState("daily");
   const currentMonth = useMemo(localMonthKey, []);
   const [month, setMonth] = useState(currentMonth);
@@ -52,13 +49,10 @@ export default function TabLeaderboard({
   const [pastLoading, setPastLoading] = useState(false);
   const viewingPast = period === "monthly" && month < currentMonth;
 
-  // Past months don't change, so fetch the chosen one once; the current month
-  // keeps using the polled monthlyRows.
   useEffect(() => {
     if (!viewingPast) return;
     let cancelled = false;
     setPastLoading(true);
-    // VIVA SI: පරණ මාසයක් තෝරාගත්තොත් ඒ මාසයේ ranking backend එකෙන් ගනී.
     getLeaderboard("monthly", month)
       .then((r) => { if (!cancelled) setPastRows(Array.isArray(r) ? r : []); })
       .catch(() => { if (!cancelled) setPastRows([]); })
@@ -79,12 +73,10 @@ export default function TabLeaderboard({
   };
   const rows = PERIODS[period].rows;
   const when = PERIODS[period].when;
-  // VIVA SI: Logged-in studentගේ row එක is_you flag එකෙන් හඳුනාගනී. Sort කර rank දෙන්නේ backend leaderboard.py එකෙනි.
   const you = rows.find((r) => r.is_you);
   const topXp = rows.reduce((max, r) => Math.max(max, r.challenge_points || 0), 0);
   const onlineCount = rows.filter((r) => r.online).length;
   const hasMore = rows.length > TOP_N;
-  // VIVA SI: මුලින් Top 10 පෙන්වයි; ඔබ Top 10 පිට නම් ඔබේ row එකත් එකතු කරයි. Show more මගින් සියල්ල පෙන්වයි.
   const visible = useMemo(() => {
     if (expanded || !hasMore) return rows;
     const top = rows.slice(0, TOP_N);
@@ -127,7 +119,6 @@ export default function TabLeaderboard({
       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-12 md:col-span-7">
           <Card className="p-6 fu-stagger" style={{ "--fu-i": 0 }}>
-            {/* VIVA SI: Top 10 / All students ලැයිස්තුවේ heading එක මෙතැනයි. | FOCUS GUIDE: Loading… section. */}
             <SectionTitle
               title={expanded || !hasMore ? "All students" : `Top ${TOP_N}`}
               subtitle={onlineCount ? `${onlineCount} in the app right now` : `Ranked by XP · ${when}`}
@@ -194,7 +185,6 @@ export default function TabLeaderboard({
 
         <div className="col-span-12 md:col-span-5 flex flex-col gap-4">
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 1 }}>
-            {/* VIVA SI: Your totals කොටස තිරයේ පෙන්වන code එක මෙතැනයි. | FOCUS GUIDE: Your totals section. */}
             <SectionTitle title="Your totals" className="mb-4" />
             <div className="grid grid-cols-1 gap-3">
               <div className="rounded-xl border p-3" style={{ borderColor: "#22c55e20", backgroundColor: "#22c55e08" }}>
@@ -217,7 +207,6 @@ export default function TabLeaderboard({
           </Card>
 
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 2 }}>
-            {/* VIVA SI: How ranking works කොටස තිරයේ පෙන්වන code එක මෙතැනයි. | FOCUS GUIDE: How ranking works section. */}
             <SectionTitle title="How ranking works" className="mb-3" />
             <ul className="space-y-2 text-xs text-slate-600 leading-relaxed">
               <li className="flex gap-2"><span>👥</span><span>Every student with an account is listed, online or not.</span></li>

@@ -1,8 +1,3 @@
-"""Per-user emotional-domain features (ML inputs 12–14).
-
-Keyed by user_id — one document per user, overwritten on each session save
-so the latest scores are always readable from Mongo.
-"""
 from datetime import datetime, timezone
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -19,7 +14,6 @@ class FocusEmotionalStats(BaseModel):
 
 
 def compute_emotional(focus_min: float, dist_min: float) -> dict[str, int]:
-    """Derive the three scores from today's focus vs distraction minutes."""
     focus = max(0.0, float(focus_min or 0))
     dist = max(0.0, float(dist_min or 0))
     tracked = focus + dist

@@ -1,4 +1,3 @@
-// VIVA SI: Camera preview, session buttons, manual selection, detected state සහ scores පෙන්වන screen එකයි. | FOCUS GUIDE: Live Monitoring screen: shows the camera, session buttons, detected state, and confidence bars.
 import React, { useEffect, useRef } from "react";
 import Card from "../Card";
 import { CLASSES, STATE_CFG } from "../focusData";
@@ -21,19 +20,12 @@ export default function TabMonitoring({
   const displayVideoRef = useRef(null);
   const { camStatus, stream, probs, confidence, faceDetected, predictError } = camera;
 
-  // Read the headline number off the same probs map that draws the bars, keyed by
-  // the state actually on screen. That keeps "Detected State" and the highlighted
-  // "State Confidence" bar identical by construction -- including after a manual
-  // override, where `state` is the user's pick and `confidence` is still the model's.
   const displayConfidence = probs[state] ?? confidence;
   const topClass = CLASSES.reduce(
     (best, cls) => ((probs[cls] || 0) > (probs[best] || 0) ? cls : best),
     CLASSES[0],
   );
 
-  // If the backend finds no face, no new state prediction is available
-  // at all, and `state` still holds the last reading. This card claims "Detected
-  // State", so while nothing is detected it has to say so instead of that stale value.
   const showingNoFace = sessionOn && camStatus === "live" && !faceDetected;
   const shownCfg = showingNoFace ? STATE_CFG.NoFace : STATE_CFG[state];
   const statusMeta = sessionStatus === "ended"
@@ -42,15 +34,12 @@ export default function TabMonitoring({
       ? { label: "Active", color: "#22c55e", badge: "● Session active" }
       : { label: "Paused", color: "#f59e0b", badge: "○ Session paused" };
 
-  // Same MediaStream as the hidden capture <video> in FocusApp — a stream can be
-  // attached to multiple <video> elements at once, each renders independently.
   useEffect(() => {
     if (displayVideoRef.current) displayVideoRef.current.srcObject = stream || null;
   }, [stream]);
 
   return (
     <div className="fu-view">
-      {/* VIVA SI: Live Monitoring heading එක සහ Start / Pause / Resume / End buttons මෙතැනයි. Logic ඇත්තේ FocusApp.jsx තුළයි. | FOCUS GUIDE: Page heading and Start / Pause / Resume / End Session buttons. */}
       <PageHeader
         icon="📷"
         title="Live Monitoring"
@@ -106,7 +95,6 @@ export default function TabMonitoring({
               className="rounded-2xl overflow-hidden relative"
               style={{ aspectRatio: "16 / 9", maxHeight: "50vh", width: "100%", background: "#0f172a", border: "1px solid rgba(0,0,0,0.06)" }}
             >
-              {/* VIVA SI: තිරයේ webcam preview එක පෙන්වයි. Camera එක අරින්නේ හා frames ගන්නේ useFocusCamera.js තුළයි. | FOCUS GUIDE: Visible webcam preview; frame capture is handled in useFocusCamera.js. */}
               <video
                 ref={displayVideoRef}
                 autoPlay
@@ -142,7 +130,6 @@ export default function TabMonitoring({
                 </div>
               )}
 
-              {/* VIVA SI: Prediction API එකේ error එකක් camera preview එක උඩ පෙන්වයි. | FOCUS GUIDE: Show the backend prediction error over the camera preview. */}
               {predictError && (
                 <div
                   className="absolute bottom-3 left-3 right-3 px-3 py-2 rounded-lg text-xs text-white"
@@ -167,9 +154,7 @@ export default function TabMonitoring({
             </div>
           </Card>
 
-          {/* VIVA SI: Manual buttons ඔබන විට state එක තෝරන්නේ මෙතැනයි. මෙය automatic prediction එකක් නොවේ. | FOCUS GUIDE: Manual Override buttons call handleStateSelect in FocusApp.jsx. */}
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 3 }}>
-            {/* VIVA SI: Manual Override කොටස තිරයේ පෙන්වන code එක මෙතැනයි. | FOCUS GUIDE: Manual Override section. */}
             <SectionTitle
               title="Manual Override"
               subtitle={
@@ -200,9 +185,7 @@ export default function TabMonitoring({
             </div>
           </Card>
 
-          {/* VIVA SI: මේ session එකේ status, focus time සහ distraction time පෙන්වයි; අගයන් එන්නේ FocusApp.jsx එකෙනි. | FOCUS GUIDE: Session Info displays the current session totals from FocusApp.jsx. */}
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 4 }}>
-            {/* VIVA SI: Session Info කොටස තිරයේ පෙන්වන code එක මෙතැනයි. | FOCUS GUIDE: Session Info section. */}
             <SectionTitle title="Session Info" className="mb-2" />
             <div>
               <DataRow icon="⚡" label="Session Status" value={statusMeta.label} color={statusMeta.color} />
@@ -213,7 +196,6 @@ export default function TabMonitoring({
         </div>
 
         <div className="col-span-12 md:col-span-5 flex flex-col gap-4">
-          {/* VIVA SI: හඳුනාගත් state එකේ නම, icon එක සහ confidence meter එක මෙතැන පෙන්වයි. | FOCUS GUIDE: Detected State card shows the state label, icon, and confidence meter. */}
           <Card
             className="p-4 text-center transition-all duration-700 fu-stagger relative overflow-hidden"
             style={{
@@ -243,14 +225,12 @@ export default function TabMonitoring({
           </Card>
 
           <Card className="p-5 fu-stagger" style={{ "--fu-i": 1 }}>
-            {/* VIVA SI: State Confidence කොටස තිරයේ පෙන්වන code එක මෙතැනයි. | FOCUS GUIDE: State Confidence section. */}
             <SectionTitle
               title="State Confidence"
               subtitle="Model probability across the four tracked states"
               className="mb-3"
             />
             <div className="space-y-3">
-              {/* VIVA SI: States හතරේ rows සාදයි. දැනට වැඩිම score එකට පමණක් අගය පෙන්වා අනෙක් bars zero කරයි. | FOCUS GUIDE: Four state rows; currently only the highest-scoring state shows its score. */}
               {CLASSES.map((cls) => {
                 const isHighest = cls === topClass;
                 const pct = isHighest ? (probs[cls] || 0) * 100 : 0;

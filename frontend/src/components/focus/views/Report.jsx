@@ -1,4 +1,3 @@
-// VIVA SI: End Session පසු focus score, time breakdown, daily goal සහ weekly history පෙන්වයි. | FOCUS GUIDE: Session Report screen: shows results after End Session, plus daily goals and weekly history.
 import React from "react";
 import Card from "../Card";
 import { PageHeader, SectionTitle, StatTile, Meter, Badge, DataRow, ProgressRing, EmptyState } from "../ui";
@@ -42,7 +41,6 @@ export default function TabReport({
 
   const trackedTotal = focusMin + distMin;
   const hasData = trackedTotal > 0;
-  // VIVA SI: Focus score = focus time / (focus time + distraction time) x 100. මෙය prediction confidence එක නොවේ. | FOCUS GUIDE: Focus score is focused time / tracked time x 100, not model confidence.
   const focusScore = hasData ? Math.round((focusMin / trackedTotal) * 100) : 0;
   const goalPct = Math.round(Math.min((todayFocusMin / todayGoal) * 100, 100));
   const fmt = (n) => formatHM(n, { allowSeconds: true });
@@ -112,7 +110,6 @@ export default function TabReport({
       </div>
 
       <Card className="p-6 mb-4 fu-stagger" style={{ "--fu-i": 0 }}>
-        {/* VIVA SI: This week කොටස තිරයේ පෙන්වන code එක මෙතැනයි. | FOCUS GUIDE: This week section. */}
         <SectionTitle
           title="This week"
           subtitle={
@@ -164,7 +161,6 @@ export default function TabReport({
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
         <Card className="p-6 flex flex-col items-center justify-center fu-stagger" style={{ "--fu-i": 0 }}>
-          {/* VIVA SI: Focus Score කොටස තිරයේ පෙන්වන code එක මෙතැනයි. | FOCUS GUIDE: Focus Score section. */}
           <SectionTitle title="Focus Score" subtitle="Share of tracked time spent focused" className="mb-5 w-full" />
           <ProgressRing pct={focusScore} color="#a855f7" size={148} stroke={12}>
             <p className="text-3xl font-bold" style={{ color: "#a855f7" }}>{focusScore}<span className="text-lg">%</span></p>
@@ -177,7 +173,6 @@ export default function TabReport({
         </Card>
 
         <Card className="p-6 xl:col-span-2 fu-stagger" style={{ "--fu-i": 1 }}>
-          {/* VIVA SI: Time Breakdown කොටස තිරයේ පෙන්වන code එක මෙතැනයි. | FOCUS GUIDE: Time Breakdown section. */}
           <SectionTitle
             title="Time Breakdown"
             subtitle="Focus vs overall distraction this session"
@@ -229,7 +224,6 @@ export default function TabReport({
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-6 fu-stagger" style={{ "--fu-i": 2 }}>
-          {/* VIVA SI: Daily Goal කොටස තිරයේ පෙන්වන code එක මෙතැනයි. | FOCUS GUIDE: Daily Goal section. */}
           <SectionTitle title="Daily Goal" subtitle={`${formatHM(todayFocusMin)} / ${formatHM(todayGoal)} focused today`} className="mb-4" />
           <div className="flex items-baseline gap-2 mb-3">
             <p className="text-4xl font-bold" style={{ color: "#22c55e" }}>{goalPct}<span className="text-xl">%</span></p>
@@ -244,7 +238,6 @@ export default function TabReport({
         </Card>
 
         <Card className="p-6 fu-stagger" style={{ "--fu-i": 3 }}>
-          {/* VIVA SI: Session Totals කොටස තිරයේ පෙන්වන code එක මෙතැනයි. | FOCUS GUIDE: Session Totals section. */}
           <SectionTitle title="Session Totals" className="mb-2" />
           <div>
             <DataRow icon="⏱" label="Focus Time" value={fmt(focusMin)} color="#22c55e" />
@@ -255,7 +248,6 @@ export default function TabReport({
         </Card>
 
         <Card className="p-6 fu-stagger" style={{ "--fu-i": 4 }}>
-          {/* VIVA SI: Session Notes කොටස තිරයේ පෙන්වන code එක මෙතැනයි. | FOCUS GUIDE: Session Notes section. */}
           <SectionTitle title="Session Notes" subtitle="From this session's detections" className="mb-4" />
           <div className="space-y-3">
             {notes.map((ins, i) => (

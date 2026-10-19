@@ -8,20 +8,18 @@ from tensorflow.keras.models import load_model
 from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 
 
-# PATHS
 
 BASE_DIR    = Path(__file__).resolve().parents[3]
 MODELS_PATH = BASE_DIR / "trained-models" / "focus"
 
 
-# SETTINGS
 
 IMG_SIZE         = 224
 CLASSES          = ["Focused", "Fatigue", "Anxiety", "Boredom"]
 PREDICT_FPS      = 2
-SMOOTH_N         = 10       # Stable predictions
-CONF_THRESHOLD   = 0.60     # 60% below → Focused
-FATIGUE_THRESH   = 0.80     # Fatigue accept 80%+ confidence
+SMOOTH_N         = 10
+CONF_THRESHOLD   = 0.60
+FATIGUE_THRESH   = 0.80
 
 STATE_COLORS = {
     "Focused": (0,   200,   0),
@@ -37,9 +35,6 @@ STATE_LABEL = {
     "Boredom": "BOREDOM",
 }
 
-# ══════════════════════════════════════════════════════
-# ① LOAD MODELS
-# ══════════════════════════════════════════════════════
 
 print("=" * 55)
 print("  Student Focus Monitor - Real-time Detection")
@@ -60,9 +55,6 @@ le        = joblib.load(MODELS_PATH / "label_encoder.pkl")
 extractor = load_model(str(MODELS_PATH / "feature_extractor.keras"))
 print("  Models loaded OK")
 
-# ══════════════════════════════════════════════════════
-# ② OPENCV FACE DETECTOR
-# ══════════════════════════════════════════════════════
 
 print("  Loading face detector...")
 face_cascade = cv2.CascadeClassifier(
@@ -70,12 +62,8 @@ face_cascade = cv2.CascadeClassifier(
 )
 print("  Face detector loaded OK")
 
-# ══════════════════════════════════════════════════════
-# HELPER FUNCTIONS
-# ══════════════════════════════════════════════════════
 
 def detect_face(frame):
-    """OpenCV face detection — largest face return කරනවා"""
     gray  = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     faces = face_cascade.detectMultiScale(
         gray,
@@ -98,7 +86,6 @@ def detect_face(frame):
 
 
 def extract_features(face_img):
-    """Face crop → MobileNetV2 1280-dim features"""
     img = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
     img = cv2.resize(img, (IMG_SIZE, IMG_SIZE))
     img = preprocess_input(img.astype(np.float32))
@@ -107,11 +94,6 @@ def extract_features(face_img):
 
 
 def predict_state(features):
-    """
-    Features → state + probabilities
-    - Confidence 60% නැත්නම් → Focused
-    - Fatigue 80% නැත්නම් → 2nd best state
-    """
     feat = features.reshape(1, -1)
     if needs_scale:
         feat = scaler.transform(feat)
@@ -121,12 +103,10 @@ def predict_state(features):
     state    = le.inverse_transform([pred_idx])[0]
     conf     = probs[pred_idx]
 
-    # Low confidence → Focused
     if conf < CONF_THRESHOLD:
         state = "Focused"
         return state, probs
 
-    # Fatigue high threshold
     if state == "Fatigue" and conf < FATIGUE_THRESH:
         sorted_idx = np.argsort(probs)[::-1]
         for idx in sorted_idx[1:]:
@@ -139,11 +119,9 @@ def predict_state(features):
 
 
 def draw_ui(frame, state, probs, face_box, fps, conf):
-    """Results screen draw කරනවා"""
     h, w  = frame.shape[:2]
     color = STATE_COLORS.get(state, (255, 255, 255))
 
-    # Face box
     if face_box:
         x1, y1, x2, y2 = face_box
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
@@ -152,7 +130,6 @@ def draw_ui(frame, state, probs, face_box, fps, conf):
                     (x1, y1 - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.65, color, 2)
 
-    # Top bar
     cv2.rectangle(frame, (0, 0), (w, 65), (20, 20, 20), -1)
     cv2.putText(frame,
                 f"Student Focus Monitor  |  FPS: {fps:.1f}",
@@ -163,7 +140,6 @@ def draw_ui(frame, state, probs, face_box, fps, conf):
                 (12, 55), cv2.FONT_HERSHEY_SIMPLEX,
                 1.0, color, 2)
 
-    # Probability bars
     bar_w = 160
     bar_h = 18
     sx    = 12
@@ -202,9 +178,6 @@ def draw_ui(frame, state, probs, face_box, fps, conf):
     return frame
 
 
-# ══════════════════════════════════════════════════════
-# ③ MAIN DETECTION LOOP
-# ══════════════════════════════════════════════════════
 
 print("\n  Opening webcam... (Q to quit)")
 print("=" * 55)

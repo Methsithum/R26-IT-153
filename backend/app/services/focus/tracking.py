@@ -1,9 +1,3 @@
-"""
-Persistence and aggregation for daily focus stats (focus / distraction time
-split into hours and minutes). Documents are keyed by user_id + date.
-Emotional-domain features live on that day row and on a per-user snapshot
-collection (`focus_emotional_stats`, _id = user_id).
-"""
 from datetime import date as date_cls
 from datetime import timedelta
 
@@ -23,7 +17,6 @@ COLLECTION = "focus_daily_stats"
 EMOTIONAL_COLLECTION = "focus_emotional_stats"
 DEFAULT_USER = "anonymous"
 
-# All-time focused minutes needed to unlock Tree Whisperer (Focus Tree level).
 TREE_WHISPERER_MINUTES = 150
 
 
@@ -83,7 +76,6 @@ def get_emotional_stats(user_id: str) -> FocusEmotionalStats:
 
 
 def _is_legacy_doc(doc: dict) -> bool:
-    """True when a stored document still uses points / per-type minutes."""
     if "focus_hours" not in doc and "distraction_hours" not in doc:
         return True
     if isinstance(doc.get("distraction_minutes"), dict):
@@ -94,8 +86,6 @@ def _is_legacy_doc(doc: dict) -> bool:
 
 
 def stats_from_doc(doc: dict) -> FocusDailyStats:
-    """Build a FocusDailyStats from a Mongo document, including legacy ones
-    that stored a float `focus_minutes` and a per-type `distraction_minutes` dict."""
     data = dict(doc)
     raw_id = data.pop("_id", None)
     user_id, id_date = _parse_doc_id(raw_id)
@@ -169,8 +159,6 @@ def get_daily_stats(date_str: str, user_id: str = DEFAULT_USER) -> FocusDailySta
 
 
 def get_range_stats_by_user(start: str, end: str) -> dict[str, list[FocusDailyStats]]:
-    """All students' daily rows between two dates ("YYYY-MM-DD", inclusive),
-    grouped by user_id. One query; read-only (legacy rows are not rewritten)."""
     out: dict[str, list[FocusDailyStats]] = {}
     for doc in _collection().find({"date": {"$gte": start, "$lte": end}}):
         stats = stats_from_doc(doc)
@@ -179,16 +167,12 @@ def get_range_stats_by_user(start: str, end: str) -> dict[str, list[FocusDailySt
 
 
 def get_weekly_stats(end_date_str: str | None = None, user_id: str = DEFAULT_USER) -> list[FocusDailyStats]:
-    """Last 7 days (inclusive of end_date, default today), oldest first."""
     end = date_cls.fromisoformat(end_date_str) if end_date_str else date_cls.today()
     dates = [(end - timedelta(days=i)).isoformat() for i in range(6, -1, -1)]
     return [get_daily_stats(d, user_id) for d in dates]
 
 
 def compute_weekly_insight(days: list[FocusDailyStats]) -> tuple[str | None, str | None, str | None]:
-    """Returns (weekday_name, reason, insight_text) for the day with the most
-    overall distraction minutes in `days`, or (None, None, None) if the week
-    had no distraction at all."""
     scored = [(d, d.total_distraction_minutes) for d in days]
     scored = [pair for pair in scored if pair[1] > 0]
     if not scored:
@@ -218,7 +202,6 @@ def compute_achievements(
     week: list[FocusDailyStats],
     all_stats: list[FocusDailyStats],
 ) -> list[str]:
-    """Unlock keys from persisted time / streak / intervention history — never guessed."""
     merged = {d.date: d for d in all_stats}
     merged[today.date] = today
     days = list(merged.values())
@@ -283,6 +266,5 @@ def build_profile(today_override: FocusDailyStats | None = None, user_id: str = 
 
 
 def get_all_time_totals() -> tuple[int, list[str]]:
-    """(total focus minutes, achievement keys) across every saved day."""
     profile = build_profile()
     return combine_hm(profile["total_focus_hours"], profile["total_focus_minutes"]), profile["achievements_unlocked"]
