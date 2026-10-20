@@ -24,7 +24,7 @@ IRIS_LEFT, IRIS_RIGHT = 468, 473
 _landmarker = None
 
 
-def get_landmarker():
+def get_landmarker(): # load mediapipe face landmarker
     global _landmarker
     if _landmarker is None:
         base_options = mp_python.BaseOptions(model_asset_path=str(LANDMARKER_MODEL_PATH))
@@ -39,13 +39,13 @@ def get_landmarker():
     return _landmarker
 
 
-def _detect(image_bgr):
+def _detect(image_bgr): #identify face landmarks in image
     rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
     return get_landmarker().detect(mp_image)
 
 
-def detect_and_crop(frame_bgr, margin=CROP_MARGIN, out_size=IMG_SIZE):
+def detect_and_crop(frame_bgr, margin=CROP_MARGIN, out_size=IMG_SIZE): #crop face
     result = _detect(frame_bgr)
     if not result.face_landmarks:
         return None
@@ -96,7 +96,7 @@ def _head_pose(matrix):
     return Rotation.from_matrix(rotation).as_euler("xyz", degrees=True)
 
 
-def extract_features(face_bgr):
+def extract_features(face_bgr): # get blendshape features
     result = _detect(face_bgr)
     if not result.face_landmarks:
         return None
@@ -157,7 +157,7 @@ def _eye_patch(face_bgr, lm, indices, pad=0.45, out_size=EYE_PATCH_SIZE):
     return cv2.equalizeHist(gray)
 
 
-def extract_eye_patches(face_bgr):
+def extract_eye_patches(face_bgr): #crop the eyes separately
     result = _detect(face_bgr)
     if not result.face_landmarks:
         return None, None
@@ -165,7 +165,7 @@ def extract_eye_patches(face_bgr):
     return _eye_patch(face_bgr, lm, EYE_LEFT), _eye_patch(face_bgr, lm, EYE_RIGHT)
 
 
-def eye_vector(patch, size=EYE_PATCH_SIZE):
+def eye_vector(patch, size=EYE_PATCH_SIZE): # convert eye patch to vector
     if patch is None:
         return None
     if patch.ndim == 3:

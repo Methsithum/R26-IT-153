@@ -38,7 +38,7 @@ def _model_mtime():
     return max(times) if times else 0
 
 
-def _load():
+def _load(): # load the focus model
     global _loaded_mtime
     mtime = _model_mtime()
     if _state and _loaded_mtime == mtime:
