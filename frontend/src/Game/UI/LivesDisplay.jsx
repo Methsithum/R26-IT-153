@@ -1,3 +1,4 @@
+// Renders the heart-based lives indicator in the HUD, shaking on a hit.
 import { motion } from "framer-motion";
 import { MAX_LIVES, useGameStore } from "../state/GameStateManager";
 

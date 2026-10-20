@@ -1,3 +1,4 @@
+// Mini-game: assign calendar dates to each missing exam paper by stamping days on the board.
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { play } from "../audio/sfx";

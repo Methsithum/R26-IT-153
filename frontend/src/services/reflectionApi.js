@@ -1,3 +1,4 @@
+// API client functions for fetching and submitting weekly journal reflections.
 import api from "./apiClient";
 
 export async function fetchReflectionStatus(userId, date) {

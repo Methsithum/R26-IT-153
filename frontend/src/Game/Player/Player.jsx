@@ -1,3 +1,4 @@
+// Drives the player's physics body: running, jumping, sliding, exploring, and building transitions.
 import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { RigidBody, CapsuleCollider } from "@react-three/rapier";

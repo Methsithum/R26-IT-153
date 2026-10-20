@@ -1,3 +1,5 @@
+# Derived behavioral flags and at-risk task detection, shared across the journal module.
+
 from typing import Any, Dict, List, Optional
 from datetime import date
 

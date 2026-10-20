@@ -1,4 +1,4 @@
-"""Weekly career-clarity check-in from the campus run (4 lanes, no typing)."""
+# Weekly career-clarity check-in from the campus run (4 lanes, no typing).
 
 from datetime import timedelta
 

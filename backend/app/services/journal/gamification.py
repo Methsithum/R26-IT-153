@@ -1,3 +1,5 @@
+# XP, streaks, badges, levels, and leaderboard scoring.
+
 from app.models.user.user import UserModel
 from app.models.journal.daily_session import DailySessionModel
 from app.models.journal.task import TaskModel

@@ -1,3 +1,4 @@
+// Streams road chunks (obstacles, pickups, decorations, buildings) around the player as they run.
 import { useEffect, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useRunnerStore } from "../state/runnerStore";

@@ -1,3 +1,4 @@
+// Persisted zustand store for the player's selected campus map, resolved against their level.
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { CAMPUS_MAPS, DEFAULT_MAP_ID, isMapUnlocked, resolveMap } from "../data/maps";

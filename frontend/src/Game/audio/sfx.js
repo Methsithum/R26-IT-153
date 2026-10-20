@@ -1,3 +1,4 @@
+// Procedural Web Audio sound effects and generative background music/ambience for the game.
 let ctx;
 let graph;
 let ambientNodes = null;

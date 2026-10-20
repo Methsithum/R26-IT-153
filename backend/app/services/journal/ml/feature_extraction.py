@@ -1,8 +1,4 @@
-"""Turns an activity snapshot (see behavior_analysis.build_activity_snapshot)
-into a fixed-order numeric feature vector for the classifier. Shared by the
-training script and the live predictor so both read the same snapshot the
-same way, and matches the column order of datasets/journal/student_behavior.xlsx.
-"""
+# Converts an activity snapshot into the numeric feature list the ML model uses.
 
 from typing import Any, Dict, List
 

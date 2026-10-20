@@ -1,3 +1,5 @@
+# Shared vocabulary: activity tags, task stages, exam kinds, grade tables.
+
 from datetime import datetime
 from typing import Final
 

@@ -1,3 +1,5 @@
+# DB-backed question bank (overrides/extends the static bank).
+
 from app.config.database import db
 
 question_collection = db["questions"]

@@ -1,3 +1,4 @@
+// Renders the floating holographic board that displays the current question's text.
 import { Text } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useRef } from "react";

@@ -1,3 +1,4 @@
+// Renders hit flash, "late to class" warning, and floating score/combo text effects.
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useGameStore } from "../state/GameStateManager";

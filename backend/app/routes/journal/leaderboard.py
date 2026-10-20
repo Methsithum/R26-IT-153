@@ -1,3 +1,5 @@
+# API route for the XP leaderboard.
+
 from fastapi import APIRouter
 from app.services.journal.gamification import get_leaderboard
 

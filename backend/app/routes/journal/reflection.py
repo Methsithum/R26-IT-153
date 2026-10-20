@@ -1,3 +1,5 @@
+# API routes for weekly reflection status/generation.
+
 from datetime import timedelta
 
 from fastapi import APIRouter, HTTPException, Query, Depends

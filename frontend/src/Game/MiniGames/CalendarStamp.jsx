@@ -1,3 +1,4 @@
+// Mini-game: pick a single date on a wooden calendar desk and stamp it to answer the question.
 import { useMemo, useState } from "react";
 import { play } from "../audio/sfx";
 import { blotterStyle, daysInMonth, isoDate, MonthShift, PaperSlip, prettyDate, StampPress, WoodDayGrid } from "./woodDesk";

@@ -1,3 +1,5 @@
+# DB access for assignment/internship task records.
+
 from app.config.database import db
 from app.services.journal.journal_constants import MARK_RECEIVED_STAGES, is_mark_check_due
 from app.services.time_utils import as_of_day, local_today_iso, to_local_date

@@ -1,3 +1,4 @@
+// Shows the current combo multiplier badge, switching to a "Campus Rush" style at high combos.
 import { AnimatePresence, motion } from "framer-motion";
 import { useGameStore } from "../state/GameStateManager";
 

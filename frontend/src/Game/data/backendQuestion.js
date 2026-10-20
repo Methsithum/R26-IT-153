@@ -1,3 +1,4 @@
+// Converts a backend question API response into the game's internal question shape.
 export function mapBackendQuestion(res) {
   if (!res?.question) return null;
   const options = Array.isArray(res.options) && res.options.length > 0 ? res.options : null;

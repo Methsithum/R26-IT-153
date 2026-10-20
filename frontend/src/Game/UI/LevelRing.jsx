@@ -1,3 +1,4 @@
+// Renders a circular level/XP progress ring with the current level number in the center.
 import { XP_PER_LEVEL, levelFromXp, xpIntoLevel } from "../data/progression";
 
 export default function LevelRing({

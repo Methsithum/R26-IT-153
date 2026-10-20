@@ -1,3 +1,4 @@
+// Renders a floating, bobbing pickup (coffee mug or notes) and collects it on contact with the runner.
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { LANES, useRunnerStore } from "../state/runnerStore";

@@ -1,3 +1,5 @@
+# Request/response shapes for the daily journal game session API.
+
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime

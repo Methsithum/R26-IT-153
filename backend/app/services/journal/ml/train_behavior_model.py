@@ -1,14 +1,5 @@
-"""Trains the behaviour-category classifier on the hand-labelled dataset at
-backend/datasets/journal/student_behavior.xlsx (real snapshots pulled from
-the database, each one labelled with the archetype a human reviewer judged
-it to be).
-
-Compares a few candidate models with cross-validation, picks the best one,
-evaluates it on a held-out test split, and saves the trained model plus a
-metrics report under backend/trained-models/behavior-analysis/.
-
-Run from backend/: python -m app.services.journal.ml.train_behavior_model
-"""
+# Trains the behavior-category ML model on the labelled dataset and saves it with metrics.
+# Run from backend/: python -m app.services.journal.ml.train_behavior_model
 
 import json
 from datetime import datetime, timezone

@@ -1,3 +1,5 @@
+# API route for a user's XP/streak/badges summary.
+
 from fastapi import APIRouter, HTTPException, Depends
 from app.services.auth import require_journal_owner
 from app.services.journal.gamification import get_gamification_summary

@@ -1,3 +1,4 @@
+// HUD overlay for building visits: entry banner, walk joystick, look hints, and the mission-use button.
 import { useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { PHASES, useGameStore } from "../state/GameStateManager";

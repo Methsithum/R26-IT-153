@@ -1,3 +1,4 @@
+// Mini-game: pull books off a shelf or stamp lecture tickets to pick the subjects worked on today.
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useGameStore } from "../state/GameStateManager";

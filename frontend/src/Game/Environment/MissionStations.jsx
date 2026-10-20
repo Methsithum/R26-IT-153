@@ -1,3 +1,4 @@
+// Renders the interactive furniture/stations (calendar, slider, dartboard, shelf, etc.) inside buildings.
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Text } from "@react-three/drei";

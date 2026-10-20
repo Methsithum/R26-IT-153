@@ -1,3 +1,4 @@
+// Shared page layout (header, decorative blobs, title/subtitle) wrapping the Journal pages.
 import { NotebookPen } from "lucide-react";
 
 export default function JournalShell({ title, subtitle, aside, children, fill = false }) {

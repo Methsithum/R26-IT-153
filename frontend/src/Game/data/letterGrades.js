@@ -1,3 +1,4 @@
+// Letter grade catalog with vial colors, plus helpers to detect and format letter/percentage marks.
 export const LETTER_GRADES = [
   { id: "A+", fail: false, bead: "#d4a017", glass: "#f6e7c3" },
   { id: "A", fail: false, bead: "#c9a36a", glass: "#f3e6c8" },

@@ -1,3 +1,4 @@
+// Defines per-building furniture/station collision boxes and resolves walking collisions inside rooms.
 import { ROOM_BOUNDS } from "./BuildingInterior";
 import { layoutFor } from "./stationMap";
 

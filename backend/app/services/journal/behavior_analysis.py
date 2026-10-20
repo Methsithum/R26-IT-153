@@ -1,3 +1,5 @@
+# Builds a student's activity snapshot, gets a behavior category (ML + LLM reasoning), and stores it.
+
 import json
 import logging
 from datetime import datetime, timedelta, timezone

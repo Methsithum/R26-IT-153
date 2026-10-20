@@ -1,3 +1,4 @@
+// Displays a purely decorative, slightly accelerated "campus time" clock in the HUD.
 import { useEffect, useState } from "react";
 
 function formatClock(date) {

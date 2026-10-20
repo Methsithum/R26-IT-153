@@ -1,3 +1,4 @@
+// HUD widget showing the current day, level ring, and daily objective progress bar.
 import { useGameStore } from "../state/GameStateManager";
 import { XP_PER_LEVEL, xpIntoLevel } from "../data/progression";
 import LevelRing from "./LevelRing";

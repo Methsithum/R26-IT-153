@@ -1,3 +1,4 @@
+// Renders the scrolling road surface, lane markings, curbs, sidewalks, grass, and water per map theme.
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useRunnerStore } from "../state/runnerStore";

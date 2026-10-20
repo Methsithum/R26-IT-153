@@ -1,3 +1,5 @@
+# Request/response shapes for the behavior analysis API.
+
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 from datetime import datetime

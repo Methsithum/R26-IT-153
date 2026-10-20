@@ -1,3 +1,4 @@
+// Full-screen confetti and "day complete" banner shown during the day-celebration phase.
 import { useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { PHASES, useGameStore } from "../state/GameStateManager";

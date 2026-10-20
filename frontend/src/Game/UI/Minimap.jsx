@@ -1,3 +1,4 @@
+// Renders the HUD minimap of nearby buildings, the finish line, and the player's position.
 import { useEffect, useRef } from "react";
 import { useRunnerStore } from "../state/runnerStore";
 import { useGameStore } from "../state/GameStateManager";

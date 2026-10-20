@@ -1,3 +1,4 @@
+// Spawns answer-lane questions ahead of the runner and resolves the chosen lane as the game store answer.
 import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useRunnerStore, LANES } from "../state/runnerStore";

@@ -1,3 +1,4 @@
+// Displays journal KPIs and charts (weekday, engagement, subjects, hour-of-day) for a chosen window.
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { fetchLearningPatterns } from "../../services/journalApi";

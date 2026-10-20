@@ -1,6 +1,4 @@
-"""Learning Patterns: a read-only statistics view over a user's own
-completed daily_sessions. Pure stdlib stats only (see stats.py) - no ML
-models, nothing trained, nothing written back to the database."""
+# Builds the Learning Patterns stats view from a user's completed daily_sessions.
 
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional

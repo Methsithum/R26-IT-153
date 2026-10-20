@@ -1,3 +1,5 @@
+# Legacy 30-day learning-pattern aggregator and sentence-style insights.
+
 from app.models.journal.learning_pattern import LearningPatternModel
 from app.models.journal.daily_session import DailySessionModel
 from typing import Dict, List, Any

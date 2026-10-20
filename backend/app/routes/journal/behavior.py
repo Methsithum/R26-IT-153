@@ -1,3 +1,5 @@
+# API routes for triggering a manual behavior analysis.
+
 from fastapi import APIRouter, HTTPException, Depends
 from app.services.auth import require_journal_owner
 from app.schemas.journal.analysis import BehaviorAnalysisRequest, BehaviorAnalysisResponse

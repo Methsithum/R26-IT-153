@@ -1,3 +1,5 @@
+# LLM calls for picking questions and writing daily/weekly/semester journal narratives.
+
 import json
 from openai import AsyncOpenAI
 from typing import List, Dict, Any
