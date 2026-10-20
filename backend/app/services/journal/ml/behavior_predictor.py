@@ -18,8 +18,8 @@ def _load():
     if _cache is None:
         if not MODEL_PATH.exists():
             raise FileNotFoundError(
-                "behavior_model.joblib not found - run "
-                "`python -m app.services.journal.ml.train_behavior_model` from backend/ first."
+                "behavior_model.joblib not found - run the training notebook at "
+                "ml_scripts/journal/behavior_analyze/train_behavior_model.ipynb first."
             )
         _cache = joblib.load(MODEL_PATH)
     return _cache
