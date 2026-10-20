@@ -2,25 +2,18 @@ import { useEffect, useRef, useState } from "react";
 import { predictFocusState } from "../lib/focusApi";
 
 const PREDICT_INTERVAL_MS = 2000;
-const SMOOTH_N = 4; // ~8s window so Fatigue / Anxiety can surface without a 20s wait
+const SMOOTH_N = 4;
 
-// Published whenever no face is in frame. Nothing is being measured then, so every
-// class reads 0% rather than leaving the last reading on screen looking current.
 const ZERO_PROBS = { Focused: 0, Fatigue: 0, Anxiety: 0, Boredom: 0 };
 
-/**
- * Owns the webcam stream + prediction loop at a level above the Monitoring
- * tab, so the session keeps running when the user switches tabs instead of
- * restarting the camera every time Monitoring mounts/unmounts.
- */
 export function useFocusCamera(active, onDetection) {
-  const captureVideoRef = useRef(null); // hidden <video>, always mounted, feeds the canvas capture
+  const captureVideoRef = useRef(null);
   const canvasRef  = useRef(null);
   const streamRef  = useRef(null);
   const historyRef = useRef([]);
 
-  const [internalStatus, setInternalStatus] = useState("idle"); // starting | live | denied | unsupported, while active
-  const camStatus = active ? internalStatus : "idle"; // avoids a synchronous setState in the effect below when deactivating
+  const [internalStatus, setInternalStatus] = useState("idle");
+  const camStatus = active ? internalStatus : "idle";
   const [stream, setStream]           = useState(null);
   const [probs, setProbs]             = useState(ZERO_PROBS);
   const [confidence, setConfidence]   = useState(0);
@@ -28,7 +21,7 @@ export function useFocusCamera(active, onDetection) {
   const [predictError, setPredictError] = useState(null);
 
   useEffect(() => {
-    if (!active) return; // nothing to start; camStatus already reads as "idle" while inactive
+    if (!active) return;
 
     if (!navigator.mediaDevices?.getUserMedia) {
       setInternalStatus("unsupported");
@@ -60,8 +53,6 @@ export function useFocusCamera(active, onDetection) {
       streamRef.current = null;
       setStream(null);
       historyRef.current = [];
-      // A resumed session starts from nothing measured yet, so it reads 0% until
-      // the first face is found rather than resurfacing the last session's numbers.
       setProbs(ZERO_PROBS);
       setConfidence(0);
       setFaceDetected(false);
@@ -86,9 +77,6 @@ export function useFocusCamera(active, onDetection) {
         setPredictError(null);
         setFaceDetected(result.face_detected);
         if (!result.face_detected || !result.state) {
-          // Zero the readout, but deliberately keep historyRef: face detection drops
-          // out on a large share of frames, so clearing the vote on every gap would
-          // throw away the smoothing instead of just pausing it.
           setProbs(ZERO_PROBS);
           setConfidence(0);
           return;
@@ -96,8 +84,6 @@ export function useFocusCamera(active, onDetection) {
 
         setProbs(result.probs);
 
-        // Majority vote over recent predictions so a single noisy frame
-        // can't flip the whole app's state / retrigger the modal.
         const hist = historyRef.current;
         hist.push(result.state);
         if (hist.length > SMOOTH_N) hist.shift();
@@ -106,7 +92,7 @@ export function useFocusCamera(active, onDetection) {
         const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
         let smoothed = ranked[0][0];
         const smoothedConfidence = result.probs[smoothed] ?? result.confidence;
-        setConfidence(smoothedConfidence); // must describe `smoothed` -- the state the UI actually shows
+        setConfidence(smoothedConfidence);
 
         onDetection?.(smoothed, result.probs, PREDICT_INTERVAL_MS, smoothedConfidence);
       } catch (err) {

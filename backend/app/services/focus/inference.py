@@ -1,20 +1,3 @@
-"""
-Focus-state inference service, backed by whichever model
-ml_scripts/focus/focus_state_model_training.ipynb selected as most accurate
-(trained-models/focus/results_summary.json records which one) -- either a
-classical model (focus_classical_model.joblib + feature_scaler.joblib) on
-MediaPipe landmark/blendshape features, or the MobileNetV2 CNN
-(focus_mobilenetv2.keras) on the cropped face image directly.
-
-Face detection, cropping and feature extraction live in face_crop.py, the
-same module the training notebook builds its dataset and feature cache with,
-so a webcam frame and a training frame go through identical code.
-
-The model is loaded lazily on first use (not at import time), so importing
-this module -- e.g. at FastAPI startup -- never crashes the app if a model
-file happens to be missing, and never touches disk/TensorFlow until a
-prediction is actually requested.
-"""
 import json
 import threading
 from pathlib import Path
@@ -28,7 +11,7 @@ BASE_DIR    = Path(__file__).resolve().parents[3]
 MODELS_PATH = BASE_DIR / "trained-models" / "focus"
 
 CLASSES        = ["Focused", "Fatigue", "Anxiety", "Boredom"]
-CONF_THRESHOLD = 0.50   # below this, report Focused rather than act on an uncertain guess
+CONF_THRESHOLD = 0.50
 DEFAULT_THRESHOLDS = {"Focused": 0.0, "Fatigue": 0.35, "Anxiety": 0.24, "Boredom": 0.32}
 SLEEPY_ON = 0.48
 SLEEPY_OFF = 0.22
@@ -55,7 +38,7 @@ def _model_mtime():
     return max(times) if times else 0
 
 
-def _load():
+def _load(): # load the focus model
     global _loaded_mtime
     mtime = _model_mtime()
     if _state and _loaded_mtime == mtime:
@@ -111,7 +94,6 @@ def _predict_classical(st, features: dict):
 
 
 def _apply_thresholds(probs, thresholds, foc_margin=0.0, bor_margin=0.0):
-    """Lift Anxiety and Boredom from Focused. Do not swap them into each other."""
     order = np.argsort(probs)[::-1]
     chosen = "Focused"
     for idx in order:
@@ -133,8 +115,6 @@ def _apply_thresholds(probs, thresholds, foc_margin=0.0, bor_margin=0.0):
 
 
 def _reclaim_focused(st, features, state):
-    """High-precision Focused-vs-rest gate. Does not touch Fatigue, and only
-    overrides Anxiety/Boredom when the binary model is very sure."""
     model = st.get("reclaim_model")
     if model is None or state not in ("Anxiety", "Boredom") or not features:
         return state
@@ -156,7 +136,6 @@ def _gaze_offset(features: dict) -> float:
 
 
 def _looking_at_camera(features: dict) -> bool:
-    """Face toward the webcam/screen — not turned away."""
     if not features:
         return False
     mar = float(features.get("mar") or 0)
@@ -166,11 +145,6 @@ def _looking_at_camera(features: dict) -> bool:
 
 
 def _bored_pose(features: dict) -> bool:
-    """Clear disengagement: head turned, gaze off-camera, or chin-down.
-
-    A blank stare locked on the webcam looks like Focused and must not
-    count as Boredom. Hold this pose for a couple of seconds.
-    """
     if not features:
         return False
     ear = float(features.get("ear_avg") or 0)
@@ -187,11 +161,6 @@ def _bs(features: dict, name: str) -> float:
 
 
 def _anxious_pose(features: dict) -> bool:
-    """Worry / tension: inner brows up or knitted, frown, or wide eyes.
-
-    Face can still be toward the camera — unlike Boredom this is an
-    expression, not a head-turn.
-    """
     if not features:
         return False
     if float(features.get("ear_avg") or 0) <= EAR_FATIGUE:
@@ -233,12 +202,6 @@ def _sleepy_prob(st, face_bgr):
 
 
 def apply_live_cues(state, probs, features=None, sleepy_p=None, sleepy_on=SLEEPY_ON, sleepy_off=SLEEPY_OFF, ear_fatigue=EAR_FATIGUE):
-    """Live webcam poses:
-    - eyes closed → Fatigue
-    - worried brows / frown (even facing the camera) → Anxiety
-    - face toward camera, relaxed → Focused
-    - head turned / gaze off / chin down → Boredom
-    """
     ear = float((features or {}).get("ear_avg") or 99.0)
     looking = _looking_at_camera(features or {})
     bored = _bored_pose(features or {})
@@ -276,8 +239,6 @@ def _predict_cnn(st, face_bgr):
 
 
 def predict_from_frame(frame_bgr):
-    """Full pipeline: detect+crop -> features -> state. Returns a dict
-    matching the PredictResponse schema."""
     st = _load()
 
     face = face_crop.detect_and_crop(frame_bgr)

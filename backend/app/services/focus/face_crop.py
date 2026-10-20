@@ -1,18 +1,3 @@
-"""
-Face detection, cropping and MediaPipe feature extraction -- the single
-definition of how a webcam frame becomes model input.
-
-Both sides of the system use this logic: the training notebook
-(ml_scripts/focus/focus_state_model_training.ipynb) applies it when building
-the unified image dataset and its landmark-feature cache, and `inference.py`
-applies it to live webcam frames. One implementation is the whole point: the
-model only ever sees images and features produced this way, so training data
-and webcam frames stay in the same domain (same crop margin, same landmark
-indices, same feature formulas).
-
-MediaPipe is loaded lazily (not at import time) so importing this module
-never touches disk until a prediction is actually requested.
-"""
 from pathlib import Path
 
 import cv2
@@ -25,11 +10,10 @@ from scipy.spatial.transform import Rotation
 BASE_DIR           = Path(__file__).resolve().parents[3]
 LANDMARKER_MODEL_PATH = BASE_DIR / "ml_scripts" / "focus" / "models" / "face_landmarker.task"
 
-IMG_SIZE     = 224      # model input side, training and inference alike
-CROP_MARGIN  = 0.05     # margin added on each side, as a fraction of the landmark bbox
+IMG_SIZE     = 224
+CROP_MARGIN  = 0.05
 
-# MediaPipe FaceMesh landmark index sets (478-point topology, incl. iris)
-EYE_LEFT = [33, 160, 158, 133, 153, 144]     # corner, top1, top2, corner, bottom1, bottom2
+EYE_LEFT = [33, 160, 158, 133, 153, 144]
 EYE_RIGHT = [263, 387, 385, 362, 380, 373]
 MOUTH_CORNERS = (61, 291)
 MOUTH_VERTICAL = (13, 14)
@@ -40,9 +24,7 @@ IRIS_LEFT, IRIS_RIGHT = 468, 473
 _landmarker = None
 
 
-def get_landmarker():
-    """Single-face MediaPipe FaceLandmarker, with blendshapes and the
-    facial transformation matrix enabled, loaded once."""
+def get_landmarker(): # load mediapipe face landmarker
     global _landmarker
     if _landmarker is None:
         base_options = mp_python.BaseOptions(model_asset_path=str(LANDMARKER_MODEL_PATH))
@@ -57,16 +39,13 @@ def get_landmarker():
     return _landmarker
 
 
-def _detect(image_bgr):
+def _detect(image_bgr): #identify face landmarks in image
     rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
     return get_landmarker().detect(mp_image)
 
 
-def detect_and_crop(frame_bgr, margin=CROP_MARGIN, out_size=IMG_SIZE):
-    """Largest/only face in the frame, cropped to its landmark bounding box
-    (plus margin) and resized to out_size x out_size. Returns None if no
-    face is found."""
+def detect_and_crop(frame_bgr, margin=CROP_MARGIN, out_size=IMG_SIZE): #crop face
     result = _detect(frame_bgr)
     if not result.face_landmarks:
         return None
@@ -117,10 +96,7 @@ def _head_pose(matrix):
     return Rotation.from_matrix(rotation).as_euler("xyz", degrees=True)
 
 
-def extract_features(face_bgr):
-    """Cropped face -> dict of the same landmark/blendshape/head-pose
-    features the training notebook computed. Returns None if MediaPipe
-    can't find a face in the crop."""
+def extract_features(face_bgr): # get blendshape features
     result = _detect(face_bgr)
     if not result.face_landmarks:
         return None
@@ -181,8 +157,7 @@ def _eye_patch(face_bgr, lm, indices, pad=0.45, out_size=EYE_PATCH_SIZE):
     return cv2.equalizeHist(gray)
 
 
-def extract_eye_patches(face_bgr):
-    """Left/right 48x48 grayscale eye crops from a face image. Missing side is None."""
+def extract_eye_patches(face_bgr): #crop the eyes separately
     result = _detect(face_bgr)
     if not result.face_landmarks:
         return None, None
@@ -190,8 +165,7 @@ def extract_eye_patches(face_bgr):
     return _eye_patch(face_bgr, lm, EYE_LEFT), _eye_patch(face_bgr, lm, EYE_RIGHT)
 
 
-def eye_vector(patch, size=EYE_PATCH_SIZE):
-    """Same 48x48 equalized vector the eye-state SVM was trained on."""
+def eye_vector(patch, size=EYE_PATCH_SIZE): # convert eye patch to vector
     if patch is None:
         return None
     if patch.ndim == 3:

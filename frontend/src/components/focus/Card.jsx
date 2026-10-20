@@ -1,7 +1,5 @@
 import React from "react";
 
-// `hover` opts a card into the lift/shadow interaction — used for tiles that
-// represent a thing (a stat, an achievement, a person), not for plain containers.
 export default function Card({ children, className = "", style = {}, hover = false, ...rest }) {
   return (
     <div

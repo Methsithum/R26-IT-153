@@ -49,7 +49,6 @@ export default function TreeSVG({ state, points, size = 220, fx = null, fxKey = 
         </linearGradient>
       </defs>
 
-      {/* ground */}
       <ellipse cx="110" cy="238" rx="72" ry="14" fill={cfg.color} opacity="0.14" />
       <ellipse cx="110" cy="236" rx="54" ry="10" fill={`url(#${uid}-soil)`} opacity="0.85" />
 
@@ -60,7 +59,6 @@ export default function TreeSVG({ state, points, size = 220, fx = null, fxKey = 
         </g>
       )}
 
-      {/* trunk grows with level */}
       {lv === 0 ? (
         <path d="M108 228 C107 210 109 196 110 184 C111 196 113 210 112 228 Z" fill={`url(#${uid}-bark)`} />
       ) : (
@@ -80,7 +78,6 @@ export default function TreeSVG({ state, points, size = 220, fx = null, fxKey = 
         </>
       )}
 
-      {/* Seedling leaves */}
       {lv === 0 && (
         <g style={{ transformOrigin: "110px 180px", animation: "leafSway 3.4s ease-in-out infinite" }}>
           <ellipse cx="96" cy="176" rx="16" ry="10" fill={canopy} transform="rotate(-28 96 176)" />
@@ -89,7 +86,6 @@ export default function TreeSVG({ state, points, size = 220, fx = null, fxKey = 
         </g>
       )}
 
-      {/* Growing plant */}
       {lv === 1 && (
         <g opacity={isSad ? 0.78 : 1}>
           <ellipse cx="110" cy="128" rx="42" ry="34" fill={`url(#${uid}-canopyG)`} style={{ animation: "leafSway 4s ease-in-out infinite" }} />
@@ -98,7 +94,6 @@ export default function TreeSVG({ state, points, size = 220, fx = null, fxKey = 
         </g>
       )}
 
-      {/* Focus tree canopy */}
       {lv >= 2 && (
         <g opacity={isSad ? 0.8 : 1}>
           <ellipse cx="110" cy="88" rx="58" ry="46" fill={`url(#${uid}-canopyG)`} style={{ animation: "leafSway 4s ease-in-out infinite" }} />

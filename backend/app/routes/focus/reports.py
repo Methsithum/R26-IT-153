@@ -73,6 +73,5 @@ def weekly_report(user_id: str):
 
 @router.get("/emotional", response_model=EmotionalReport)
 def emotional_report(user_id: str):
-    """Latest emotional-domain features for a user (Mongo _id = user_id)."""
     stats = tracking.get_emotional_stats(user_id)
     return EmotionalReport(**stats.model_dump())

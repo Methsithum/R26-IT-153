@@ -1,11 +1,6 @@
 import React from "react";
 import Card from "./Card";
 
-// Shared presentation primitives for the FocusForest tabs.
-//
-// Every color is supplied by the caller from STATE_CFG / the existing per-metric
-// hexes — nothing in here introduces a color of its own beyond the slate
-// neutrals already used across the app.
 
 export function PageHeader({ icon, title, subtitle, right }) {
   return (
@@ -49,8 +44,6 @@ export function Badge({ color, children, soft = true, className = "" }) {
   );
 }
 
-// A filled track. `pct` is clamped so an out-of-range value can't overflow the
-// rail, and NaN (from a 0/0 ratio before any data exists) renders as empty.
 export function Meter({ pct, color, height = 8, glow = false, sheen = false, track = "#cbd5e1" }) {
   const safe = Number.isFinite(pct) ? Math.max(0, Math.min(pct, 100)) : 0;
   return (
@@ -115,8 +108,6 @@ export function StatTile({ icon, label, value, unit, color, sub, index = 0 }) {
   );
 }
 
-// Key/value line used by the summary lists. `last` drops the divider so the
-// final row doesn't leave a dangling rule above the card padding.
 export function DataRow({ label, value, color, icon, last = false }) {
   return (
     <div className={`flex items-center justify-between gap-3 py-2.5 ${last ? "" : "border-b border-slate-200"}`}>

@@ -17,11 +17,10 @@ import { readStoredUser } from "../../services/userApi";
 
 const MANUAL_OVERRIDE_LOCK_MS = 5000;
 const HIGH_CONFIDENCE = 0.70;
-/** Flip to false after the demo video — restores 5 min boost / challenge / check-in. */
 const DEMO_MODE = true;
 const CHALLENGE_SUSTAIN_MS = DEMO_MODE ? 20 * 1000 : 5 * 60 * 1000;
 const SPRINT_STREAK_MIN = 25;
-const FOCUS_BOOST_STREAK_MIN = DEMO_MODE ? 0.25 : 5; // 15s vs 5 min
+const FOCUS_BOOST_STREAK_MIN = DEMO_MODE ? 0.25 : 5;
 const TREE_FX_MS = 2000;
 const CHECKIN_INTERVAL_MS = DEMO_MODE ? 45 * 1000 : 5 * 60 * 1000;
 const CHECKIN_TIMEOUT_MS = 15 * 1000;
@@ -73,7 +72,6 @@ function speakCheckIn(text = CHECKIN_PROMPT) {
     synth.speak(utter);
   };
 
-  // Chrome often drops the first speak() if it runs in the same tick as cancel().
   const run = () => {
     if (synth.getVoices().length) {
       setTimeout(speak, 60);
@@ -92,7 +90,7 @@ export default function FocusApp() {
   const [todayBaseFocus, setTodayBaseFocus] = useState(0);
   const [todayBaseDist, setTodayBaseDist] = useState(0);
   const [streak, setStreak] = useState(0);
-  const [sessionStatus, setSessionStatus] = useState("ended"); // active | paused | ended
+  const [sessionStatus, setSessionStatus] = useState("ended");
   const [reportFocusMin, setReportFocusMin] = useState(null);
   const [reportDistMin, setReportDistMin] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -111,6 +109,8 @@ export default function FocusApp() {
   const [lifetimeBaseMin, setLifetimeBaseMin] = useState(0);
   const [account] = useState(() => readStoredUser());
   const [boardRows, setBoardRows] = useState([]);
+  const [weeklyRows, setWeeklyRows] = useState([]);
+  const [monthlyRows, setMonthlyRows] = useState([]);
   const [boardLoading, setBoardLoading] = useState(true);
 
   const showModalRef = useRef(showModal);
@@ -292,7 +292,7 @@ export default function FocusApp() {
       try {
         await pingFocusPresence();
       } catch {
-        // ignore
+        return;
       }
     };
     beat();
@@ -312,9 +312,11 @@ export default function FocusApp() {
     let cancelled = false;
     const loadBoard = async () => {
       try {
-        const rows = await getLeaderboard();
+        const [rows, weekly, monthly] = await Promise.all([getLeaderboard("daily"), getLeaderboard("weekly"), getLeaderboard("monthly")]);
         if (!cancelled) {
           setBoardRows(Array.isArray(rows) ? rows : []);
+          setWeeklyRows(Array.isArray(weekly) ? weekly : []);
+          setMonthlyRows(Array.isArray(monthly) ? monthly : []);
           setBoardLoading(false);
         }
       } catch {
@@ -382,8 +384,6 @@ export default function FocusApp() {
   const cfg = STATE_CFG[state] || STATE_CFG.Focused;
   const treeFocusMin = sessionStatus === "ended" ? (reportFocusMin ?? 0) : sessionFocusMin;
   const treeDistMin = sessionStatus === "ended" ? (reportDistMin ?? 0) : sessionDistMin;
-  // Tree mood follows the session total, not the live frame: happy while
-  // focused time is ahead (or tied), sad once overall distraction overtakes it.
   const treeState = treeFocusMin >= treeDistMin ? "Focused" : "Boredom";
   const lifetimeMin = lifetimeBaseMin + todayFocusMin;
   const challengePoints = challengePointsFor(challengesTaken, focusBoosts);
@@ -554,6 +554,8 @@ export default function FocusApp() {
     leaderboard: (
       <TabLeaderboard
         rows={boardRows}
+        weeklyRows={weeklyRows}
+        monthlyRows={monthlyRows}
         loading={boardLoading}
         focusMin={todayFocusMin}
         distMin={todayDistMin}

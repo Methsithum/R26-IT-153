@@ -122,8 +122,6 @@ export default function FocusHeader({
           </div>
         </div>
 
-        {/* Pill tabs: the active tab carries the live state color so the chrome
-            tracks the same signal as the header chip. */}
         <div className="flex gap-1 pb-2 overflow-x-auto scrollbar-hide">
           {TABS.map((t) => {
             const active = tab === t.id;

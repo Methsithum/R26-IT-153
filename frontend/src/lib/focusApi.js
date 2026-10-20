@@ -4,7 +4,6 @@ import { readStoredUser } from "../services/userApi";
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
 const USER_KEY = "sug_focus_user_id";
 
-/** Logged-in Mongo user id (`smart-uni-guide-user`), same as journal/planner. */
 export function getFocusUserId() {
   const id = readStoredUser()?.id;
   return id ? String(id) : "anonymous";
@@ -50,9 +49,9 @@ export async function getFocusProfile() {
   return data;
 }
 
-export async function getLeaderboard() {
+export async function getLeaderboard(period = "daily", month = null) {
   const { data } = await axios.get(`${API_BASE}/focus/leaderboard`, {
-    params: withUser(),
+    params: withUser(month ? { period, month } : { period }),
   });
   return data;
 }
@@ -76,11 +75,10 @@ export function leaveFocusPresence() {
   try {
     navigator.sendBeacon(`${API_BASE}/focus/presence/leave?user_id=${encodeURIComponent(uid)}`);
   } catch {
-    // ignore
+    return;
   }
 }
 
-/** Best-effort flush on tab close. Periodic save is the reliable path. */
 export function flushFocusSession(payload) {
   try {
     navigator.sendBeacon(
@@ -90,6 +88,6 @@ export function flushFocusSession(payload) {
       }),
     );
   } catch {
-    // ignore
+    return;
   }
 }

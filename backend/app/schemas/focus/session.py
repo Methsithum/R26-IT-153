@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 class SaveSessionRequest(BaseModel):
     user_id: str
     focus_minutes: float = 0.0
-    distraction_minutes: float = 0.0  # overall off-task minutes, not per-type
+    distraction_minutes: float = 0.0
     longest_streak_minutes: int = 0
     today_goal: int = Field(default=120, ge=1)
     calm_quest_count: int = 0

@@ -18,7 +18,7 @@ from sklearn.svm import SVC
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(BACKEND_ROOT))
 
-from app.services.focus import face_crop, inference  # noqa: E402
+from app.services.focus import face_crop, inference
 
 EYE_ROOT = BACKEND_ROOT / "datasets" / "focusmonitor" / "eye"
 CACHE_CSV = Path(__file__).resolve().parent / "cache" / "landmark_features.csv"
@@ -127,7 +127,6 @@ def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     joblib.dump(pipe, OUT_DIR / "eye_state_model.joblib")
 
-    # Fused 4-class eval on the landmark test cache (same 341 faces as the panel matrix).
     df = pd.read_csv(CACHE_CSV)
     test = df[df["split"] == "test"].copy()
     drop = {"split", "label", "file"}
@@ -154,8 +153,6 @@ def main():
         sleepy_p = sleepy_prob(pipe, img) if img is not None else None
         if sleepy_p is not None:
             fused_n += 1
-        # Offline face photos are not eye-crops: do not use EAR here (it
-        # collapses Anxiety/Focused). Live webcam still uses EAR in inference.py.
         if sleepy_p is not None and sleepy_p >= inference.SLEEPY_ON:
             state = "Fatigue"
         y_true.append(row["label"])

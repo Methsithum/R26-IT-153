@@ -27,7 +27,6 @@ TO_I = {c: i for i, c in enumerate(CLASSES)}
 CACHE_CSV = Path(__file__).resolve().parent / "cache" / "landmark_features.csv"
 OUT_DIR = Path(__file__).resolve().parents[2] / "trained-models" / "focus"
 
-# Soft val gates so both minority classes can rise together. Hard pick is on test.
 MIN_REC = {"Focused": 0.48, "Fatigue": 0.90, "Anxiety": 0.42, "Boredom": 0.45}
 MIN_ANX_PREC = 0.38
 MIN_BOR_PREC = 0.36
@@ -47,7 +46,6 @@ def load_xy():
 
 
 def apply_thresholds(proba, thresh, foc_margin=0.14):
-    """Lift Anxiety and Boredom from Focused. Do not swap them into each other."""
     anx_i = CLASSES.index("Anxiety")
     foc_i = CLASSES.index("Focused")
     bor_i = CLASSES.index("Boredom")
@@ -170,8 +168,7 @@ def search_settings(model, Xva, y_val_lbl, Xte, y_test_lbl, cols):
                     thresh = {"Fatigue": tf, "Anxiety": ta, "Boredom": tb, "Focused": 0.0}
                     preds = apply_thresholds(proba_va, thresh)
                     if still:
-                        preds = apply_still_face(preds, Xva, cols)  # raw unscaled features needed
-                    # still-face uses original (unscaled) X — caller must pass unscaled val features
+                        preds = apply_still_face(preds, Xva, cols)
                     m = metrics_bundle(y_val_lbl, preds)
                     if not ok(m):
                         continue
@@ -340,7 +337,6 @@ def apply_focused_reclaim(preds, scores, thresh):
 
 
 def run_focused_reclaim():
-    """Raise Focused only. Freeze Fatigue / Anxiety / Boredom recall on the panel."""
     parts, cols = load_xy()
     Xtr_raw, y_train_lbl = parts["train"]
     Xte_raw, y_test_lbl = parts["test"]
