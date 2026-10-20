@@ -8,15 +8,16 @@ import ConfidenceMeter from "../../Components/academic/Shared/ConfidenceMeter";
 import { useAcademicStore } from "../../store/useAcademicStore";
 import { useReschedule } from "../../hooks/useAcademicData";
 import { predictPriority, createRealTask } from "../../services/academicApi";
-import { CODE_MODULE_ENCODING, ASSESSMENT_TYPE_ENCODING, buildDateFeatureFromDeadline, DEFAULT_PRIOR_AVG_SCORE, DEFAULT_ASSIGNMENT_WEIGHT } from "../../utils/featureNameMap";
+import {
+  ASSESSMENT_TYPE_ENCODING,
+  buildDateFeatureFromDeadline,
+  DEFAULT_PRIOR_AVG_SCORE,
+  DEFAULT_ASSIGNMENT_WEIGHT,
+  NEUTRAL_FEATURE_DEFAULTS,
+  UNKNOWN_MODULE_ENC,
+} from "../../utils/featureNameMap";
 
 const DIFFICULTY_TO_HOURS = { Easy: 2, Moderate: 4, Hard: 7, "Very Hard": 10 };
-// The trained model only knows 7 fixed OULAD categories (AAA-GGG) - a real
-// module's code is a slug (e.g. "algorithms"), not one of those, so it
-// can't be looked up in CODE_MODULE_ENCODING directly. Map by the module's
-// position in the student's module list instead, same positional mapping
-// useAcademicStore.js uses when building real assignments' feature rows.
-const MODEL_MODULE_CODES = Object.keys(CODE_MODULE_ENCODING);
 
 export default function AddAcademicData() {
   const navigate = useNavigate();
@@ -56,25 +57,17 @@ export default function AddAcademicData() {
     setError(null);
     setResult(null);
     try {
-      const moduleIndex = Math.max(0, modules.findIndex((m) => m.code === form.module));
-      const modelCode = MODEL_MODULE_CODES[moduleIndex % MODEL_MODULE_CODES.length];
       const featureRow = {
         // Mapped onto the model's real trained `date` range (12-261) — a
         // raw "days remaining" value would be badly out-of-distribution.
         // See buildDateFeatureFromDeadline in utils/featureNameMap.js.
         date: buildDateFeatureFromDeadline(form.deadline),
         weight: Number(form.weight),
-        num_of_prev_attempts: 0,
-        studied_credits: 60,
-        module_presentation_length: 240,
-        date_registration: -30,
+        ...NEUTRAL_FEATURE_DEFAULTS,
         prior_avg_score: Number(form.currentGrade),
         avg_weekly_clicks: Number(form.weeklyWorkload) * 6,
-        clicks_trend: 0,
-        active_weeks_ratio: 0.7,
-        has_vle_activity: 1,
         assessment_type_enc: ASSESSMENT_TYPE_ENCODING[form.assessmentType],
-        code_module_enc: CODE_MODULE_ENCODING[modelCode],
+        code_module_enc: UNKNOWN_MODULE_ENC,
       };
 
       const prediction = await predictPriority(featureRow);

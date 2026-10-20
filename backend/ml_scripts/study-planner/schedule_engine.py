@@ -79,6 +79,72 @@ def resolve_day_date(day_name, anchor_date):
     return anchor_date + timedelta(days=delta_days)
 
 
+def _hhmm_to_minutes(hhmm):
+    h, m = hhmm.split(":")
+    return int(h) * 60 + int(m)
+
+
+def _minutes_to_hhmm(minutes):
+    return f"{minutes // 60:02d}:{minutes % 60:02d}"
+
+
+def apply_blocked_slots(weekly_free_slots, blocked_slots, anchor_date):
+    """
+    Carves real-dated blocked ranges out of the recurring weekly free-slot
+    pattern for the 7-day window anchor_date..anchor_date+6.
+
+    blocked_slots: [{"date": "YYYY-MM-DD", "start_time": "HH:MM", "end_time": "HH:MM"}]
+    - time the student has already committed to by hand (a missed session
+    they chose to move into a specific slot - see
+    app/routes/study_planner/session_routes.py). Without this, a later
+    /schedule, /multi-week-schedule or /reschedule call would happily put a
+    different task into that exact slot, since the generator itself never
+    sees manually rescheduled sessions. A blocked range only affects the ONE
+    real date it names - the same weekday in other weeks keeps its full
+    free time - and a slot partially covered is split around the block
+    rather than dropped entirely.
+    """
+    if not blocked_slots:
+        return [dict(slot) for slot in weekly_free_slots]
+
+    window_end = anchor_date + timedelta(days=6)
+    blocks_by_date = {}
+    for block in blocked_slots:
+        block_date = datetime.strptime(block["date"], "%Y-%m-%d").date()
+        if anchor_date <= block_date <= window_end:
+            blocks_by_date.setdefault(block_date, []).append(
+                (_hhmm_to_minutes(block["start_time"]), _hhmm_to_minutes(block["end_time"]))
+            )
+
+    result = []
+    for slot in weekly_free_slots:
+        blocks = blocks_by_date.get(resolve_day_date(slot["day"], anchor_date))
+        if not blocks:
+            result.append(dict(slot))
+            continue
+        slot_start = _hhmm_to_minutes(slot["start_time"])
+        pieces = [(slot_start, slot_start + slot["duration_minutes"])]
+        for block_start, block_end in blocks:
+            next_pieces = []
+            for piece_start, piece_end in pieces:
+                if block_end <= piece_start or block_start >= piece_end:
+                    next_pieces.append((piece_start, piece_end))
+                    continue
+                if block_start > piece_start:
+                    next_pieces.append((piece_start, block_start))
+                if block_end < piece_end:
+                    next_pieces.append((block_end, piece_end))
+            pieces = next_pieces
+        for piece_start, piece_end in pieces:
+            result.append({
+                **slot,
+                "start_time": _minutes_to_hhmm(piece_start),
+                "end_time": _minutes_to_hhmm(piece_end),
+                "duration_minutes": piece_end - piece_start,
+            })
+    return result
+
+
 # ===========================================================================
 # StudyScheduler: greedy priority-first allocator
 # ===========================================================================
@@ -101,7 +167,7 @@ class StudyScheduler:
          deadline, consider re-prioritizing").
     """
 
-    def __init__(self, weekly_free_slots, anchor_date=None):
+    def __init__(self, weekly_free_slots, anchor_date=None, blocked_slots=None):
         """
         weekly_free_slots: list of dicts, each
             {"day": "Monday", "start_time": "09:00", "end_time": "11:00", "duration_minutes": 120}
@@ -112,10 +178,13 @@ class StudyScheduler:
         through today+6) so deadline comparisons use actual dates rather
         than raw weekday-of-week matching, which would incorrectly treat
         "next Monday" the same as "this Monday".
+
+        blocked_slots: optional real-dated ranges to carve out of this
+        week's free time first - see apply_blocked_slots().
         """
-        self.weekly_free_slots = [dict(slot) for slot in weekly_free_slots]
         self.tasks = []
         self.anchor_date = anchor_date or date.today()
+        self.weekly_free_slots = apply_blocked_slots(weekly_free_slots, blocked_slots, self.anchor_date)
 
     def _slot_date(self, day_name):
         """Resolves a weekday name to the next real date (today..today+6)."""
@@ -282,7 +351,7 @@ def _weeks_needed_for(tasks, anchor_date, weeks_ahead=None):
     return min(weeks_needed, MAX_WEEKS_AHEAD)
 
 
-def generate_rolling_schedule(weekly_free_slots, tasks, anchor_date=None, weeks_ahead=None):
+def generate_rolling_schedule(weekly_free_slots, tasks, anchor_date=None, weeks_ahead=None, blocked_slots=None):
     """
     Extends StudyScheduler across multiple consecutive weeks with backlog
     carryover, WITHOUT duplicating its slot-filling logic - each week is a
@@ -383,7 +452,7 @@ def generate_rolling_schedule(weekly_free_slots, tasks, anchor_date=None, weeks_
                 continue
             week_task_list.append({**task_lookup[tid], "estimated_hours_needed": hours_left})
 
-        scheduler = StudyScheduler(weekly_free_slots, anchor_date=week_anchor)
+        scheduler = StudyScheduler(weekly_free_slots, anchor_date=week_anchor, blocked_slots=blocked_slots)
         for t in week_task_list:
             scheduler.add_task(t)
         week_result = scheduler.generate_schedule()

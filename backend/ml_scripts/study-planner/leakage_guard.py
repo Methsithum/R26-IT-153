@@ -2,7 +2,7 @@
 leakage_guard.py
 
 The leakage-suspicion check from train_priority_model.py Section 4 /
-train_priority_model_monotonic.py Section 7, factored out into a reusable,
+train_priority_model_constrained.py Section 7, factored out into a reusable,
 independently-testable function. Previously this was inline boolean logic
 duplicated (with slightly different shapes) in both training scripts - both
 now import and call this instead, so a test against this module is a real

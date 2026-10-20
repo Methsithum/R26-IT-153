@@ -2,7 +2,7 @@
 //
 // Rule-based layer on top of the ML priority model's output. Not a fix for
 // the model — the model itself is already correct (PROJECT CONTEXT.md
-// Section 5c: the OrdinalMonotonicPriorityModel guarantees priority never
+// Section 5c: the OrdinalPriorityModel guarantees priority never
 // falls as a deadline gets nearer, HOLDING OTHER FEATURES FIXED). What that
 // guarantee does NOT cover on its own is consistency ACROSS different
 // tasks: weight and prior performance can genuinely dominate the model's
@@ -22,10 +22,10 @@
 //
 // This layer takes real days-until-deadline as the DOMINANT factor (a
 // deadline-driven "base tier"), then lets the ML label shift the result by
-// at most one tier as a secondary modifier. The Section 5c monotonic
+// at most one tier as a secondary modifier. The Section 5c deadline-consistent
 // guarantee is what makes it safe to trust the ML label for that modifier
 // at all - an unconstrained model's label could point the wrong direction
-// entirely; the monotonic model's only points the "wrong" amount.
+// entirely; the constrained model's only points the "wrong" amount.
 
 import { daysRemaining } from "./dateHelpers";
 import { buildShapSentence, humanizeContributions, lowerFirst } from "./featureNameMap";
@@ -70,7 +70,7 @@ export function computeBaseTier(daysRemaining, taskType = "assignment") {
  *
  * The ±1 clamp is the cross-task dominance requirement (Section 5d): the
  * now-reliable ML signal (trustworthy at all only because of the Section 5c
- * monotonic fix - an unconstrained model's label could disagree with the
+ * deadline-consistent fix - an unconstrained model's label could disagree with the
  * deadline in either direction for the wrong reasons) can nudge a task's
  * displayed priority by at most one tier from where its deadline alone would
  * put it. A high-weight task due in 10 days can be pushed from its base
@@ -232,29 +232,33 @@ function weightDetailSentence(weightValue) {
 
 export function resolveExplanationDisplay(finalResult, daysRemainingValue, explanation, options = {}) {
   if (!finalResult || !explanation) return null;
-  const { hasPriorScoreData = true, hasRealWeight = true, weightValue = null } = options;
+  const {
+    hasPriorScoreData = true,
+    hasRealWeight = true,
+    hasEngagementData = false,
+    hasSemesterData = false,
+    weightValue = null,
+  } = options;
   const excludeKeys = [
     ...(hasPriorScoreData ? [] : ["prior_avg_score"]),
     ...(hasRealWeight ? [] : ["weight"]),
-    // assessment_type_enc, module_presentation_length, and code_module_enc
-    // are always excluded, unconditionally - not a no-data cold-start case
-    // like the two above, but a permanent one for all three: none is real,
-    // meaningful per-task information the way weight or the deadline are.
-    // Assessment Type was removed as a form field entirely and
-    // module_presentation_length has never had a real source at all - both
-    // are always sent to the model as the exact same fixed constant for
-    // every task (AddAcademicData.jsx / useAcademicStore.js /
-    // academicMocks.js). code_module_enc is different but no more
-    // meaningful: the model only ever learned 7 fixed OULAD categories
-    // (AAA-GGG), so a real subject like "Probability & Statistics" gets
-    // mapped onto one of them by ARBITRARY LIST POSITION
-    // (subjectNames.indexOf(subject) % 7, same files) - nothing about that
-    // mapping reflects anything real about the subject. Citing any of the
-    // three as a genuine "why" reason - or showing it as a contributing
-    // factor bar - would misrepresent an artifact of the encoding as if it
-    // were something that actually varied and mattered for this task.
+    // Engagement is only real once the journal has a completed week of
+    // study logs for this subject (utils/engagement.js) - until then it's a
+    // neutral training-median default and must not be cited as a reason.
+    ...(hasEngagementData ? [] : ["avg_weekly_clicks", "clicks_trend", "active_weeks_ratio", "has_vle_activity"]),
+    // Real only once the student has filled in Semester setup
+    // (utils/semesterSetup.js) - until then neutral training medians
+    // (NEUTRAL_FEATURE_DEFAULTS), so never a genuine "why".
+    ...(hasSemesterData ? [] : ["num_of_prev_attempts", "studied_credits", "date_registration", "module_presentation_length"]),
+    // assessment_type_enc and code_module_enc are always excluded,
+    // unconditionally - a permanent case, not a cold-start one: neither is
+    // real per-task information. Assessment Type isn't collected (always
+    // sent as the same fixed TMA constant), and code_module_enc is averaged
+    // out over all 7 OULAD training modules (UNKNOWN_MODULE_ENC - a real
+    // subject has no OULAD equivalent), so the backend already reports it
+    // as a 0 contribution. Citing either as a "why" reason would present an
+    // artifact of the encoding as something that varied for this task.
     "assessment_type_enc",
-    "module_presentation_length",
     "code_module_enc",
   ];
 

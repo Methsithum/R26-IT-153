@@ -12,9 +12,9 @@ at a time instead of the whole test set (that script is not imported here,
 since importing it would re-run its full batch SHAP computation as a
 module-level side effect).
 
---- Ordinal monotonic model (PROJECT CONTEXT.md Section 5c) ---
-priority_model.joblib is now an OrdinalMonotonicPriorityModel (see
-ordinal_monotonic_model.py): two binary XGBClassifiers, model_medium
+--- Ordinal constrained model (PROJECT CONTEXT.md Section 5c) ---
+priority_model.joblib is now an OrdinalPriorityModel (see
+ordinal_priority_model.py): two binary XGBClassifiers, model_medium
 (P(priority >= Medium)) and model_high (P(priority >= High)), NOT a single
 multi-class XGBClassifier. A single shap.TreeExplainer built against the
 wrapper itself would fail (shap needs a real tree booster, not a Python
@@ -34,8 +34,14 @@ import os
 import joblib
 import pandas as pd
 
-from app.services.study_planner.ordinal_monotonic_model import CLASS_ORDER
-from app.services.study_planner.priority_service import FEATURE_ORDER, PriorityServiceError, validate_and_build_feature_row
+from app.services.study_planner.ordinal_priority_model import CLASS_ORDER
+from app.services.study_planner.priority_service import (
+    FEATURE_ORDER,
+    UNKNOWN_MODULE_ENC,
+    PriorityServiceError,
+    expand_unknown_module,
+    validate_and_build_feature_row,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +71,7 @@ try:
 except FileNotFoundError as e:
     logger.error(
         "explain_service: STARTUP ERROR - missing model artifact: %s. "
-        "Run ml_scripts/study-planner/train_priority_model_monotonic.py first. "
+        "Run ml_scripts/study-planner/train_priority_model_constrained.py first. "
         "explain_task() will raise ExplainServiceError until this is fixed.",
         e,
     )
@@ -76,7 +82,7 @@ except ImportError:
     )
 except AttributeError:
     logger.exception(
-        "explain_service: STARTUP ERROR - priority_model.joblib is not an OrdinalMonotonicPriorityModel "
+        "explain_service: STARTUP ERROR - priority_model.joblib is not an OrdinalPriorityModel "
         "(no .model_medium/.model_high). Was the wrong artifact deployed?"
     )
 except Exception:
@@ -109,16 +115,22 @@ def explain_task(task_features: dict) -> dict:
     except PriorityServiceError as e:
         raise ExplainServiceError(str(e))
 
-    pred_idx = int(_model.predict(row_df)[0])
+    module_unknown = int(row_df.at[0, "code_module_enc"]) == UNKNOWN_MODULE_ENC
+    rows = expand_unknown_module(row_df)
+
+    # Same module-averaging as predict_priority(), so the explained label is
+    # always the one /predict-priority returns.
+    pred_idx = int(_model.predict_proba(rows).mean(axis=0).argmax())
     predicted_label = CLASS_ORDER[pred_idx]
 
     # Pick which binary model's SHAP values explain the predicted class - see
     # module docstring. TreeExplainer on a binary XGBClassifier returns a
     # single (n_samples, n_features) array in log-odds space toward the
     # positive class ("priority >= threshold"), not a per-class 3D array like
-    # the old single multi:softmax model produced.
-    shap_medium = _explainer_medium(row_df).values[0]  # toward ">=Medium"
-    shap_high = _explainer_high(row_df).values[0]  # toward ">=High"
+    # the old single multi:softmax model produced. Averaged over the rows
+    # (one row, or one per module code when the module is unknown).
+    shap_medium = _explainer_medium(rows).values.mean(axis=0)  # toward ">=Medium"
+    shap_high = _explainer_high(rows).values.mean(axis=0)  # toward ">=High"
 
     if predicted_label == "Low":
         raw_contrib = -shap_medium
@@ -131,6 +143,10 @@ def explain_task(task_features: dict) -> dict:
         FEATURE_ORDER[i]: float(raw_contrib[i])
         for i in range(len(FEATURE_ORDER))
     }
+    if module_unknown:
+        # The module was averaged out, so it can't honestly be cited as a
+        # reason for this prediction.
+        contributions["code_module_enc"] = 0.0
 
     sentence = _sentence_from_contributions(predicted_label, contributions)
 

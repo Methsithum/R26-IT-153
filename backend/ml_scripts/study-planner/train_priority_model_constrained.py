@@ -1,8 +1,8 @@
 """
-train_priority_model_monotonic.py
+train_priority_model_constrained.py
 
 Fixes a real, verified bug in the deployed priority_model.joblib: predicted
-priority is NOT monotonic in `date` the way it needs to be at inference time.
+priority is NOT deadline-consistent in `date` the way it needs to be at inference time.
 
 Background (see PROJECT CONTEXT.md for the full write-up added after this
 script was reviewed): `date` in OULAD means "day-of-module the assessment
@@ -19,10 +19,10 @@ This script does NOT change the label (Priority_Label) or the 13-feature
 set - it reuses ml_scripts/study-planner/outputs/oulad_task_level_leakage_free.csv
 verbatim, which already carries both the leakage-free features and label from
 train_priority_model.py sections 2-5. Only the model class/training changes:
-XGBoost with a monotonic constraint on `date`.
+XGBoost with a deadline constraint on `date`.
 
 Run from the backend/ directory (or anywhere) with:
-    venv/Scripts/python ml_scripts/study-planner/train_priority_model_monotonic.py
+    venv/Scripts/python ml_scripts/study-planner/train_priority_model_constrained.py
 """
 
 import os
@@ -45,18 +45,18 @@ BACKEND_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 # (app/services/study_planner/) rather than a local copy here - joblib pickles
 # a reference to the class's *import path*, and priority_service.py /
 # explain_service.py will unpickle app/models/study_planner/priority_model.joblib
-# by importing app.services.study_planner.ordinal_monotonic_model. Training
+# by importing app.services.study_planner.ordinal_priority_model. Training
 # against any other copy would silently produce an artifact the live app
 # cannot load.
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
-from app.services.study_planner.ordinal_monotonic_model import CLASS_ORDER, OrdinalMonotonicPriorityModel
+from app.services.study_planner.ordinal_priority_model import CLASS_ORDER, OrdinalPriorityModel
 
 OUTPUTS_DIR = os.path.join(BACKEND_DIR, "ml_scripts", "study-planner", "outputs")
 NEW_MODELS_DIR = os.path.join(BACKEND_DIR, "trained-models", "stuyd-planner")
 os.makedirs(NEW_MODELS_DIR, exist_ok=True)
 # The unconstrained baseline was deployed at app/models/study_planner/priority_model.joblib
-# until the monotonic model replaced it there (PROJECT CONTEXT.md Section 5c) - it was
+# until the constrained model replaced it there (PROJECT CONTEXT.md Section 5c) - it was
 # backed up here rather than deleted, since it's still the documented baseline for the
 # Section 5b model-comparison table.
 ORIGINAL_MODEL_PATH = os.path.join(NEW_MODELS_DIR, "priority_model_v1_unconstrained.joblib")
@@ -86,7 +86,7 @@ assert feature_cols[0] == "date", "This script assumes `date` is feature index 0
 
 
 # ===========================================================================
-# 2. CONFIRM MONOTONIC-CONSTRAINT DIRECTION AGAINST THE DEPLOYMENT MAPPING
+# 2. CONFIRM DEADLINE-CONSTRAINT DIRECTION AGAINST THE DEPLOYMENT MAPPING
 # ===========================================================================
 section("2. CONFIRM CONSTRAINT DIRECTION (frontend/src/utils/featureNameMap.js)")
 
@@ -110,9 +110,9 @@ print("Direction check: buildDateFeatureFromDeadline maps a NEARER real deadline
 
 
 # ===========================================================================
-# 2b. WHY TWO MONOTONIC BINARY MODELS INSTEAD OF ONE MULTI-CLASS MODEL
+# 2b. WHY TWO CONSTRAINED BINARY MODELS INSTEAD OF ONE MULTI-CLASS MODEL
 # ===========================================================================
-section("2b. MULTI-CLASS MONOTONIC CONSTRAINTS - WHY THE ORDINAL FALLBACK IS USED")
+section("2b. MULTI-CLASS CONSTRAINED CONSTRAINTS - WHY THE ORDINAL FALLBACK IS USED")
 
 print("""
 XGBoost's native multi:softmax/softprob trains one set of trees per class per
@@ -125,7 +125,7 @@ problem: as `date` rises (deadline further off), we need
 -> opposite signs for Low vs. High, which one shared constraint cannot express
 for an unordered 3-class softmax. Silently applying `-1` anyway would either
 be a no-op for the classes where it's wrong, or actively distort them -
-neither is an honest "monotonic constraint applied" claim.
+neither is an honest "deadline constraint applied" claim.
 
 Instead, Priority is treated as ORDINAL (Low < Medium < High, which the label
 design already reflects) and reframed as two cumulative binary problems:
@@ -135,8 +135,8 @@ Both are legitimate binary classification targets, both get the SAME `date`
 constraint (-1, decreasing) with unambiguous meaning (higher cumulative risk
 should not increase as the deadline moves further off), and both are
 well-supported by monotone_constraints in binary:logistic XGBoost. The two
-combine into a 3-class distribution via OrdinalMonotonicPriorityModel
-(ordinal_monotonic_model.py): P(Low)=1-P(>=Medium), P(Medium)=P(>=Medium)-P(>=High),
+combine into a 3-class distribution via OrdinalPriorityModel
+(ordinal_priority_model.py): P(Low)=1-P(>=Medium), P(Medium)=P(>=Medium)-P(>=High),
 P(High)=P(>=High).
 """)
 
@@ -173,9 +173,9 @@ else:
 
 
 # ===========================================================================
-# 4. TRAIN THE TWO MONOTONICALLY-CONSTRAINED BINARY XGBOOST MODELS
+# 4. TRAIN THE TWO DEADLINE-CONSTRAINED BINARY XGBOOST MODELS
 # ===========================================================================
-section("4. TRAIN MONOTONIC BINARY XGBOOST MODELS")
+section("4. TRAIN CONSTRAINED BINARY XGBOOST MODELS")
 
 xgb_common_kwargs = dict(
     n_estimators=300, max_depth=6, learning_rate=0.1,
@@ -190,7 +190,7 @@ model_medium.fit(X_train, y_train_ge_medium)
 model_high = XGBClassifier(**xgb_common_kwargs)
 model_high.fit(X_train, y_train_ge_high)
 
-monotonic_model = OrdinalMonotonicPriorityModel(model_medium, model_high)
+constrained_model = OrdinalPriorityModel(model_medium, model_high)
 print("Trained model_medium (P(>=Medium)) and model_high (P(>=High)), both with "
       f"monotone_constraints={monotone_constraints} on `date`.")
 
@@ -223,15 +223,15 @@ def evaluate_ordinal(name, y_true, y_pred_labels):
 # ===========================================================================
 # 6. COMPARE: ACCURACY, WEIGHTED F1, PER-CLASS PRECISION/RECALL
 # ===========================================================================
-section("6. COMPARE ORIGINAL (UNCONSTRAINED) VS. MONOTONIC MODEL ON THE SAME TEST SET")
+section("6. COMPARE ORIGINAL (UNCONSTRAINED) VS. CONSTRAINED MODEL ON THE SAME TEST SET")
 
 orig_pred_num = original_model.predict(X_test)
 orig_pred_labels = original_xgb_label_encoder.inverse_transform(orig_pred_num)
 orig_results = evaluate_ordinal("Original XGBoost (unconstrained)", y_test, orig_pred_labels)
 
-mono_pred_idx = monotonic_model.predict(X_test)
-mono_pred_labels = np.array(CLASS_ORDER)[mono_pred_idx]
-mono_results = evaluate_ordinal("Monotonic ordinal XGBoost (date-constrained)", y_test, mono_pred_labels)
+constrained_pred_idx = constrained_model.predict(X_test)
+constrained_pred_labels = np.array(CLASS_ORDER)[constrained_pred_idx]
+constrained_results = evaluate_ordinal("Constrained ordinal XGBoost (date-constrained)", y_test, constrained_pred_labels)
 
 comparison_df = pd.DataFrame([
     {
@@ -242,31 +242,31 @@ comparison_df = pd.DataFrame([
         **{f"{c} recall": orig_results["report"][c]["recall"] for c in CLASS_ORDER},
     },
     {
-        "Model": "Monotonic (date-constrained, ordinal)",
-        "Accuracy": mono_results["accuracy"],
-        "Weighted F1": mono_results["weighted_f1"],
-        **{f"{c} precision": mono_results["report"][c]["precision"] for c in CLASS_ORDER},
-        **{f"{c} recall": mono_results["report"][c]["recall"] for c in CLASS_ORDER},
+        "Model": "Constrained (date-constrained, ordinal)",
+        "Accuracy": constrained_results["accuracy"],
+        "Weighted F1": constrained_results["weighted_f1"],
+        **{f"{c} precision": constrained_results["report"][c]["precision"] for c in CLASS_ORDER},
+        **{f"{c} recall": constrained_results["report"][c]["recall"] for c in CLASS_ORDER},
     },
 ])
 print("\nSide-by-side comparison:")
 print(comparison_df.to_string(index=False))
-comparison_df.to_csv(os.path.join(OUTPUTS_DIR, "monotonic_vs_original_comparison.csv"), index=False)
+comparison_df.to_csv(os.path.join(OUTPUTS_DIR, "constrained_vs_original_comparison.csv"), index=False)
 
 
 # ===========================================================================
 # 7. LEAKAGE GUARD - STILL APPLIES TO THE RETRAINED MODEL
 # ===========================================================================
-section("7. LEAKAGE GUARD (>=97% accuracy/F1 warning) - RE-CHECKED ON MONOTONIC MODEL")
+section("7. LEAKAGE GUARD (>=97% accuracy/F1 warning) - RE-CHECKED ON CONSTRAINED MODEL")
 
-suspect = is_leakage_suspect(mono_results["accuracy"], mono_results["weighted_f1"], LEAKAGE_SUSPECT_THRESHOLD)
+suspect = is_leakage_suspect(constrained_results["accuracy"], constrained_results["weighted_f1"], LEAKAGE_SUSPECT_THRESHOLD)
 if suspect:
-    print(f"*** WARNING: monotonic model exceeded {LEAKAGE_SUSPECT_THRESHOLD:.0%} Accuracy or Weighted F1 "
-          f"(Accuracy={mono_results['accuracy']:.4f}, Weighted F1={mono_results['weighted_f1']:.4f}). "
+    print(f"*** WARNING: constrained model exceeded {LEAKAGE_SUSPECT_THRESHOLD:.0%} Accuracy or Weighted F1 "
+          f"(Accuracy={constrained_results['accuracy']:.4f}, Weighted F1={constrained_results['weighted_f1']:.4f}). "
           f"Since Priority_Label is derived from real outcomes not in the feature set, this would be "
           f"suspicious and should be investigated before trusting these results. ***")
 else:
-    print(f"Monotonic model: Accuracy={mono_results['accuracy']:.4f}, Weighted F1={mono_results['weighted_f1']:.4f} "
+    print(f"Constrained model: Accuracy={constrained_results['accuracy']:.4f}, Weighted F1={constrained_results['weighted_f1']:.4f} "
           f"- both below the {LEAKAGE_SUSPECT_THRESHOLD:.0%} leakage-suspicion threshold. No leakage flag.")
 
 
@@ -302,59 +302,59 @@ orig_real_pred_num = original_model.predict(real_tasks_df)
 orig_real_pred_labels = original_xgb_label_encoder.inverse_transform(orig_real_pred_num)
 orig_real_proba = original_model.predict_proba(real_tasks_df)
 
-mono_real_proba = monotonic_model.predict_proba(real_tasks_df)
-mono_real_pred_idx = monotonic_model.predict(real_tasks_df)
-mono_real_pred_labels = np.array(CLASS_ORDER)[mono_real_pred_idx]
+constrained_real_proba = constrained_model.predict_proba(real_tasks_df)
+constrained_real_pred_idx = constrained_model.predict(real_tasks_df)
+constrained_real_pred_labels = np.array(CLASS_ORDER)[constrained_real_pred_idx]
 
 print("ORIGINAL (unconstrained) model:")
 for i, row_name in enumerate(real_tasks_df.index):
     conf = float(orig_real_proba[i][orig_real_pred_num[i]])
     print(f"  {row_name}: date={real_tasks_df.iloc[i]['date']:.2f} -> {orig_real_pred_labels[i]} (confidence {conf:.4f})")
 
-print("\nMONOTONIC (date-constrained) model:")
+print("\nCONSTRAINED (date-constrained) model:")
 for i, row_name in enumerate(real_tasks_df.index):
-    conf = float(mono_real_proba[i][mono_real_pred_idx[i]])
-    print(f"  {row_name}: date={real_tasks_df.iloc[i]['date']:.2f} -> {mono_real_pred_labels[i]} (confidence {conf:.4f})")
-    print(f"    full distribution: Low={mono_real_proba[i][0]:.4f}, Medium={mono_real_proba[i][1]:.4f}, High={mono_real_proba[i][2]:.4f}")
+    conf = float(constrained_real_proba[i][constrained_real_pred_idx[i]])
+    print(f"  {row_name}: date={real_tasks_df.iloc[i]['date']:.2f} -> {constrained_real_pred_labels[i]} (confidence {conf:.4f})")
+    print(f"    full distribution: Low={constrained_real_proba[i][0]:.4f}, Medium={constrained_real_proba[i][1]:.4f}, High={constrained_real_proba[i][2]:.4f}")
 
-near_rank = CLASS_ORDER.index(mono_real_pred_labels[0])
-distant_rank = CLASS_ORDER.index(mono_real_pred_labels[1])
+near_rank = CLASS_ORDER.index(constrained_real_pred_labels[0])
+distant_rank = CLASS_ORDER.index(constrained_real_pred_labels[1])
 fixed = near_rank >= distant_rank
-print(f"\nInversion resolved: near-term predicted priority ({mono_real_pred_labels[0]}) >= "
-      f"distant predicted priority ({mono_real_pred_labels[1]})? {'YES' if fixed else 'NO - STILL INVERTED'}")
+print(f"\nInversion resolved: near-term predicted priority ({constrained_real_pred_labels[0]}) >= "
+      f"distant predicted priority ({constrained_real_pred_labels[1]})? {'YES' if fixed else 'NO - STILL INVERTED'}")
 
 
 # ===========================================================================
-# 9. BROADER MONOTONICITY SWEEP ACROSS THE FULL TRAINED `date` RANGE
+# 9. BROADER DEADLINE-ORDERING SWEEP ACROSS THE FULL TRAINED `date` RANGE
 # ===========================================================================
-section("9. MONOTONICITY SWEEP - date IN [12, 261], ALL OTHER FEATURES FIXED")
+section("9. DEADLINE-ORDERING SWEEP - date IN [12, 261], ALL OTHER FEATURES FIXED")
 
 sweep_dates = np.linspace(12, 261, 30)
 sweep_rows = pd.DataFrame([{**base_row, "date": d} for d in sweep_dates])[feature_cols]
 
 orig_sweep_proba = original_model.predict_proba(sweep_rows)
 orig_classes_order = list(original_xgb_label_encoder.classes_)  # matches predict_proba column order
-mono_sweep_proba = monotonic_model.predict_proba(sweep_rows)
+constrained_sweep_proba = constrained_model.predict_proba(sweep_rows)
 
 sweep_df = pd.DataFrame({"date": sweep_dates})
 for i, c in enumerate(orig_classes_order):
     sweep_df[f"orig_P({c})"] = orig_sweep_proba[:, i]
 for i, c in enumerate(CLASS_ORDER):
-    sweep_df[f"mono_P({c})"] = mono_sweep_proba[:, i]
+    sweep_df[f"constrained_P({c})"] = constrained_sweep_proba[:, i]
 
 print(sweep_df.to_string(index=False))
-sweep_df.to_csv(os.path.join(OUTPUTS_DIR, "monotonicity_sweep.csv"), index=False)
+sweep_df.to_csv(os.path.join(OUTPUTS_DIR, "deadline_sweep.csv"), index=False)
 
-mono_high_diffs = np.diff(sweep_df["mono_P(High)"].values)
-mono_low_diffs = np.diff(sweep_df["mono_P(Low)"].values)
-high_monotonic = bool(np.all(mono_high_diffs <= 1e-9))
-low_monotonic = bool(np.all(mono_low_diffs >= -1e-9))
-print(f"\nP(High) non-increasing across the full date sweep: {high_monotonic}")
-print(f"P(Low) non-decreasing across the full date sweep: {low_monotonic}")
-if not (high_monotonic and low_monotonic):
-    print("*** WARNING: sweep is not perfectly monotonic - investigate before deploying. ***")
+constrained_high_diffs = np.diff(sweep_df["constrained_P(High)"].values)
+constrained_low_diffs = np.diff(sweep_df["constrained_P(Low)"].values)
+high_ordered = bool(np.all(constrained_high_diffs <= 1e-9))
+low_ordered = bool(np.all(constrained_low_diffs >= -1e-9))
+print(f"\nP(High) non-increasing across the full date sweep: {high_ordered}")
+print(f"P(Low) non-decreasing across the full date sweep: {low_ordered}")
+if not (high_ordered and low_ordered):
+    print("*** WARNING: sweep is not perfectly deadline-consistent - investigate before deploying. ***")
 else:
-    print("Confirmed monotonic across the ENTIRE trained date range, not just the two spot-checked tasks.")
+    print("Confirmed deadline-consistent across the ENTIRE trained date range, not just the two spot-checked tasks.")
 
 try:
     import matplotlib
@@ -363,17 +363,17 @@ try:
 
     plt.figure(figsize=(9, 6))
     for c in CLASS_ORDER:
-        plt.plot(sweep_df["date"], sweep_df[f"mono_P({c})"], label=f"Monotonic P({c})")
+        plt.plot(sweep_df["date"], sweep_df[f"constrained_P({c})"], label=f"Deadline-consistent P({c})")
     for c in orig_classes_order:
         plt.plot(sweep_df["date"], sweep_df[f"orig_P({c})"], linestyle="--", alpha=0.6, label=f"Original P({c})")
     plt.xlabel("date (12=urgent/near deadline .. 261=far off)")
     plt.ylabel("Predicted probability")
-    plt.title("Priority probability vs. `date` - Original (unconstrained) vs. Monotonic model")
+    plt.title("Priority probability vs. `date` - Original (unconstrained) vs. Constrained model")
     plt.legend(fontsize=8)
     plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUTS_DIR, "monotonicity_sweep.png"), dpi=300)
+    plt.savefig(os.path.join(OUTPUTS_DIR, "deadline_sweep.png"), dpi=300)
     plt.close()
-    print(f"Saved sweep plot to {os.path.join(OUTPUTS_DIR, 'monotonicity_sweep.png')}")
+    print(f"Saved sweep plot to {os.path.join(OUTPUTS_DIR, 'deadline_sweep.png')}")
 except Exception as e:
     print(f"Skipped plot (non-critical): {e}")
 
@@ -381,11 +381,11 @@ except Exception as e:
 # ===========================================================================
 # 10. SAVE THE NEW MODEL - DOES NOT TOUCH THE CURRENTLY-DEPLOYED ARTIFACT
 # ===========================================================================
-section("10. SAVE priority_model_monotonic.joblib (NOT deployed - review first)")
+section("10. SAVE priority_model_constrained.joblib (NOT deployed - review first)")
 
-monotonic_model_path = os.path.join(NEW_MODELS_DIR, "priority_model_monotonic.joblib")
-joblib.dump(monotonic_model, monotonic_model_path)
-print(f"Saved: {monotonic_model_path}")
+constrained_model_path = os.path.join(NEW_MODELS_DIR, "priority_model_constrained.joblib")
+joblib.dump(constrained_model, constrained_model_path)
+print(f"Saved: {constrained_model_path}")
 print(f"NOTE: this script does not touch app/models/study_planner/priority_model.joblib - "
       f"deployment is a separate, explicit step. Bring section 6/8/9 results back for review first.")
 

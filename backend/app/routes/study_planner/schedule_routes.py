@@ -18,12 +18,17 @@ from app.utils.study_planner.error_handling import service_error_to_http
 router = APIRouter(prefix="/study-planner", tags=["study-planner"])
 
 
+def _blocked(request):
+    return [slot.model_dump() for slot in (request.blocked_slots or [])]
+
+
 @router.post("/schedule", response_model=ScheduleResponse)
 def schedule_route(request: ScheduleRequest):
     try:
         result = create_schedule(
             weekly_free_slots=[slot.model_dump() for slot in request.weekly_free_slots],
             tasks=[task.model_dump() for task in request.tasks],
+            blocked_slots=_blocked(request),
         )
     except ScheduleServiceError as e:
         raise service_error_to_http(e)
@@ -39,6 +44,7 @@ def multi_week_schedule_route(request: MultiWeekScheduleRequest):
             weekly_free_slots=[slot.model_dump() for slot in request.weekly_free_slots],
             tasks=[task.model_dump() for task in request.tasks],
             weeks_ahead=request.weeks_ahead,
+            blocked_slots=_blocked(request),
         )
     except ScheduleServiceError as e:
         raise service_error_to_http(e)
@@ -60,6 +66,7 @@ def reschedule_route(request: RescheduleRequest):
             existing_schedule_state=existing_schedule_state,
             completed_task_ids=request.completed_task_ids,
             new_tasks=[task.model_dump() for task in (request.new_tasks or [])],
+            blocked_slots=_blocked(request),
         )
     except ScheduleServiceError as e:
         raise service_error_to_http(e)

@@ -69,7 +69,7 @@ def _ensure_priority_label(task: dict) -> dict:
     return task
 
 
-def create_schedule(weekly_free_slots: list, tasks: list) -> dict:
+def create_schedule(weekly_free_slots: list, tasks: list, blocked_slots: list = None) -> dict:
     """
     Builds a fresh StudyScheduler, adds every task (predicting priority via
     the trained classifier for any task that doesn't already carry one), and
@@ -79,7 +79,7 @@ def create_schedule(weekly_free_slots: list, tasks: list) -> dict:
     if StudyScheduler is None:
         raise ScheduleServiceError("Scheduling engine is not available - check server startup logs.")
 
-    scheduler = StudyScheduler(weekly_free_slots)
+    scheduler = StudyScheduler(weekly_free_slots, blocked_slots=blocked_slots)
     for task in tasks:
         resolved_task = _ensure_priority_label(task)
         try:
@@ -90,7 +90,7 @@ def create_schedule(weekly_free_slots: list, tasks: list) -> dict:
     return scheduler.generate_schedule()
 
 
-def create_multi_week_schedule(weekly_free_slots: list, tasks: list, weeks_ahead: int = None) -> dict:
+def create_multi_week_schedule(weekly_free_slots: list, tasks: list, weeks_ahead: int = None, blocked_slots: list = None) -> dict:
     """
     Same priority-resolution step as create_schedule() (predict via the
     trained classifier for any task without a priority_label already), then
@@ -108,10 +108,10 @@ def create_multi_week_schedule(weekly_free_slots: list, tasks: list, weeks_ahead
         except ScheduleServiceError:
             raise
 
-    return generate_rolling_schedule(weekly_free_slots, resolved_tasks, weeks_ahead=weeks_ahead)
+    return generate_rolling_schedule(weekly_free_slots, resolved_tasks, weeks_ahead=weeks_ahead, blocked_slots=blocked_slots)
 
 
-def reschedule(existing_schedule_state: dict, completed_task_ids: list, new_tasks: list = None) -> dict:
+def reschedule(existing_schedule_state: dict, completed_task_ids: list, new_tasks: list = None, blocked_slots: list = None) -> dict:
     """
     DESIGN NOTE (statelessness across HTTP requests):
     StudyScheduler is an in-memory Python object - it cannot survive between
@@ -150,7 +150,7 @@ def reschedule(existing_schedule_state: dict, completed_task_ids: list, new_task
         )
 
     previous_tasks = existing_schedule_state.get("tasks") or {}
-    scheduler = StudyScheduler(remaining_free_slots)
+    scheduler = StudyScheduler(remaining_free_slots, blocked_slots=blocked_slots)
     for task_id, info in previous_tasks.items():
         try:
             scheduler.add_task({"task_id": task_id, **info})

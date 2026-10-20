@@ -26,6 +26,7 @@ class FinishRunRequest(BaseModel):
     session_id: str
     xp_earned: int
     score: int = 0
+    total_clicks: Optional[int] = 0
 
 
 class AbandonSessionRequest(BaseModel):

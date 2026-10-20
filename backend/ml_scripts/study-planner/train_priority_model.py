@@ -1,17 +1,4 @@
-"""
-train_priority_model.py
 
-Trains a task-level Priority prediction model (High / Medium / Low) for the
-Smart Uni Guide study planner, using the OULAD dataset.
-
-Predicts how much planning priority an UPCOMING assessment should receive,
-using only information that is genuinely available before the student
-completes that assessment. See section "2. CRITICAL - Avoid Target Leakage"
-below for the leakage-avoidance rules this script enforces.
-
-Run from the backend/ directory (or anywhere) with:
-    venv/Scripts/python ml_scripts/study-planner/train_priority_model.py
-"""
 
 import os
 import time

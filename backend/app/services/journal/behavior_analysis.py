@@ -6,10 +6,12 @@ from openai import AsyncOpenAI
 from app.config.settings import settings
 from app.models.journal.behavior_analysis import BehaviorAnalysisModel
 from app.models.journal.daily_session import DailySessionModel
+from app.models.journal.exam import ExamModel
 from app.models.journal.task import TaskModel
 from app.models.user.user import UserModel
 from app.services.time_utils import local_today, to_local_date, calendar_datetime, LOCAL_TZ
 from app.services.journal.journal_constants import MARK_RECEIVED_STAGES
+from app.services.journal.ml import behavior_predictor
 
 client = AsyncOpenAI(api_key=settings.openai_api_key)
 MODEL = settings.openai_model
@@ -44,7 +46,50 @@ def _count_completed_tasks(tasks: List[Dict[str, Any]]) -> int:
     return count
 
 
-def _build_behavior_prompt(snapshot: Dict[str, Any]) -> str:
+def _build_behavior_prompt(snapshot: Dict[str, Any], category: str) -> str:
+    return f"""
+You are a behavioral analysis assistant for university productivity data.
+A machine-learning classifier has already analyzed this activity snapshot and
+assigned the category "{category}" (one of {json.dumps(BEHAVIOR_CATEGORIES)}).
+Your job is NOT to choose or change the category - write the reasoning and
+next steps that explain and support that exact category.
+
+Rules:
+- Use the category "{category}" exactly as given. Never output a different one.
+- Provide reasoning in 2-3 sentences, grounded only in numbers present in the snapshot.
+- "observation_window_days" is how many days this account has actually existed (capped at 14), NOT a fixed 14-day period. "activity_frequency" is already computed against that real window. If the account is only a few days old, judge activity relative to observation_window_days, not against a full 14-day expectation - do not call a new account "Low Engagement" just because its totals look small on an absolute scale.
+- This classification is ONLY for analytics/reporting/insights. It MUST NOT influence question generation.
+- Engagement distribution is a count, not a temporal trend. Never describe it as improving or declining.
+- If fewer than 7 active days are recorded, describe this as an early snapshot with insufficient history for a stable pattern or temporal trend. Do not infer improvement from account age or a single day.
+- "exam_proximity" is NOT the same as "deadline_proximity". deadline_proximity.overdue means the student missed submitting their own work - that is a negative signal. exam_proximity only counts exams that haven't happened yet (a past exam date is simply over, never "overdue" or missed work). Read exam_proximity as upcoming preparation urgency (how soon the student needs to study), not as a missed obligation, and never call it "overdue".
+
+Next steps rules:
+- Give 2-3 concrete actions the student can take in the next few days, matched to the chosen category.
+- Ground every action in the snapshot. Only quote numbers that appear in it (e.g. nearest_deadline_days, overdue, not_started counts, nearest_exam_days). Never invent deadlines, exam dates, subjects, task names or numbers.
+- If the account is only a few days old, keep the tone encouraging and focus on building a daily journaling habit.
+- Put the most urgent action first (overdue work, deadlines within 3 days, then exams within 3 days).
+- "title": at most 6 words. "text": one or two sentences, at most 30 words, addressed to the student as "you".
+- "icon": a single emoji that fits the action.
+- Be supportive and practical, never judgemental, and give no medical or mental-health advice.
+
+Return JSON only in this format:
+{{
+  "behaviorCategory": "...",
+  "reasoning": "...",
+  "nextSteps": [
+    {{"icon": "...", "title": "...", "text": "..."}}
+  ]
+}}
+
+Activity snapshot:
+{json.dumps(snapshot, default=str, indent=2)}
+"""
+
+
+def _build_behavior_prompt_llm_choice(snapshot: Dict[str, Any]) -> str:
+    """Fallback used only if the trained classifier isn't available yet
+    (e.g. before training has been run) - the LLM picks the category itself,
+    same as before the ML model existed."""
     return f"""
 You are a behavioral analysis assistant for university productivity data.
 Analyze the structured activity snapshot and choose EXACTLY ONE category from:
@@ -57,12 +102,13 @@ Rules:
 - This classification is ONLY for analytics/reporting/insights. It MUST NOT influence question generation.
 - Engagement distribution is a count, not a temporal trend. Never describe it as improving or declining.
 - If fewer than 7 active days are recorded, describe this as an early snapshot with insufficient history for a stable pattern or temporal trend. Do not infer improvement from account age or a single day.
+- "exam_proximity" is NOT the same as "deadline_proximity". deadline_proximity.overdue means the student missed submitting their own work - that is a negative signal. exam_proximity only counts exams that haven't happened yet (a past exam date is simply over, never "overdue" or missed work). Read exam_proximity as upcoming preparation urgency (how soon the student needs to study), not as a missed obligation, and never call it "overdue".
 
 Next steps rules:
 - Give 2-3 concrete actions the student can take in the next few days, matched to the chosen category.
-- Ground every action in the snapshot. Only quote numbers that appear in it (e.g. nearest_deadline_days, overdue, not_started counts). Never invent deadlines, subjects, task names or numbers.
+- Ground every action in the snapshot. Only quote numbers that appear in it (e.g. nearest_deadline_days, overdue, not_started counts, nearest_exam_days). Never invent deadlines, exam dates, subjects, task names or numbers.
 - If the account is only a few days old, keep the tone encouraging and focus on building a daily journaling habit.
-- Put the most urgent action first (overdue work, deadlines within 3 days).
+- Put the most urgent action first (overdue work, deadlines within 3 days, then exams within 3 days).
 - "title": at most 6 words. "text": one or two sentences, at most 30 words, addressed to the student as "you".
 - "icon": a single emoji that fits the action.
 - Be supportive and practical, never judgemental, and give no medical or mental-health advice.
@@ -150,6 +196,22 @@ async def build_activity_snapshot(user_id: str) -> Dict[str, Any]:
 
     nearest_deadline = min(deadlines) if deadlines else None
 
+    # Exams aren't deadlines the student can be "overdue" on - an exam date
+    # is a fixed future event, not submittable work, so a past date just
+    # means the exam already happened (not a missed obligation). Kept as a
+    # separate field from deadline_proximity so the AI reads it as
+    # preparation urgency, never as overdue/missed work.
+    exams = await ExamModel.find_by_user(user_id)
+    upcoming_exam_days = []
+    for exam in exams:
+        exam_date = to_local_date(exam.get("date"))
+        if not exam_date:
+            continue
+        days_left = (exam_date - today).days
+        if days_left >= 0:
+            upcoming_exam_days.append(days_left)
+    nearest_exam = min(upcoming_exam_days) if upcoming_exam_days else None
+
     return {
         "account_age_days": account_age_days,
         "observation_window_days": observation_window_days,
@@ -169,6 +231,12 @@ async def build_activity_snapshot(user_id: str) -> Dict[str, Any]:
         "task_completion_history": {
             "total_tasks": total_tasks,
             "completed_tasks": completed_tasks
+        },
+        "exam_proximity": {
+            "nearest_exam_days": nearest_exam,
+            "exams_within_3_days": sum(1 for d in upcoming_exam_days if d <= 3),
+            "exams_within_7_days": sum(1 for d in upcoming_exam_days if d <= 7),
+            "total_upcoming_exams": len(upcoming_exam_days)
         },
         "engagement_trend": "insufficient_data" if len(active_dates) < 7 else "not_measured",
         "engagement_distribution": engagement_distribution,
@@ -198,7 +266,16 @@ def _clean_next_steps(raw: Any) -> List[Dict[str, str]]:
 
 
 async def analyze_behavior(snapshot: Dict[str, Any]) -> Dict[str, Any]:
-    prompt = _build_behavior_prompt(snapshot)
+    ml_result = None
+    top_features = []
+    if behavior_predictor.model_available():
+        ml_result = behavior_predictor.predict_category(snapshot)
+        top_features = behavior_predictor.top_feature_contributions(snapshot, limit=5)
+        category = ml_result["category"]
+    else:
+        category = None
+
+    prompt = _build_behavior_prompt(snapshot, category) if category else _build_behavior_prompt_llm_choice(snapshot)
     resp = await client.chat.completions.create(
         model=MODEL,
         messages=[{"role": "user", "content": prompt}],
@@ -206,7 +283,8 @@ async def analyze_behavior(snapshot: Dict[str, Any]) -> Dict[str, Any]:
         temperature=0.2
     )
     data = json.loads(resp.choices[0].message.content)
-    category = data.get("behaviorCategory")
+    if not category:
+        category = data.get("behaviorCategory")
     reasoning = data.get("reasoning", "")
 
     if category not in BEHAVIOR_CATEGORIES:
@@ -217,6 +295,9 @@ async def analyze_behavior(snapshot: Dict[str, Any]) -> Dict[str, Any]:
         "behaviorCategory": category,
         "reasoning": reasoning,
         "nextSteps": _clean_next_steps(data.get("nextSteps")),
+        "modelConfidence": ml_result["confidence"] if ml_result else None,
+        "modelName": ml_result["modelName"] if ml_result else None,
+        "topFeatures": top_features,
     }
     if snapshot.get("active_days_last_14_days", 0) < 7:
         days = snapshot.get("active_days_last_14_days", 0)
@@ -248,6 +329,9 @@ async def run_and_store_behavior_analysis(user_id: str, trigger: str) -> Dict[st
         "behaviorCategory": analysis["behaviorCategory"],
         "reasoning": analysis["reasoning"],
         "nextSteps": analysis["nextSteps"],
+        "modelConfidence": analysis.get("modelConfidence"),
+        "modelName": analysis.get("modelName"),
+        "topFeatures": analysis.get("topFeatures") or [],
         "trigger": trigger,
         "timestamp": datetime.utcnow(),
         "snapshotOfActivityData": snapshot,

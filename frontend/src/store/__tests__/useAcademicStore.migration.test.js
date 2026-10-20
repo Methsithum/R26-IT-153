@@ -15,7 +15,12 @@
 // ids changes, not when a value inside an unchanged task needed correcting.
 import { describe, it, expect } from "vitest";
 import { migrateAcademicStore } from "../useAcademicStore";
-import { buildDateFeatureFromDeadline } from "../../utils/featureNameMap";
+import {
+  buildDateFeatureFromDeadline,
+  NEUTRAL_FEATURE_DEFAULTS,
+  DEFAULT_ASSIGNMENT_WEIGHT,
+  UNKNOWN_MODULE_ENC,
+} from "../../utils/featureNameMap";
 
 function preMigrationState() {
   return {
@@ -85,5 +90,45 @@ describe("migrateAcademicStore v7: recomputes stale featureRow.date", () => {
   it("returns null/undefined persisted state unchanged rather than throwing", () => {
     expect(migrateAcademicStore(null, 5)).toBeNull();
     expect(migrateAcademicStore(undefined, 5)).toBeUndefined();
+  });
+});
+
+describe("migrateAcademicStore v9: neutral feature defaults + module-agnostic prediction", () => {
+  const v8State = () => ({
+    assignments: [
+      {
+        taskId: "journal-no-weight",
+        hasRealWeight: false,
+        weight: 20,
+        featureRow: { date: 30, weight: 20, avg_weekly_clicks: 15, active_weeks_ratio: 0.5, code_module_enc: 3 },
+      },
+      { taskId: "real-weight", hasRealWeight: true, weight: 40, featureRow: { date: 30, weight: 40, code_module_enc: 1 } },
+    ],
+    predictedPriorities: { "journal-no-weight": { priority_label: "High" } },
+    scheduleResponse: { schedule: {}, tasks: {} },
+  });
+
+  it("replaces placeholder features with training medians and the unknown-module sentinel", () => {
+    const [noWeight] = migrateAcademicStore(v8State(), 8).assignments;
+    expect(noWeight.featureRow).toMatchObject({
+      ...NEUTRAL_FEATURE_DEFAULTS,
+      weight: DEFAULT_ASSIGNMENT_WEIGHT,
+      code_module_enc: UNKNOWN_MODULE_ENC,
+      date: 30,
+    });
+    expect(noWeight.weight).toBe(DEFAULT_ASSIGNMENT_WEIGHT);
+  });
+
+  it("keeps a weight the student really entered", () => {
+    const realWeight = migrateAcademicStore(v8State(), 8).assignments[1];
+    expect(realWeight.weight).toBe(40);
+    expect(realWeight.featureRow.weight).toBe(40);
+  });
+
+  it("drops cached predictions but only FLAGS the schedule (past days must be frozen first)", () => {
+    const migrated = migrateAcademicStore(v8State(), 8);
+    expect(migrated.predictedPriorities).toEqual({});
+    expect(migrated.scheduleResponse).not.toBeNull();
+    expect(migrated.scheduleStale).toBe(true);
   });
 });

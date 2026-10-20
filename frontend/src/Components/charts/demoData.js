@@ -188,6 +188,7 @@ export function buildDemoBehaviorLatest() {
       activity_frequency: 0.5,
       assignment_progress: { in_progress: 2, completed: 3 },
       deadline_proximity: { nearest_deadline_days: 4, due_within_3_days: 0, due_within_7_days: 2, overdue: 0 },
+      exam_proximity: { nearest_exam_days: 9, exams_within_3_days: 0, exams_within_7_days: 0, total_upcoming_exams: 2 },
       task_completion_history: { total_tasks: 6, completed_tasks: 3 },
       engagement_trend: "stable",
       engagement_distribution: { high: 4, medium: 2, low: 1 },

@@ -4,6 +4,9 @@ import { PRIORITY_COLORS } from "../../../utils/featureNameMap";
 import { useAcademicStore } from "../../../store/useAcademicStore";
 import { EXAM_PREP_ACCENT_HEX, resolveSessionDisplay } from "../../../utils/studySessionBuilder";
 import EmptyState from "../Shared/EmptyState";
+import ExamDayCard from "../StudyPlanner/ExamDayCard";
+import { toLocalDateStr } from "../../../utils/dateHelpers";
+import { examsOnDate, highPriorityTasksNearExam, revisionSessionForExamDay } from "../../../utils/examDay";
 
 const TODAY_NAME = new Date().toLocaleDateString(undefined, { weekday: "long" });
 
@@ -11,7 +14,27 @@ export default function TodayTimeline({ schedule, tasksRegistry }) {
   const modules = useAcademicStore((s) => s.modules);
   const assignments = useAcademicStore((s) => s.assignments);
   const exams = useAcademicStore((s) => s.exams);
+  const weeklyFreeSlots = useAcademicStore((s) => s.weeklyFreeSlots);
   const moduleName = (code) => modules.find((m) => m.code === code)?.name || code;
+  const todayStr = toLocalDateStr(new Date());
+  const todaysExams = examsOnDate(exams, todayStr);
+
+  // Exam today: nothing is scheduled - show the exam + good luck instead.
+  if (todaysExams.length > 0) {
+    return (
+      <div className="card p-5">
+        <p className="font-display font-bold text-slate-800 dark:text-white mb-4">Today's Study Plan</p>
+        <ExamDayCard
+          exams={todaysExams}
+          dateStr={todayStr}
+          revision={revisionSessionForExamDay(todayStr, exams, weeklyFreeSlots)}
+          moduleName={moduleName}
+          highPriorityTasks={highPriorityTasksNearExam(todayStr, tasksRegistry, assignments)}
+        />
+      </div>
+    );
+  }
+
   const todaysItems = schedule?.[TODAY_NAME] || [];
 
   if (todaysItems.length === 0) {

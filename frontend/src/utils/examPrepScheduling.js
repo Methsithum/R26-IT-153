@@ -66,14 +66,43 @@ function resolveExamPrepBudget(exam, modules, examDays) {
   return { performance, hasData, multiplier, examTypeMultiplier, finalBudgetHours, priorityLabel };
 }
 
-function hoursForWindow(examDate, today, finalBudgetHours, windowStartDay, windowEndDay) {
+function hoursOnDay(examDate, today, finalBudgetHours, dayOffset) {
+  const forDay = new Date(today);
+  forDay.setDate(forDay.getDate() + dayOffset);
+  return computeExamPrepHoursForDay(examDate, today, finalBudgetHours, forDay);
+}
+
+/**
+ * Prep hours for day offsets windowStartDay..windowEndDay (from `today`).
+ * The exam day itself (offset examDays) is never a prep day - exam days are
+ * kept completely free (utils/examDay.js) - so its share of the curve is
+ * folded into whichever window holds the day BEFORE the exam instead of
+ * being lost. A window holding only the exam day therefore gets 0 hours.
+ *
+ * Other exams' days are blocked too, so a window is only schedulable if it
+ * has at least one real study day (before this exam, and not any exam's
+ * day). `schedulable: false` means nothing in it can ever be placed - e.g.
+ * back-to-back exams starting today - and the caller must not ask the
+ * scheduler for those hours, or it reports an "overload" the student can't
+ * fix (the only time left is the agreed after-exam revision, which
+ * applyRevisionCredit already accounts for).
+ */
+function hoursForWindow(examDate, today, finalBudgetHours, windowStartDay, windowEndDay, examDays, examDates) {
   let hours = 0;
-  for (let d = windowStartDay; d <= windowEndDay; d++) {
-    const forDay = new Date(today);
-    forDay.setDate(forDay.getDate() + d);
-    hours += computeExamPrepHoursForDay(examDate, today, finalBudgetHours, forDay);
+  let schedulable = false;
+  for (let d = windowStartDay; d <= Math.min(windowEndDay, examDays - 1); d++) {
+    hours += hoursOnDay(examDate, today, finalBudgetHours, d);
+    if (!examDates.has(toLocalDateStr(addDays(today, d)))) schedulable = true;
   }
-  return Math.round(hours * 4) / 4; // round to nearest 15 minutes
+  const dayBeforeExam = examDays - 1;
+  if (dayBeforeExam >= windowStartDay && dayBeforeExam <= windowEndDay) {
+    hours += hoursOnDay(examDate, today, finalBudgetHours, examDays);
+  }
+  return { hours: Math.round(hours * 4) / 4, schedulable }; // round to nearest 15 minutes
+}
+
+function examDateSet(exams) {
+  return new Set((exams || []).map((e) => e.date).filter(Boolean));
 }
 
 /**
@@ -83,6 +112,7 @@ function hoursForWindow(examDate, today, finalBudgetHours, windowStartDay, windo
  * injectable for testing.
  */
 export function buildExamPrepTasks(exams, modules, today = new Date()) {
+  const examDates = examDateSet(exams);
   return (exams || [])
     .map((exam) => {
       const examDays = daysRemaining(exam.date, today);
@@ -90,8 +120,9 @@ export function buildExamPrepTasks(exams, modules, today = new Date()) {
 
       const budget = resolveExamPrepBudget(exam, modules, examDays);
       const windowEnd = Math.min(examDays, SCHEDULING_WINDOW_DAYS);
-      const thisWeekHours = hoursForWindow(exam.date, today, budget.finalBudgetHours, 0, windowEnd);
-      if (thisWeekHours <= 0) return null;
+      const window = hoursForWindow(exam.date, today, budget.finalBudgetHours, 0, windowEnd, examDays, examDates);
+      const thisWeekHours = window.hours;
+      if (thisWeekHours <= 0 || !window.schedulable) return null;
 
       return {
         task_id: `exam-${exam.id}`,
@@ -147,6 +178,7 @@ export function buildExamPrepTasks(exams, modules, today = new Date()) {
  */
 export function buildMultiWeekExamPrepTasks(exams, modules, weeksAhead, today = new Date()) {
   const tasks = [];
+  const examDates = examDateSet(exams);
   for (const exam of exams || []) {
     const examDays = daysRemaining(exam.date, today);
     if (examDays < 0) continue;
@@ -158,8 +190,20 @@ export function buildMultiWeekExamPrepTasks(exams, modules, weeksAhead, today = 
       const windowStart = weekIdx * 7;
       const windowEnd = Math.min(examDays, windowStart + 6);
       if (windowEnd < windowStart) continue;
-      const weekHours = hoursForWindow(exam.date, today, budget.finalBudgetHours, windowStart, windowEnd);
+      const window = hoursForWindow(exam.date, today, budget.finalBudgetHours, windowStart, windowEnd, examDays, examDates);
+      const weekHours = window.hours;
       if (weekHours <= 0) continue;
+      if (!window.schedulable) {
+        // A week with no study day at all (only exam days before this
+        // exam): its hours go to this exam's previous chunk, which still has
+        // free days, instead of becoming an unfixable "overload".
+        const previous = tasks.findLast((t) => t._meta.examId === exam.id);
+        if (previous) {
+          previous.estimated_hours_needed += weekHours;
+          previous._meta.weekHours += weekHours;
+        }
+        continue;
+      }
 
       tasks.push({
         task_id: `exam-${exam.id}-w${weekIdx}`,
