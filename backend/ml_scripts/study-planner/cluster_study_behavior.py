@@ -78,19 +78,6 @@ print("Required input file found.")
 # ===========================================================================
 # 1. LOAD oulad_task_level_leakage_free.csv AND RE-ATTACH id_student /
 #    code_module / code_presentation FOR GROUPING
-#
-#    train_priority_model.py drops these identifier columns before saving
-#    the leakage-free CSV (correctly - they must never be model FEATURES).
-#    Clustering is a different job: it needs student identity purely to
-#    GROUP rows, not to predict anything, so re-attaching identity here is
-#    not a leakage concern.
-#
-#    The CSV's row order is exactly student_assessment JOIN assessments
-#    (inner), sorted by [id_student, code_module, code_presentation, date]
-#    (see train_priority_model.py section 2) - so re-running that same
-#    load + inner-join + sort on the raw files reproduces the identical row
-#    order, letting us re-attach identity columns positionally. We verify
-#    this alignment below (date/weight must match exactly) before trusting it.
 # ===========================================================================
 section("1. RE-ATTACH id_student / code_module / code_presentation FOR GROUPING")
 
