@@ -20,7 +20,7 @@ export default function TaskDetails() {
   const bumpStreak = useAcademicStore((s) => s.bumpStreak);
   const scheduleResponse = useAcademicStore((s) => s.scheduleResponse);
   const updateAssignmentWeight = useAcademicStore((s) => s.updateAssignmentWeight);
-  const { runReschedule, loading: rescheduling } = useReschedule();
+  const { runReschedule } = useReschedule();
 
   const [editingWeight, setEditingWeight] = useState(false);
   const [weightDraft, setWeightDraft] = useState("");
@@ -29,7 +29,6 @@ export default function TaskDetails() {
   const [explanation, setExplanation] = useState(null);
   const [loadingExplain, setLoadingExplain] = useState(true);
   const [celebration, setCelebration] = useState(null);
-  const [rescheduleInfo, setRescheduleInfo] = useState(null);
   const [completing, setCompleting] = useState(false);
   const [completeError, setCompleteError] = useState(null);
 
@@ -76,21 +75,13 @@ export default function TaskDetails() {
     ? resolveExplanationDisplay(finalPriorityResult, days, explanation, {
         hasPriorScoreData: !!task?.hasPriorScoreData,
         hasRealWeight: !!task?.hasRealWeight,
+        hasEngagementData: !!task?.hasEngagementData,
+        hasSemesterData: !!task?.hasSemesterData,
         weightValue: task?.weight ?? null,
       })
     : null;
 
   const remainingHours = task ? Math.max(task.estimatedHoursNeeded - task.completedHours, 0) : 0;
-
-  async function handleReschedule() {
-    const result = await runReschedule({}).catch(() => null);
-    if (!result) return;
-    const newSlot = Object.values(result.schedule).flat().find((item) => item.task_id === taskId);
-    setRescheduleInfo({
-      newSlot,
-      reason: `This is a ${priority || "Medium"}-priority task${task?.weight ? ` (weight ${task.weight}%)` : ""} with a deadline in ${Math.max(days, 0)} day${days === 1 ? "" : "s"} — the planner moves tasks like this ahead of lower-urgency work when it rebuilds your plan.`,
-    });
-  }
 
   // Real database write FIRST (see useAcademicStore.js's completeTask) -
   // only on success do we celebrate/bump the streak/reschedule. On failure,
@@ -133,7 +124,13 @@ export default function TaskDetails() {
             <div className="flex items-center gap-1.5 text-sm font-bold text-high-600">
               <AlertTriangle size={15} /> Missed Study Session
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-300 mt-1">This session's time slot has passed. You can reschedule it below.</p>
+            {/* No automatic reschedule here: this task's deadline has already
+                passed, so there's nothing valid to move it to. Individual
+                missed sessions are handled (with the student's permission)
+                from the Study Planner's session cards instead. */}
+            <p className="text-xs text-slate-500 dark:text-slate-300 mt-1">
+              This task's deadline has passed before it was completed. You can still mark it complete if you finished it.
+            </p>
           </div>
         )}
 
@@ -232,15 +229,6 @@ export default function TaskDetails() {
                 {completing ? "Saving…" : "Mark Complete"}
               </button>
             )}
-            {task.status === "missed" && (
-              <button
-                onClick={handleReschedule}
-                disabled={rescheduling}
-                className="inline-flex items-center gap-2 bg-white dark:bg-white/10 border border-brand-200 dark:border-white/10 text-brand-600 font-semibold rounded-2xl px-5 py-2.5 text-sm transition-colors disabled:opacity-50"
-              >
-                <RefreshCw size={15} className={rescheduling ? "animate-spin" : ""} /> Reschedule
-              </button>
-            )}
           </div>
 
           {completeError && (
@@ -249,14 +237,6 @@ export default function TaskDetails() {
             </div>
           )}
 
-          {rescheduleInfo && (
-            <div className="mt-4 card p-4 bg-brand-50 dark:bg-brand-500/10 border border-brand-100 dark:border-brand-500/20">
-              <p className="text-sm font-semibold text-brand-600">
-                {rescheduleInfo.newSlot ? `New suggested time: ${rescheduleInfo.newSlot.time_slot}` : "No free slot found before the deadline yet."}
-              </p>
-              <p className="text-xs text-slate-500 dark:text-slate-300 mt-1">{rescheduleInfo.reason}</p>
-            </div>
-          )}
         </div>
 
         <ExplanationPanel

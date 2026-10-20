@@ -4,6 +4,7 @@ import Topbar from "../../Components/academic/Layout/Topbar";
 import Toggle from "../../Components/academic/Shared/Toggle";
 import SettingsRecommendations from "../../Components/academic/Settings/SettingsRecommendations";
 import QuickFacts from "../../Components/academic/Settings/QuickFacts";
+import SemesterSetupCard from "../../Components/academic/Settings/SemesterSetupCard";
 import { useAcademicStore } from "../../store/useAcademicStore";
 import { WEEKDAYS } from "../../utils/dateHelpers";
 import { FULL_STUDY_DAY_WINDOW } from "../../utils/freeSlotGenerator";
@@ -66,6 +67,8 @@ export default function Settings() {
           </div>
           <UserCircle2 size={20} className="text-slate-300" />
         </Link>
+
+        <SemesterSetupCard />
 
         <div className="card p-5">
           <p className="font-display font-bold text-slate-800 dark:text-white mb-4">Notifications</p>

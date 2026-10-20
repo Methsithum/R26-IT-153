@@ -3,6 +3,7 @@ import { useAcademicStore } from "../store/useAcademicStore";
 import { createSchedule, createMultiWeekSchedule, rescheduleSchedule, getTodoList } from "../services/academicApi";
 import { applyPriorityEngineToScheduleResult } from "../utils/priorityEngine";
 import { buildExamPrepTasks, buildMultiWeekExamPrepTasks, toApiTaskInput } from "../utils/examPrepScheduling";
+import { examDayBlockedSlots, scheduleHasExamDayItems, revisionCredits, applyRevisionCredit } from "../utils/examDay";
 
 // How many weeks ahead useMultiWeekSchedule() requests by default - matches
 // the backend's own MAX_WEEKS_AHEAD (schedule_engine.py) so a request never
@@ -17,6 +18,15 @@ const MULTI_WEEK_WEEKS_AHEAD = 12;
 // an empty list — a real edge case for a student with zero pending tasks
 // (e.g. a brand-new account, or right after completing their last one).
 // Skip the call in that case rather than surfacing a spurious backend error.
+// Everything the generator must keep free: manually rescheduled sessions
+// plus every today/future exam day (nothing is ever scheduled on an exam
+// day - see utils/examDay.js). Read at call time rather than as a hook
+// dependency, so booking a slot doesn't by itself force a regeneration.
+function currentBlockedSlots() {
+  const { blockedSlots, exams } = useAcademicStore.getState();
+  return [...blockedSlots, ...examDayBlockedSlots(exams)];
+}
+
 async function fetchTodoSafely(scheduleResult) {
   if (!scheduleResult?.tasks || Object.keys(scheduleResult.tasks).length === 0) return [];
   return getTodoList(scheduleResult);
@@ -64,7 +74,12 @@ export function useWeeklySchedule() {
       // is also where the escalating curve actually "refreshes": each fresh
       // /schedule call reflects the CURRENT day, so an exam that's crept
       // from 10 days out to 6 gets recomputed into its heavier window here.
-      const examPrepTasks = buildExamPrepTasks(exams, modules).map(toApiTaskInput);
+      // Hours an exam already gets from agreed after-exam revision the
+      // evening before (back-to-back exams) aren't planned a second time.
+      const examPrepTasks = applyRevisionCredit(
+        buildExamPrepTasks(exams, modules),
+        revisionCredits(exams, weeklyFreeSlots)
+      ).map(toApiTaskInput);
       // Hybrid priority layer (PROJECT CONTEXT.md Section 5d) applied ONCE,
       // right at the API boundary, so every screen reading
       // schedule.tasks[taskId].priority_label downstream (Dashboard,
@@ -72,7 +87,7 @@ export function useWeeklySchedule() {
       // deadline-dominant final result instead of the raw ML label - no
       // per-screen reimplementation needed.
       const result = applyPriorityEngineToScheduleResult(
-        await createSchedule(weeklyFreeSlots, [...tasks, ...examPrepTasks])
+        await createSchedule(weeklyFreeSlots, [...tasks, ...examPrepTasks], currentBlockedSlots())
       );
       setSchedule(result);
       setRemainingFreeSlots(weeklyFreeSlots);
@@ -87,7 +102,10 @@ export function useWeeklySchedule() {
   }, [assignments, weeklyFreeSlots, exams, modules, setSchedule, setRemainingFreeSlots, setTodoList]);
 
   useEffect(() => {
-    if (!scheduleResponse) {
+    // Also regenerate a cached plan that still has sessions on an exam day
+    // (made before that exam was known) - exam days must stay empty.
+    const { scheduleGeneratedDate, scheduleStale } = useAcademicStore.getState();
+    if (!scheduleResponse || scheduleStale || scheduleHasExamDayItems(scheduleResponse, scheduleGeneratedDate, exams)) {
       generate().catch(() => {});
     }
     // Re-checks whenever `assignments` or `weeklyFreeSlots` changes (not
@@ -99,7 +117,7 @@ export function useWeeklySchedule() {
     // "Preferred Study Time" in Settings clears scheduleResponse too, and
     // this dependency is what actually triggers the regenerate.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignments, weeklyFreeSlots]);
+  }, [assignments, weeklyFreeSlots, exams]);
 
   return { schedule: scheduleResponse, loading, error, regenerate: generate };
 }
@@ -142,9 +160,17 @@ export function useMultiWeekSchedule() {
         feature_row: a.featureRow,
         task_type: a.taskType || "assignment",
       }));
-      const examPrepTasks = buildMultiWeekExamPrepTasks(exams, modules, MULTI_WEEK_WEEKS_AHEAD).map(toApiTaskInput);
+      const examPrepTasks = applyRevisionCredit(
+        buildMultiWeekExamPrepTasks(exams, modules, MULTI_WEEK_WEEKS_AHEAD),
+        revisionCredits(exams, weeklyFreeSlots)
+      ).map(toApiTaskInput);
       const result = applyPriorityEngineToScheduleResult(
-        await createMultiWeekSchedule(weeklyFreeSlots, [...tasks, ...examPrepTasks], MULTI_WEEK_WEEKS_AHEAD)
+        await createMultiWeekSchedule(
+          weeklyFreeSlots,
+          [...tasks, ...examPrepTasks],
+          MULTI_WEEK_WEEKS_AHEAD,
+          currentBlockedSlots()
+        )
       );
       setMultiWeekSchedule(result);
       return result;
@@ -161,12 +187,17 @@ export function useMultiWeekSchedule() {
       generate().catch(() => {});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignments, weeklyFreeSlots]);
+  }, [assignments, weeklyFreeSlots, exams]);
 
   return { multiWeekSchedule, loading, error, regenerate: generate };
 }
 
-/** Wraps /reschedule for the "mark complete" / "missed task" flows. */
+/**
+ * Wraps /reschedule for the "mark complete" flow ONLY. A missed session is
+ * never sent through here - it goes through the permission-first flow
+ * (MissedSessionModal -> /sessions/{id}/suggest-slots + reschedule-to), so
+ * nothing is moved without the student choosing where it goes.
+ */
 export function useReschedule() {
   const scheduleResponse = useAcademicStore((s) => s.scheduleResponse);
   const remainingFreeSlots = useAcademicStore((s) => s.remainingFreeSlots);
@@ -187,6 +218,7 @@ export function useReschedule() {
             remainingFreeSlots,
             completedTaskIds,
             newTasks,
+            blockedSlots: currentBlockedSlots(),
           })
         );
         setSchedule(result);

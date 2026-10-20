@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 class BehaviorAnalysisRequest(BaseModel):
@@ -10,5 +10,8 @@ class BehaviorAnalysisResponse(BaseModel):
     behaviorCategory: str
     reasoning: str
     nextSteps: List[Dict[str, str]] = []
+    modelConfidence: Optional[float] = None
+    modelName: Optional[str] = None
+    topFeatures: List[Dict[str, Any]] = []
     generatedAt: datetime
     snapshotOfActivityData: Dict[str, Any]

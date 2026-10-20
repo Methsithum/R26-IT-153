@@ -7,6 +7,11 @@ import DayView from "../../Components/academic/StudyPlanner/DayView";
 import WeekGrid from "../../Components/academic/StudyPlanner/WeekGrid";
 import MonthGrid from "../../Components/academic/StudyPlanner/MonthGrid";
 import SemesterOverview from "../../Components/academic/StudyPlanner/SemesterOverview";
+import MissedSessionModal from "../../Components/academic/StudyPlanner/MissedSessionModal";
+import PendingDecisionsBanner from "../../Components/academic/StudyPlanner/PendingDecisionsBanner";
+import ExamPlanModal from "../../Components/academic/StudyPlanner/ExamPlanModal";
+import ExamClusterBanner from "../../Components/academic/StudyPlanner/ExamClusterBanner";
+import SemesterSetupPrompt from "../../Components/academic/StudyPlanner/SemesterSetupPrompt";
 import { SkeletonCard } from "../../Components/academic/Shared/Skeletons";
 import { useWeeklySchedule } from "../../hooks/useAcademicData";
 
@@ -35,6 +40,10 @@ export default function StudyPlanner() {
           </div>
         </div>
 
+        <ExamClusterBanner />
+        <SemesterSetupPrompt />
+        <PendingDecisionsBanner />
+
         {error && (
           <div className="card p-4 text-sm text-high-600 bg-high-50 dark:bg-high-500/10">
             Couldn't load your schedule from the backend ({error}).
@@ -52,6 +61,9 @@ export default function StudyPlanner() {
           </>
         )}
       </div>
+
+      <MissedSessionModal />
+      <ExamPlanModal />
     </div>
   );
 }

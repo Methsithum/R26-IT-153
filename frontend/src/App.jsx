@@ -60,6 +60,12 @@ function HydrateUser({ children }) {
     if (local) {
       useGameStore.getState().applyUserProgress(local, { preserveRun });
       useAcademicStore.getState().syncProfileFromUser(useGameStore.getState());
+      // Session history needs the real user id, which only exists from here
+      // on: backfill days frozen while it was unknown (the freezePastDates()
+      // call above ran before it), then load the manually booked slots every
+      // schedule generation must keep free.
+      useAcademicStore.getState().pushFrozenHistory();
+      useAcademicStore.getState().loadSessionMeta().catch(() => {});
     }
     let cancelled = false;
     (async () => {
@@ -73,6 +79,10 @@ function HydrateUser({ children }) {
         const stillRunning = isActiveCampusRun(useGameStore.getState());
         useGameStore.getState().applyUserProgress(user, { preserveRun: stillRunning });
         useAcademicStore.getState().syncProfileFromUser(useGameStore.getState());
+        if (!local) {
+          useAcademicStore.getState().pushFrozenHistory();
+          useAcademicStore.getState().loadSessionMeta().catch(() => {});
+        }
         const world = await loadUserWorld(user.id);
         if (cancelled) return;
         useGameStore.getState().applyWorldRecords(world);
@@ -82,6 +92,9 @@ function HydrateUser({ children }) {
           exams: world.exams,
           subjects: user.subjects,
         });
+        // Real engagement needs the synced subjects + their allocation.
+        useAcademicStore.getState().loadEngagement().catch(() => {});
+        useAcademicStore.getState().loadSemesterSetup().catch(() => {});
       } catch {
         // Offline — local stored progress still applies.
       }

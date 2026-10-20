@@ -134,6 +134,30 @@ describe("freezePastDates (Section 8e - historical schedule persistence)", () =>
     vi.useRealTimers();
   });
 
+  it("after a reload (multiWeekSchedule gone), freezes every past day of scheduleResponse's 7-day window, not just its generation date", () => {
+    vi.useFakeTimers();
+    // Generated Monday 2026-08-24; the student next opens the app Thursday.
+    vi.setSystemTime(new Date("2026-08-24T09:00:00"));
+    const item = (task_id) => [{ time_slot: "18:00-19:00", task_id, module: "AAA", duration_minutes: 60 }];
+    useAcademicStore.getState().setSchedule({
+      schedule: { Monday: item("mon"), Tuesday: item("tue"), Wednesday: [], Thursday: item("thu") },
+      overload_warning: [],
+      tasks: {},
+    });
+    useAcademicStore.setState({ multiWeekSchedule: null }); // not persisted - lost on reload
+
+    vi.setSystemTime(new Date("2026-08-27T09:00:00"));
+    useAcademicStore.getState().freezePastDates();
+
+    const historical = useAcademicStore.getState().historicalScheduleByDate;
+    expect(historical["2026-08-24"].sessions[0].task_id).toBe("mon");
+    expect(historical["2026-08-25"].sessions[0].task_id).toBe("tue");
+    expect(historical["2026-08-26"].sessions).toEqual([]); // a real, genuinely free day
+    expect(historical["2026-08-27"]).toBeUndefined(); // today - not past yet
+
+    vi.useRealTimers();
+  });
+
   it("does not freeze today or future dates", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-29T09:00:00"));

@@ -69,7 +69,41 @@ export const DEFAULT_PRIOR_AVG_SCORE = 76.452355;
 // accompanying availability flag, threaded into resolveExplanationDisplay()
 // (priorityEngine.js) so the explanation panel never cites a fabricated
 // weight as the reason for a prediction.
-export const DEFAULT_ASSIGNMENT_WEIGHT = 20;
+//
+// 9 = the OULAD training set's MEDIAN assessment weight (verified against
+// oulad_task_level_leakage_free.csv: median 9, mean 11.3). It used to be 20,
+// which sits in the top ~25% of the training distribution - so every task
+// without a real weight was quietly pushed toward High priority. The median
+// keeps a missing weight neutral instead.
+export const DEFAULT_ASSIGNMENT_WEIGHT = 9;
+
+// Neutral fallbacks for model features the app doesn't (yet) measure for a
+// student - each is the OULAD training set's MEDIAN for that feature
+// (oulad_task_level_leakage_free.csv, all 170,874 rows), so a missing value
+// sits in the middle of what the model learned from and never pushes a
+// prediction either way. The previous hardcoded values were not neutral:
+// avg_weekly_clicks=15 is near the training set's 10th percentile (every
+// student read as low-engagement), and active_weeks_ratio=0.5 almost never
+// occurs in training (the median, and ~99% of rows, are 1.0).
+export const NEUTRAL_FEATURE_DEFAULTS = {
+  num_of_prev_attempts: 0,
+  studied_credits: 60,
+  module_presentation_length: 261,
+  date_registration: -53,
+  avg_weekly_clicks: 46,
+  clicks_trend: -31.6,
+  active_weeks_ratio: 1,
+  has_vle_activity: 1,
+};
+
+// Real subjects ("Data Structures") have no OULAD module equivalent. The
+// backend averages the prediction over all 7 training module codes when it
+// receives this sentinel (priority_service.py's expand_unknown_module), so
+// no arbitrary module's learned effect leaks into a real student's result.
+// Previously each subject was mapped to a module code by its POSITION in
+// the subject list - and the module code alone could flip a prediction
+// (verified: same task, code AAA -> Low, every other code -> Medium).
+export const UNKNOWN_MODULE_ENC = -1;
 
 export const FEATURE_LABELS = {
   date: "Time until deadline",
