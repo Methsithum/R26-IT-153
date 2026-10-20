@@ -44,6 +44,22 @@ def _key(user_id: str, session: dict) -> dict:
     }
 
 
+def _minutes(hhmm: str) -> int:
+    hours, minutes = hhmm.split(":")
+    return int(hours) * 60 + int(minutes)
+
+
+def _slot_minutes(time_slot: str) -> tuple[int, int]:
+    start, end = time_slot.split("-")
+    return _minutes(start), _minutes(end)
+
+
+def slots_overlap(a: str, b: str) -> bool:
+    a_start, a_end = _slot_minutes(a)
+    b_start, b_end = _slot_minutes(b)
+    return a_start < b_end and b_start < a_end
+
+
 def _new_doc(user_id: str, session: dict, source: str = "schedule") -> dict:
     start_time, end_time = session["time_slot"].split("-")
     return {
@@ -88,15 +104,44 @@ class StudySessionModel:
         session already stored is never overwritten (so a later regeneration
         can't rewrite history, and a status the student already marked is
         never reset to "pending"). Returns how many were newly inserted.
+
+        A session whose time overlaps a DIFFERENT session already stored for
+        that date is skipped too: each regeneration can put another task in
+        the same slot, and without this every frozen version of a day piled
+        up as overlapping sessions. The first version stored for a slot wins.
         """
         inserted = 0
+        stored_by_date: dict[str, list[dict]] = {}
         for session in sessions:
+            date = session["date"]
+            if date not in stored_by_date:
+                stored_by_date[date] = list(
+                    session_collection.find({"user_id": user_id, "date": date}, {"task_id": 1, "time_slot": 1})
+                )
+            stored = stored_by_date[date]
+            if any(
+                (doc["task_id"], doc["time_slot"]) != (session["task_id"], session["time_slot"])
+                and slots_overlap(doc["time_slot"], session["time_slot"])
+                for doc in stored
+            ):
+                continue
             result = session_collection.update_one(
                 _key(user_id, session), {"$setOnInsert": _new_doc(user_id, session)}, upsert=True
             )
             if result.upserted_id is not None:
                 inserted += 1
+                stored.append({"task_id": session["task_id"], "time_slot": session["time_slot"]})
         return inserted
+
+    @staticmethod
+    async def find_marked_overlap(user_id: str, session: dict):
+        """Another already-marked session on the same date whose time overlaps `session`, if any."""
+        docs = session_collection.find({"user_id": user_id, "date": session["date"], "status": {"$ne": "pending"}})
+        for doc in docs:
+            same = (doc["task_id"], doc["time_slot"]) == (session["task_id"], session["time_slot"])
+            if not same and slots_overlap(doc["time_slot"], session["time_slot"]):
+                return StudySessionModel._serialize(doc)
+        return None
 
     @staticmethod
     async def find_by_key(user_id: str, session: dict):

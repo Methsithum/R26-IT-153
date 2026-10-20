@@ -82,6 +82,43 @@ export function extraRecordsForDate(date, items, recordsByKey) {
   );
 }
 
+function slotRange(timeSlot) {
+  const [start, end] = timeSlot.split("-").map((t) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  });
+  return [start, end];
+}
+
+export function slotsOverlap(a, b) {
+  const [aStart, aEnd] = slotRange(a);
+  const [bStart, bEnd] = slotRange(b);
+  return aStart < bEnd && bStart < aEnd;
+}
+
+/**
+ * One session per time slot. Older data can hold several plan versions for
+ * the same day (each regeneration put another task in the slot), which
+ * showed up as stacked sessions at the same time. Keeps, per overlap: a
+ * session the student marked, then a manual reschedule, then the earlier
+ * item in `items` (the frozen/live plan comes before stored extras).
+ */
+export function dropOverlappingItems(date, items, recordsByKey) {
+  const rank = (item) => {
+    const record = recordsByKey[sessionKey(date, item.task_id, item.time_slot)];
+    if (record?.status && record.status !== "pending") return 0;
+    if (record?.source === "manual_reschedule") return 1;
+    return 2;
+  };
+  const ordered = items.map((item, index) => ({ item, index, rank: rank(item) }));
+  ordered.sort((a, b) => a.rank - b.rank || a.index - b.index);
+  const kept = [];
+  for (const { item, index } of ordered) {
+    if (!kept.some((k) => slotsOverlap(k.item.time_slot, item.time_slot))) kept.push({ item, index });
+  }
+  return kept.sort((a, b) => a.index - b.index).map((k) => k.item);
+}
+
 export const DECISION_LABELS = {
   pending: "Needs a decision",
   this_week: "Moved (this week)",

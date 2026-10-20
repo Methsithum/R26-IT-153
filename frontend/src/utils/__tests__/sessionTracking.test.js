@@ -4,6 +4,7 @@ import {
   toSessionInput,
   buildOccupiedByDate,
   extraRecordsForDate,
+  dropOverlappingItems,
 } from "../sessionTracking";
 
 const item = { time_slot: "18:00-19:30", task_id: "t1", module: "os", duration_minutes: 90 };
@@ -68,5 +69,28 @@ describe("extraRecordsForDate", () => {
     const otherDay = record({ date: "2026-10-15", source: "manual_reschedule" });
     const extras = extraRecordsForDate("2026-10-14", [item], byKey([manual, markedMoved, stalePending, otherDay]));
     expect(extras.map((r) => r.time_slot).sort()).toEqual(["07:00-08:00", "20:00-21:30"]);
+  });
+});
+
+describe("dropOverlappingItems", () => {
+  const date = "2026-10-19";
+  const plan = (task_id, time_slot) => ({ task_id, time_slot, module: "m", duration_minutes: 60 });
+  const marked = (task_id, time_slot, extra = {}) => ({ date, task_id, time_slot, status: "done", source: "schedule", ...extra });
+
+  it("keeps one session per overlapping slot, preferring the one the student marked", () => {
+    const items = [plan("a", "07:00-10:00"), plan("b", "07:00-08:45"), plan("c", "20:30-23:30"), plan("d", "20:30-23:30")];
+    const records = { [sessionKey(date, "b", "07:00-08:45")]: marked("b", "07:00-08:45") };
+    expect(dropOverlappingItems(date, items, records).map((i) => i.task_id)).toEqual(["b", "c"]);
+  });
+
+  it("leaves back-to-back sessions alone", () => {
+    const items = [plan("a", "07:00-08:45"), plan("b", "08:45-09:15"), plan("c", "09:15-10:00")];
+    expect(dropOverlappingItems(date, items, {})).toEqual(items);
+  });
+
+  it("a manual reschedule beats an unmarked plan session", () => {
+    const items = [plan("a", "18:00-19:00"), plan("b", "18:30-19:30")];
+    const records = { [sessionKey(date, "b", "18:30-19:30")]: { ...marked("b", "18:30-19:30"), status: "pending", source: "manual_reschedule" } };
+    expect(dropOverlappingItems(date, items, records).map((i) => i.task_id)).toEqual(["b"]);
   });
 });

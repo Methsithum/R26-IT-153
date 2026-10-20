@@ -121,6 +121,16 @@ async def mark_session(body: MarkRequest):
             detail="This missed session was already moved to another slot - mark the new session instead.",
         )
 
+    # One time slot holds one session: a regenerated plan can put another
+    # task where the student already marked one, and marking both made two
+    # "studied" sessions at the same time.
+    clash = await StudySessionModel.find_marked_overlap(body.user_id, session)
+    if clash:
+        raise HTTPException(
+            status_code=409,
+            detail=f"{clash['time_slot']} on {clash['date']} already has a marked session ({clash.get('module') or clash['task_id']}).",
+        )
+
     # Marking missed only records it and asks - it never moves anything.
     decision = "pending" if body.status == "missed" else None
     if existing and body.status == "missed" and existing.get("reschedule_decision") == "declined":

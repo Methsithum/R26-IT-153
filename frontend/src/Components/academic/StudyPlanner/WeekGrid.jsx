@@ -18,7 +18,7 @@ import EmptyState from "../Shared/EmptyState";
 import SessionStatusControls from "./SessionStatusControls";
 import ExamDayCard from "./ExamDayCard";
 import { examsOnDate, examWeekdays, highPriorityTasksNearExam, revisionSessionForExamDay, examClusters } from "../../../utils/examDay";
-import { sessionKey, toSessionInput, recordToScheduledItem, extraRecordsForDate } from "../../../utils/sessionTracking";
+import { sessionKey, toSessionInput, recordToScheduledItem, extraRecordsForDate, dropOverlappingItems } from "../../../utils/sessionTracking";
 
 const PRIORITY_ORDER = ["High", "Medium", "Low"];
 const TODAY_DATE_STR = toLocalDateStr(new Date());
@@ -402,7 +402,10 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
             // before the exam was known stay in history, but aren't shown
             // as if they were still today's plan.
             const extraRecords = isExamDay && !isPast ? [] : extraRecordsForDate(dateStr, plannedItems, sessionRecords);
-            const items = [...plannedItems, ...extraRecords.map(recordToScheduledItem)];
+            // Past days and today: one session per time slot, so stacked plan
+            // versions for the same slot show as the one actually marked.
+            const allItems = [...plannedItems, ...extraRecords.map(recordToScheduledItem)];
+            const items = isPast || isToday ? dropOverlappingItems(dateStr, allItems, sessionRecords) : allItems;
             // Regular per-module study sessions - spread across the whole
             // modeled semester (studyAllocation.js's SEMESTER_WEEKS), not
             // just the current week, but only ever filling time that week's
