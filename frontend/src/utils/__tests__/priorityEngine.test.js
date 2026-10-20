@@ -72,6 +72,23 @@ describe("computeFinalPriority: >30-day hard floor (regression guard, later refi
   });
 });
 
+describe("computeFinalPriority: urgent floor (overdue or due within 2 days -> High)", () => {
+  it.each([
+    [1, "Low", "High"],
+    [2, "Low", "High"],
+    [10, "High", "High"],
+    [10, "Low", "Low"],
+    [40, "High", "Low"],
+  ])("%i days + ML %s -> %s", (days, mlLabel, expected) => {
+    expect(computeFinalPriority(days, "assignment", mlLabel).priorityLabel).toBe(expected);
+  });
+
+  it("covers exams up to 7 days, and leaves the clamp in place just outside the window", () => {
+    expect(computeFinalPriority(7, "exam", "Low").priorityLabel).toBe("High");
+    expect(computeFinalPriority(3, "assignment", "Low").priorityLabel).toBe("Medium");
+  });
+});
+
 describe("computeFinalPriority: ±1 tier clamp (Section 5d cross-task dominance)", () => {
   it("never lets the ML label move the result more than 1 tier from the base, when base and ML are 2 tiers apart", () => {
     // base=Low(0), ML=High(2) -> diff of 2, must clamp to +1 -> Medium(1), NOT High.
@@ -82,7 +99,8 @@ describe("computeFinalPriority: ±1 tier clamp (Section 5d cross-task dominance)
     expect(lowBaseHighMl.priorityLabel).toBe("Medium");
 
     // base=High(2), ML=Low(0) -> diff of -2, must clamp to -1 -> Medium(1), NOT Low.
-    const highBaseLowMl = computeFinalPriority(1, "assignment", "Low"); // 1d -> base High
+    // 4 days: still base High, but outside the urgent floor (<=2 days), so the clamp applies.
+    const highBaseLowMl = computeFinalPriority(4, "assignment", "Low"); // 4d -> base High
     expect(highBaseLowMl.baseTierLevel).toBe(PRIORITY_LEVELS.High);
     expect(highBaseLowMl.mlTierLevel).toBe(PRIORITY_LEVELS.Low);
     expect(highBaseLowMl.modifier).toBe(-1);
@@ -102,8 +120,8 @@ describe("computeFinalPriority: ±1 tier clamp (Section 5d cross-task dominance)
 
   it("a low-weight task due tomorrow cannot be pushed below its base High (documented guarantee)", () => {
     const result = computeFinalPriority(1, "assignment", "Low");
-    expect(result.priorityLabel).toBe("Medium"); // High(2) - 1 = Medium(1), the floor of the clamp
-    expect(PRIORITY_LEVELS[result.priorityLabel]).toBeGreaterThanOrEqual(PRIORITY_LEVELS.Medium);
+    expect(result.priorityLabel).toBe("High"); // urgent floor: the ML label may not lower it
+    expect(result.modifier).toBe(0);
   });
 
   it("stands alone (dominantMechanism=deadline) when no ML label is available yet", () => {

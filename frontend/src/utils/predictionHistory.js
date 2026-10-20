@@ -6,6 +6,7 @@
  * still renders when the student is offline or the API is unreachable.
  */
 
+import { authHeaders } from '../services/apiClient';
 import { readStoredUser } from '../services/userApi';
 import { summariseDataQuality } from './extractFeatures';
 
@@ -114,7 +115,7 @@ export async function savePrediction(prediction, features) {
   try {
     await fetch(`${API_BASE}/history`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({
         user_id: userId,
         prediction,
@@ -143,7 +144,7 @@ export async function getPredictionHistory() {
   if (!userId) return readLocal();
 
   try {
-    const res = await fetch(`${API_BASE}/history/${userId}`);
+    const res = await fetch(`${API_BASE}/history/${userId}`, { headers: authHeaders() });
     if (!res.ok) return readLocal();
 
     const body = await res.json();
@@ -198,7 +199,7 @@ export async function clearHistory() {
   if (!userId) return true;
 
   try {
-    const res = await fetch(`${API_BASE}/history/${userId}`, { method: 'DELETE' });
+    const res = await fetch(`${API_BASE}/history/${userId}`, { method: 'DELETE', headers: authHeaders() });
     return res.ok;
   } catch {
     return false;

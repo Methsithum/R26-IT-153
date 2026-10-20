@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.services.auth import require_journal_owner
 from app.schemas.study_planner.cluster_schemas import BehaviorFeatures, ClusterResponse
 from app.services.study_planner.cluster_service import ClusterServiceError, predict_cluster
 from app.utils.study_planner.error_handling import service_error_to_http
 
-router = APIRouter(prefix="/study-planner", tags=["study-planner"])
+router = APIRouter(prefix="/study-planner", tags=["study-planner"], dependencies=[Depends(require_journal_owner)])
 
 
 @router.post("/predict-cluster", response_model=ClusterResponse)

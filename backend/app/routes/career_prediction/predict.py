@@ -12,12 +12,13 @@ from pathlib import Path
 
 import joblib
 import pandas as pd
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
+from app.services.auth import require_journal_owner
 from app.models.career_prediction.prediction import CareerPredictionModel
 
-router = APIRouter(prefix="/career", tags=["Career Prediction Engine"])
+router = APIRouter(prefix="/career", tags=["Career Prediction Engine"], dependencies=[Depends(require_journal_owner)])
 
 
 # =============================================================================

@@ -1,6 +1,5 @@
 config.bat
 node_modules
-.env
 
 # Datasets and large trained-model artifacts
 datasets

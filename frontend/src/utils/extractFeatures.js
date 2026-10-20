@@ -9,6 +9,7 @@
  * still gets a usable prediction instead of a failed request.
  */
 
+import { authHeaders } from '../services/apiClient';
 import { readStoredUser } from '../services/userApi';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
@@ -56,7 +57,7 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
  */
 async function safeGet(path) {
   try {
-    const res = await fetch(`${API_BASE}${path}`);
+    const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
     if (!res.ok) return null;
     return await res.json();
   } catch {

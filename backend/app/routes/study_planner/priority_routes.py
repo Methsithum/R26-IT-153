@@ -1,11 +1,12 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.services.auth import require_journal_owner
 from app.schemas.study_planner.priority_schemas import PriorityResponse
 from app.schemas.study_planner.task_schemas import TaskFeatures
 from app.services.study_planner.priority_service import PriorityServiceError, predict_priority
 from app.utils.study_planner.error_handling import service_error_to_http
 
-router = APIRouter(prefix="/study-planner", tags=["study-planner"])
+router = APIRouter(prefix="/study-planner", tags=["study-planner"], dependencies=[Depends(require_journal_owner)])
 
 
 @router.post("/predict-priority", response_model=PriorityResponse)

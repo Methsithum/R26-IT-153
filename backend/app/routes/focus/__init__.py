@@ -1,11 +1,13 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+
+from app.services.auth import require_journal_owner
 
 from .leaderboard import router as leaderboard_router
 from .predict import router as predict_router
 from .reports import router as reports_router
 from .sessions import router as sessions_router
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_journal_owner)])
 router.include_router(predict_router)
 router.include_router(sessions_router)
 router.include_router(reports_router)

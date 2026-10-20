@@ -1,4 +1,5 @@
 import axios from "axios";
+import { withAuth } from "./apiClient";
 
 // The FastAPI backend currently only exposes the 6 ML endpoints below
 // (see backend/PROJECT CONTEXT.md, Section 9/10). Every other page in this
@@ -10,6 +11,7 @@ const client = axios.create({
   baseURL: `${BASE_URL}/study-planner`,
   headers: { "Content-Type": "application/json" },
 });
+client.interceptors.request.use(withAuth);
 
 function unwrap(promise) {
   return promise.then((res) => res.data).catch((err) => {

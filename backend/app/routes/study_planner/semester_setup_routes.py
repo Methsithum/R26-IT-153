@@ -19,12 +19,13 @@ feature row is built (frontend/src/utils/semesterSetup.js).
 from datetime import date
 from typing import Dict, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
+from app.services.auth import require_journal_owner
 from app.models.user.user import UserModel
 
-router = APIRouter(prefix="/study-planner/semester-setup", tags=["study-planner"])
+router = APIRouter(prefix="/study-planner/semester-setup", tags=["study-planner"], dependencies=[Depends(require_journal_owner)])
 
 
 class SubjectSetup(BaseModel):

@@ -34,9 +34,18 @@ def fastapi_app():
 
 @pytest.fixture(scope="session")
 def api_client(fastapi_app):
+    """
+    For endpoint contract tests (test_api_endpoints.py): the login check is
+    stubbed so they don't need a user in the real database. Authentication
+    itself is covered against mongomock in test_integration_flows.py.
+    """
     from fastapi.testclient import TestClient
+    from app.services.auth import require_journal_owner
+
+    fastapi_app.dependency_overrides[require_journal_owner] = lambda: "contract-test-user"
     with TestClient(fastapi_app) as client:
         yield client
+    fastapi_app.dependency_overrides.pop(require_journal_owner, None)
 
 
 @pytest.fixture

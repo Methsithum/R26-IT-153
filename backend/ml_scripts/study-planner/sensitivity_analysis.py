@@ -70,6 +70,7 @@ PROD_THRESHOLDS = {
     "hard_floor_days": 30,    # >30 days -> forced Low regardless of ML, either type
 }
 PROD_CLAMP = 1
+URGENT_FLOOR_DAYS = {"assignment": 2, "exam": 7}  # overdue or <= this many days -> High, ML can't lower it
 PROD_EXAM_BUDGET_HOURS = 12
 PROD_EXAM_CURVE = [  # (min_days, max_days_or_None, share_of_budget)
     (15, None, 0.15),
@@ -112,9 +113,9 @@ def compute_final_priority_level(days, task_type, ml_level, thresholds, modifier
         return 0  # Low, unconditional
 
     base = compute_base_tier_level(days, task_type, thresholds)
-    overdue = days < 0
-    if overdue or ml_level is None:
-        return 2 if overdue else base
+    urgent = days < 0 or days <= URGENT_FLOOR_DAYS.get(task_type, URGENT_FLOOR_DAYS["assignment"])
+    if urgent or ml_level is None:
+        return 2 if urgent else base
 
     modifier = clamp(ml_level - base, -modifier_clamp, modifier_clamp)
     return clamp(base + modifier, 0, 2)
