@@ -1,3 +1,4 @@
+// Renders the floating pause button shown during pausable game phases.
 import { Pause } from "lucide-react";
 import { isPausablePhase, useGameStore } from "../state/GameStateManager";
 

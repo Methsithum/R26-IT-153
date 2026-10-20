@@ -1,3 +1,5 @@
+# Turns at-risk tasks and derived flags into human-readable warning alerts.
+
 from typing import Any, Dict, List
 
 

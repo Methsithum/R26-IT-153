@@ -1,3 +1,4 @@
+// Deterministically generates road chunks: obstacles, pickups, decorations, and building placement.
 import { BUILDINGS } from "../data/buildings";
 import { LANES } from "../state/runnerStore";
 import { CLEARANCE_BY_KIND } from "./props";

@@ -1,3 +1,4 @@
+// Shows a temporary HUD hint reminding the player of lane, jump, and slide controls.
 import { useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useGameStore } from "../state/GameStateManager";

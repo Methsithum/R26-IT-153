@@ -1,3 +1,4 @@
+// XP/level math plus the badge catalog and unlock-condition checks for player achievements.
 export const XP_PER_LEVEL = 500;
 
 export function levelFromXp(xp = 0) {

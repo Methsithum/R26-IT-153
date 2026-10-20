@@ -1,3 +1,4 @@
+// Main Journal hub: tabbed book-style UI for open journal, roadmap, maps, recent entries, and stats.
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";

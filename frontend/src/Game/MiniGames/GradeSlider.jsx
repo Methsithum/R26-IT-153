@@ -1,3 +1,4 @@
+// Mini-game: drag a brass bead slider to set and save a percentage mark for a subject.
 import { useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { play } from "../audio/sfx";

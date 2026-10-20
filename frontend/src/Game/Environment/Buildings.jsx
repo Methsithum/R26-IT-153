@@ -1,3 +1,4 @@
+// Renders a single roadside building landmark with lit windows and a name label.
 import { Text } from "@react-three/drei";
 
 const ROAD_HALF_WIDTH = 3.6;

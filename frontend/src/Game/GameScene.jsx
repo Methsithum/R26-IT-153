@@ -1,3 +1,4 @@
+// Composes the 3D scene: lighting, sky, physics world, player, environment, and overlays.
 import { Physics } from "@react-three/rapier";
 import { Sky } from "@react-three/drei";
 import Player from "./Player/Player";

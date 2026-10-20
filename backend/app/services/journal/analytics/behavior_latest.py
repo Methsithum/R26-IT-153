@@ -1,6 +1,4 @@
-"""Read-only lookup of the latest stored behaviour analysis. Never calls the
-LLM - that only happens via the existing POST /behavior/analyze, from a
-button. This just reads what's already in the behavior_analysis collection."""
+# Read-only lookup of the latest saved behavior analysis for a user.
 
 from typing import Dict
 

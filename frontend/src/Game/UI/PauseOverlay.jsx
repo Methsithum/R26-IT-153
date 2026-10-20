@@ -1,3 +1,4 @@
+// Pause modal offering resume or a confirmed restart of the current run.
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";

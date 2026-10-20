@@ -1,3 +1,5 @@
+# DB access for behavior_analysis records and the user's analysis state.
+
 from app.config.database import db
 from datetime import datetime
 from bson import ObjectId

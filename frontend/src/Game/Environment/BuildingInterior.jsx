@@ -1,3 +1,4 @@
+// Builds the themed 3D interior room (library, lecture hall, exam hall, etc.) for each building.
 import { Text } from "@react-three/drei";
 import { useRunnerStore } from "../state/runnerStore";
 import { useActiveMap } from "../state/mapStore";

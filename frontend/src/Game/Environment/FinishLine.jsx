@@ -1,3 +1,4 @@
+// Renders the finish-line arch, tape, confetti, and triggers crossing the finish line.
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Text } from "@react-three/drei";

@@ -1,3 +1,4 @@
+// End-of-day summary screen showing rank, XP/level progress, badges, and visited buildings.
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useGameStore } from "../state/GameStateManager";

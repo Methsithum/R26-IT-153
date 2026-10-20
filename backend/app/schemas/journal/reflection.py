@@ -1,3 +1,5 @@
+# Request shape for the weekly reflection API.
+
 from pydantic import BaseModel
 from typing import Dict
 from datetime import datetime

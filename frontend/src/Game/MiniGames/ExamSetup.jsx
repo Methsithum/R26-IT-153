@@ -1,3 +1,4 @@
+// Mini-game: pull book-shaped subjects off a shelf and stamp Mid/Final to set up exam preparation.
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useGameStore } from "../state/GameStateManager";

@@ -1,3 +1,4 @@
+// API client functions for daily journal sessions, gamification summary, and analytics endpoints.
 import api from "./apiClient";
 import { localTodayIso, campusDateKey } from "./localDate";
 

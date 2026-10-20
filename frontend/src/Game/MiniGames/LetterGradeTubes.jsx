@@ -1,3 +1,4 @@
+// Mini-game: fill a glass vial with beads to pick a letter grade for a final exam result.
 import { useId, useState } from "react";
 import { motion } from "framer-motion";
 import { play } from "../audio/sfx";

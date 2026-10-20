@@ -1,3 +1,5 @@
+# DB access for daily journal session documents.
+
 from app.config.database import db
 from bson import ObjectId
 from datetime import datetime

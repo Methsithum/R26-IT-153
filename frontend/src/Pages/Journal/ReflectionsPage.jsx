@@ -1,3 +1,4 @@
+// Page for browsing and generating weekly reflection letters built from that week's journal days.
 import { useEffect, useState } from "react";
 import { formatCampusDate, localTodayIso } from "../../services/localDate";
 import { splitJournalParagraphs } from "../../Game/data/journalNarrative";

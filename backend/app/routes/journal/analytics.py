@@ -1,3 +1,5 @@
+# API routes for learning-patterns and latest-behavior-analysis lookups.
+
 from fastapi import APIRouter, HTTPException, Query, Depends
 from app.services.auth import require_journal_owner
 

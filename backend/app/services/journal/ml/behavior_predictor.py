@@ -1,7 +1,4 @@
-"""Loads the trained behaviour-category classifier and predicts a category
-from a live activity snapshot. This is the model behavior_analysis.py calls
-instead of asking the LLM to pick the category itself.
-"""
+# Loads the trained ML model and predicts a behavior category from a live snapshot.
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional

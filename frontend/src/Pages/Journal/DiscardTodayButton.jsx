@@ -1,3 +1,4 @@
+// Button that confirms and deletes a saved journal day so it can be replayed.
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGameStore } from "../../Game/state/GameStateManager";

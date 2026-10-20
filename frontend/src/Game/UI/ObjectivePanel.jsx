@@ -1,3 +1,4 @@
+// Shows the current objective text in the HUD, highlighted while approaching the finish line.
 import { motion, AnimatePresence } from "framer-motion";
 import { PHASES, useGameStore } from "../state/GameStateManager";
 

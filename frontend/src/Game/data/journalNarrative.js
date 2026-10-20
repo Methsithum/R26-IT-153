@@ -1,3 +1,4 @@
+// Builds a readable journal narrative and highlight list from a day's recorded responses.
 import { formatExamMark } from "./letterGrades";
 
 function formatDate(iso) {

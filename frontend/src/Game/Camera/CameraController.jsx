@@ -1,3 +1,4 @@
+// Third-person chase camera that follows the runner and reacts to combo, jump, and shake effects.
 import { useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";

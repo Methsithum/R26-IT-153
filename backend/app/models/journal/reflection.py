@@ -1,3 +1,5 @@
+# DB access for weekly/semester reflection documents.
+
 from app.config.database import db
 from bson import ObjectId
 from datetime import datetime

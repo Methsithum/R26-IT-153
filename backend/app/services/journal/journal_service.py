@@ -1,3 +1,5 @@
+# Assembles the user/task/exam/session context the question picker and LLM need.
+
 from app.models.journal.task import TaskModel
 from app.models.journal.exam import ExamModel
 from app.models.journal.daily_session import DailySessionModel

@@ -1,3 +1,4 @@
+// Maps each building to its interactable mission stations and picks the right station for a question.
 import { pickVariantIndex } from "../MiniGames/variant";
 
 const PI = Math.PI;

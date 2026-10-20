@@ -1,3 +1,5 @@
+# API routes for the daily journal game session (start/answer/finish/abandon/delete).
+
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Depends
 from app.services.auth import require_journal_owner
 from app.models.journal.behavior_analysis import BehaviorAnalysisModel

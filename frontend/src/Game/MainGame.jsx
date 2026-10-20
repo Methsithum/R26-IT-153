@@ -1,3 +1,4 @@
+// Top-level Journal game component: mounts the canvas, HUD, controls, audio, and pause/overlay screens.
 import { Canvas } from "@react-three/fiber";
 import { Suspense, useEffect } from "react";
 import GameScene from "./GameScene";

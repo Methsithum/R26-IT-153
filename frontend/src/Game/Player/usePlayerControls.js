@@ -1,3 +1,4 @@
+// Hook binding keyboard/touch/mouse input to lane movement, jump/slide, and interior look/explore controls.
 import { useEffect } from "react";
 import { useRunnerStore } from "../state/runnerStore";
 import { useGameStore } from "../state/GameStateManager";

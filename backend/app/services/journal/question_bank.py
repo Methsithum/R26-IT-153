@@ -1,9 +1,4 @@
-"""Curated journal question bank.
-
-The LLM never invents runner questions. It only picks a `question_id` from a
-filtered shortlist of these templates. Every choice question ships 4 lane
-answers so the campus runner can map one option to each lane.
-"""
+# Curated journal question bank - the LLM only picks an id from this, never invents questions.
 
 from typing import Any, Optional
 
