@@ -1,0 +1,15 @@
+Model: random_forest
+Test accuracy: 0.929
+Test macro F1: 0.929
+
+                        precision    recall  f1-score   support
+
+    Consistent Learner       0.85      0.79      0.81        14
+Highly Engaged Student       0.81      0.93      0.87        14
+   Last-Minute Learner       1.00      1.00      1.00        14
+Low Engagement Student       1.00      0.93      0.96        14
+    Overloaded Student       1.00      1.00      1.00        14
+
+              accuracy                           0.93        70
+             macro avg       0.93      0.93      0.93        70
+          weighted avg       0.93      0.93      0.93        70

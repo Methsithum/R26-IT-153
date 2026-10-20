@@ -18,11 +18,25 @@ class FreeSlot(BaseModel):
     duration_minutes: int = Field(..., description="Slot length in minutes.")
 
 
+class BlockedSlot(BaseModel):
+    """
+    A real-dated range the generator must NOT fill - a missed session the
+    student manually moved here (see session_routes.py). Carved out of
+    weekly_free_slots for that one real date only (schedule_engine.py's
+    apply_blocked_slots()).
+    """
+
+    date: str = Field(..., description="ISO date (YYYY-MM-DD) the blocked range falls on.")
+    start_time: str = Field(..., description="'HH:MM' 24-hour format.")
+    end_time: str = Field(..., description="'HH:MM' 24-hour format.")
+
+
 class ScheduleRequest(BaseModel):
     """Input for POST /study-planner/schedule."""
 
     weekly_free_slots: List[FreeSlot] = Field(..., description="Available time slots for the week.")
     tasks: List[TaskInput] = Field(..., description="Tasks to schedule.")
+    blocked_slots: Optional[List[BlockedSlot]] = Field(None, description="Manually booked ranges to keep free of generated sessions.")
 
 
 class ScheduledItem(BaseModel):
@@ -90,6 +104,7 @@ class RescheduleRequest(BaseModel):
     )
     completed_task_ids: List[str] = Field(..., description="Task ids the student has finished since last time.")
     new_tasks: Optional[List[TaskInput]] = Field(None, description="Any new tasks that have appeared.")
+    blocked_slots: Optional[List[BlockedSlot]] = Field(None, description="Manually booked ranges to keep free of generated sessions.")
 
 
 # ---------------------------------------------------------------------------
@@ -124,6 +139,7 @@ class MultiWeekScheduleRequest(BaseModel):
         description="Explicit number of weeks to generate. If omitted, auto-derived from the farthest task "
                     "deadline (preferred). Always capped at 12 weeks regardless.",
     )
+    blocked_slots: Optional[List[BlockedSlot]] = Field(None, description="Manually booked ranges to keep free of generated sessions.")
 
 
 class MultiWeekTaskRegistryEntry(TaskRegistryEntry):

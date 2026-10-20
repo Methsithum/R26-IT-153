@@ -1131,6 +1131,7 @@ async def finish_daily_run(req: FinishRunRequest):
         raise HTTPException(404, "Session not found")
     if not session.get("completed"):
         raise HTTPException(400, "Finish the journal questions before closing the run")
+    await DailySessionModel.update(req.session_id, {"total_clicks": max(0, req.total_clicks or 0)})
     payload = await apply_run_rewards(session["user_id"], req.session_id, req.xp_earned, req.score)
     if not payload:
         raise HTTPException(404, "User not found")

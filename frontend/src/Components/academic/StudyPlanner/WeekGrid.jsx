@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, CalendarX, Coffee, GraduationCap, ChevronLeft, ChevronRight, CheckCircle2, Clock, History } from "lucide-react";
+import { BookOpen, CalendarX, Coffee, GraduationCap, ChevronLeft, ChevronRight, CheckCircle2, Clock, History, Repeat } from "lucide-react";
 import { PRIORITY_COLORS } from "../../../utils/featureNameMap";
 import { WEEKDAYS, getWeekStart, addDays, toLocalDateStr, formatWeekRangeLabel } from "../../../utils/dateHelpers";
 import { useAcademicStore } from "../../../store/useAcademicStore";
@@ -15,6 +15,10 @@ import {
   TIME_OF_DAY_BAND_ORDER,
 } from "../../../utils/studySessionBuilder";
 import EmptyState from "../Shared/EmptyState";
+import SessionStatusControls from "./SessionStatusControls";
+import ExamDayCard from "./ExamDayCard";
+import { examsOnDate, examWeekdays, highPriorityTasksNearExam, revisionSessionForExamDay, examClusters } from "../../../utils/examDay";
+import { sessionKey, toSessionInput, recordToScheduledItem, extraRecordsForDate } from "../../../utils/sessionTracking";
 
 const PRIORITY_ORDER = ["High", "Medium", "Low"];
 const TODAY_DATE_STR = toLocalDateStr(new Date());
@@ -42,7 +46,7 @@ function startTimeOf(entry) {
 }
 
 /** One real session card - a suggested self-study block or a real scheduled task. Shared by the current week and any other in-range week (Part: multi-week integration), so this rendering is written once. */
-function SessionCard({ entry, di, i, tasksRegistry, assignments, moduleName, exams }) {
+function SessionCard({ entry, di, i, tasksRegistry, assignments, moduleName, exams, dateStr, sessionRecords }) {
   const isStudySession = entry.timeSlot != null;
   const delay = di * 0.02 + i * 0.03;
 
@@ -76,6 +80,10 @@ function SessionCard({ entry, di, i, tasksRegistry, assignments, moduleName, exa
   const priority = tasksRegistry?.[item.task_id]?.priority_label || "Medium";
   const colors = PRIORITY_COLORS[priority];
   const display = resolveSessionDisplay(item, { tasksRegistry, assignments, moduleName, exams });
+  const record = sessionRecords?.[sessionKey(dateStr, item.task_id, item.time_slot)];
+  const isManual = record?.source === "manual_reschedule";
+  // Only today's and past sessions can be marked - a future one hasn't happened yet.
+  const canMark = dateStr <= TODAY_DATE_STR;
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -91,6 +99,7 @@ function SessionCard({ entry, di, i, tasksRegistry, assignments, moduleName, exa
           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${colors.dot}`} title={`${priority} priority`} />
         )}
         <p className={`text-[11px] font-bold ${colors.text}`}>{item.time_slot}</p>
+        {isManual && <Repeat size={10} className="text-slate-400" title="Rescheduled by you" />}
       </div>
       <p className="text-xs font-semibold text-slate-700 dark:text-white leading-snug wrap-break-word" title={display.title}>
         {display.title}
@@ -98,11 +107,14 @@ function SessionCard({ entry, di, i, tasksRegistry, assignments, moduleName, exa
       <p className="text-[10px] text-slate-400 leading-snug wrap-break-word">
         {display.subtitle ? `${display.subtitle} · ` : ""}{item.duration_minutes} min
       </p>
+      {canMark && (
+        <SessionStatusControls compact sessionInput={toSessionInput(dateStr, item, tasksRegistry)} record={record} />
+      )}
     </motion.div>
   );
 }
 
-function BandedTimeline({ timeline, di, tasksRegistry, assignments, moduleName, exams }) {
+function BandedTimeline({ timeline, di, tasksRegistry, assignments, moduleName, exams, dateStr, sessionRecords }) {
   const bandedGroups = TIME_OF_DAY_BAND_ORDER.map((band) => ({
     band,
     entries: timeline.filter((entry) => getTimeOfDayBand(startTimeOf(entry)) === band),
@@ -127,6 +139,8 @@ function BandedTimeline({ timeline, di, tasksRegistry, assignments, moduleName, 
                 assignments={assignments}
                 moduleName={moduleName}
                 exams={exams}
+                dateStr={dateStr}
+                sessionRecords={sessionRecords}
               />
             ))}
           </div>
@@ -146,6 +160,11 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
   // regardless of what the live schedule/multiWeekSchedule now says for it.
   const historicalScheduleByDate = useAcademicStore((s) => s.historicalScheduleByDate);
   const moduleName = (code) => modules.find((m) => m.code === code)?.name || code;
+  // Permanent per-session history from MongoDB (status, manual reschedules) -
+  // see useAcademicStore's "Permanent session history" section.
+  const userId = useAcademicStore((s) => s.userId);
+  const sessionRecords = useAcademicStore((s) => s.sessionRecords);
+  const loadSessionRecords = useAcademicStore((s) => s.loadSessionRecords);
 
   // Real, ISO-date-keyed sessions spanning several weeks ahead (PROJECT
   // CONTEXT.md Section 8d) - fetched once, sliced per viewed week below,
@@ -168,6 +187,11 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
   const weekDates = useMemo(() => WEEKDAYS.map((_, i) => addDays(viewedWeekStart, i)), [viewedWeekStart]);
   const isCurrentWeek = weekOffset === 0;
 
+  useEffect(() => {
+    if (!userId) return;
+    loadSessionRecords(toLocalDateStr(weekDates[0]), toLocalDateStr(weekDates[6])).catch(() => {});
+  }, [userId, weekDates, loadSessionRecords]);
+
   function goToWeek(delta) {
     setDirection(delta > 0 ? 1 : -1);
     setWeekOffset((w) => w + delta);
@@ -186,16 +210,26 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
   // sessions (below) must only ever fill what's ACTUALLY still free in
   // THIS specific week, never week 0's occupied slots reused for every week.
   const weekOccupiedByWeekday = useMemo(() => {
-    if (isCurrentWeek) return schedule || {};
-    if (!multiWeekSchedule) return {};
     const map = {};
+    if (isCurrentWeek) Object.assign(map, schedule || {});
+    else if (multiWeekSchedule) {
+      weekDates.forEach((d) => {
+        const items = multiWeekSchedule.schedule?.[toLocalDateStr(d)];
+        if (!items?.length) return;
+        map[d.toLocaleDateString(undefined, { weekday: "long" })] = items;
+      });
+    }
+    // Manually rescheduled sessions occupy their slot too, so a suggested
+    // study block never lands on top of one.
     weekDates.forEach((d) => {
-      const items = multiWeekSchedule.schedule?.[toLocalDateStr(d)];
-      if (!items?.length) return;
-      map[d.toLocaleDateString(undefined, { weekday: "long" })] = items;
+      const dateStr = toLocalDateStr(d);
+      const manual = Object.values(sessionRecords).filter((r) => r.date === dateStr && r.source === "manual_reschedule");
+      if (!manual.length) return;
+      const dayName = d.toLocaleDateString(undefined, { weekday: "long" });
+      map[dayName] = [...(map[dayName] || []), ...manual.map(recordToScheduledItem)];
     });
     return map;
-  }, [isCurrentWeek, schedule, multiWeekSchedule, weekDates]);
+  }, [isCurrentWeek, schedule, multiWeekSchedule, weekDates, sessionRecords]);
 
   // semesterAllocation[weekOffset] is that week's real per-module hours
   // projection (studyAllocation.js's SEMESTER_WEEKS = 14 fixed rows) - undefined
@@ -203,12 +237,19 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
   // off beyond the modeled semester length rather than reusing week 0's numbers.
   const weekModuleHours = weekOffset >= 0 ? semesterAllocation[weekOffset] : null;
 
+  // Exam days in this week have no free time at all - suggested study
+  // blocks get spread over the other days instead of being dropped.
+  const weekFreeSlots = useMemo(() => {
+    const blockedDays = examWeekdays(weekDates, exams);
+    return blockedDays.size ? weeklyFreeSlots.filter((slot) => !blockedDays.has(slot.day)) : weeklyFreeSlots;
+  }, [weekDates, exams, weeklyFreeSlots]);
+
   const studySessionsByDay = useMemo(
     () =>
       weekModuleHours
-        ? buildStudySessionsByDay(modules, weeklyFreeSlots, assignments, weekOccupiedByWeekday, weekModuleHours)
+        ? buildStudySessionsByDay(modules, weekFreeSlots, assignments, weekOccupiedByWeekday, weekModuleHours)
         : {},
-    [modules, weeklyFreeSlots, assignments, weekOccupiedByWeekday, weekModuleHours]
+    [modules, weekFreeSlots, assignments, weekOccupiedByWeekday, weekModuleHours]
   );
 
   // Only meaningful for the current week - other weeks never have a
@@ -316,7 +357,13 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
             // existed, or a gap while the app was closed) honestly says so
             // below rather than showing a misleading empty "Nothing scheduled".
             const historicalRecord = isPast ? historicalScheduleByDate?.[dateStr] : null;
-            const hasHistoricalRecord = isPast && !!historicalRecord;
+            // The database's own copy of this day - lets a past day this
+            // browser never froze (other device, cleared storage) still
+            // show what was planned, instead of "not available".
+            const dbDayRecords = Object.values(sessionRecords).filter(
+              (r) => r.date === dateStr && r.source !== "manual_reschedule"
+            );
+            const hasHistoricalRecord = isPast && (!!historicalRecord || dbDayRecords.length > 0);
 
             // Which task/session data source this day pulls from (today/future only):
             //  - current week: the live, /reschedule-integrated single-week `schedule` prop (weekday-keyed).
@@ -333,13 +380,29 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
             // - only `dayDate`'s OWN real weekday name correctly identifies
             // which backend bucket this specific date actually landed in.
             const realDayName = dayDate.toLocaleDateString(undefined, { weekday: "long" });
-            const items = isPast
-              ? historicalRecord?.sessions || []
+            // Exam day: nothing is scheduled (a past one still shows what
+            // was really planned, if anything was, before this rule existed).
+            const dayExams = examsOnDate(exams, dateStr);
+            const isExamDay = dayExams.length > 0;
+            // The agreed after-exam revision (back-to-back exams only) is the
+            // one session an exam day can have - shown as its own card in the
+            // timeline, like any other session.
+            const revision = isExamDay && !isPast ? revisionSessionForExamDay(dateStr, exams, weeklyFreeSlots) : null;
+            const plannedItems = isExamDay && !isPast
+              ? revision ? [revision.item] : []
+              : isPast
+              ? historicalRecord?.sessions || dbDayRecords.map(recordToScheduledItem)
               : isCurrentWeek
               ? schedule?.[realDayName] || []
               : withinGeneratedRange
               ? multiWeekSchedule.schedule[dateStr] || []
               : [];
+            // A today/future exam day shows ONLY the exam card (and its
+            // agreed revision) - stored records from an older plan made
+            // before the exam was known stay in history, but aren't shown
+            // as if they were still today's plan.
+            const extraRecords = isExamDay && !isPast ? [] : extraRecordsForDate(dateStr, plannedItems, sessionRecords);
+            const items = [...plannedItems, ...extraRecords.map(recordToScheduledItem)];
             // Regular per-module study sessions - spread across the whole
             // modeled semester (studyAllocation.js's SEMESTER_WEEKS), not
             // just the current week, but only ever filling time that week's
@@ -347,12 +410,21 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
             // never part of a frozen historical record, since a past day's
             // record is exactly what was really shown, suggestions included
             // or not.
-            const studySessions = !isPast ? studySessionsByDay[realDayName] || [] : [];
-            const activeTasksRegistry = isPast
+            const studySessions = !isPast && !isExamDay ? studySessionsByDay[realDayName] || [] : [];
+            const plannedTasksRegistry = isPast
               ? historicalRecord?.tasksRegistry || {}
               : isCurrentWeek
               ? tasksRegistry
               : multiWeekSchedule?.tasks;
+            // Stored records carry their own task_type/deadline for tasks the
+            // live registry no longer knows (e.g. completed since).
+            const activeTasksRegistry = {
+              ...Object.fromEntries(
+                [...extraRecords, ...dbDayRecords].map((r) => [r.task_id, { task_type: r.task_type, deadline_date: r.deadline_date }])
+              ),
+              ...(plannedTasksRegistry || {}),
+              ...(revision ? { [revision.item.task_id]: revision.registryEntry } : {}),
+            };
 
             const timeline = [...items, ...studySessions].sort(
               (a, b) => startMinutes(a.time_slot || a.timeSlot) - startMinutes(b.time_slot || b.timeSlot)
@@ -360,7 +432,7 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
 
             const scheduledMinutes = timelineUsedMinutes(timeline);
             const freeMinutes = isCurrentWeek ? Math.max(0, totalFreeSlotMinutes(day, weeklyFreeSlots) - scheduledMinutes) : 0;
-            const freeLabel = isCurrentWeek ? formatMinutes(freeMinutes) : null;
+            const freeLabel = isCurrentWeek && !isExamDay ? formatMinutes(freeMinutes) : null;
 
             const priorityCounts = items.reduce((acc, item) => {
               const p = activeTasksRegistry?.[item.task_id]?.priority_label || "Medium";
@@ -369,7 +441,9 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
             }, {});
 
             let emptyState = null;
-            if (isPast) {
+            if (isExamDay) {
+              // The exam card below replaces any empty-state message.
+            } else if (isPast) {
               if (!hasHistoricalRecord) {
                 emptyState = {
                   icon: History,
@@ -426,7 +500,22 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
                     priority/module colors, never a redesign of the cards
                     themselves. Today is never muted, only real past days. */}
                 <div className={`flex-1 flex flex-col min-h-0 ${isPast ? "opacity-55 saturate-[.45]" : ""}`}>
-                  {emptyState ? (
+                  {isExamDay && (
+                    <div className={timeline.length ? "mb-2" : ""}>
+                      <ExamDayCard
+                        compact
+                        exams={dayExams}
+                        dateStr={dateStr}
+                        revision={revision}
+                        inlineRevision={false}
+                        cluster={examClusters(exams).find((c) => c.dates.includes(dateStr))}
+                        isPast={isPast}
+                        moduleName={moduleName}
+                        highPriorityTasks={isPast ? [] : highPriorityTasksNearExam(dateStr, activeTasksRegistry, assignments)}
+                      />
+                    </div>
+                  )}
+                  {isExamDay && timeline.length === 0 ? null : emptyState ? (
                     <EmptyDay {...emptyState} />
                   ) : (
                     <BandedTimeline
@@ -436,6 +525,8 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
                       assignments={assignments}
                       moduleName={moduleName}
                       exams={exams}
+                      dateStr={dateStr}
+                      sessionRecords={sessionRecords}
                     />
                   )}
                 </div>

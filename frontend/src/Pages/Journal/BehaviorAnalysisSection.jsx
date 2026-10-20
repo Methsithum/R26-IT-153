@@ -140,60 +140,6 @@ function actionTips(category, snap) {
   return [...urgent, ...(byCategory[category] || [])].filter(Boolean).slice(0, 3);
 }
 
-function snapshotGroups(snap) {
-  if (!snap) return [];
-  const dp = snap.deadline_proximity || {};
-  const tc = snap.task_completion_history || {};
-  const ed = snap.engagement_distribution || {};
-  const ap = snap.assignment_progress || {};
-  const days = (n) => `${n} ${n === 1 ? "day" : "days"}`;
-  return [
-    {
-      title: "Context",
-      rows: [
-        {
-          label: "Observation window",
-          value:
-            snap.account_age_days != null
-              ? `${days(snap.observation_window_days)} (account is ${days(snap.account_age_days)} old)`
-              : days(snap.observation_window_days),
-        },
-        { label: "Last activity", value: snap.last_activity_date ? new Date(snap.last_activity_date).toLocaleString() : "—" },
-      ],
-    },
-    {
-      title: "Engagement & consistency",
-      rows: [
-        { label: "Temporal engagement evidence", value: snap.engagement_trend || "insufficient_data" },
-        { label: "Engagement (high / medium / low)", value: `${ed.high ?? 0} / ${ed.medium ?? 0} / ${ed.low ?? 0}` },
-        { label: "Activity frequency", value: `${Math.round((snap.activity_frequency ?? 0) * 100)}% of window days` },
-        { label: "Journal sessions", value: snap.total_sessions_last_14_days ?? 0 },
-      ],
-    },
-    {
-      title: "Deadline & task pressure",
-      rows: [
-        {
-          label: "Deadline proximity",
-          value: `nearest ${dp.nearest_deadline_days ?? "—"}d · due≤3d: ${dp.due_within_3_days ?? 0} · due≤7d: ${dp.due_within_7_days ?? 0} · overdue: ${dp.overdue ?? 0}`,
-        },
-        {
-          label: "Assignment progress",
-          value: Object.keys(ap).length ? Object.entries(ap).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`).join(", ") : "none recorded",
-        },
-        { label: "Tasks completed", value: `${tc.completed_tasks ?? 0} / ${tc.total_tasks ?? 0}` },
-      ],
-    },
-    {
-      title: "Study effort",
-      rows: [
-        { label: "Avg study hours / active day", value: `${snap.study_hours_avg_per_day ?? 0} h` },
-        { label: "Total study hours", value: `${snap.study_hours_last_14_days ?? 0} h` },
-      ],
-    },
-  ];
-}
-
 export default function BehaviorAnalysisSection({ userId, demoMode }) {
   const [latest, setLatest] = useState(null);
   const [latestStatus, setLatestStatus] = useState("loading");
@@ -237,6 +183,8 @@ export default function BehaviorAnalysisSection({ userId, demoMode }) {
         generated_at: result.generatedAt,
         snapshotOfActivityData: result.snapshotOfActivityData,
         nextSteps: result.nextSteps,
+        modelConfidence: result.modelConfidence,
+        topFeatures: result.topFeatures,
         trigger: "manual",
       });
       setSnapshot(await fetchLearningPatterns(userId, 14));
@@ -274,7 +222,14 @@ export default function BehaviorAnalysisSection({ userId, demoMode }) {
           <div className={`flex items-start gap-3 rounded-2xl border px-4 py-3.5 ${TONE_CLASSES[current?.tone || "medium"]}`}>
             <span className="text-2xl leading-none">{current?.icon || "🧭"}</span>
             <div className="min-w-0">
-              <div className="text-base font-bold">{latest.behaviorCategory}</div>
+              <div className="flex items-center gap-2">
+                <div className="text-base font-bold">{latest.behaviorCategory}</div>
+                {typeof latest.modelConfidence === "number" && (
+                  <span className="rounded-full bg-black/5 dark:bg-white/10 px-2 py-0.5 text-[10px] font-semibold opacity-80">
+                    ML confidence {Math.round(latest.modelConfidence * 100)}%
+                  </span>
+                )}
+              </div>
               <p className="mt-1 text-sm leading-snug opacity-90">{latest.reasoning}</p>
               <p className="mt-2 text-[11px] opacity-70">
                 {latest.created_at && `${latest.trigger === "auto" ? "Auto-updated" : "Analyzed"} ${new Date(latest.created_at).toLocaleString()} - `}
@@ -331,32 +286,57 @@ export default function BehaviorAnalysisSection({ userId, demoMode }) {
         </div>
       )}
 
-      {/* variables used */}
-      {latest?.available && latest.snapshotOfActivityData && (
+      {/* why this verdict */}
+      {latest?.available && Array.isArray(latest.topFeatures) && latest.topFeatures.length > 0 && (
         <div className="rounded-3xl border border-black/5 dark:border-white/5 bg-white dark:bg-[#1a1530] px-4 py-4 shadow-[0_4px_14px_-4px_rgb(23_15_46_/_0.08)]">
-          <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">Variables used for this verdict</div>
+          <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">Why this verdict</div>
           <p className="mt-0.5 text-xs text-slate-400">
-            Not compared against other students - the AI reads these numbers from your own activity and picks one of the 5 archetypes below.
+            The top factors the ML classifier weighed, ranked by how much each one drove this verdict.
           </p>
-          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-            {snapshotGroups(latest.snapshotOfActivityData).map((group, i) => (
-              <div key={group.title} className="rounded-2xl bg-brand-50/50 dark:bg-white/5 px-3 py-2.5">
-                <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-brand-500 dark:text-brand-300">
-                  {i + 1}. {group.title}
-                </div>
-                <ul className="space-y-1.5">
-                  {group.rows.map((row) => (
-                    <li key={row.label} className="flex items-baseline justify-between gap-3 text-xs">
-                      <span className="text-slate-400">{row.label}</span>
-                      <span className="text-right font-medium text-slate-700 dark:text-slate-200">{row.value}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+          <div className="mt-4 space-y-3.5">
+            {(() => {
+              const maxImportance = Math.max(...latest.topFeatures.map((f) => f.importance || 0), 0.0001);
+              return latest.topFeatures.map((f, i) => {
+                const rankPct = Math.max(4, Math.round(((f.importance || 0) / maxImportance) * 100));
+                const weightPct = Math.round((f.weightShare || 0) * 100);
+                return (
+                  <motion.div
+                    key={f.feature}
+                    initial={{ opacity: 0, x: -6 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.3, delay: i * 0.06, ease: "easeOut" }}
+                  >
+                    <div className="flex items-baseline justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-brand-100 dark:bg-brand-400/20 text-[9px] font-bold text-brand-600 dark:text-brand-300">
+                          {i + 1}
+                        </span>
+                        <span className="truncate text-xs font-medium text-slate-600 dark:text-slate-300">{f.label}</span>
+                      </div>
+                      <div className="flex shrink-0 items-baseline gap-1.5">
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-100">{f.value}</span>
+                        <span className="rounded-full bg-brand-50 dark:bg-white/10 px-1.5 py-0.5 text-[9px] font-semibold text-brand-500 dark:text-brand-300">
+                          {weightPct}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-1.5 h-2 rounded-full bg-brand-50 dark:bg-white/10 overflow-hidden">
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{ background: `linear-gradient(90deg, ${BRAND[500]}, ${BRAND[400]})` }}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${rankPct}%` }}
+                        transition={{ duration: 0.6, delay: i * 0.06, ease: "easeOut" }}
+                      />
+                    </div>
+                  </motion.div>
+                );
+              });
+            })()}
           </div>
         </div>
       )}
+
 
       {/* archetype row */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">

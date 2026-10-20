@@ -20,6 +20,9 @@ async def analyze_behavior_category(req: BehaviorAnalysisRequest):
         behaviorCategory=record["behaviorCategory"],
         reasoning=record["reasoning"],
         nextSteps=record["nextSteps"],
+        modelConfidence=record.get("modelConfidence"),
+        modelName=record.get("modelName"),
+        topFeatures=record.get("topFeatures") or [],
         generatedAt=record["timestamp"],
         snapshotOfActivityData=record["snapshotOfActivityData"],
     )
