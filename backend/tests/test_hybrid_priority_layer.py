@@ -90,8 +90,14 @@ class TestPlusMinusOneClamp:
         result = compute_final_priority_level(20, "assignment", LEVELS["High"], PROD_THRESHOLDS, modifier_clamp=1)
         assert result == LEVELS["Medium"]
         # base=High(2), ML=Low(0) -> must clamp to Medium(1), not drop to Low.
-        result2 = compute_final_priority_level(1, "assignment", LEVELS["Low"], PROD_THRESHOLDS, modifier_clamp=1)
+        # 4 days: base High but outside the urgent floor, so the clamp applies.
+        result2 = compute_final_priority_level(4, "assignment", LEVELS["Low"], PROD_THRESHOLDS, modifier_clamp=1)
         assert result2 == LEVELS["Medium"]
+
+    @pytest.mark.parametrize("days", [0, 1, 2])
+    def test_urgent_floor_ml_cannot_lower_a_task_due_within_two_days(self, days):
+        for ml_level in LEVELS.values():
+            assert compute_final_priority_level(days, "assignment", ml_level, PROD_THRESHOLDS, 1) == LEVELS["High"]
 
     def test_clamp_0_disables_ml_influence_entirely(self):
         # With clamp=0, final must always equal base regardless of ML input (Phase 1's sensitivity finding).

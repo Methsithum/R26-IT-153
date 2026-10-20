@@ -1,5 +1,6 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.services.auth import require_journal_owner
 from app.schemas.study_planner.schedule_schemas import (
     MultiWeekScheduleRequest,
     MultiWeekScheduleResponse,
@@ -15,7 +16,7 @@ from app.services.study_planner.schedule_service import (
 )
 from app.utils.study_planner.error_handling import service_error_to_http
 
-router = APIRouter(prefix="/study-planner", tags=["study-planner"])
+router = APIRouter(prefix="/study-planner", tags=["study-planner"], dependencies=[Depends(require_journal_owner)])
 
 
 def _blocked(request):

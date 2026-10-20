@@ -1,8 +1,12 @@
 import axios from "axios";
+import { authHeaders, withAuth } from "../services/apiClient";
 import { readStoredUser } from "../services/userApi";
 
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
 const USER_KEY = "sug_focus_user_id";
+
+const client = axios.create();
+client.interceptors.request.use(withAuth);
 
 export function getFocusUserId() {
   const id = readStoredUser()?.id;
@@ -14,14 +18,14 @@ function withUser(params = {}) {
 }
 
 export async function predictFocusState(base64Image) {
-  const { data } = await axios.post(`${API_BASE}/focus/predict`, {
+  const { data } = await client.post(`${API_BASE}/focus/predict`, {
     image: base64Image,
   });
   return data;
 }
 
 export async function saveFocusSession(payload) {
-  const { data } = await axios.post(`${API_BASE}/focus/sessions`, {
+  const { data } = await client.post(`${API_BASE}/focus/sessions`, {
     ...payload,
     user_id: getFocusUserId(),
   });
@@ -29,35 +33,35 @@ export async function saveFocusSession(payload) {
 }
 
 export async function getDailyReport(date) {
-  const { data } = await axios.get(`${API_BASE}/focus/reports/daily`, {
+  const { data } = await client.get(`${API_BASE}/focus/reports/daily`, {
     params: withUser(date ? { date } : {}),
   });
   return data;
 }
 
 export async function getWeeklyReport() {
-  const { data } = await axios.get(`${API_BASE}/focus/reports/weekly`, {
+  const { data } = await client.get(`${API_BASE}/focus/reports/weekly`, {
     params: withUser(),
   });
   return data;
 }
 
 export async function getFocusProfile() {
-  const { data } = await axios.get(`${API_BASE}/focus/profile`, {
+  const { data } = await client.get(`${API_BASE}/focus/profile`, {
     params: withUser(),
   });
   return data;
 }
 
 export async function getLeaderboard(period = "daily", month = null) {
-  const { data } = await axios.get(`${API_BASE}/focus/leaderboard`, {
+  const { data } = await client.get(`${API_BASE}/focus/leaderboard`, {
     params: withUser(month ? { period, month } : { period }),
   });
   return data;
 }
 
 export async function getEmotionalStats() {
-  const { data } = await axios.get(`${API_BASE}/focus/emotional`, {
+  const { data } = await client.get(`${API_BASE}/focus/emotional`, {
     params: withUser(),
   });
   return data;
@@ -66,14 +70,19 @@ export async function getEmotionalStats() {
 export async function pingFocusPresence() {
   const uid = getFocusUserId();
   if (!uid || uid === "anonymous") return;
-  await axios.post(`${API_BASE}/focus/presence`, null, { params: { user_id: uid } });
+  await client.post(`${API_BASE}/focus/presence`, null, { params: { user_id: uid } });
 }
 
 export function leaveFocusPresence() {
   const uid = getFocusUserId();
   if (!uid || uid === "anonymous") return;
   try {
-    navigator.sendBeacon(`${API_BASE}/focus/presence/leave?user_id=${encodeURIComponent(uid)}`);
+    // keepalive fetch instead of sendBeacon: a beacon can't carry the Authorization header.
+    fetch(`${API_BASE}/focus/presence/leave?user_id=${encodeURIComponent(uid)}`, {
+      method: "POST",
+      keepalive: true,
+      headers: authHeaders(),
+    });
   } catch {
     return;
   }
@@ -81,12 +90,12 @@ export function leaveFocusPresence() {
 
 export function flushFocusSession(payload) {
   try {
-    navigator.sendBeacon(
-      `${API_BASE}/focus/sessions`,
-      new Blob([JSON.stringify({ ...payload, user_id: getFocusUserId() })], {
-        type: "application/json",
-      }),
-    );
+    fetch(`${API_BASE}/focus/sessions`, {
+      method: "POST",
+      keepalive: true,
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ ...payload, user_id: getFocusUserId() }),
+    });
   } catch {
     return;
   }

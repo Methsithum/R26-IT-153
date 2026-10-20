@@ -5,14 +5,22 @@ const api = axios.create({
   timeout: 30000,
 });
 
-api.interceptors.request.use((config) => {
+/** Bearer header for the signed-in user, or {} - shared by every module's API client. */
+export function authHeaders() {
   try {
     const user = JSON.parse(localStorage.getItem("smart-uni-guide-user") || "null");
-    if (user?.access_token) config.headers.Authorization = `Bearer ${user.access_token}`;
+    if (user?.access_token) return { Authorization: `Bearer ${user.access_token}` };
   } catch {
     // Missing or invalid saved state is handled by the authenticated API.
   }
+  return {};
+}
+
+export function withAuth(config) {
+  Object.assign(config.headers, authHeaders());
   return config;
-});
+}
+
+api.interceptors.request.use(withAuth);
 
 export default api;

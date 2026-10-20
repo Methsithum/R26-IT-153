@@ -62,7 +62,11 @@ async def require_journal_owner(request: Request) -> str:
             pass
     if not isinstance(payload, dict):
         payload = {}
-    for supplied in (request.path_params.get("user_id"), payload.get("user_id")):
+    for supplied in (
+        request.path_params.get("user_id"),
+        request.query_params.get("user_id"),
+        payload.get("user_id"),
+    ):
         if supplied is not None and supplied != owner:
             raise HTTPException(403, "You can only access your own journal")
     session_id = request.path_params.get("session_id") or payload.get("session_id")

@@ -35,6 +35,12 @@ except Exception:
     logger.exception("schedule_service: STARTUP ERROR - failed to import StudyScheduler.")
 
 from app.services.study_planner.priority_service import predict_priority, PriorityServiceError
+from app.services.time_utils import local_today, to_local_date
+
+# Urgent floor - same rule as computeFinalPriority() in frontend/src/utils/priorityEngine.js:
+# an overdue task, or one due within this many days, is High and the ML prediction may not
+# lower it. Applied here too because the scheduler orders work by this label.
+URGENT_FLOOR_DAYS = {"assignment": 2, "exam": 7}
 
 
 class ScheduleServiceError(Exception):
@@ -65,8 +71,18 @@ def _ensure_priority_label(task: dict) -> dict:
         except PriorityServiceError as e:
             raise ScheduleServiceError(str(e))
         task["priority_label"] = prediction["priority_label"]
+        if _within_urgent_floor(task):
+            task["priority_label"] = "High"
     task.pop("feature_row", None)
     return task
+
+
+def _within_urgent_floor(task: dict) -> bool:
+    deadline = to_local_date(task.get("deadline_date"))
+    if deadline is None:
+        return False
+    days_remaining = (deadline - local_today()).days
+    return days_remaining <= URGENT_FLOOR_DAYS.get(task.get("task_type") or "assignment", 2)
 
 
 def create_schedule(weekly_free_slots: list, tasks: list, blocked_slots: list = None) -> dict:

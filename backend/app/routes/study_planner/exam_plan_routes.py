@@ -16,12 +16,13 @@ assignment's weight back into `tasks`):
 
 from typing import Literal, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from app.services.auth import require_journal_owner
 from app.models.journal.exam import ExamModel
 
-router = APIRouter(prefix="/study-planner/exams", tags=["study-planner"])
+router = APIRouter(prefix="/study-planner/exams", tags=["study-planner"], dependencies=[Depends(require_journal_owner)])
 
 
 class ExamPlanUpdate(BaseModel):

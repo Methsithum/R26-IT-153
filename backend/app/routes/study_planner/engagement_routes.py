@@ -9,14 +9,15 @@ daily_sessions collection.
 
 from typing import Dict, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
+from app.services.auth import require_journal_owner
 from app.models.journal.daily_session import session_collection
 from app.services.study_planner.engagement_service import compute_engagement_features
 from app.services.time_utils import local_today, to_local_date
 
-router = APIRouter(prefix="/study-planner", tags=["study-planner"])
+router = APIRouter(prefix="/study-planner", tags=["study-planner"], dependencies=[Depends(require_journal_owner)])
 
 
 class EngagementRequest(BaseModel):

@@ -16,8 +16,9 @@ the write path for that, reusing TaskModel exactly as the journal's own
 collection's shape.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.services.auth import require_journal_owner
 from app.models.journal.task import TaskModel
 from app.schemas.study_planner.task_update_schemas import (
     TaskCreateRequest,
@@ -27,29 +28,35 @@ from app.schemas.study_planner.task_update_schemas import (
 )
 from app.services.time_utils import local_today_iso
 
-router = APIRouter(prefix="/study-planner/tasks", tags=["study-planner"])
+router = APIRouter(prefix="/study-planner/tasks", tags=["study-planner"], dependencies=[Depends(require_journal_owner)])
+
+
+async def _owned_task(task_id: str, owner: str) -> dict:
+    """These routes only carry a task id, so ownership is checked against the task itself."""
+    task = await TaskModel.find_by_id(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found.")
+    if task.get("user_id") != owner:
+        raise HTTPException(status_code=403, detail="You can only change your own tasks.")
+    return task
 
 
 @router.patch("/{task_id}/weight", response_model=TaskResponse)
-async def update_task_weight(task_id: str, body: TaskWeightUpdate):
-    existing = await TaskModel.find_by_id(task_id)
-    if not existing:
-        raise HTTPException(status_code=404, detail=f"Task {task_id} not found.")
+async def update_task_weight(task_id: str, body: TaskWeightUpdate, owner: str = Depends(require_journal_owner)):
+    await _owned_task(task_id, owner)
     await TaskModel.update(task_id, {"weight": body.weight})
     return await TaskModel.find_by_id(task_id)
 
 
 @router.patch("/{task_id}/deadline", response_model=TaskResponse)
-async def update_task_deadline(task_id: str, body: TaskDeadlineUpdate):
-    existing = await TaskModel.find_by_id(task_id)
-    if not existing:
-        raise HTTPException(status_code=404, detail=f"Task {task_id} not found.")
+async def update_task_deadline(task_id: str, body: TaskDeadlineUpdate, owner: str = Depends(require_journal_owner)):
+    await _owned_task(task_id, owner)
     await TaskModel.update(task_id, {"deadline": body.deadline})
     return await TaskModel.find_by_id(task_id)
 
 
 @router.patch("/{task_id}/complete", response_model=TaskResponse)
-async def complete_task(task_id: str):
+async def complete_task(task_id: str, owner: str = Depends(require_journal_owner)):
     """
     Real database write for the "Complete" button (Tasks.jsx / TaskDetails.jsx).
     Previously this button only updated frontend Zustand state - the task's
@@ -68,9 +75,7 @@ async def complete_task(task_id: str):
     same collection (see TaskModel), rather than a raw datetime, so it's
     trivially JSON/Pydantic-serializable through TaskResponse.
     """
-    existing = await TaskModel.find_by_id(task_id)
-    if not existing:
-        raise HTTPException(status_code=404, detail=f"Task {task_id} not found.")
+    await _owned_task(task_id, owner)
     await TaskModel.update(task_id, {"progress_stage": "completed", "completed_at": local_today_iso()})
     return await TaskModel.find_by_id(task_id)
 

@@ -62,6 +62,11 @@ export function computeBaseTier(daysRemaining, taskType = "assignment") {
   return { level: PRIORITY_LEVELS.Low, leaning: "Medium" };
 }
 
+// Urgent floor: an overdue task, or one due within this many days, is always
+// High - the ML label may not lower it (mirrored by the backend scheduler,
+// schedule_service.URGENT_FLOOR_DAYS).
+export const URGENT_FLOOR_DAYS = { assignment: 2, exam: 7 };
+
 /**
  * Combines the deadline-driven base tier with the ML model's label.
  *
@@ -75,8 +80,9 @@ export function computeBaseTier(daysRemaining, taskType = "assignment") {
  * displayed priority by at most one tier from where its deadline alone would
  * put it. A high-weight task due in 10 days can be pushed from its base
  * Medium up to High; a low-weight task due tomorrow cannot be pushed down
- * below its base High. Overdue tasks skip the clamp entirely and stay High
- * no matter what the model says.
+ * below its base High. Overdue tasks, and tasks inside the urgent window
+ * (URGENT_FLOOR_DAYS), skip the clamp entirely and stay High no matter what
+ * the model says.
  */
 export function computeFinalPriority(daysRemainingValue, taskType, mlPriorityLabel) {
   // Hard floor, checked FIRST and before any base-tier/modifier math: a task
@@ -101,11 +107,13 @@ export function computeFinalPriority(daysRemainingValue, taskType, mlPriorityLab
   }
 
   const base = computeBaseTier(daysRemainingValue, taskType);
-  const overdue = daysRemainingValue < 0;
+  const urgent =
+    daysRemainingValue < 0 ||
+    daysRemainingValue <= (URGENT_FLOOR_DAYS[taskType] ?? URGENT_FLOOR_DAYS.assignment);
   const mlLevel = mlPriorityLabel != null ? PRIORITY_LEVELS[mlPriorityLabel] : null;
 
-  if (overdue || mlLevel == null) {
-    const finalLevel = overdue ? PRIORITY_LEVELS.High : base.level;
+  if (urgent || mlLevel == null) {
+    const finalLevel = urgent ? PRIORITY_LEVELS.High : base.level;
     return {
       priorityLabel: LEVEL_TO_PRIORITY[finalLevel],
       baseTierLevel: base.level,

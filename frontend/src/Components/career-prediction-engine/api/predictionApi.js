@@ -7,6 +7,8 @@
  * reaches the backend as "/career/predict". Set VITE_API_URL to override.
  */
 
+import { authHeaders } from '../../../services/apiClient';
+
 const BASE_URL = `${import.meta.env.VITE_API_URL || '/api'}/career`;
 
 /**
@@ -37,7 +39,7 @@ async function handleResponse(res) {
 export async function predictStudent(features) {
   const res = await fetch(`${BASE_URL}/predict`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(features),
   });
   return handleResponse(res);
@@ -49,7 +51,7 @@ export async function predictStudent(features) {
  *                              academic_risk_level and career_readiness_score
  */
 export async function getProfiles() {
-  const res = await fetch(`${BASE_URL}/profiles`);
+  const res = await fetch(`${BASE_URL}/profiles`, { headers: authHeaders() });
   return handleResponse(res);
 }
 
@@ -58,7 +60,7 @@ export async function getProfiles() {
  * @returns {Promise<object>} model_A/B winners plus per-algorithm rows
  */
 export async function getModelMetrics() {
-  const res = await fetch(`${BASE_URL}/model-metrics`);
+  const res = await fetch(`${BASE_URL}/model-metrics`, { headers: authHeaders() });
   return handleResponse(res);
 }
 

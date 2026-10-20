@@ -20,9 +20,10 @@ for "mark complete" - so a missed session is never moved without asking.
 
 from datetime import date, timedelta
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pymongo.errors import DuplicateKeyError
 
+from app.services.auth import require_journal_owner
 from app.models.journal.exam import ExamModel
 from app.models.journal.task import TaskModel
 from app.models.study_planner.study_session import StudySessionModel
@@ -42,7 +43,7 @@ from app.schemas.study_planner.session_schemas import (
 from app.services.study_planner.session_service import build_suggestions, is_slot_still_free
 from app.services.time_utils import local_now, local_today, local_today_iso, to_local_date
 
-router = APIRouter(prefix="/study-planner/sessions", tags=["study-planner"])
+router = APIRouter(prefix="/study-planner/sessions", tags=["study-planner"], dependencies=[Depends(require_journal_owner)])
 
 # History requests are capped so one call can't scan a whole collection.
 MAX_HISTORY_DAYS = 120
