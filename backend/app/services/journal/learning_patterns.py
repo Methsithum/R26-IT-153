@@ -2,6 +2,7 @@ from app.models.journal.learning_pattern import LearningPatternModel
 from app.models.journal.daily_session import DailySessionModel
 from typing import Dict, List, Any
 from datetime import datetime, timezone, timedelta
+from app.services.time_utils import local_today, to_local_date
 
 
 async def aggregate_learning_patterns(user_id: str) -> Dict[str, Any]:
@@ -11,9 +12,10 @@ async def aggregate_learning_patterns(user_id: str) -> Dict[str, Any]:
     """
     
     # Get last 30 days of sessions
-    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    today = local_today()
+    thirty_days_ago = today - timedelta(days=29)
     sessions = await DailySessionModel.find_user_sessions(user_id)
-    recent_sessions = [s for s in sessions if s.get("date", datetime.utcnow()) >= thirty_days_ago]
+    recent_sessions = [s for s in sessions if s.get("completed") and (day := to_local_date(s.get("date"))) and thirty_days_ago <= day <= today]
     
     if not recent_sessions:
         return {
@@ -56,10 +58,13 @@ async def aggregate_learning_patterns(user_id: str) -> Dict[str, Any]:
     top_activities = sorted(activity_counts.items(), key=lambda x: x[1], reverse=True)[:3]
     
     # Engagement trend
-    if engagement_levels:
+    active_days = {to_local_date(s["date"]) for s in recent_sessions}
+    if len(active_days) < 7:
+        engagement_trend = "insufficient_data"
+    elif engagement_levels:
         high_engagement = engagement_levels.count("high")
         low_engagement = engagement_levels.count("low")
-        engagement_trend = "improving" if high_engagement > low_engagement else "declining"
+        engagement_trend = "high" if high_engagement > low_engagement else "low" if low_engagement > high_engagement else "mixed"
     else:
         engagement_trend = "neutral"
     

@@ -1,4 +1,6 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Depends
+from app.services.auth import require_journal_owner
+from app.models.journal.behavior_analysis import BehaviorAnalysisModel
 from app.schemas.journal.daily import (
     StartDailyRequest,
     AnswerRequest,
@@ -36,6 +38,7 @@ from app.services.journal.journal_constants import (
     parse_letter_grade,
 )
 from app.services.journal.alerts import generate_proactive_alerts
+from app.services.journal.behavior_analysis import auto_behavior_analysis
 from app.services.journal.learning_patterns import aggregate_learning_patterns
 import json
 import logging
@@ -43,9 +46,9 @@ import re
 from datetime import datetime, time
 from typing import Any, Dict, List, Optional
 
-from app.services.time_utils import as_of_day, calendar_datetime, local_today_iso, to_local_date
+from app.services.time_utils import as_of_day, calendar_datetime, local_today, local_today_iso, to_local_date
 
-router = APIRouter(prefix="/daily", tags=["daily"])
+router = APIRouter(prefix="/daily", tags=["daily"], dependencies=[Depends(require_journal_owner)])
 logger = logging.getLogger(__name__)
 _ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}")
 
@@ -371,6 +374,18 @@ async def _record_structured_answer(session: dict, answer: str) -> dict:
     user_id = session["user_id"]
     updates: dict = {}
 
+    if field in {"examDates", "exam-dates-check", "examMark", "exam-mark-check"}:
+        owned = {str(exam["id"]) for exam in await ExamModel.find_by_user(user_id)}
+        try:
+            payload = json.loads(answer) if isinstance(answer, str) else answer
+        except (ValueError, TypeError):
+            payload = None
+        targets = list(payload) if isinstance(payload, dict) else []
+        if session.get("pending_mark_exam_id"):
+            targets.append(str(session["pending_mark_exam_id"]))
+        if any(str(target) not in owned for target in targets):
+            raise HTTPException(403, "You can only update your own exams")
+
     if field in {"lectureSubjects", "assignmentSubjects", "examSetup", "labSubjects", "quizSubjects"}:
         parsed = _parse_subject_payload(answer)
         subjects = parsed["subjects"]
@@ -466,7 +481,10 @@ async def _record_structured_answer(session: dict, answer: str) -> dict:
     if field in {"deadline", "deadline-check"} and subject:
         iso = _iso_date(answer)
         if iso:
-            await TaskModel.set_deadline(user_id, subject, iso)
+            try:
+                await TaskModel.set_deadline(user_id, subject, iso, task_id=meta.get("task_id"))
+            except ValueError as exc:
+                raise HTTPException(400, str(exc)) from exc
         elif field == "deadline-check" and _is_no(answer):
             await TaskModel.record_deadline_check(user_id, subject)
         checked = list(session.get("asked_deadline_subjects") or [])
@@ -740,6 +758,7 @@ async def _abandon_incomplete_session(session: dict) -> None:
             user_id, [session], _session_date_key(session.get("date"))
         )
     await DailySessionModel.delete(session["id"])
+    await BehaviorAnalysisModel.invalidate(user_id)
 
 
 async def _user_world_payload(user_id: str) -> dict:
@@ -806,6 +825,8 @@ async def _complete_session(session_id: str, session: dict, qa_list: list, task_
     update_data["journal_highlights"] = highlights
     update_data.update(_pending_fields(None))
     await DailySessionModel.update(session_id, update_data)
+
+    await BehaviorAnalysisModel.invalidate(session["user_id"])
 
     try:
         await aggregate_learning_patterns(session["user_id"])
@@ -957,6 +978,7 @@ async def start_daily_session(req: StartDailyRequest):
         "confirmed_assignment_marks": False,
         "qa_history": [],
         "completed": False,
+        "is_catchup": play_day != local_today(),
         "journal_entry": None,
         "record_snapshot": _record_snapshot(tasks, exams),
         **_pending_fields(question),
@@ -971,7 +993,7 @@ async def start_daily_session(req: StartDailyRequest):
 
 
 @router.post("/answer", response_model=NextQuestionResponse)
-async def answer_question(req: AnswerRequest):
+async def answer_question(req: AnswerRequest, background_tasks: BackgroundTasks):
     session = await DailySessionModel.find_by_id(req.session_id)
     if not session or session.get("completed"):
         raise HTTPException(400, "Invalid or already completed session")
@@ -997,6 +1019,8 @@ async def answer_question(req: AnswerRequest):
     qa_history.append(qa_pair)
 
     session_updates = await _record_structured_answer(session, req.answer)
+    if session_updates:
+        await BehaviorAnalysisModel.invalidate(session["user_id"])
     if session_updates:
         session.update(session_updates)
 
@@ -1075,6 +1099,7 @@ async def answer_question(req: AnswerRequest):
         page = await _complete_session(
             req.session_id, session, qa_list, decision.get("task_updates") or [], update_data
         )
+        background_tasks.add_task(auto_behavior_analysis, session["user_id"])
         return NextQuestionResponse(
             session_id=req.session_id,
             completed=True,
@@ -1106,6 +1131,7 @@ async def finish_daily_run(req: FinishRunRequest):
         raise HTTPException(404, "Session not found")
     if not session.get("completed"):
         raise HTTPException(400, "Finish the journal questions before closing the run")
+    await DailySessionModel.update(req.session_id, {"total_clicks": max(0, req.total_clicks or 0)})
     payload = await apply_run_rewards(session["user_id"], req.session_id, req.xp_earned, req.score)
     if not payload:
         raise HTTPException(404, "User not found")
@@ -1160,6 +1186,8 @@ async def delete_today_journal(user_id: str, date: Optional[str] = Query(default
 
     for session in matching:
         await DailySessionModel.delete(session["id"])
+
+    await BehaviorAnalysisModel.invalidate(user_id)
 
     remaining = await DailySessionModel.find_user_sessions(user_id)
     await _revert_gamification(user, xp_to_remove, remaining)

@@ -73,7 +73,7 @@ function HydrateUser({ children }) {
         const user = await refreshStoredUser();
         if (cancelled) return;
         if (!user) {
-          window.location.assign("/register");
+          window.location.assign("/login");
           return;
         }
         const stillRunning = isActiveCampusRun(useGameStore.getState());

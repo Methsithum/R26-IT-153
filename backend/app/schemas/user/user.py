@@ -36,6 +36,8 @@ class UserLogin(BaseModel):
 
 
 class UserResponse(BaseModel):
+    access_token: Optional[str] = None
+    token_type: str = "bearer"
     id: str
     email: str
     name: str

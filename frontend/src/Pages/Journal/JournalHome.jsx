@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  BarChart3,
   BookOpen,
   CalendarDays,
   ChevronLeft,
@@ -17,14 +18,16 @@ import {
 import { useGameStore } from "../../Game/state/GameStateManager";
 import { useJournalHistoryStore } from "../../Game/state/journalHistoryStore";
 import { buildJournalPage, splitJournalParagraphs } from "../../Game/data/journalNarrative";
-import { BADGE_CATALOG, XP_PER_LEVEL, isBadgeUnlocked, xpIntoLevel, xpToNextLevel } from "../../Game/data/progression";
+import { BADGE_CATALOG, XP_PER_LEVEL, badgeMeta, isBadgeUnlocked, xpIntoLevel, xpToNextLevel } from "../../Game/data/progression";
 import LevelRing from "../../Game/UI/LevelRing";
 import { campusDateKey, formatCampusDate } from "../../services/localDate";
 import { formatExamMark } from "../../Game/data/letterGrades";
+import { fetchGamificationSummary } from "../../services/journalApi";
 import DiscardTodayButton from "./DiscardTodayButton";
 import CampusMapsPage from "./CampusMapsPage";
 import ReflectionsPage from "./ReflectionsPage";
 import JournalShell from "./JournalShell";
+import AnalyticsContent from "./AnalyticsPage";
 
 const TABS = [
   { id: "open", label: "Open Journal", icon: BookOpen },
@@ -34,6 +37,7 @@ const TABS = [
   { id: "reflect", label: "Reflections", icon: Feather },
   { id: "details", label: "Game Details", icon: Sparkles },
   { id: "stats", label: "Character Stats", icon: UserRound },
+  { id: "analytics", label: "Analytics", icon: BarChart3 },
 ];
 
 function Page({ children }) {
@@ -662,6 +666,44 @@ function GameDetailsContent() {
   );
 }
 
+function StatTile({ icon, value, label }) {
+  return (
+    <div className="flex flex-col items-center gap-1.5 rounded-2xl border border-brand-100 dark:border-white/10 bg-white dark:bg-white/5 px-3 py-3 shadow-sm">
+      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-50 dark:bg-white/10 text-base leading-none">
+        {icon}
+      </div>
+      <div className="text-base font-black tabular-nums text-slate-800 dark:text-white">{value}</div>
+      <div className="text-[9px] uppercase tracking-wide text-slate-400">{label}</div>
+    </div>
+  );
+}
+
+function NextBadgeProgress({ nextBadge }) {
+  if (!nextBadge) return null;
+  const meta = badgeMeta(nextBadge.badge);
+  const pct = Math.round((nextBadge.progress || 0) * 100);
+  return (
+    <div className="rounded-2xl border border-brand-100 dark:border-white/10 bg-brand-50/60 dark:bg-white/5 px-4 py-3">
+      <div className="mb-1.5 flex items-center gap-2">
+        <span className="text-lg leading-none grayscale opacity-70">{meta.icon}</span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-xs font-semibold text-slate-700 dark:text-slate-200">Next: {meta.label}</div>
+          <div className="text-[10px] text-slate-400">{nextBadge.current} / {nextBadge.target}</div>
+        </div>
+        <span className="text-[11px] font-bold tabular-nums text-brand-600 dark:text-brand-300">{pct}%</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-brand-100 dark:bg-white/10 shadow-inner">
+        <motion.div
+          className="h-full rounded-full bg-gradient-to-r from-brand-400 to-brand-600"
+          initial={{ width: 0 }}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function CharacterStatsContent() {
   const xp = useGameStore((s) => s.xp);
   const level = useGameStore((s) => s.level);
@@ -675,8 +717,33 @@ function CharacterStatsContent() {
   const campusYear = useGameStore((s) => s.campusYear);
   const semester = useGameStore((s) => s.semester);
   const gpa = useGameStore((s) => s.gpa);
+  const userId = useGameStore((s) => s.userId);
   const into = xpIntoLevel(xp);
   const journalCount = useJournalHistoryStore((s) => s.entries.length);
+
+  const [summary, setSummary] = useState(null);
+  const [summaryStatus, setSummaryStatus] = useState("loading");
+
+  useEffect(() => {
+    if (!userId) {
+      setSummaryStatus("error");
+      return;
+    }
+    let cancelled = false;
+    setSummaryStatus("loading");
+    fetchGamificationSummary(userId)
+      .then((data) => {
+        if (cancelled) return;
+        setSummary(data);
+        setSummaryStatus("ready");
+      })
+      .catch(() => {
+        if (!cancelled) setSummaryStatus("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   return (
     <div>
@@ -725,7 +792,28 @@ function CharacterStatsContent() {
           transition={{ duration: 0.6, ease: "easeOut" }}
         />
       </div>
-      <div className="text-xs text-slate-400 mb-6">{into} / {XP_PER_LEVEL} XP in this rank</div>
+      <div className="text-xs text-slate-400 mb-5">{into} / {XP_PER_LEVEL} XP in this rank</div>
+
+      <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-500 dark:text-brand-300">
+        Campus Stats
+      </div>
+      {summaryStatus === "loading" && (
+        <p className="mb-6 text-xs italic text-slate-400">Loading campus stats…</p>
+      )}
+      {summaryStatus === "error" && (
+        <p className="mb-6 text-xs text-slate-400">Campus stats aren't available right now.</p>
+      )}
+      {summaryStatus === "ready" && summary && (
+        <div className="mb-6 space-y-3">
+          <div className="grid grid-cols-3 gap-2">
+            <StatTile icon="🏆" value={summary.leaderboard_rank ? `#${summary.leaderboard_rank}` : "—"} label="Rank" />
+            <StatTile icon="📔" value={summary.completed_journals ?? 0} label="Journals" />
+            <StatTile icon="✅" value={summary.completed_tasks ?? 0} label="Tasks Done" />
+          </div>
+          <NextBadgeProgress nextBadge={summary.next_badge} />
+        </div>
+      )}
+
       <div className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">Achievements</div>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
         {BADGE_CATALOG.map((badge) => {
@@ -766,6 +854,7 @@ const TAB_CONTENT = {
   recent: RecentJournalsContent,
   details: GameDetailsContent,
   stats: CharacterStatsContent,
+  analytics: AnalyticsContent,
 };
 
 export default function JournalHome() {

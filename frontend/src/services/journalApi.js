@@ -45,11 +45,34 @@ export async function deleteTodayJournal(userId, date = localTodayIso()) {
   return data;
 }
 
-export async function finishDailyRun({ sessionId, xpEarned, score }) {
+export async function finishDailyRun({ sessionId, xpEarned, score, totalClicks }) {
   const { data } = await api.post("/daily/finish", {
     session_id: sessionId,
     xp_earned: xpEarned,
     score,
+    total_clicks: totalClicks,
   });
+  return data;
+}
+
+export async function fetchGamificationSummary(userId) {
+  const { data } = await api.get(`/gamification/${userId}`);
+  return data;
+}
+
+export async function analyzeBehavior(userId) {
+  const { data } = await api.post("/behavior/analyze", { user_id: userId });
+  return data;
+}
+
+export async function fetchLearningPatterns(userId, windowDays = 30) {
+  const { data } = await api.get(`/analytics/learning-patterns/${userId}`, {
+    params: { window: windowDays },
+  });
+  return data;
+}
+
+export async function fetchBehaviorLatest(userId) {
+  const { data } = await api.get(`/analytics/behavior-latest/${userId}`);
   return data;
 }

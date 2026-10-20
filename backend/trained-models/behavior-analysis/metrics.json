@@ -1,0 +1,67 @@
+{
+  "trained_at": "2026-10-19T07:16:12.565315+00:00",
+  "dataset_rows": 280,
+  "model_selected": "random_forest",
+  "cross_validation": {
+    "random_forest": {
+      "mean": 0.9714285714285713,
+      "std": 0.023328473740792156
+    },
+    "gradient_boosting": {
+      "mean": 0.9714285714285713,
+      "std": 0.009523809523809535
+    },
+    "logistic_regression": {
+      "mean": 0.9571428571428571,
+      "std": 0.009523809523809535
+    }
+  },
+  "test_set_size": 70,
+  "test_accuracy": 0.9285714285714286,
+  "test_macro_f1": 0.9288888888888888,
+  "classification_report": {
+    "Consistent Learner": {
+      "precision": 0.8461538461538461,
+      "recall": 0.7857142857142857,
+      "f1-score": 0.8148148148148148,
+      "support": 14.0
+    },
+    "Highly Engaged Student": {
+      "precision": 0.8125,
+      "recall": 0.9285714285714286,
+      "f1-score": 0.8666666666666667,
+      "support": 14.0
+    },
+    "Last-Minute Learner": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 14.0
+    },
+    "Low Engagement Student": {
+      "precision": 1.0,
+      "recall": 0.9285714285714286,
+      "f1-score": 0.9629629629629629,
+      "support": 14.0
+    },
+    "Overloaded Student": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 14.0
+    },
+    "accuracy": 0.9285714285714286,
+    "macro avg": {
+      "precision": 0.9317307692307694,
+      "recall": 0.9285714285714286,
+      "f1-score": 0.9288888888888888,
+      "support": 70.0
+    },
+    "weighted avg": {
+      "precision": 0.9317307692307691,
+      "recall": 0.9285714285714286,
+      "f1-score": 0.9288888888888888,
+      "support": 70.0
+    }
+  }
+}

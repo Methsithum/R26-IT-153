@@ -1,9 +1,31 @@
 from app.config.database import db
 from datetime import datetime
+from bson import ObjectId
 
 behavior_analysis_collection = db["behavior_analysis"]
 
 class BehaviorAnalysisModel:
+    @staticmethod
+    async def revision(user_id: str) -> int:
+        user = db["users"].find_one({"_id": ObjectId(user_id)}) or {}
+        return int(user.get("journal_revision", 0))
+
+    @staticmethod
+    async def set_state(user_id: str, status: str, revision: int, error: str | None = None):
+        query = {"_id": ObjectId(user_id)}
+        query["journal_revision"] = revision if revision else {"$in": [None, 0]}
+        db["users"].update_one(query, {"$set": {"behavior_analysis_state": {
+            "status": status, "revision": revision, "updated_at": datetime.utcnow(), "error": error,
+        }}})
+
+    @staticmethod
+    async def invalidate(user_id: str):
+        db["users"].update_one({"_id": ObjectId(user_id)}, {
+            "$inc": {"journal_revision": 1},
+            "$set": {"behavior_analysis_state": {"status": "stale", "updated_at": datetime.utcnow()}},
+        })
+        behavior_analysis_collection.delete_many({"studentId": user_id})
+
     @staticmethod
     def _serialize(doc: dict | None):
         if not doc:
