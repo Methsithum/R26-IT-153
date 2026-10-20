@@ -1,3 +1,4 @@
+// Mini-game: tilt a beam balance scale or drop preset weights to set a percentage mark.
 import { useRef, useState } from "react";
 import { play } from "../audio/sfx";
 

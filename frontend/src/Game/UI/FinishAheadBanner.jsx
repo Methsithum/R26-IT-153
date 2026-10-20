@@ -1,3 +1,4 @@
+// Shows a live countdown of remaining meters to the finish line while approaching it.
 import { useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { PHASES, useGameStore } from "../state/GameStateManager";

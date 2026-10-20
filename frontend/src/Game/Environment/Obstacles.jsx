@@ -1,3 +1,4 @@
+// Renders a lane obstacle and detects hits/clears/near-misses against the runner each frame.
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { LANES, useRunnerStore } from "../state/runnerStore";

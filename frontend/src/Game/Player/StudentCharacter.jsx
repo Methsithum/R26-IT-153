@@ -1,3 +1,4 @@
+// Procedural low-poly student avatar whose limbs are posed per frame for each movement state.
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 

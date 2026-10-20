@@ -1,8 +1,4 @@
-"""Filter the question bank, then ask the LLM to pick one id from the shortlist.
-
-The LLM decides among eligible flavour questions. The backend still guarantees
-setup coverage and date/mark gates so academic facts cannot be skipped.
-"""
+# Filters the question bank and forced gates, then asks the LLM to pick one question id.
 
 from typing import Any, Dict, List, Optional, Sequence
 

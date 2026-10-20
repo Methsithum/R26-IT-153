@@ -1,3 +1,4 @@
+// Loads the Mixamo FBX runner model and plays its baked running animation at a pose-driven rate.
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useFBX } from "@react-three/drei";

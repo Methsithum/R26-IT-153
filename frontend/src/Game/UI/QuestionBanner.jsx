@@ -1,3 +1,4 @@
+// Shows the current question text and its lane-mapped answer choices at the top of the HUD.
 import { AnimatePresence, motion } from "framer-motion";
 import { PHASES, useGameStore } from "../state/GameStateManager";
 import { LANE_NAMES } from "../state/runnerStore";

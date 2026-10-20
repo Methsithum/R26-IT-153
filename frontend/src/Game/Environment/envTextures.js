@@ -1,3 +1,4 @@
+// Procedurally generates speckled canvas textures for the road, sidewalk, and grass per map.
 import { useMemo } from "react";
 import * as THREE from "three";
 

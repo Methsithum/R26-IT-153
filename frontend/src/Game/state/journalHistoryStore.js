@@ -1,3 +1,4 @@
+// Persisted zustand store caching completed journal day entries built from backend sessions.
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { levelFromXp } from "../data/progression";

@@ -1,3 +1,4 @@
+// Mini-game: pull back and throw a dart at a wooden dartboard to set a percentage mark.
 import { useEffect, useId, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { play } from "../audio/sfx";

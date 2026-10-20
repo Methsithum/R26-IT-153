@@ -1,3 +1,4 @@
+// HUD stat cards showing current level/XP, score, and running speed.
 import { useGameStore } from "../state/GameStateManager";
 import { useRunnerStore } from "../state/runnerStore";
 import { XP_PER_LEVEL, xpIntoLevel } from "../data/progression";

@@ -1,3 +1,4 @@
+// Shared wooden-desk UI pieces (calendar grid, stamp press, paper slip) reused across mini-games.
 import { AnimatePresence, motion } from "framer-motion";
 
 export const MONTHS_FULL = [

@@ -1,3 +1,4 @@
+// Lays out the in-run HUD: progress, score, lives, combo, minimap, hints, and effect overlays.
 import DailyProgress from "./DailyProgress";
 import ScoreDisplay from "./ScoreDisplay";
 import ObjectivePanel from "./ObjectivePanel";

@@ -1,3 +1,4 @@
+// Renders one lane gate (holographic gate with label) the player runs through to pick an answer.
 import { Text } from "@react-three/drei";
 import { LANES } from "../state/runnerStore";
 

@@ -1,3 +1,4 @@
+// Page letting the player browse and pick the unlocked campus map theme for their next run.
 import { motion } from "framer-motion";
 import { CAMPUS_MAPS, isMapUnlocked } from "../../Game/data/maps";
 import { useGameStore } from "../../Game/state/GameStateManager";

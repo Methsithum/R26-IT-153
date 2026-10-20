@@ -1,3 +1,4 @@
+// Pre-run start screen showing the day, active map theme, and a button to begin today's activities.
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useGameStore } from "../state/GameStateManager";

@@ -1,3 +1,5 @@
+# DB access for the legacy per-user learning pattern aggregate doc.
+
 from app.config.database import db
 from bson import ObjectId
 from datetime import datetime

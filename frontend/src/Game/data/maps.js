@@ -1,3 +1,4 @@
+// Defines the selectable campus map themes (lighting, colors, decor) and their level unlock rules.
 export const DEFAULT_MAP_ID = "main-campus";
 
 export const CAMPUS_MAPS = [

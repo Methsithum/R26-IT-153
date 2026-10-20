@@ -1,3 +1,4 @@
+// Hook that wires game/runner state changes to sound effects, ambience, and background music.
 import { useEffect } from "react";
 import { PHASES, useGameStore } from "../state/GameStateManager";
 import { useRunnerStore } from "../state/runnerStore";

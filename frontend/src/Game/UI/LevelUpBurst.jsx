@@ -1,3 +1,4 @@
+// Shows a temporary "Campus rank up" burst overlay when the player levels up.
 import { useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useGameStore } from "../state/GameStateManager";

@@ -1,3 +1,4 @@
+// Computes the nearest building's door position/side relative to the player's current z position.
 import { getBuildingById } from "../data/buildings";
 import { getBuildingsInRange } from "./chunkGenerator";
 

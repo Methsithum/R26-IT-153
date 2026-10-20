@@ -1,7 +1,4 @@
-"""Loads the trained behaviour-category classifier and predicts a category
-from a live activity snapshot. This is the model behavior_analysis.py calls
-instead of asking the LLM to pick the category itself.
-"""
+# Loads the trained ML model and predicts a behavior category from a live snapshot.
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -21,8 +18,8 @@ def _load():
     if _cache is None:
         if not MODEL_PATH.exists():
             raise FileNotFoundError(
-                "behavior_model.joblib not found - run "
-                "`python -m app.services.journal.ml.train_behavior_model` from backend/ first."
+                "behavior_model.joblib not found - run the training notebook at "
+                "ml_scripts/journal/behavior_analyze/train_behavior_model.ipynb first."
             )
         _cache = joblib.load(MODEL_PATH)
     return _cache

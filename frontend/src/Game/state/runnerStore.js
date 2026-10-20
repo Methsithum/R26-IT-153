@@ -1,3 +1,4 @@
+// High-frequency zustand store for runner position, movement, lanes, and interior exploration state.
 import { create } from "zustand";
 
 // High-frequency runner/physics state, kept separate from GameStateManager

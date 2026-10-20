@@ -1,3 +1,4 @@
+// Mini-game: pick which exam, assignment, or subject paper a mark should be logged against.
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { play } from "../audio/sfx";

@@ -1,3 +1,4 @@
+// Picks and renders the right scenery prop (tree, hedge, lamp, bleacher, etc.) for a decoration entry.
 import {
   Tree,
   LampPost,

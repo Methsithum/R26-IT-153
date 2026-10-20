@@ -1,3 +1,4 @@
+// Renders the building mini-game overlay and routes to the correct mini-game by interaction type.
 import { motion, AnimatePresence } from "framer-motion";
 import { PHASES, useGameStore } from "../state/GameStateManager";
 import { getBuildingById } from "../data/buildings";

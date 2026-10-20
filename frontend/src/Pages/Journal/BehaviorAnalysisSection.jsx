@@ -1,3 +1,4 @@
+// Shows the latest ML behavior-category verdict, its top features, and rule-based/AI next-step tips.
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { analyzeBehavior, fetchBehaviorLatest, fetchLearningPatterns } from "../../services/journalApi";

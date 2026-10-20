@@ -1,3 +1,5 @@
+# API route for the legacy sentence-style learning insights.
+
 from fastapi import APIRouter, HTTPException, Depends
 from app.services.auth import require_journal_owner
 from app.models.user.user import UserModel

@@ -1,3 +1,4 @@
+// Analytics tab shell switching between the Learning Patterns and Behaviour Analysis sub-views.
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BarChart3, Brain } from "lucide-react";

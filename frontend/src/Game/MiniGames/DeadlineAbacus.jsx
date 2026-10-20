@@ -1,3 +1,4 @@
+// Mini-game: slide an abacus-style month bead and tap a day to set a deadline date.
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { play } from "../audio/sfx";

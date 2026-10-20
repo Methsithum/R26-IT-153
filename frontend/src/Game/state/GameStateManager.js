@@ -1,3 +1,4 @@
+// Central zustand store driving the run's game phase machine, scoring, XP, and backend session sync.
 import { create } from "zustand";
 import { generateDailyQuestions, shouldEscalateToSpecialEntry } from "../data/questions";
 import { campusDateKey, localTodayIso } from "../../services/localDate";

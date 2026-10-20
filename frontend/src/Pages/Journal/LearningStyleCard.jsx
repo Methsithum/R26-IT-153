@@ -1,3 +1,4 @@
+// Small card that triggers an on-demand behavior analysis and shows the resulting learning style.
 import { useState } from "react";
 import { useGameStore } from "../../Game/state/GameStateManager";
 import { analyzeBehavior } from "../../services/journalApi";

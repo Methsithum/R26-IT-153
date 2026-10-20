@@ -1,3 +1,4 @@
+// Pre-run page for picking today's activities (or catch-up day) before starting the campus run.
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";

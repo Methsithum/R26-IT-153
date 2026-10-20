@@ -1,9 +1,4 @@
-"""
-Pure stdlib statistics helpers for the read-only Analytics tab.
-
-No scikit-learn / numpy / pandas: everything here is plain Python so the
-Analytics feature stays outside the ML stack entirely.
-"""
+# Pure stdlib statistics helpers for the read-only Analytics tab (no sklearn/numpy/pandas).
 
 import math
 from statistics import median
