@@ -96,6 +96,7 @@ print(f"  Shape after drop: {df.shape}  (expected 9,500 × 15)")
 
 
 # STEP 3 — HANDLE MISSING VALUES (MEDIAN IMPUTATION)
+# Filled missing values with the median
 
 print("\n" + "=" * 65)
 print("  STEP 3: HANDLE MISSING VALUES (MEDIAN IMPUTATION)")
