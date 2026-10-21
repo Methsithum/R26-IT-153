@@ -1,6 +1,4 @@
-"""
-Regression tests for StudyScheduler (schedule_engine.py) - Sections 8/8c.
-"""
+"""Regression tests for StudyScheduler (schedule_engine.py) - Sections 8/8c."""
 from datetime import date
 
 import pytest
@@ -53,12 +51,7 @@ class TestNeverSilentlyDropsATask:
 
 
 class TestTaskRegistryIncludesWeight:
-    """
-    Regression test for a real bug: the tasks registry originally omitted
-    `weight`, which broke reschedule()'s ability to round-trip a task
-    straight back into add_task() across stateless HTTP requests (add_task
-    requires `weight` - see schedule_engine.py's required-fields check).
-    """
+    """Regression test for a real bug"""
 
     def test_every_registry_entry_has_weight(self):
         scheduler = StudyScheduler(_free_slots(3), anchor_date=date(2026, 8, 29))
@@ -70,8 +63,7 @@ class TestTaskRegistryIncludesWeight:
         assert result["tasks"]["t1"]["weight"] == 27
 
     def test_registry_entries_round_trip_directly_back_into_add_task(self):
-        """The actual real-world usage this bug broke: schedule_service.reschedule()
-        reconstructing a scheduler from a previous response's task registry."""
+        """The actual real-world usage this bug broke"""
         scheduler = StudyScheduler(_free_slots(3), anchor_date=date(2026, 8, 29))
         scheduler.add_task({
             "task_id": "t1", "module": "AAA", "deadline_date": "2026-09-10", "weight": 27,
@@ -79,8 +71,7 @@ class TestTaskRegistryIncludesWeight:
         })
         result = scheduler.generate_schedule()
 
-        # Simulate reconstructing a fresh scheduler purely from the registry,
-        # exactly as schedule_service.reschedule() does.
+        # Rebuild a scheduler from the registry, like reschedule() does.
         fresh_scheduler = StudyScheduler(_free_slots(3), anchor_date=date(2026, 8, 29))
         for task_id, info in result["tasks"].items():
             fresh_scheduler.add_task({"task_id": task_id, **info})  # must not raise ValueError
@@ -118,12 +109,7 @@ class TestReschedule:
 
 
 class TestTypicalScenarioRegression:
-    """
-    Lightweight regression test capturing Phase 2's verified finding: on the
-    documented `typical` scenario, StudyScheduler achieves
-    pct_high_priority_scheduled_before_deadline == 1.0. A future algorithm
-    change that regresses this already-verified property should fail here.
-    """
+    """Lightweight regression test capturing Phase 2's verified finding"""
 
     def test_typical_scenario_fully_schedules_all_high_priority_tasks(self, build_scenario_tasks):
         from sensitivity_analysis import ANCHOR_DATE, evaluate_schedule

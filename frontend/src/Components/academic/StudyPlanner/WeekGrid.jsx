@@ -155,31 +155,18 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
   const weeklyFreeSlots = useAcademicStore((s) => s.weeklyFreeSlots);
   const assignments = useAcademicStore((s) => s.assignments);
   const exams = useAcademicStore((s) => s.exams);
-  // Frozen per-date snapshots (Section 8e) - once a past date is captured
-  // here, it is the SOLE source of truth for that date's content below,
-  // regardless of what the live schedule/multiWeekSchedule now says for it.
+  // Frozen per-date snapshots
   const historicalScheduleByDate = useAcademicStore((s) => s.historicalScheduleByDate);
   const moduleName = (code) => modules.find((m) => m.code === code)?.name || code;
-  // Permanent per-session history from MongoDB (status, manual reschedules) -
-  // see useAcademicStore's "Permanent session history" section.
+  // Permanent per-session history from MongoDB
   const userId = useAcademicStore((s) => s.userId);
   const sessionRecords = useAcademicStore((s) => s.sessionRecords);
   const loadSessionRecords = useAcademicStore((s) => s.loadSessionRecords);
 
-  // Real, ISO-date-keyed sessions spanning several weeks ahead (PROJECT
-  // CONTEXT.md Section 8d) - fetched once, sliced per viewed week below,
-  // instead of a fresh backend call every time the student navigates.
+  // Real, ISO-date-keyed sessions spanning several weeks ahead
   const { multiWeekSchedule, loading: multiWeekLoading } = useMultiWeekSchedule();
 
-  // --- Part 2: week navigation --------------------------------------------
-  // weekOffset counts real weeks away from the actual current week (0 = this
-  // week, +1 = next week, -1 = last week). The CURRENT week keeps using the
-  // single-week `schedule` prop (from useWeeklySchedule/StudyPlanner.jsx) -
-  // it's the one still wired to /reschedule for live "mark complete"/"missed
-  // task" adjustments. Every OTHER week is sliced from multiWeekSchedule,
-  // which covers real, backend-time-blocked sessions up to its generated
-  // range (up to 12 weeks - schedule_engine.py's MAX_WEEKS_AHEAD); a week
-  // beyond that range still honestly says so rather than showing nothing.
+  // --- Part 2
   const [weekOffset, setWeekOffset] = useState(0);
   const [direction, setDirection] = useState(0); // -1 = navigated back, +1 = forward, drives the slide direction
 
@@ -203,12 +190,7 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
 
   const semesterAllocation = useAcademicStore((s) => s.semesterAllocation);
 
-  // Real occupied items for the WEEK CURRENTLY BEING VIEWED, re-keyed onto
-  // weekday names - the current week's own live `schedule` prop for week 0,
-  // or multiWeekSchedule's real-ISO-date entries mapped back onto each
-  // date's own weekday name for every other week. Regular per-module study
-  // sessions (below) must only ever fill what's ACTUALLY still free in
-  // THIS specific week, never week 0's occupied slots reused for every week.
+  // Real occupied items for the WEEK CURRENTLY BEING VIEWED, re-keyed onto weekday names
   const weekOccupiedByWeekday = useMemo(() => {
     const map = {};
     if (isCurrentWeek) Object.assign(map, schedule || {});
@@ -219,8 +201,7 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
         map[d.toLocaleDateString(undefined, { weekday: "long" })] = items;
       });
     }
-    // Manually rescheduled sessions occupy their slot too, so a suggested
-    // study block never lands on top of one.
+    // Manually rescheduled sessions occupy their slot too
     weekDates.forEach((d) => {
       const dateStr = toLocalDateStr(d);
       const manual = Object.values(sessionRecords).filter((r) => r.date === dateStr && r.source === "manual_reschedule");
@@ -231,14 +212,10 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
     return map;
   }, [isCurrentWeek, schedule, multiWeekSchedule, weekDates, sessionRecords]);
 
-  // semesterAllocation[weekOffset] is that week's real per-module hours
-  // projection (studyAllocation.js's SEMESTER_WEEKS = 14 fixed rows) - undefined
-  // once weekOffset reaches 14, which correctly turns regular study sessions
-  // off beyond the modeled semester length rather than reusing week 0's numbers.
+  // semesterAllocation[weekOffset] is that week's real per-module hours projection
   const weekModuleHours = weekOffset >= 0 ? semesterAllocation[weekOffset] : null;
 
-  // Exam days in this week have no free time at all - suggested study
-  // blocks get spread over the other days instead of being dropped.
+  // Exam days in this week have no free time at all
   const weekFreeSlots = useMemo(() => {
     const blockedDays = examWeekdays(weekDates, exams);
     return blockedDays.size ? weeklyFreeSlots.filter((slot) => !blockedDays.has(slot.day)) : weeklyFreeSlots;
@@ -252,8 +229,7 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
     [modules, weekFreeSlots, assignments, weekOccupiedByWeekday, weekModuleHours]
   );
 
-  // Only meaningful for the current week - other weeks never have a
-  // backend-generated schedule to be "empty" or not.
+  // Only meaningful for the current week
   const currentWeekHasAny = WEEKDAYS.some((d) => (schedule?.[d] || []).length > 0 || (studySessionsByDay[d] || []).length > 0);
 
   if (isCurrentWeek && !currentWeekHasAny) {
@@ -264,7 +240,6 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
   const rangeEnd = multiWeekSchedule?.range_end;
 
   // Overload warnings relevant to the currently-viewed non-current week
-  // (its own tasks registry doesn't map 1:1 onto the current week's props).
   const viewedWeekOverload = !isCurrentWeek && multiWeekSchedule
     ? multiWeekSchedule.overload_warning.filter((w) => w.deadline_date >= toLocalDateStr(weekDates[0]) && w.deadline_date <= toLocalDateStr(weekDates[6]))
     : [];
@@ -348,45 +323,20 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
 
             const withinGeneratedRange = !isCurrentWeek && rangeStart && dateStr >= rangeStart && dateStr <= rangeEnd;
 
-            // Past dates NEVER read from the live schedule/multiWeekSchedule,
-            // no matter what those currently say - once a date is past, its
-            // content is frozen (Section 8e) the moment it's captured by
-            // freezePastDates() (useAcademicStore), and a later regeneration
-            // must not be able to change what already happened. A past date
-            // with no frozen record at all (captured before this mechanism
-            // existed, or a gap while the app was closed) honestly says so
-            // below rather than showing a misleading empty "Nothing scheduled".
+            // Past dates NEVER read from the live schedule/multiWeekSchedule, no matter what those currently say
             const historicalRecord = isPast ? historicalScheduleByDate?.[dateStr] : null;
-            // The database's own copy of this day - lets a past day this
-            // browser never froze (other device, cleared storage) still
-            // show what was planned, instead of "not available".
+            // The database's own copy of this day
             const dbDayRecords = Object.values(sessionRecords).filter(
               (r) => r.date === dateStr && r.source !== "manual_reschedule"
             );
             const hasHistoricalRecord = isPast && (!!historicalRecord || dbDayRecords.length > 0);
 
-            // Which task/session data source this day pulls from (today/future only):
-            //  - current week: the live, /reschedule-integrated single-week `schedule` prop (weekday-keyed).
-            //  - other weeks within the generated range: multiWeekSchedule (real ISO-date-keyed).
-            //  - other weeks outside the range: none - honest fallback below.
-            //
-            // IMPORTANT for the current week: `schedule` (and studySessionsByDay)
-            // are keyed by weekday NAME, but StudyScheduler resolves those names
-            // relative to ITS OWN anchor (today), not this calendar-Monday-
-            // aligned display - "Monday" means "the next Monday from today",
-            // which is a DIFFERENT calendar date than this column's `dayDate`
-            // whenever today isn't itself Monday. The static `day` from the
-            // WEEKDAYS iteration must NOT be used to look up real content here
-            // - only `dayDate`'s OWN real weekday name correctly identifies
-            // which backend bucket this specific date actually landed in.
+            // Which task/session data source this day pulls from (today/future only)
             const realDayName = dayDate.toLocaleDateString(undefined, { weekday: "long" });
-            // Exam day: nothing is scheduled (a past one still shows what
-            // was really planned, if anything was, before this rule existed).
+            // Exam day
             const dayExams = examsOnDate(exams, dateStr);
             const isExamDay = dayExams.length > 0;
-            // The agreed after-exam revision (back-to-back exams only) is the
-            // one session an exam day can have - shown as its own card in the
-            // timeline, like any other session.
+            // The agreed after-exam revision
             const revision = isExamDay && !isPast ? revisionSessionForExamDay(dateStr, exams, weeklyFreeSlots) : null;
             const plannedItems = isExamDay && !isPast
               ? revision ? [revision.item] : []
@@ -397,30 +347,19 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
               : withinGeneratedRange
               ? multiWeekSchedule.schedule[dateStr] || []
               : [];
-            // A today/future exam day shows ONLY the exam card (and its
-            // agreed revision) - stored records from an older plan made
-            // before the exam was known stay in history, but aren't shown
-            // as if they were still today's plan.
+            // A today/future exam day shows ONLY the exam card
             const extraRecords = isExamDay && !isPast ? [] : extraRecordsForDate(dateStr, plannedItems, sessionRecords);
-            // Past days and today: one session per time slot, so stacked plan
-            // versions for the same slot show as the one actually marked.
+            // Past days and today
             const allItems = [...plannedItems, ...extraRecords.map(recordToScheduledItem)];
             const items = isPast || isToday ? dropOverlappingItems(dateStr, allItems, sessionRecords) : allItems;
-            // Regular per-module study sessions - spread across the whole
-            // modeled semester (studyAllocation.js's SEMESTER_WEEKS), not
-            // just the current week, but only ever filling time that week's
-            // OWN real schedule (weekOccupiedByWeekday) left genuinely free -
-            // never part of a frozen historical record, since a past day's
-            // record is exactly what was really shown, suggestions included
-            // or not.
+            // Regular per-module study sessions
             const studySessions = !isPast && !isExamDay ? studySessionsByDay[realDayName] || [] : [];
             const plannedTasksRegistry = isPast
               ? historicalRecord?.tasksRegistry || {}
               : isCurrentWeek
               ? tasksRegistry
               : multiWeekSchedule?.tasks;
-            // Stored records carry their own task_type/deadline for tasks the
-            // live registry no longer knows (e.g. completed since).
+            // Stored records carry their own task_type/deadline for tasks the live registry no longer knows
             const activeTasksRegistry = {
               ...Object.fromEntries(
                 [...extraRecords, ...dbDayRecords].map((r) => [r.task_id, { task_type: r.task_type, deadline_date: r.deadline_date }])
@@ -462,11 +401,7 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
               if (!multiWeekSchedule && multiWeekLoading) {
                 emptyState = { icon: Clock, title: "Loading…", subtitle: "Fetching this week's real plan." };
               } else if (!withinGeneratedRange && studySessions.length === 0) {
-                // Weeks 12-13 (beyond the backend's own 12-week cap) can
-                // still show regular per-module study sessions - those are
-                // computed entirely client-side from SEMESTER_WEEKS, not
-                // from the backend's generated range - so only fall back to
-                // "too far ahead" when there's truly nothing to show either way.
+                // Weeks 12-13 (beyond the backend's own 12-week cap) can still show regular per-module study sessions
                 emptyState = {
                   icon: Clock,
                   title: "Too far ahead",
@@ -489,8 +424,7 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
                     </p>
                     {isToday && <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />}
                   </div>
-                  {/* Part 3: "Day complete" indicator, distinct from the
-                      today ring/dot above - only for genuinely past days. */}
+                  {/* Part 3 */}
                   {isPast && (
                     <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-slate-400" title="Day complete">
                       <CheckCircle2 size={11} /> Done
@@ -498,10 +432,7 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
                   )}
                 </div>
 
-                {/* Part 3: mute everything below the header for a fully-past
-                    day - lower opacity + desaturation on the existing
-                    priority/module colors, never a redesign of the cards
-                    themselves. Today is never muted, only real past days. */}
+                {/* Part 3 */}
                 <div className={`flex-1 flex flex-col min-h-0 ${isPast ? "opacity-55 saturate-[.45]" : ""}`}>
                   {isExamDay && (
                     <div className={timeline.length ? "mb-2" : ""}>
@@ -534,8 +465,7 @@ export default function WeekGrid({ schedule, tasksRegistry, overloadWarning }) {
                   )}
                 </div>
 
-                {/* Free-time indicator - only meaningful for the current
-                    (actually time-blocked) week. */}
+                {/* Free-time indicator - only meaningful for the current (actually time-blocked) week. */}
                 {freeLabel && (
                   <div className={`mt-2 shrink-0 rounded-lg border border-dashed border-slate-200 dark:border-white/10 px-2 py-1.5 text-center ${isPast ? "opacity-55" : ""}`}>
                     <p className="text-[10px] font-medium text-slate-400">{freeLabel} free</p>

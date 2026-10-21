@@ -1,18 +1,4 @@
-// @vitest-environment jsdom
-//
-// jsdom needed here for the same reason as useAcademicStore.migration.test.js -
-// importing useAcademicStore.js triggers zustand's `persist` middleware,
-// which reads `localStorage` at store-creation time.
-//
-// Regression test for the "past days silently reset on regeneration" bug:
-// generate_rolling_schedule() (and the single-week /schedule endpoint) have
-// no persisted memory of what a past calendar date actually held - every
-// call recomputes purely from current tasks/free-time. Left unfixed, a
-// student who saw real content for a day could reload later and find that
-// day showing something different (or empty), because nothing durable ever
-// recorded what was genuinely shown. freezePastDates() (useAcademicStore.js,
-// Section 8e) is the fix: once a date slips into the past, its last-known
-// content is captured into historicalScheduleByDate and never touched again.
+// jsdom needed here for the same reason as useAcademicStore.migration.test.js
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useAcademicStore } from "../useAcademicStore";
 
@@ -51,10 +37,7 @@ describe("freezePastDates (Section 8e - historical schedule persistence)", () =>
     // A real day passes without the schedule being touched in between.
     vi.setSystemTime(new Date("2026-08-30T09:00:00"));
 
-    // The live algorithm has since evolved (e.g. new tasks, different free
-    // time) and would now produce something completely different if 2026-08-29
-    // were recomputed fresh - this is exactly what must NOT reach the frozen
-    // record for that date.
+    // The live schedule has changed since then
     const laterSchedule = {
       schedule: {
         Sunday: [{ time_slot: "10:00-11:00", task_id: "t2", module: "BBB", duration_minutes: 90 }],
@@ -70,9 +53,7 @@ describe("freezePastDates (Section 8e - historical schedule persistence)", () =>
     expect(frozen.tasksRegistry).toEqual(originalSchedule.tasks);
     expect(frozen.source).toBe("scheduleResponse");
 
-    // Yet another regeneration (e.g. "Regenerate Plan" clicked again, or a
-    // /reschedule call) with still more different content must still leave
-    // the already-frozen 2026-08-29 record completely untouched.
+    // Yet another regeneration
     useAcademicStore.getState().setSchedule({
       schedule: { Sunday: [] },
       overload_warning: [],
@@ -106,8 +87,7 @@ describe("freezePastDates (Section 8e - historical schedule persistence)", () =>
 
     // Three real days pass.
     vi.setSystemTime(new Date("2026-09-01T09:00:00"));
-    // Any store write that funnels through setSchedule/setMultiWeekSchedule
-    // triggers freezePastDates() - simulate the next regeneration.
+    // Any store write that funnels through setSchedule/setMultiWeekSchedule triggers freezePastDates()
     useAcademicStore.getState().setMultiWeekSchedule({
       schedule: { "2026-09-01": [] },
       overload_warning: [],
@@ -119,14 +99,11 @@ describe("freezePastDates (Section 8e - historical schedule persistence)", () =>
 
     const historical = useAcademicStore.getState().historicalScheduleByDate;
 
-    // scheduleResponse's version of 2026-08-29 wins over multiWeekSchedule's
-    // conflicting entry for the same date (scheduleResponse is the more
-    // authoritative, /reschedule-integrated source for "today at generation time").
+    // scheduleResponse wins over multiWeekSchedule for the same date
     expect(historical["2026-08-29"].source).toBe("scheduleResponse");
     expect(historical["2026-08-29"].sessions[0].task_id).toBe("t1");
 
-    // 2026-08-30 was never claimed by scheduleResponse, so multiWeekSchedule's
-    // (empty) record is frozen as a genuine "nothing scheduled" day.
+    // 2026-08-30 was never claimed by scheduleResponse
     expect(historical["2026-08-30"]).toBeDefined();
     expect(historical["2026-08-30"].sessions).toEqual([]);
     expect(historical["2026-08-30"].source).toBe("multiWeekSchedule");

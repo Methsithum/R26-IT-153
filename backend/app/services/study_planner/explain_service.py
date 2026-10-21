@@ -1,32 +1,4 @@
-"""
-explain_service.py
-
-Loads the trained Priority classifier and builds a SHAP TreeExplainer ONCE
-at module import time (the expensive part), then exposes explain_task() for
-cheap per-request single-row explanations.
-
-Adapts explain_single_prediction() / sentence_from_contributions() from
-ml_scripts/study-planner/explain_priority_shap.py - same feature-contribution
-logic and the same plain-English sentence style, just computed for one row
-at a time instead of the whole test set (that script is not imported here,
-since importing it would re-run its full batch SHAP computation as a
-module-level side effect).
-
---- Ordinal constrained model (PROJECT CONTEXT.md Section 5c) ---
-priority_model.joblib is now an OrdinalPriorityModel (see
-ordinal_priority_model.py): two binary XGBClassifiers, model_medium
-(P(priority >= Medium)) and model_high (P(priority >= High)), NOT a single
-multi-class XGBClassifier. A single shap.TreeExplainer built against the
-wrapper itself would fail (shap needs a real tree booster, not a Python
-object with a predict_proba method that internally calls two of them) - so
-this module builds ONE TreeExplainer per underlying binary model instead, and
-picks which one's SHAP values explain the predicted class:
-  - predicted Low:    -shap(model_medium)              (didn't clear the Medium bar)
-  - predicted High:     shap(model_high)                (cleared the High bar)
-  - predicted Medium:   shap(model_medium) - shap(model_high)  (cleared Medium, didn't clear High)
-In every case positive = pushed toward the predicted label, preserving the
-same contract explain_schemas.ExplainResponse documents.
-"""
+"""explain_service.py"""
 
 import logging
 import os
@@ -63,8 +35,7 @@ try:
     import shap  # imported here (not at app top-level) so a missing shap install only breaks explain routes
 
     _model = joblib.load(MODEL_PATH)
-    # The wrapper isn't itself a tree model - build one TreeExplainer per
-    # underlying binary XGBClassifier instead (see module docstring).
+    # The wrapper isn't itself a tree model
     _explainer_medium = shap.TreeExplainer(_model.model_medium)
     _explainer_high = shap.TreeExplainer(_model.model_high)
     logger.info("explain_service: loaded ordinal model and built two SHAP TreeExplainers (medium/high) at startup.")
@@ -101,12 +72,7 @@ def _sentence_from_contributions(predicted_label, contributions, top_n=2):
 
 
 def explain_task(task_features: dict) -> dict:
-    """
-    task_features: dict with exactly the 13 keys in FEATURE_ORDER (same shape
-    predict_priority() takes).
-    Returns {"predicted_priority": str, "feature_contributions": {feature: float, ...},
-             "explanation_sentence": str}
-    """
+    """task_features"""
     if _model is None or _explainer_medium is None or _explainer_high is None:
         raise ExplainServiceError("Explainability service is not initialized - check server startup logs.")
 
@@ -118,17 +84,11 @@ def explain_task(task_features: dict) -> dict:
     module_unknown = int(row_df.at[0, "code_module_enc"]) == UNKNOWN_MODULE_ENC
     rows = expand_unknown_module(row_df)
 
-    # Same module-averaging as predict_priority(), so the explained label is
-    # always the one /predict-priority returns.
+    # Same module-averaging as predict_priority()
     pred_idx = int(_model.predict_proba(rows).mean(axis=0).argmax())
     predicted_label = CLASS_ORDER[pred_idx]
 
-    # Pick which binary model's SHAP values explain the predicted class - see
-    # module docstring. TreeExplainer on a binary XGBClassifier returns a
-    # single (n_samples, n_features) array in log-odds space toward the
-    # positive class ("priority >= threshold"), not a per-class 3D array like
-    # the old single multi:softmax model produced. Averaged over the rows
-    # (one row, or one per module code when the module is unknown).
+    # Pick which binary model's SHAP values explain the predicted class - see module docstring.
     shap_medium = _explainer_medium(rows).values.mean(axis=0)  # toward ">=Medium"
     shap_high = _explainer_high(rows).values.mean(axis=0)  # toward ">=High"
 
@@ -144,8 +104,7 @@ def explain_task(task_features: dict) -> dict:
         for i in range(len(FEATURE_ORDER))
     }
     if module_unknown:
-        # The module was averaged out, so it can't honestly be cited as a
-        # reason for this prediction.
+        # The module was averaged out, so it can't honestly be cited as a reason for this prediction.
         contributions["code_module_enc"] = 0.0
 
     sentence = _sentence_from_contributions(predicted_label, contributions)

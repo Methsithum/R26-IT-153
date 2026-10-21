@@ -6,18 +6,7 @@ import { toLocalDateStr } from "../../../utils/dateHelpers";
 import { useAcademicStore } from "../../../store/useAcademicStore";
 import { useWeeklySchedule } from "../../../hooks/useAcademicData";
 
-// Real data: each cell is built from the student's actual assignments
-// (real deadlineDate, real module) with the priority already assigned via
-// the current /schedule call (schedule.tasks[taskId].priority_label) — the
-// same source Tasks.jsx uses, so priority is consistent across the whole
-// app. That value is already the hybrid deadline+ML priority (priorityEngine.js,
-// PROJECT CONTEXT.md Section 5d), applied once at the API boundary in
-// useWeeklySchedule() — no separate computeFinalPriority call needed here.
-// Assignments with no
-// prediction yet (e.g. completed/missed tasks not sent to /schedule) get
-// `isPredicted: false` and a "Medium" placeholder that must never be styled
-// like a real result — a fallback default and a real ML prediction should
-// never look the same (PROJECT CONTEXT.md's honesty-about-confidence rule).
+// Real data
 export default function MonthGrid() {
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
@@ -48,9 +37,7 @@ export default function MonthGrid() {
         estimatedHoursNeeded: a.estimatedHoursNeeded,
       });
     });
-    // Exams are important dates too, but never get an ML priority — they're
-    // kept as their own entry kind so they're never dishonestly forced into
-    // the High/Medium/Low priority system, and always visually stand out.
+    // Exams are important dates too
     exams.forEach((e) => {
       map[e.date] = map[e.date] || [];
       map[e.date].push({
@@ -133,8 +120,7 @@ export default function MonthGrid() {
             .reduce((acc, s) => (!acc || PRIORITY_RANK[s.priority] > PRIORITY_RANK[acc.priority] ? s : acc), null);
           const dominant = dominantEntry?.priority;
           const dominantIsPredicted = !!dominantEntry?.isPredicted;
-          // Exams surface first — they're the most important date on a day
-          // that has both a task deadline and an exam.
+          // Show exams first.
           const ordered = [...daySessions].sort((a, b) => (a.kind === "exam" ? -1 : 0) - (b.kind === "exam" ? -1 : 0));
           const visibleSessions = ordered.slice(0, 2);
           const overflowCount = ordered.length - visibleSessions.length;

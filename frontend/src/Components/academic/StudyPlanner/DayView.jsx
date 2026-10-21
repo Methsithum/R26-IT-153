@@ -37,15 +37,12 @@ export default function DayView({ schedule, tasksRegistry: liveTasksRegistry }) 
   // Exam today: nothing is scheduled - the exam card replaces the plan.
   const todaysExams = examsOnDate(exams, TODAY_DATE_STR);
   const isExamDay = todaysExams.length > 0;
-  // The agreed after-exam revision is the one session an exam day can have -
-  // shown as its own card in the timeline.
+  // The agreed after-exam revision is the one session an exam day can have
   const revision = isExamDay ? revisionSessionForExamDay(TODAY_DATE_STR, exams, weeklyFreeSlots) : null;
 
-  // Today's stored sessions the live plan doesn't show (manual reschedules,
-  // or already-marked ones a regeneration moved) - see extraRecordsForDate.
+  // Today's stored sessions the live plan doesn't show
   const plannedItems = isExamDay ? (revision ? [revision.item] : []) : schedule?.[TODAY_NAME] || [];
-  // On an exam day only the exam card (and its agreed revision) is shown -
-  // stored records from an older plan aren't shown as today's plan.
+  // On an exam day only the exam card
   const extraRecords = isExamDay ? [] : extraRecordsForDate(TODAY_DATE_STR, plannedItems, sessionRecords);
   const tasksRegistry = {
     ...Object.fromEntries(extraRecords.map((r) => [r.task_id, { task_type: r.task_type, deadline_date: r.deadline_date }])),

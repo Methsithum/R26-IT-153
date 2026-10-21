@@ -1,18 +1,4 @@
-"""
-exam_plan_routes.py
-
-Lets the Study Planner record two planning facts on the journal's real
-`exams` documents (through ExamModel, the same way task_routes.py writes an
-assignment's weight back into `tasks`):
-
-  - exam_session: "morning" | "afternoon" - the student only picks the half
-    of the day; the actual times are derived from it on the frontend
-    (utils/examDay.js's EXAM_SESSION_TIMES).
-  - after_exam_revision: true | false - the student's answer to "on a day
-    with an exam, and another exam the next day, may we add a short
-    revision session after this exam for tomorrow's one?". Exam days are
-    otherwise kept completely free; this is asked, never assumed.
-"""
+"""exam_plan_routes.py"""
 
 from typing import Literal, Optional
 

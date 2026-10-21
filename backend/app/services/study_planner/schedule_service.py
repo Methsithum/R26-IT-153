@@ -1,13 +1,4 @@
-"""
-schedule_service.py
-
-Wraps ml_scripts/study-planner/schedule_engine.py's StudyScheduler for the
-study-planner API. The scheduling LOGIC (greedy allocation, reschedule)
-stays entirely in that one script - this file only adds the HTTP-facing
-concerns: resolving missing priority labels via the trained classifier, and
-making the inherently-stateful StudyScheduler usable across stateless
-requests (see reschedule() docstring for that design decision).
-"""
+"""schedule_service.py"""
 
 import logging
 import os
@@ -16,10 +7,7 @@ import sys
 logger = logging.getLogger(__name__)
 
 BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-# ml_scripts/study-planner is not a Python package (its dir name has a hyphen,
-# and it's a scripts folder, not an importable package tree) - we add it to
-# sys.path and import the module by its bare filename instead, same pattern
-# the ml_scripts themselves use for cross-script reuse.
+# ml_scripts/study-planner is not a Python package
 ML_SCRIPTS_DIR = os.path.join(BACKEND_DIR, "ml_scripts", "study-planner")
 if ML_SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, ML_SCRIPTS_DIR)
@@ -37,9 +25,7 @@ except Exception:
 from app.services.study_planner.priority_service import predict_priority, PriorityServiceError
 from app.services.time_utils import local_today, to_local_date
 
-# Urgent floor - same rule as computeFinalPriority() in frontend/src/utils/priorityEngine.js:
-# an overdue task, or one due within this many days, is High and the ML prediction may not
-# lower it. Applied here too because the scheduler orders work by this label.
+# Urgent floor - same rule as computeFinalPriority() in frontend/src/utils/priorityEngine.js
 URGENT_FLOOR_DAYS = {"assignment": 2, "exam": 7}
 
 
@@ -48,15 +34,7 @@ class ScheduleServiceError(Exception):
 
 
 def _ensure_priority_label(task: dict) -> dict:
-    """
-    Returns a copy of `task` with priority_label filled in.
-    If the caller already supplied priority_label, it's used as-is (trusting
-    the caller, e.g. a value already predicted client-side or overridden by
-    a human). Otherwise task must include a "feature_row" (the 13 model
-    features) so we can call predict_priority() ourselves; feature_row is
-    stripped from the returned dict since StudyScheduler.add_task() doesn't
-    expect it.
-    """
+    """Returns a copy of `task` with priority_label filled in."""
     task = dict(task)
     if not task.get("priority_label"):
         features = task.get("feature_row")
@@ -86,12 +64,7 @@ def _within_urgent_floor(task: dict) -> bool:
 
 
 def create_schedule(weekly_free_slots: list, tasks: list, blocked_slots: list = None) -> dict:
-    """
-    Builds a fresh StudyScheduler, adds every task (predicting priority via
-    the trained classifier for any task that doesn't already carry one), and
-    returns generate_schedule()'s result dict unchanged
-    (schedule + overload_warning + tasks registry).
-    """
+    """Builds a fresh StudyScheduler, adds every task"""
     if StudyScheduler is None:
         raise ScheduleServiceError("Scheduling engine is not available - check server startup logs.")
 
@@ -107,13 +80,7 @@ def create_schedule(weekly_free_slots: list, tasks: list, blocked_slots: list = 
 
 
 def create_multi_week_schedule(weekly_free_slots: list, tasks: list, weeks_ahead: int = None, blocked_slots: list = None) -> dict:
-    """
-    Same priority-resolution step as create_schedule() (predict via the
-    trained classifier for any task without a priority_label already), then
-    hands the resolved task list to generate_rolling_schedule() for the
-    actual multi-week, backlog-carryover allocation - see that function's
-    docstring (schedule_engine.py) for the algorithm itself.
-    """
+    """Same priority-resolution step as create_schedule()"""
     if generate_rolling_schedule is None:
         raise ScheduleServiceError("Scheduling engine is not available - check server startup logs.")
 
@@ -128,33 +95,7 @@ def create_multi_week_schedule(weekly_free_slots: list, tasks: list, weeks_ahead
 
 
 def reschedule(existing_schedule_state: dict, completed_task_ids: list, new_tasks: list = None, blocked_slots: list = None) -> dict:
-    """
-    DESIGN NOTE (statelessness across HTTP requests):
-    StudyScheduler is an in-memory Python object - it cannot survive between
-    one HTTP request and the next, so we can't just keep calling .reschedule()
-    on "the same" scheduler instance the way the ml_scripts demo does. Instead
-    we RECONSTRUCT an equivalent scheduler from what the client sends back:
-
-      - existing_schedule_state["tasks"]: the task registry from the previous
-        /schedule or /reschedule response. generate_schedule() now includes
-        "weight" in that registry (see schedule_engine.py) specifically so
-        every entry has everything add_task() requires, letting us round-trip
-        each task straight back into a fresh StudyScheduler.
-      - existing_schedule_state["remaining_free_slots"]: StudyScheduler trims
-        its own weekly_free_slots down to leftover capacity after each
-        generate_schedule() call, but that trimmed list is never included in
-        the response payload (generate_schedule() only returns schedule /
-        overload_warning / tasks). So the caller must track and pass back
-        whatever free-slot capacity is still unallocated - typically by
-        storing schedule_service's own response between calls (a thin
-        session/cache layer, or the frontend simply echoing back what we send
-        it) rather than recomputing free time itself.
-
-    Once reconstructed, we add every previously-known task (StudyScheduler's
-    own reschedule() then filters out completed_task_ids), resolve priority
-    for any brand-new tasks, and call the real StudyScheduler.reschedule() -
-    so the actual reschedule LOGIC still lives in exactly one place.
-    """
+    """DESIGN NOTE (statelessness across HTTP requests)"""
     if StudyScheduler is None:
         raise ScheduleServiceError("Scheduling engine is not available - check server startup logs.")
 

@@ -1,29 +1,4 @@
-"""
-scheduler_baselines.py
-
-Phase 2 of the study-planner scheduling research: is StudyScheduler's
-greedy priority-then-deadline allocation actually a good approach, compared
-to what simpler/different algorithms achieve on the same data?
-
-Does NOT modify schedule_engine.py or StudyScheduler at all. Baselines
-below reuse StudyScheduler's exact slot-filling MECHANICS (same eligible-
-slot filtering by deadline, same least-loaded-day/date/start-time tiebreak)
-via a shared, standalone `_greedy_fill()` function - the ONLY thing that
-differs between StudyScheduler and each baseline is the ORDER tasks are
-allocated in. This is a deliberate design choice: it isolates the exact
-variable in question (is priority-then-deadline ORDERING better than
-FCFS/EDF/random ordering?) rather than conflating it with incidental
-differences in how slots get filled, which would make "baseline X did
-worse" ambiguous between "worse ordering" and "worse mechanics".
-
-Reuses Phase 1's fixed scenarios (light/typical/heavy) and task-building
-(sensitivity_analysis.py, current production constants) unchanged, and its
-evaluate_schedule() unchanged, so results are directly comparable to the
-Phase 1 report.
-
-Run with:
-    venv/Scripts/python ml_scripts/study-planner/scheduler_baselines.py
-"""
+"""scheduler_baselines.py"""
 
 import copy
 import csv
@@ -51,12 +26,7 @@ RANDOM_SEED = 42
 RANDOM_RUNS = 20
 
 
-# ===========================================================================
-# 1. SHARED GREEDY-FILL ENGINE (mirrors StudyScheduler.generate_schedule(),
-#    but takes tasks ALREADY IN THE ORDER TO ALLOCATE THEM - the sort step
-#    itself is what StudyScheduler normally does internally; every baseline
-#    below does that sorting differently and calls this same fill logic).
-# ===========================================================================
+# 1.
 def _add_minutes(hhmm, minutes):
     t = datetime.strptime(hhmm, "%H:%M") + timedelta(minutes=minutes)
     return t.strftime("%H:%M")
@@ -69,14 +39,7 @@ def _slot_date(day_name, anchor_date):
 
 
 def greedy_fill(ordered_tasks, weekly_free_slots, anchor_date):
-    """
-    Byte-for-byte the same allocation mechanics as
-    StudyScheduler.generate_schedule() (eligible-slot filtering by deadline,
-    least-loaded-day -> date -> start_time tiebreak, overload_warning for
-    shortfalls) - copied rather than imported because StudyScheduler bakes
-    its own priority-then-deadline sort in before this point; here the
-    caller has already decided the order.
-    """
+    """Byte-for-byte the same allocation mechanics as StudyScheduler.generate_schedule()"""
     remaining_slots = [dict(slot) for slot in weekly_free_slots]
     schedule = {day: [] for day in DAY_ORDER}
     overload_warning = []
@@ -136,9 +99,7 @@ def greedy_fill(ordered_tasks, weekly_free_slots, anchor_date):
 PRIORITY_ORDER = {"High": 0, "Medium": 1, "Low": 2}
 
 
-# ===========================================================================
-# 2. ALGORITHMS
-# ===========================================================================
+# 2.
 def run_study_scheduler(tasks, weekly_free_slots, anchor_date):
     """The real, unmodified production algorithm - priority tier, then deadline."""
     scheduler = StudyScheduler(weekly_free_slots, anchor_date=anchor_date)
@@ -165,10 +126,7 @@ def run_random_once(tasks, weekly_free_slots, anchor_date, rng):
 
 
 def run_random_averaged(tasks, weekly_free_slots, anchor_date, n_runs=RANDOM_RUNS, seed=RANDOM_SEED):
-    """
-    Sanity-check lower bound: n_runs independent random orderings, metrics
-    averaged (mean + stdev) since a single random run isn't representative.
-    """
+    """Sanity-check lower bound"""
     rng = random.Random(seed)
     per_run_metrics = []
     for _ in range(n_runs):
@@ -187,10 +145,7 @@ def run_random_averaged(tasks, weekly_free_slots, anchor_date, n_runs=RANDOM_RUN
                                  "daily_load_variance", "overload_total_hours"]}
 
 
-# ===========================================================================
-# 3. BUILD TASKS FOR A SCENARIO (identical to sensitivity_analysis.py, current
-#    production constants - not what's being varied in this phase)
-# ===========================================================================
+# 3.
 def build_tasks_for_scenario(scenario_name):
     sc = SCENARIOS[scenario_name]
     tasks = [build_assignment_task(a, PROD_THRESHOLDS, PROD_CLAMP) for a in sc["assignments"]]
@@ -201,9 +156,7 @@ def build_tasks_for_scenario(scenario_name):
     return tasks, sc["free_slots"]
 
 
-# ===========================================================================
-# 4. MAIN COMPARISON
-# ===========================================================================
+# 4.
 METRIC_KEYS = ["pct_high_priority_scheduled_before_deadline", "avg_lead_time_high_priority",
                "daily_load_variance", "overload_total_hours"]
 
@@ -240,17 +193,9 @@ def main_comparison():
     return rows
 
 
-# ===========================================================================
-# 5. PERTURBATION / STABILITY CHECK (Section 4) - typical scenario only
-# ===========================================================================
+# 5.
 def perturb_typical_scenario(seed_offset):
-    """
-    Returns a perturbed copy of the 'typical' scenario's raw definition:
-    shifts 1-2 assignment deadlines by +/-1-2 days and scales total free
-    time by roughly +/-10%, using a fixed, enumerated (not random-per-call)
-    set of small, realistic perturbations so the same 8 variants are used
-    for every algorithm - deterministic, not resampled.
-    """
+    """Returns a perturbed copy of the 'typical' scenario's raw definition"""
     base = copy.deepcopy(SCENARIOS["typical"])
     rng = random.Random(1000 + seed_offset)
 
@@ -285,16 +230,14 @@ def build_tasks_from_scenario_def(sc):
 def perturbation_check(n_perturbations=8):
     section(f"PERTURBATION / STABILITY CHECK: typical scenario, {n_perturbations} small realistic variants")
 
-    # Determine "best-performing baseline" from the main comparison's typical
-    # scenario for the two most important metrics, rather than assuming EDF.
+    # Pick the best-performing baseline for the key metrics
     tasks, free_slots = build_tasks_for_scenario("typical")
     ss_base = evaluate_schedule(run_study_scheduler(tasks, free_slots, ANCHOR_DATE), ANCHOR_DATE)
     fcfs_base = evaluate_schedule(run_fcfs(tasks, free_slots, ANCHOR_DATE), ANCHOR_DATE)
     edf_base = evaluate_schedule(run_edf(tasks, free_slots, ANCHOR_DATE), ANCHOR_DATE)
 
     def score(m):
-        # Higher pct_high and higher lead_time = better; use lead_time as
-        # tiebreaker/primary since pct_high is often tied at 1.0 in typical.
+        # Higher pct_high and higher lead_time = better
         pct = m["pct_high_priority_scheduled_before_deadline"] or 0
         lead = m["avg_lead_time_high_priority"] or 0
         return (pct, lead)

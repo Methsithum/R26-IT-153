@@ -1,11 +1,4 @@
-"""
-Schemas for the Study Planner's writes back into the journal's real `tasks`
-collection (assignment weight, deadline, and creating a brand-new
-assignment) - see app/routes/study_planner/task_routes.py for why these
-exist: the model needs real per-task weight/deadline to predict priority
-accurately, and "Add Academic Data" needs its entries to survive the
-student's next login instead of only living in frontend state.
-"""
+"""Schemas for the Study Planner's writes back into the journal's real `tasks` collection"""
 
 from typing import Optional
 

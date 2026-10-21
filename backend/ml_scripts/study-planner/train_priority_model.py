@@ -33,9 +33,7 @@ from xgboost import XGBClassifier
 matplotlib.use("Agg")
 warnings.filterwarnings("ignore")
 
-# ---------------------------------------------------------------------------
 # Paths (relative to this script's location, so it works regardless of cwd)
-# ---------------------------------------------------------------------------
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 
@@ -58,9 +56,7 @@ def section(title):
     print("=" * 90)
 
 
-# ===========================================================================
-# 1. LOAD AND JOIN DATA
-# ===========================================================================
+# 1.
 section("1. LOAD AND JOIN DATA")
 
 assessments = pd.read_csv(os.path.join(DATASETS_DIR, "assessments.csv"))
@@ -73,8 +69,7 @@ print(f"assessments: {assessments.shape}, studentAssessment: {student_assessment
       f"studentInfo: {student_info.shape}, studentRegistration: {student_registration.shape}, "
       f"courses: {courses.shape}")
 
-# Exam-type rows carry date == '?' because their date is set at module level,
-# not per-assessment. We only model per-assessment planning priority, so drop them.
+# Exam-type rows carry date == '?' because their date is set at module level, not per-assessment.
 before = len(assessments)
 assessments = assessments[assessments["date"] != "?"].copy()
 assessments["date"] = assessments["date"].astype(int)
@@ -119,9 +114,7 @@ df = df.merge(
 print(f"After + courses (left): {df.shape}")
 
 
-# ===========================================================================
-# 1b. ENGINEER REAL ENGAGEMENT FEATURES FROM studentVle.csv (large file)
-# ===========================================================================
+# 1b.
 section("1b. ENGINEER ENGAGEMENT FEATURES FROM studentVle.csv (chunked)")
 
 VLE_PATH = os.path.join(DATASETS_DIR, "studentVle.csv")
@@ -131,9 +124,7 @@ try:
     t0 = time.time()
     chunk_iter = pd.read_csv(VLE_PATH, chunksize=500_000)
 
-    # Aggregate to per-student/module/presentation/week totals incrementally,
-    # so the ~423MB raw file is never held in memory - only the much smaller
-    # weekly summary is accumulated across chunks.
+    # Aggregate to per-student/module/presentation/week totals incrementally
     weekly_parts = []
     n_rows = 0
     for i, chunk in enumerate(chunk_iter):
@@ -148,8 +139,7 @@ try:
         if (i + 1) % 5 == 0:
             print(f"  processed {n_rows:,} raw rows so far... ({time.time() - t0:.1f}s elapsed)")
 
-    # Combine partial weekly aggregates and sum again (a student/week pair can
-    # span two chunks) to get the true per-student-module-week total clicks.
+    # Combine partial weekly aggregates and sum again
     weekly_clicks = (
         pd.concat(weekly_parts, ignore_index=True)
         .groupby(["code_module", "code_presentation", "id_student", "week"])["sum_click"]
@@ -164,8 +154,7 @@ try:
         g = g.sort_values("week")
         avg_weekly_clicks = g["sum_click"].mean()
         active_weeks_ratio = (g["sum_click"] > 0).mean()
-        # Trend proxy: most recent week's clicks vs the student's own average
-        # of all earlier weeks (not including the most recent one).
+        # Trend proxy
         if len(g) >= 2:
             recent = g["sum_click"].iloc[-1]
             earlier_avg = g["sum_click"].iloc[:-1].mean()
@@ -210,30 +199,17 @@ else:
     print("Engagement features unavailable - filled with 0 / False placeholders.")
 
 
-# ===========================================================================
-# 2. AVOID TARGET LEAKAGE - engineer prior_avg_score
-#    (score, date_submitted, and anything derived from date_submitted, plus
-#    final_result, are NEVER used as model INPUT FEATURES - see section 3.
-#    score/date_submitted ARE still used below, in section 5, but only to
-#    build the ground-truth Priority_Label - not as a feature - see section 5
-#    for why that's the correct, non-leaky way to do supervised learning.)
-# ===========================================================================
+# 2.
 section("2. ENGINEER LEAKAGE-FREE prior_avg_score")
 
-# Sort by deadline order within each student's module/presentation so that
-# "prior" means "earlier-deadline assessments", matching how a planner would
-# actually see the timeline (not by date_submitted, which would leak).
+# Sort by deadline order within each student's module/presentation
 df = df.sort_values(["id_student", "code_module", "code_presentation", "date"]).reset_index(drop=True)
 
-# Expanding mean of score, shifted by 1 row within each student-module group,
-# so the current row's own score is excluded (that's the leakage-free part).
+# Expanding mean of score, shifted by 1 row within each student-module group
 grp = df.groupby(["id_student", "code_module", "code_presentation"])["score"]
 df["prior_avg_score"] = grp.transform(lambda s: s.expanding().mean().shift(1))
 
-# Fallback for a student's very first assessment in a module (no prior rows yet):
-# use that module/presentation's cohort-wide mean score up to that point.
-# Simpler and documented choice: cohort mean score for the module/presentation,
-# falling back further to the overall dataset mean score if even that is unavailable.
+# Fallback for a student's very first assessment in a module (no prior rows yet)
 cohort_mean = df.groupby(["code_module", "code_presentation"])["score"].transform("mean")
 overall_mean = df["score"].mean()
 df["prior_avg_score"] = df["prior_avg_score"].fillna(cohort_mean).fillna(overall_mean)
@@ -241,36 +217,14 @@ df["prior_avg_score"] = df["prior_avg_score"].fillna(cohort_mean).fillna(overall
 print(f"prior_avg_score engineered. Rows that needed the cohort/overall-mean fallback: "
       f"{(grp.transform(lambda s: s.expanding().mean().shift(1)).isna()).sum()}")
 
-# days_until_deadline_at_planning: we have no true "planning date" in OULAD,
-# so we use the assessment deadline itself (date) as the forward-looking
-# urgency signal. This is intentionally the same column as `date`, kept as
-# an explicitly-named proxy so the leakage-avoidance reasoning is documented
-# inline rather than silently reusing `date` for two purposes.
+# days_until_deadline_at_planning
 df["days_until_deadline_at_planning"] = df["date"]
 
 
-# ===========================================================================
-# 5. CREATE THE TARGET LABEL - Priority_Label (outcome-based, not
-#    formula-recoverable from the model's own input features)
-#
-#    Standard supervised learning: the LABEL is allowed to look at the
-#    ground truth (score, submitted_late) because that's what we're teaching
-#    the model to predict in hindsight. What must never happen is score /
-#    date_submitted / submitted_late leaking into the FEATURE matrix X - that
-#    is enforced in section 3, which drops them from df immediately after
-#    this block uses them to build Priority_Label. If Priority_Label were
-#    instead derived only from weight/date/prior_avg_score (i.e. from the
-#    model's own inputs), any model would trivially "recover" the label
-#    arithmetic and score ~99-100%, which would validate the pipeline but
-#    prove nothing about real predictive ability - so we deliberately do not
-#    do that here.
-# ===========================================================================
+# 5.
 section("5. BUILD OUTCOME-BASED Priority_Label (from raw score/date_submitted)")
 
 # submitted_late uses the raw, still-present date_submitted vs. deadline date.
-# This raw column is used ONLY here, for label construction, and is dropped
-# (along with score and date_submitted themselves) in section 3 below - it
-# never reaches the feature matrix X.
 df["submitted_late"] = (df["date_submitted"] > df["date"]).astype(int)
 
 def label_from_outcome(row):
@@ -290,12 +244,7 @@ print(df["Priority_Label"].value_counts())
 print(df["Priority_Label"].value_counts(normalize=True).round(3))
 
 
-# ===========================================================================
-# 3. DROP UNWANTED COLUMNS (identifiers, PII, fairness-sensitive, leakage)
-#    score, date_submitted, submitted_late were used ABOVE only to build
-#    Priority_Label - they are dropped here, before the feature matrix is
-#    built, so they never appear as model inputs.
-# ===========================================================================
+# 3.
 section("3. DROP UNWANTED / LEAKAGE COLUMNS (used only for label construction above)")
 
 drop_cols = [
@@ -310,9 +259,7 @@ print(f"Dropping columns: {present_drop_cols}")
 df_model = df.drop(columns=present_drop_cols)
 
 
-# ===========================================================================
-# 4. FINAL FEATURE SET
-# ===========================================================================
+# 4.
 section("4. FINAL FEATURE SET")
 
 feature_cols = [
@@ -328,9 +275,7 @@ assert "score" not in feature_cols and "date_submitted" not in feature_cols and 
     "Leakage check failed: outcome columns must not be in the feature set."
 
 
-# ===========================================================================
-# 6. PREPROCESSING
-# ===========================================================================
+# 6.
 section("6. PREPROCESSING")
 
 # --- Encode categoricals ---
@@ -361,9 +306,7 @@ print(f"Saved final leakage-free dataset: {export_cols}")
 print("\nNull counts in model features before imputation:")
 print(df_model[model_feature_cols].isna().sum())
 
-# date_registration can be NaN (student registered before/without a clean numeric
-# record, or coercion failure) - impute with the median, a robust default for a
-# roughly-continuous "days relative to module start" feature.
+# date_registration can be NaN
 if df_model["date_registration"].isna().any():
     median_reg = df_model["date_registration"].median()
     df_model["date_registration"] = df_model["date_registration"].fillna(median_reg)
@@ -406,9 +349,7 @@ X_train_scaled = pd.DataFrame(scaler.fit_transform(X_train), columns=X_train.col
 X_test_scaled = pd.DataFrame(scaler.transform(X_test), columns=X_test.columns, index=X_test.index)
 
 
-# ===========================================================================
-# 7. TRAIN LOGISTIC REGRESSION (primary model)
-# ===========================================================================
+# 7.
 section("7. LOGISTIC REGRESSION (primary model)")
 
 lr = LogisticRegression(max_iter=1000, random_state=RANDOM_STATE)
@@ -453,9 +394,7 @@ cv_scores = cross_val_score(lr, X_train_scaled, y_train, cv=cv, scoring="f1_weig
 print(f"\n5-fold stratified CV weighted F1: mean={cv_scores.mean():.4f}, std={cv_scores.std():.4f}")
 
 
-# ===========================================================================
-# 8. TRAIN AND COMPARE ADDITIONAL MODELS
-# ===========================================================================
+# 8.
 section("8. TRAIN AND COMPARE ADDITIONAL MODELS")
 
 models_unscaled = {
@@ -521,13 +460,7 @@ print("\nModel comparison table (sorted by Weighted F1):")
 print(comparison_df)
 comparison_df.to_csv(os.path.join(OUTPUTS_DIR, "model_comparison_results.csv"), index=False)
 
-# --- Leakage sanity check: Priority_Label is now built from real outcomes
-# (score/submitted_late), not from the model's own input features, so scores
-# this high are NOT expected. Flag loudly rather than silently reporting them.
-# Factored into leakage_guard.py so it's independently unit-testable (see
-# tests/test_leakage_guard.py) against both a deliberately-leaky toy case and
-# this real production comparison table, instead of only ever running as
-# part of the full multi-minute training pipeline.
+# --- Leakage sanity check
 from leakage_guard import LEAKAGE_SUSPECT_THRESHOLD, find_leakage_suspects  # noqa: E402
 
 suspect_rows = find_leakage_suspects(comparison_df, LEAKAGE_SUSPECT_THRESHOLD)
@@ -542,9 +475,7 @@ else:
           f"scores look consistent with a genuinely non-trivial prediction task.")
 
 
-# ===========================================================================
-# 9. SAVE VISUAL OUTPUTS AS PNG
-# ===========================================================================
+# 9.
 section("9. SAVE VISUAL OUTPUTS")
 
 # --- model_comparison_bar_chart.png ---
@@ -608,9 +539,7 @@ plt.close()
 print(f"Saved PNG outputs to {OUTPUTS_DIR}")
 
 
-# ===========================================================================
-# 11. SAVE TRAINED MODEL
-# ===========================================================================
+# 11.
 section("11. SAVE BEST MODEL, SCALER, AND ENCODERS")
 
 best_row = comparison_df.iloc[0]
@@ -628,9 +557,7 @@ if best_model_name == "XGBoost":
     print("Best model is XGBoost - also saved xgb_label_encoder.joblib (numeric<->label mapping).")
 
 
-# ===========================================================================
-# 12. FINAL SUMMARY
-# ===========================================================================
+# 12.
 section("12. FINAL SUMMARY")
 
 print("Model comparison (sorted by Weighted F1):")

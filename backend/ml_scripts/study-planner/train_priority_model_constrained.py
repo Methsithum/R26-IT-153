@@ -1,29 +1,4 @@
-"""
-train_priority_model_constrained.py
-
-Fixes a real, verified bug in the deployed priority_model.joblib: predicted
-priority is NOT deadline-consistent in `date` the way it needs to be at inference time.
-
-Background (see PROJECT CONTEXT.md for the full write-up added after this
-script was reviewed): `date` in OULAD means "day-of-module the assessment
-deadline falls on" (range 12-261), not "days remaining from today". The
-frontend's buildDateFeatureFromDeadline (frontend/src/utils/featureNameMap.js)
-maps real days-until-deadline onto that same trained range, LOW = urgent
-(close to today), HIGH = far off - which is directionally sound, but nothing
-in the ORIGINAL unconstrained model enforced that predicted priority actually
-falls as `date` rises. It doesn't: a task due tomorrow (date=13.38) predicted
-Medium while an otherwise-identical task due in 32 days (date=56.27) predicted
-High - the opposite of what a planner should ever show a student.
-
-This script does NOT change the label (Priority_Label) or the 13-feature
-set - it reuses ml_scripts/study-planner/outputs/oulad_task_level_leakage_free.csv
-verbatim, which already carries both the leakage-free features and label from
-train_priority_model.py sections 2-5. Only the model class/training changes:
-XGBoost with a deadline constraint on `date`.
-
-Run from the backend/ directory (or anywhere) with:
-    venv/Scripts/python ml_scripts/study-planner/train_priority_model_constrained.py
-"""
+"""train_priority_model_constrained.py"""
 
 import os
 import sys
@@ -42,12 +17,6 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 
 # The wrapper class must be imported from its canonical, deployed location
-# (app/services/study_planner/) rather than a local copy here - joblib pickles
-# a reference to the class's *import path*, and priority_service.py /
-# explain_service.py will unpickle app/models/study_planner/priority_model.joblib
-# by importing app.services.study_planner.ordinal_priority_model. Training
-# against any other copy would silently produce an artifact the live app
-# cannot load.
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
 from app.services.study_planner.ordinal_priority_model import CLASS_ORDER, OrdinalPriorityModel
@@ -55,16 +24,12 @@ from app.services.study_planner.ordinal_priority_model import CLASS_ORDER, Ordin
 OUTPUTS_DIR = os.path.join(BACKEND_DIR, "ml_scripts", "study-planner", "outputs")
 NEW_MODELS_DIR = os.path.join(BACKEND_DIR, "trained-models", "stuyd-planner")
 os.makedirs(NEW_MODELS_DIR, exist_ok=True)
-# The unconstrained baseline was deployed at app/models/study_planner/priority_model.joblib
-# until the constrained model replaced it there (PROJECT CONTEXT.md Section 5c) - it was
-# backed up here rather than deleted, since it's still the documented baseline for the
-# Section 5b model-comparison table.
+# The constrained model replaced the unconstrained one in priority_model.joblib
 ORIGINAL_MODEL_PATH = os.path.join(NEW_MODELS_DIR, "priority_model_v1_unconstrained.joblib")
 ORIGINAL_LABEL_ENCODER_PATH = os.path.join(NEW_MODELS_DIR, "xgb_label_encoder_v1_unconstrained.joblib")
 
 RANDOM_STATE = 42
-# LEAKAGE_SUSPECT_THRESHOLD imported from leakage_guard.py above (shared with
-# train_priority_model.py, and independently tested in tests/test_leakage_guard.py).
+# LEAKAGE_SUSPECT_THRESHOLD imported from leakage_guard.py above
 
 
 def section(title):
@@ -73,10 +38,7 @@ def section(title):
     print("=" * 90)
 
 
-# ===========================================================================
-# 1. LOAD THE ALREADY-LEAKAGE-FREE, ALREADY-13-FEATURE DATASET
-#    (same file train_priority_model.py section 6 exported - not touched here)
-# ===========================================================================
+# 1.
 section("1. LOAD oulad_task_level_leakage_free.csv (features + label untouched)")
 
 df = pd.read_csv(os.path.join(OUTPUTS_DIR, "oulad_task_level_leakage_free.csv"))
@@ -85,21 +47,10 @@ print(f"Loaded {df.shape[0]} rows, {len(feature_cols)} features: {feature_cols}"
 assert feature_cols[0] == "date", "This script assumes `date` is feature index 0 - order changed upstream."
 
 
-# ===========================================================================
-# 2. CONFIRM DEADLINE-CONSTRAINT DIRECTION AGAINST THE DEPLOYMENT MAPPING
-# ===========================================================================
+# 2.
 section("2. CONFIRM CONSTRAINT DIRECTION (frontend/src/utils/featureNameMap.js)")
 
-# buildDateFeatureFromDeadline(deadlineIsoDate):
-#   remaining = clamp(daysRemaining(deadline), 0, CAP_DAYS=180)
-#   date = TRAINED_DATE_MIN(12) + (remaining / 180) * (TRAINED_DATE_MAX(261) - 12)
-# -> remaining=0 (due today/overdue)   -> date ~= 12   (low end)
-# -> remaining=180+ (due far off)      -> date ~= 261  (high end)
-# So at deployment, LOWER date == MORE urgent (sooner deadline).
-# A correctly-behaving model must therefore predict priority that is
-# non-increasing as `date` rises (equivalently: non-decreasing as `date`
-# falls toward 12). In monotone_constraints terms, for a feature where higher
-# priority/risk should follow LOWER values, the constraint is -1 (decreasing).
+# buildDateFeatureFromDeadline(deadlineIsoDate)
 DATE_IDX = feature_cols.index("date")
 monotone_constraints = tuple(-1 if i == DATE_IDX else 0 for i in range(len(feature_cols)))
 print(f"Feature order:        {feature_cols}")
@@ -109,9 +60,7 @@ print("Direction check: buildDateFeatureFromDeadline maps a NEARER real deadline
       "constraint = -1 on `date`. Confirmed against featureNameMap.js, not assumed.")
 
 
-# ===========================================================================
-# 2b. WHY TWO CONSTRAINED BINARY MODELS INSTEAD OF ONE MULTI-CLASS MODEL
-# ===========================================================================
+# 2b.
 section("2b. MULTI-CLASS CONSTRAINED CONSTRAINTS - WHY THE ORDINAL FALLBACK IS USED")
 
 print("""
@@ -141,10 +90,7 @@ P(High)=P(>=High).
 """)
 
 
-# ===========================================================================
-# 3. SAME TRAIN/TEST SPLIT METHODOLOGY AS train_priority_model.py
-#    (stratified on the original 3-class label, random_state=42, 80/20)
-# ===========================================================================
+# 3.
 section("3. TRAIN/TEST SPLIT (stratified, random_state=42, same as original)")
 
 X = df[feature_cols].copy()
@@ -172,9 +118,7 @@ else:
           f"no SMOTE needed (same threshold logic as train_priority_model.py).")
 
 
-# ===========================================================================
-# 4. TRAIN THE TWO DEADLINE-CONSTRAINED BINARY XGBOOST MODELS
-# ===========================================================================
+# 4.
 section("4. TRAIN CONSTRAINED BINARY XGBOOST MODELS")
 
 xgb_common_kwargs = dict(
@@ -195,9 +139,7 @@ print("Trained model_medium (P(>=Medium)) and model_high (P(>=High)), both with 
       f"monotone_constraints={monotone_constraints} on `date`.")
 
 
-# ===========================================================================
-# 5. LOAD THE ORIGINAL (UNCONSTRAINED) DEPLOYED MODEL FOR COMPARISON
-# ===========================================================================
+# 5.
 section("5. LOAD ORIGINAL DEPLOYED MODEL FOR COMPARISON")
 
 original_model = joblib.load(ORIGINAL_MODEL_PATH)
@@ -220,9 +162,7 @@ def evaluate_ordinal(name, y_true, y_pred_labels):
     return {"name": name, "accuracy": acc, "weighted_f1": f1w, "report": report}
 
 
-# ===========================================================================
-# 6. COMPARE: ACCURACY, WEIGHTED F1, PER-CLASS PRECISION/RECALL
-# ===========================================================================
+# 6.
 section("6. COMPARE ORIGINAL (UNCONSTRAINED) VS. CONSTRAINED MODEL ON THE SAME TEST SET")
 
 orig_pred_num = original_model.predict(X_test)
@@ -254,9 +194,7 @@ print(comparison_df.to_string(index=False))
 comparison_df.to_csv(os.path.join(OUTPUTS_DIR, "constrained_vs_original_comparison.csv"), index=False)
 
 
-# ===========================================================================
-# 7. LEAKAGE GUARD - STILL APPLIES TO THE RETRAINED MODEL
-# ===========================================================================
+# 7.
 section("7. LEAKAGE GUARD (>=97% accuracy/F1 warning) - RE-CHECKED ON CONSTRAINED MODEL")
 
 suspect = is_leakage_suspect(constrained_results["accuracy"], constrained_results["weighted_f1"], LEAKAGE_SUSPECT_THRESHOLD)
@@ -270,15 +208,10 @@ else:
           f"- both below the {LEAKAGE_SUSPECT_THRESHOLD:.0%} leakage-suspicion threshold. No leakage flag.")
 
 
-# ===========================================================================
-# 8. VERIFY THE FIX ON THE TWO REAL, PREVIOUSLY-TESTED TASKS
-# ===========================================================================
+# 8.
 section("8. VERIFY FIX ON THE TWO REAL TASKS FROM THE LIVE INVESTIGATION")
 
-# Exact feature values logged during the live /predict-priority investigation:
-# "Mobile Application Development assignment" (due tomorrow) vs "dddddd" (due in 32 days).
-# Both weight=20, prior_avg_score=65, assessment_type_enc=2 (TMA), code_module_enc=0 (AAA),
-# and identical on every other feature - only `date` differs.
+# Exact feature values logged during the live /predict-priority investigation
 base_row = {
     "weight": 20.0,
     "num_of_prev_attempts": 0,
@@ -324,9 +257,7 @@ print(f"\nInversion resolved: near-term predicted priority ({constrained_real_pr
       f"distant predicted priority ({constrained_real_pred_labels[1]})? {'YES' if fixed else 'NO - STILL INVERTED'}")
 
 
-# ===========================================================================
-# 9. BROADER DEADLINE-ORDERING SWEEP ACROSS THE FULL TRAINED `date` RANGE
-# ===========================================================================
+# 9.
 section("9. DEADLINE-ORDERING SWEEP - date IN [12, 261], ALL OTHER FEATURES FIXED")
 
 sweep_dates = np.linspace(12, 261, 30)
@@ -378,9 +309,7 @@ except Exception as e:
     print(f"Skipped plot (non-critical): {e}")
 
 
-# ===========================================================================
-# 10. SAVE THE NEW MODEL - DOES NOT TOUCH THE CURRENTLY-DEPLOYED ARTIFACT
-# ===========================================================================
+# 10.
 section("10. SAVE priority_model_constrained.joblib (NOT deployed - review first)")
 
 constrained_model_path = os.path.join(NEW_MODELS_DIR, "priority_model_constrained.joblib")

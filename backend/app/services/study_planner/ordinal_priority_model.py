@@ -1,24 +1,4 @@
-"""
-ordinal_priority_model.py
-
-Canonical, importable definition of OrdinalPriorityModel - the
-deployed Priority model wraps two deadline-constrained binary XGBoost
-classifiers (P(priority >= Medium), P(priority >= High)) as a single
-Low/Medium/High predictor. See PROJECT CONTEXT.md Section 5c for the full
-story: the original single multi:softmax XGBClassifier had no deadline-consistent
-guarantee on `date`, so a task due tomorrow could predict LOWER priority than
-an otherwise-identical task due a month later. Fixed by retraining with a
-deadline constraint - see ml_scripts/study-planner/train_priority_model_constrained.py.
-
-This lives here (not in ml_scripts/) because it is genuinely production code:
-app/models/study_planner/priority_model.joblib is a pickled instance of this
-exact class, and joblib/pickle resolve a class by its *importable module
-path* at load time - `app.services.study_planner.ordinal_priority_model`,
-matching this file's location, must exist unchanged for priority_service.py
-and explain_service.py to be able to unpickle it. Do not move or rename this
-file without re-pickling the model, and do not delete it while
-priority_model.joblib is deployed.
-"""
+"""ordinal_priority_model.py"""
 
 import numpy as np
 
@@ -26,14 +6,7 @@ CLASS_ORDER = ["Low", "Medium", "High"]  # index 0/1/2 - matches predict()'s ret
 
 
 class OrdinalPriorityModel:
-    """
-    model_medium: binary XGBClassifier predicting P(priority >= Medium), i.e. NOT Low.
-    model_high:   binary XGBClassifier predicting P(priority >= High).
-    Both trained with the same monotone_constraints on `date` (decreasing), so both
-    cumulative probabilities are guaranteed non-increasing in `date` - see the
-    training script for why a single multi-class constrained model can't express this
-    (opposite-signed requirements for Low vs. High under one shared constraint).
-    """
+    """model_medium"""
 
     def __init__(self, model_medium, model_high):
         self.model_medium = model_medium
@@ -43,9 +16,7 @@ class OrdinalPriorityModel:
     def predict_proba(self, X):
         p_ge_medium = self.model_medium.predict_proba(X)[:, 1]
         p_ge_high = self.model_high.predict_proba(X)[:, 1]
-        # Enforce the logical ordinal constraint P(>=High) <= P(>=Medium) -
-        # the two binary models are trained independently, so nothing else
-        # guarantees this at every input.
+        # Enforce the logical ordinal constraint P(>=High) <= P(>=Medium)
         p_ge_high = np.minimum(p_ge_high, p_ge_medium)
 
         p_low = 1.0 - p_ge_medium

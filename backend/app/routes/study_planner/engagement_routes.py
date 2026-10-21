@@ -1,11 +1,4 @@
-"""
-engagement_routes.py
-
-POST /study-planner/engagement-features - the priority model's four
-engagement features per subject, computed from the student's real journal
-study logs (engagement_service.py). Read-only over the journal's
-daily_sessions collection.
-"""
+"""engagement_routes.py"""
 
 from typing import Dict, Optional
 

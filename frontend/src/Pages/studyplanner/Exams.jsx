@@ -7,9 +7,7 @@ import { daysRemaining, formatFriendlyDate } from "../../utils/dateHelpers";
 
 export default function Exams() {
   const modules = useAcademicStore((s) => s.modules);
-  // Once an exam's date has passed it drops off this list entirely - this
-  // page is framed as "Upcoming exams" (see subtitle below), so a past date
-  // has nothing left to show here (no result/mark tracking on this page).
+  // Once an exam's date has passed it drops off this list entirely
   const exams = useAcademicStore((s) => s.exams)
     .filter((e) => daysRemaining(e.date) >= 0)
     .sort((a, b) => a.date.localeCompare(b.date));

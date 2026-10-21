@@ -1,21 +1,4 @@
-"""
-cluster_study_behavior.py
-
-Unsupervised K-Means clustering of student study BEHAVIOR (not task priority)
-for the Smart Uni Guide study planner, using the OULAD dataset.
-
-Groups students (per code_module + code_presentation + id_student) into
-behavioral segments based on engagement and performance patterns, so the
-planner can tailor its recommendations to how a student actually studies
-(e.g. consistent-and-engaged vs. low-engagement crammer).
-
-Run independently with:
-    venv/Scripts/python ml_scripts/study-planner/cluster_study_behavior.py
-
-Requires train_priority_model.py to have already been run once (it produces
-oulad_task_level_leakage_free.csv, the input here) - this script checks for
-that file and reports clearly if it's missing.
-"""
+"""cluster_study_behavior.py"""
 
 import os
 import sys
@@ -35,9 +18,7 @@ from sklearn.preprocessing import StandardScaler
 matplotlib.use("Agg")
 sns.set_theme(style="whitegrid")
 
-# ---------------------------------------------------------------------------
 # Paths
-# ---------------------------------------------------------------------------
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 
@@ -63,9 +44,7 @@ def section(title):
     print("=" * 90)
 
 
-# ===========================================================================
-# 0. CHECK REQUIRED INPUT FILES
-# ===========================================================================
+# 0.
 section("0. CHECK REQUIRED INPUT FILES")
 
 if not os.path.exists(LEAKAGE_FREE_CSV):
@@ -75,10 +54,7 @@ if not os.path.exists(LEAKAGE_FREE_CSV):
 print("Required input file found.")
 
 
-# ===========================================================================
-# 1. LOAD oulad_task_level_leakage_free.csv AND RE-ATTACH id_student /
-#    code_module / code_presentation FOR GROUPING
-# ===========================================================================
+# 1.
 section("1. RE-ATTACH id_student / code_module / code_presentation FOR GROUPING")
 
 leak_free_df = pd.read_csv(LEAKAGE_FREE_CSV)
@@ -119,23 +95,7 @@ task_df = pd.concat(
 )
 
 
-# ===========================================================================
-# 2. AGGREGATE TO ONE ROW PER (id_student, code_module, code_presentation)
-#
-#    avg_weekly_clicks / clicks_trend / active_weeks_ratio / has_vle_activity
-#    are already constant across every task-row of the same student-module
-#    (they were merged in from a per-student-module VLE summary table in
-#    train_priority_model.py), so .first() just reads that constant value.
-#    Likewise num_of_prev_attempts / studied_credits come from studentInfo
-#    and are constant per student-module.
-#
-#    prior_avg_score DOES vary per task-row (it's an expanding mean, by
-#    design, for the classifier). For clustering we want a single behavioral
-#    summary per student-module, so we take its mean across that student's
-#    tasks in the module - a descriptive aggregate of their performance
-#    level, which is fine here since clustering is unsupervised and has no
-#    leakage constraint (unlike the classifier's per-task feature).
-# ===========================================================================
+# 2.
 section("2. AGGREGATE TO ONE ROW PER STUDENT-MODULE")
 
 agg_spec = {
@@ -156,26 +116,7 @@ print(f"Aggregated to {len(student_behavior)} student-module rows "
       f"(from {len(task_df)} task-level rows).")
 
 
-# ===========================================================================
-# 3. SET ASIDE STUDENTS WITH NO VLE ACTIVITY, THEN CLIP + SCALE THE REST
-#
-#    Students with has_vle_activity == 0 have avg_weekly_clicks,
-#    clicks_trend, and active_weeks_ratio all exactly 0 by construction (see
-#    train_priority_model.py section 1b). That makes them behaviorally
-#    degenerate for clustering: they're identical to each other on 3 of 7
-#    features and trivially far from everyone else, so KMeans just isolates
-#    them as their own "cluster" for every k tried, regardless of how many
-#    clusters we ask for - drowning out any real behavioral segmentation
-#    among the vast majority of students who do have engagement data. We
-#    give them a fixed, directly-justified label instead of a model-derived
-#    one, and cluster only the students with real engagement signal.
-#
-#    Among that remaining population, avg_weekly_clicks and clicks_trend are
-#    still unbounded click counts with heavy right tails (a few very
-#    high-activity students) - we winsorize both at the 1st/99th percentile
-#    before scaling, a standard fix for heavy-tailed count data, so a
-#    handful of extreme values don't dominate Euclidean distance the same way.
-# ===========================================================================
+# 3.
 section("3. SET ASIDE NO-VLE-ACTIVITY STUDENTS, CLIP + SCALE THE REST")
 
 no_activity_mask = student_behavior["has_vle_activity"] == 0
@@ -197,9 +138,7 @@ X_scaled = kmeans_scaler.fit_transform(X_behavior)
 print(f"Scaled feature matrix (engaged students only): {X_scaled.shape}")
 
 
-# ===========================================================================
-# 4. ELBOW METHOD + SILHOUETTE SCORE TO CHOOSE k
-# ===========================================================================
+# 4.
 section("4. DETERMINE OPTIMAL k (elbow + silhouette, k=2..8)")
 
 k_range = range(2, 9)
@@ -218,12 +157,7 @@ for k in k_range:
     print(f"  k={k}: inertia={km.inertia_:.1f}, silhouette={sil:.4f}, smallest cluster={min_frac:.1%}  "
           f"({time.time() - t0:.1f}s elapsed)")
 
-# A high silhouette score can come from KMeans simply isolating a handful of
-# extreme outliers into their own tiny cluster (technically "well separated",
-# but not a useful behavioral segment). Guard against that degenerate case by
-# only considering k values whose smallest cluster holds at least 2% of
-# students - i.e. treat this as a real segment, not an outlier bucket -
-# before picking the best silhouette among the remaining candidates.
+# High silhouette can just mean outliers got their own tiny cluster
 MIN_CLUSTER_FRACTION = 0.02
 candidate_ks = [k for k, frac in zip(k_range, min_cluster_fracs) if frac >= MIN_CLUSTER_FRACTION]
 if not candidate_ks:
@@ -268,9 +202,7 @@ plt.close()
 print("Saved kmeans_elbow_silhouette.png")
 
 
-# ===========================================================================
-# 5. FIT FINAL KMEANS
-# ===========================================================================
+# 5.
 section(f"5. FIT FINAL KMEANS (k={best_k})")
 
 kmeans = KMeans(n_clusters=best_k, random_state=RANDOM_STATE, n_init=10)
@@ -278,14 +210,7 @@ clustered_pop["cluster"] = kmeans.fit_predict(X_scaled)
 print(f"Final cluster sizes:\n{clustered_pop['cluster'].value_counts().sort_index()}")
 
 
-# ===========================================================================
-# 6. LABEL CLUSTERS FROM CENTROID CHARACTERISTICS
-#    Centroids are in scaled (z-score) space - a positive value means "above
-#    the overall average student on this feature", negative means "below".
-#    We build a short descriptive name per cluster from whichever behavioral
-#    traits stand out most (highest |z-score| features), rather than
-#    hardcoding fixed names that might not match the real output.
-# ===========================================================================
+# 6.
 section("6. LABEL CLUSTERS FROM CENTROID CHARACTERISTICS")
 
 centroids_scaled = pd.DataFrame(kmeans.cluster_centers_, columns=CLUSTER_COLS)
@@ -332,9 +257,7 @@ for cluster_id, name in cluster_names.items():
 
 clustered_pop["cluster_label"] = clustered_pop["cluster"].map(cluster_names)
 
-# Re-attach the no-VLE-activity students set aside in section 3, with a fixed
-# label and a cluster id of -1 (outside the 0..k-1 model-derived cluster ids,
-# so it's unambiguous this group was not assigned by KMeans).
+# Re-attach the no-VLE-activity students set aside in section 3
 NO_ACTIVITY_LABEL = "No VLE Engagement Data"
 no_activity_pop = student_behavior.loc[no_activity_mask].reset_index(drop=True).copy()
 no_activity_pop["cluster"] = -1
@@ -346,9 +269,7 @@ if len(no_activity_pop) > 0:
 student_behavior = pd.concat([clustered_pop, no_activity_pop], ignore_index=True)
 
 
-# ===========================================================================
-# 7. PCA 2D VISUALIZATION
-# ===========================================================================
+# 7.
 section("7. PCA 2D CLUSTER VISUALIZATION")
 
 pca = PCA(n_components=2, random_state=RANDOM_STATE)
@@ -376,9 +297,7 @@ plt.close()
 print("Saved kmeans_cluster_visualization.png")
 
 
-# ===========================================================================
-# 8. SAVE OUTPUTS
-# ===========================================================================
+# 8.
 section("8. SAVE OUTPUTS")
 
 student_behavior.to_csv(os.path.join(OUTPUTS_DIR, "student_behavior_clusters.csv"), index=False)
@@ -389,9 +308,7 @@ joblib.dump(kmeans_scaler, os.path.join(MODELS_DIR, "kmeans_scaler.joblib"))
 print(f"Saved kmeans_model.joblib and kmeans_scaler.joblib to {MODELS_DIR}")
 
 
-# ===========================================================================
-# 9. SUMMARY
-# ===========================================================================
+# 9.
 section("9. SUMMARY")
 print(f"""
 Summary:

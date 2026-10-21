@@ -5,12 +5,7 @@ import { useAcademicStore } from "../../../store/useAcademicStore";
 import { formatFriendlyDate } from "../../../utils/dateHelpers";
 import { EXAM_SESSION_TIMES, MAX_REVISION_MINUTES, REVISION_BUFFER_MINUTES } from "../../../utils/examDay";
 
-/**
- * Asked ONCE per run of back-to-back exams: when each exam is (morning /
- * afternoon - the times are derived from that), and whether a short
- * revision session may be added after each exam for the next day's one.
- * Until answered, every exam day stays completely free.
- */
+// Asked ONCE per run of back-to-back exams
 export default function ExamPlanModal() {
   const cluster = useAcademicStore((s) => s.examPlanCluster);
   const close = useAcademicStore((s) => s.closeExamPlan);

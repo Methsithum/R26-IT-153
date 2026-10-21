@@ -1,27 +1,4 @@
-"""
-study_session.py
-
-Permanent, per-session history of what the Study Planner actually scheduled,
-and what the student says happened to it. One document per session:
-
-    {
-      user_id, date ("YYYY-MM-DD"), time_slot ("HH:MM-HH:MM"),
-      start_time, end_time, task_id, module, task_type, duration_minutes,
-      deadline_date,
-      status: "pending" | "done" | "missed",
-      reschedule_decision: None | "pending" | "this_week" | "next_week" | "declined",
-      rescheduled_from / rescheduled_to: the other session's id, if moved,
-      source: "schedule" (came from a generated plan) | "manual_reschedule",
-      frozen_at, marked_at, decided_at, created_at
-    }
-
-Why this exists: generated schedules are stateless (schedule_service.py) and
-the frontend's historicalScheduleByDate only lives in one browser's
-localStorage - neither is a durable record of whether a student really
-studied in a session. (user_id, date, task_id, time_slot) is the natural key
-- generated sessions carry no id of their own - and is unique, so saving the
-same session twice is always a no-op instead of a duplicate.
-"""
+"""study_session.py"""
 
 from datetime import datetime
 
@@ -99,17 +76,7 @@ class StudySessionModel:
 
     @staticmethod
     async def snapshot(user_id: str, sessions: list[dict]) -> int:
-        """
-        Append-only save, same rule as the frontend's freezePastDates(): a
-        session already stored is never overwritten (so a later regeneration
-        can't rewrite history, and a status the student already marked is
-        never reset to "pending"). Returns how many were newly inserted.
-
-        A session whose time overlaps a DIFFERENT session already stored for
-        that date is skipped too: each regeneration can put another task in
-        the same slot, and without this every frozen version of a day piled
-        up as overlapping sessions. The first version stored for a slot wins.
-        """
+        """Append-only save, same rule as the frontend's freezePastDates()"""
         inserted = 0
         stored_by_date: dict[str, list[dict]] = {}
         for session in sessions:

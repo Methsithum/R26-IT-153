@@ -53,24 +53,14 @@ export default function TaskDetails() {
 
   const days = task ? daysRemaining(task.deadlineDate) : 0;
 
-  // TaskDetails calls /predict-priority directly (below) rather than reading
-  // the /schedule response, so - unlike Dashboard/Tasks/MonthGrid, which all
-  // get the hybrid layer for free via useWeeklySchedule/useReschedule (see
-  // priorityEngine.js) - the raw ML label from that direct call needs to go
-  // through computeFinalPriority here explicitly. The scheduleResponse
-  // fallback already carries the hybrid result (applied at the API
-  // boundary), so it's used as-is.
+  // TaskDetails calls /predict-priority directly
   const rawMlLabel = priorityResult?.priority_label;
   const finalPriorityResult = task && rawMlLabel
     ? computeFinalPriority(days, task.taskType || "assignment", rawMlLabel)
     : null;
   const priority = finalPriorityResult?.priorityLabel || scheduleResponse?.tasks?.[taskId]?.priority_label;
 
-  // Decides which explanation (SHAP / deadline / blended) actually matches
-  // `priority` above - see resolveExplanationDisplay()'s docstring. Passing
-  // the raw /explain response straight to ExplanationPanel would risk
-  // explaining `explanation.predicted_priority` instead of the final,
-  // post-priorityEngine label the badge shows.
+  // Decides which explanation
   const explanationDisplay = finalPriorityResult && explanation
     ? resolveExplanationDisplay(finalPriorityResult, days, explanation, {
         hasPriorScoreData: !!task?.hasPriorScoreData,
@@ -83,10 +73,7 @@ export default function TaskDetails() {
 
   const remainingHours = task ? Math.max(task.estimatedHoursNeeded - task.completedHours, 0) : 0;
 
-  // Real database write FIRST (see useAcademicStore.js's completeTask) -
-  // only on success do we celebrate/bump the streak/reschedule. On failure,
-  // surface a retryable error rather than showing "completed" while the
-  // database still shows the task open.
+  // Real database write FIRST
   async function handleComplete() {
     setCompleting(true);
     setCompleteError(null);
@@ -124,10 +111,7 @@ export default function TaskDetails() {
             <div className="flex items-center gap-1.5 text-sm font-bold text-high-600">
               <AlertTriangle size={15} /> Missed Study Session
             </div>
-            {/* No automatic reschedule here: this task's deadline has already
-                passed, so there's nothing valid to move it to. Individual
-                missed sessions are handled (with the student's permission)
-                from the Study Planner's session cards instead. */}
+            {/* No automatic reschedule here */}
             <p className="text-xs text-slate-500 dark:text-slate-300 mt-1">
               This task's deadline has passed before it was completed. You can still mark it complete if you finished it.
             </p>
@@ -194,10 +178,7 @@ export default function TaskDetails() {
             <Stat
               icon={BookOpen}
               label="Module Grade"
-              // hasGradeData=false means no marks recorded yet - the 0%
-              // placeholder underneath must never display as if it were a
-              // real grade (same honesty rule MonthGrid.jsx already applies
-              // to this exact field; this stat had been missing it - Section 17).
+              // hasGradeData=false means no marks recorded yet
               value={module ? (module.hasGradeData ? `${module.currentGrade}%` : "No data yet") : "—"}
             />
           </div>
