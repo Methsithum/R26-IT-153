@@ -1,21 +1,4 @@
-"""
-session_service.py
-
-Pure logic behind the "missed session -> ask the student -> reschedule"
-flow (session_routes.py). Nothing here touches MongoDB, so every rule can be
-unit-tested with plain dates and dicts.
-
-The flow is deliberately permission-first: marking a session missed never
-moves anything by itself. The student then chooses "this week", "next week"
-or "don't reschedule", and only a slot they explicitly pick (and that is
-re-validated here at confirm time) ever gets booked.
-
-Deadline rules (all enforced here, not just in the UI):
-  - deadline already passed          -> nothing can be offered
-  - deadline before next Monday      -> "next week" is not allowed
-  - every suggestion is on/before the deadline, and on/after today
-  - today's slots only count from the current time onwards
-"""
+"""session_service.py"""
 
 from datetime import date, timedelta
 
@@ -85,11 +68,7 @@ def free_gaps_by_date(
     today: date,
     now_minutes: int,
 ) -> dict[str, list[tuple[int, int]]]:
-    """
-    Real free time per date in start..end: each weekday's recurring free
-    slots, minus everything already occupied on that exact date, minus the
-    part of today that has already gone by.
-    """
+    """Real free time per date in start..end"""
     result = {}
     day = start
     while day <= end:
@@ -119,12 +98,7 @@ def build_suggestions(
     today: date,
     now_minutes: int,
 ) -> dict:
-    """
-    Slot suggestions for one week, cut off at the deadline. Prefers slots
-    the whole session fits into; only when none exist anywhere in the
-    window does it fall back to shorter partial slots (fits=False), so the
-    student can still catch up some of the time instead of none.
-    """
+    """Slot suggestions for one week, cut off at the deadline."""
     options = reschedule_options(deadline, today)
     allowed = options["can_use_this_week"] if which == "this" else options["can_use_next_week"]
     response = {**options, "week": which, "deadline_date": deadline.isoformat() if deadline else None, "suggestions": [], "warning": None}
@@ -184,11 +158,7 @@ def is_slot_still_free(
     today: date,
     now_minutes: int,
 ) -> bool:
-    """
-    Confirm-time re-check: the chosen slot must still sit entirely inside a
-    real free gap of the chosen week, on/before the deadline. Catches a slot
-    that got taken (or a deadline that moved) after suggestions were shown.
-    """
+    """Confirm-time re-check"""
     options = reschedule_options(deadline, today)
     if not (options["can_use_this_week"] if which == "this" else options["can_use_next_week"]):
         return False

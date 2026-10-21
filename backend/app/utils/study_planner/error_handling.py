@@ -1,16 +1,4 @@
-"""
-error_handling.py
-
-Shared helper for turning study-planner service-layer exceptions into proper
-HTTP responses, instead of letting them bubble up as raw 500 stack traces.
-
-Convention used across all study-planner services: a *ServiceError raised
-because the underlying model/logic failed to load at startup contains one of
-a few recognizable phrases ("not loaded", "not available", "not initialized")
-- those map to 500 (server misconfiguration, not the caller's fault).
-Everything else raised by a *ServiceError is a caller input problem (missing
-feature, bad type, malformed schedule state, etc.) and maps to 422.
-"""
+"""error_handling.py"""
 
 import logging
 

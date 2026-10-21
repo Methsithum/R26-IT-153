@@ -6,11 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class TaskFeatures(BaseModel):
-    """
-    The 13 raw features the trained priority_model.joblib (XGBoost) was
-    trained on, in the same units/encoding as train_priority_model.py.
-    See app/services/study_planner/priority_service.py:FEATURE_ORDER.
-    """
+    """The 13 raw features the trained priority_model.joblib"""
 
     date: float = Field(..., description="Assessment deadline, as day-of-module offset.")
     weight: float = Field(..., description="Assessment weight (0-100 scale, OULAD convention).")
@@ -28,11 +24,7 @@ class TaskFeatures(BaseModel):
 
 
 class TaskInput(BaseModel):
-    """
-    A task as given to the scheduler. priority_label is optional - if
-    omitted, the caller must supply feature_row so the API can predict it
-    via the trained classifier (see schedule_service._ensure_priority_label).
-    """
+    """A task as given to the scheduler."""
 
     task_id: str = Field(..., description="Caller-assigned unique id for this task.")
     module: str = Field(..., description="Module code this task belongs to, e.g. 'AAA'.")
@@ -45,27 +37,11 @@ class TaskInput(BaseModel):
     feature_row: Optional[TaskFeatures] = Field(
         None, description="The 13 model features, required only when priority_label is omitted."
     )
-    # "assignment" | "exam" - see PROJECT CONTEXT.md Section 5d for where this
-    # field originates (frontend task/assignment data model) and Section 8's
-    # exam-prep subsection for why the scheduler needs it: exam-prep pseudo-
-    # tasks (built client-side from the student's real exam dates, never from
-    # /predict-priority - exams deliberately never get an ML priority) must
-    # round-trip through /schedule and /reschedule with this intact so the
-    # frontend can label their sessions "Exam Prep: ..." instead of just the
-    # module name, and so the scheduler can weight them appropriately.
+    # "assignment" | "exam"
     task_type: Literal["assignment", "exam"] = Field(
         "assignment", description="Whether this task is regular assignment work or exam-preparation time."
     )
-    # Only meaningful to generate_rolling_schedule() (multi-week) - a plain
-    # /schedule or /reschedule call only ever generates one week and ignores
-    # this. See PROJECT CONTEXT.md Section 8e's "front-loading" bug: without
-    # this, a multi-week exam-prep chunk built for a LATER week (e.g.
-    # "exam-<id>-w2", the heaviest chunk, right before the exam) has no
-    # deadline earlier than the exam's own real deadline, so if an earlier
-    # week has idle free capacity the greedy allocator happily schedules it
-    # there too, days or weeks before it was meant to happen - defeating the
-    # whole point of the escalating curve. None (the default) means no
-    # restriction, so ordinary assignments/single tasks are unaffected.
+    # Only meaningful to generate_rolling_schedule()
     not_before_date: Optional[str] = Field(
         None, description="ISO date (YYYY-MM-DD); this task must not be scheduled in any week starting before this date."
     )

@@ -5,11 +5,7 @@ import { CalendarRange } from "lucide-react";
 
 const COLOR_HEX = { brand: "#7c3aed", teal: "#14b8a6", pink: "#ec4899", orange: "#fb923c" };
 
-// Real data: each week's per-module split comes from
-// utils/studyAllocation.js, computed from the module's actual remaining
-// task deadlines and exam dates (both real, synced from the journal) and
-// the student's real weekly availability (Profile > Available Study
-// Hours/Week) — recomputed by the store whenever any of those change.
+// Real data
 export default function SemesterOverview() {
   const modules = useAcademicStore((s) => s.modules);
   const data = useAcademicStore((s) => s.semesterAllocation);

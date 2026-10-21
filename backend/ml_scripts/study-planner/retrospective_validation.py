@@ -1,53 +1,4 @@
-"""
-retrospective_validation.py
-
-Retrospective, non-circular validation of the deployed priority model
-(OrdinalPriorityModel, Section 5c) against real historical outcomes.
-
-===========================================================================
-THE CIRCULARITY PROBLEM THIS SCRIPT IS DESIGNED TO AVOID
-===========================================================================
-Priority_Label (Section 4/5) was built FROM the task's real outcome (score,
-submitted_late). So "do High-priority tasks have worse outcomes than Low-
-priority tasks?" is tautological - true by construction of the label,
-proves nothing new, and MUST NOT be reported as a finding here.
-
-The only methodologically valid retrospective test holds the model's
-prediction fixed and looks for variation in something the prediction does
-NOT already encode - specifically, behavioral engagement. The real, testable,
-non-circular question: "Among tasks the model predicted High priority (from
-PRE-OUTCOME features only), did students who behaviorally responded with
-more urgency actually achieve better outcomes than those who didn't?" The
-predicted priority is held constant across the comparison groups - this
-tests whether ACTING on an elevated priority signal associates with better
-results, not whether the label correctly identified risk (already
-established by Section 5b/5c's accuracy/F1 metrics - not re-tested here).
-
-===========================================================================
-WHY THIS SCRIPT DOES ITS OWN DATA JOIN INSTEAD OF JUST LOADING THE CSV
-===========================================================================
-The already-exported ml_scripts/study-planner/outputs/oulad_task_level_leakage_free.csv
-deliberately has NO score/submitted_late columns (Section 3 drops them
-before export, precisely so they can never leak into the feature matrix).
-This script needs those exact columns back, as OUTCOME data only (never fed
-to the model) - so it re-runs train_priority_model.py's sections 1
-(load+join), 2 (sort - NOT the VLE-dependent parts), and 5 (label
-construction) to reproduce score/submitted_late in the EXACT SAME ROW ORDER
-as the exported CSV, then attaches them by position. Section 1b (chunked
-studentVle.csv processing, several minutes) is deliberately skipped - the
-sort key in section 2 (id_student/code_module/code_presentation/date) does
-not depend on any VLE-derived column, and the VLE merge itself is a
-row-preserving left join, so skipping it cannot change row order. The
-avg_weekly_clicks/clicks_trend/active_weeks_ratio columns this script
-actually needs (for the urgency-response proxy) are already sitting in the
-exported CSV - recomputing them here would be redundant, not more correct.
-This is verified, not assumed: a strict positional cross-check (Priority_Label,
-weight, and date must match exactly, row for row) is run before trusting the
-join, and the script aborts loudly if it doesn't.
-
-Run with:
-    venv/Scripts/python ml_scripts/study-planner/retrospective_validation.py
-"""
+"""retrospective_validation.py"""
 
 import os
 import sys
@@ -84,9 +35,7 @@ def section(title):
     print("=" * 90)
 
 
-# ===========================================================================
-# 1. RE-JOIN score/submitted_late IN THE EXACT ROW ORDER OF THE EXPORTED CSV
-# ===========================================================================
+# 1.
 section("1. RECONSTRUCT score/submitted_late (no VLE reprocessing - see module docstring)")
 
 assessments = pd.read_csv(os.path.join(DATASETS_DIR, "assessments.csv"))
@@ -118,8 +67,7 @@ df = df.merge(
 )
 print(f"Re-joined df shape (pre-sort): {df.shape}")
 
-# Section 2's sort - identical call, determines row order. Depends only on
-# id_student/code_module/code_presentation/date, none of which are VLE-derived.
+# Section 2's sort - identical call, determines row order.
 df = df.sort_values(["id_student", "code_module", "code_presentation", "date"]).reset_index(drop=True)
 
 # Section 5's label construction, verbatim.
@@ -138,9 +86,7 @@ df["Priority_Label_check"] = df.apply(label_from_outcome, axis=1)
 print(f"Reconstructed df shape (post-sort): {df.shape}")
 
 
-# ===========================================================================
-# 2. LOAD THE EXPORTED FEATURE+LABEL CSV AND VERIFY ROW ALIGNMENT
-# ===========================================================================
+# 2.
 section("2. LOAD EXPORTED FEATURES + VERIFY POSITIONAL ALIGNMENT (hard requirement)")
 
 features_df = pd.read_csv(os.path.join(OUTPUTS_DIR, "oulad_task_level_leakage_free.csv"))
@@ -177,12 +123,7 @@ full_df["score"] = df["score"].values
 full_df["submitted_late"] = df["submitted_late"].values
 
 
-# ===========================================================================
-# 3. REPRODUCE THE SAME TRAIN/TEST SPLIT AS Section 5b/5c (for consistency
-#    with their reported accuracy/F1 - this analysis uses the HELD-OUT TEST
-#    SET, stated explicitly, not the full dataset, so results describe
-#    genuinely unseen data exactly like the headline metrics already do)
-# ===========================================================================
+# 3.
 section("3. REPRODUCE THE SECTION 5b/5c TRAIN/TEST SPLIT (test set only)")
 
 X = full_df[FEATURE_ORDER].copy()
@@ -194,9 +135,7 @@ test_df = full_df.loc[idx_test].copy()
 print(f"Test set size: {len(test_df)} (matches the 20% held out in Sections 5b/5c)")
 
 
-# ===========================================================================
-# 4. GENERATE PREDICTIONS WITH THE DEPLOYED MODEL (13 features only)
-# ===========================================================================
+# 4.
 section("4. PREDICT WITH THE DEPLOYED MODEL (pre-outcome features only, exactly as production does)")
 
 model = joblib.load(MODEL_PATH)
@@ -205,9 +144,7 @@ test_df["predicted_priority"] = [CLASS_ORDER[i] for i in pred_idx]
 print(test_df["predicted_priority"].value_counts())
 
 
-# ===========================================================================
-# 5. DEFINE THE "ACTED WITH URGENCY" BEHAVIORAL PROXY (Section 1 of the task)
-# ===========================================================================
+# 5.
 section("5. DEFINE urgency_responsive")
 print("""
 urgency_responsive = 1 if clicks_trend > 0, else 0.
@@ -231,9 +168,7 @@ feature set, not a ground-truth measure of intentional prioritization.
 test_df["urgency_responsive"] = (test_df["clicks_trend"] > 0).astype(int)
 
 
-# ===========================================================================
-# 6. CORE COMPARISON: WITHIN THE HIGH-PRIORITY-PREDICTED SUBSET
-# ===========================================================================
+# 6.
 def compare_groups(subset_df, subset_name):
     """Returns a dict of comparison statistics for one predicted-priority subset."""
     urgent = subset_df[subset_df["urgency_responsive"] == 1]
@@ -281,22 +216,13 @@ high_subset = test_df[test_df["predicted_priority"] == "High"]
 high_result = compare_groups(high_subset, "High-priority-predicted")
 
 
-# ===========================================================================
-# 7. FALSIFICATION / CONTROL CHECK - within predicted-Low-priority subset
-# ===========================================================================
+# 7.
 section("7. FALSIFICATION CHECK - within predicted-Low-priority subset")
 low_subset = test_df[test_df["predicted_priority"] == "Low"]
 low_result = compare_groups(low_subset, "Low-priority-predicted")
 
 
-# ===========================================================================
-# 8. CONFOUND CONTROL - regression within predicted-High-priority subset
-#    (task-required), ALSO run within predicted-Low-priority subset as an
-#    honest extension of the SAME falsification logic as Section 7 - if the
-#    "urgency_responsive survives confound control" result is not actually
-#    specific to high-priority tasks, that must be visible here too, not
-#    just in the raw comparison.
-# ===========================================================================
+# 8.
 def run_regressions(subset_df, subset_name):
     """Logistic (submitted_late) + OLS (score) on urgency_responsive + weight + prior_avg_score."""
     result = {}
@@ -333,9 +259,7 @@ section("8b. SAME REGRESSION within predicted-Low-priority subset (extends Secti
 regression_results_low = run_regressions(low_subset, "Low-priority-predicted")
 
 
-# ===========================================================================
-# 9. SAVE OUTPUTS
-# ===========================================================================
+# 9.
 section("9. SAVE OUTPUTS")
 
 rows = []

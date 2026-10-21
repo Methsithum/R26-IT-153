@@ -15,14 +15,7 @@ const WARNING_COPY = {
   only_partial_slots: "No free slot is long enough for the whole session - these shorter slots would cover part of it.",
 };
 
-/**
- * Permission-first popup for a missed session. Nothing is scheduled until
- * the student picks: add it this week, move it to next week, or leave it
- * missed. "This week"/"next week" then shows real free slots (cut off at
- * the deadline) and only the slot they confirm is booked. Closing the
- * popup leaves the decision pending - it shows up again in the Study
- * Planner's "needs a decision" banner.
- */
+// Permission-first popup for a missed session.
 export default function MissedSessionModal() {
   const target = useAcademicStore((s) => s.rescheduleTarget);
   const close = useAcademicStore((s) => s.closeRescheduleModal);
@@ -84,8 +77,7 @@ function ModalBody({ target, onClose }) {
     }
   }
 
-  // Preload "this week" once on open - its response also carries which of
-  // the three choices the real deadline allows.
+  // Preload "this week" once on open
   useEffect(() => {
     load("this");
     // eslint-disable-next-line react-hooks/exhaustive-deps

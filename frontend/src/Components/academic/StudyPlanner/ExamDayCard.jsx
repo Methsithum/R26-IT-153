@@ -5,13 +5,7 @@ import { sessionKey, toSessionInput } from "../../../utils/sessionTracking";
 import { useAcademicStore } from "../../../store/useAcademicStore";
 import SessionStatusControls from "./SessionStatusControls";
 
-/**
- * Shown INSTEAD of a timeline on an exam day - nothing is scheduled then,
- * except (back-to-back exams only, and only if the student agreed) one
- * short revision session after the exam for the NEXT day's exam. Only
- * High-priority assignments due right around the exam get a mention, as a
- * heads-up rather than a session.
- */
+// Shown INSTEAD of a timeline on an exam day
 export default function ExamDayCard({
   exams,
   dateStr,
@@ -19,7 +13,6 @@ export default function ExamDayCard({
   moduleName,
   revision = null,
   // false when the caller renders the revision as its own timeline card
-  // (Week / Today views); the Dashboard keeps it inline.
   inlineRevision = true,
   cluster = null,
   isPast = false,

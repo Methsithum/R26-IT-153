@@ -39,11 +39,7 @@ class MarkRequest(BaseModel):
 
 
 class LiveScheduleContext(BaseModel):
-    """
-    What the backend can't know on its own: the student's free-time pattern
-    (Settings) and what the live generated plan already occupies per real
-    date. Stored manual sessions are added on top of `occupied` server-side.
-    """
+    """What the backend can't know on its own"""
 
     user_id: str
     week: Literal["this", "next"]

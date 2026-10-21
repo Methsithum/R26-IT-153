@@ -2,18 +2,7 @@ import { motion } from "framer-motion";
 import { Brain, CalendarClock } from "lucide-react";
 import ConfidenceMeter from "./ConfidenceMeter";
 
-// `display` is the resolved output of priorityEngine.js's
-// resolveExplanationDisplay() - { type: "shap"|"deadline"|"blended",
-// sentence, contributions? } - never the raw /explain response. That
-// function is what decides which mechanism actually produced the priority
-// on screen (the badge reflects the FINAL, post-priorityEngine label, which
-// can differ from /explain's raw ML prediction - see PROJECT CONTEXT.md
-// Section 6 follow-up) and builds every sentence through the humanizer
-// (featureNameMap.js), so no raw model feature name (e.g.
-// "assessment_type_enc") or explanation for a label the student isn't
-// looking at can reach this component. Show exactly one sentence - never
-// blend a SHAP sentence and a deadline sentence together, since they can
-// legitimately describe different things.
+// Shows one priority explanation from resolveExplanationDisplay()
 export default function ExplanationPanel({ display, confidence, loading }) {
   if (loading) {
     return (
@@ -45,23 +34,12 @@ export default function ExplanationPanel({ display, confidence, loading }) {
 
       <p className="text-sm text-slate-500 dark:text-slate-300 leading-relaxed">{display.sentence}</p>
 
-      {/* Extra grounded detail (priorityEngine.js's weightDetailSentence) -
-          only present when the named reason was assignment weight, and only
-          ever cites the REAL percentile stats from the actual training
-          dataset, never a made-up comparison. A separate paragraph, not
-          appended into `sentence`, so the headline reason stays a single
-          clean sentence and this reads as "here's the real number behind
-          that", not as the same claim restated. */}
+      {/* Extra grounded detail */}
       {display.detail && (
         <p className="text-sm text-slate-500 dark:text-slate-300 leading-relaxed">{display.detail}</p>
       )}
 
-      {/* Cold-start honesty caveat (Section 17) - only present when
-          prior_avg_score would otherwise have been named as the headline
-          reason but is actually a neutral no-data fallback, not a real
-          recorded average for this student. Separate line, not merged into
-          `sentence`, so it reads as a clarifying note rather than part of
-          the main explanation. */}
+      {/* Cold-start honesty caveat */}
       {display.caveat && (
         <p className="text-xs text-slate-400 dark:text-slate-500 italic leading-relaxed">{display.caveat}</p>
       )}

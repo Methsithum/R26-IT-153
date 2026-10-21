@@ -1,7 +1,4 @@
-// Pure helpers for study-session history + the permission-first missed-
-// session flow (backend: app/routes/study_planner/session_routes.py).
-// Generated sessions carry no id of their own, so a session is identified
-// the same way the backend's unique index does: (date, task_id, time_slot).
+// Helpers for study-session history and the missed-session flow
 import { addDays, getWeekStart, toLocalDateStr } from "./dateHelpers";
 
 export function sessionKey(date, taskId, timeSlot) {
@@ -33,15 +30,7 @@ export function dateStrsBetween(startDate, endDate) {
   return out;
 }
 
-/**
- * The live plan's occupied time_slots per real date, for "this" or "next"
- * week - read from the SAME sources WeekGrid renders from, so a suggestion
- * never lands on a session the student can already see: the current week's
- * remaining days come from the live single-week scheduleResponse (weekday-
- * keyed - see WeekGrid's realDayName note), every other date from the
- * real-ISO-date-keyed multiWeekSchedule. Stored manual sessions are added
- * on top of this server-side.
- */
+// The live plan's occupied time_slots per real date, for "this" or "next" week
 export function buildOccupiedByDate(week, { scheduleResponse, multiWeekSchedule }, now = new Date()) {
   const thisMonday = getWeekStart(now);
   const start = week === "this" ? new Date(now.getFullYear(), now.getMonth(), now.getDate()) : addDays(thisMonday, 7);
@@ -69,12 +58,7 @@ export function recordToScheduledItem(record) {
   };
 }
 
-/**
- * Stored sessions on `date` that the live/frozen item list doesn't already
- * show: manually rescheduled ones (the generator never knows about them)
- * and already-marked ones whose slot a later regeneration moved - so a
- * student's own mark never silently disappears from the calendar.
- */
+// Stored sessions on `date` that the live/frozen item list doesn't already show
 export function extraRecordsForDate(date, items, recordsByKey) {
   const shown = new Set(items.map((item) => sessionKey(date, item.task_id, item.time_slot)));
   return Object.values(recordsByKey).filter(
@@ -96,13 +80,7 @@ export function slotsOverlap(a, b) {
   return aStart < bEnd && bStart < aEnd;
 }
 
-/**
- * One session per time slot. Older data can hold several plan versions for
- * the same day (each regeneration put another task in the slot), which
- * showed up as stacked sessions at the same time. Keeps, per overlap: a
- * session the student marked, then a manual reschedule, then the earlier
- * item in `items` (the frozen/live plan comes before stored extras).
- */
+// One session per time slot.
 export function dropOverlappingItems(date, items, recordsByKey) {
   const rank = (item) => {
     const record = recordsByKey[sessionKey(date, item.task_id, item.time_slot)];

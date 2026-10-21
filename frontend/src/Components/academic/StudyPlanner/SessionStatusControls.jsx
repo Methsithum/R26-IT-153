@@ -3,27 +3,20 @@ import { Check, X, Repeat } from "lucide-react";
 import { useAcademicStore } from "../../../store/useAcademicStore";
 import { DECISION_LABELS } from "../../../utils/sessionTracking";
 
-/**
- * "Did you study in this session?" for one real scheduled session on today
- * or a past day. Marking it missed never moves anything - it only opens
- * the permission popup (MissedSessionModal), where the student chooses
- * this week / next week / don't reschedule.
- */
+// "Did you study in this session?" for one real scheduled session on today or a past day.
 export default function SessionStatusControls({ sessionInput, record, compact = false }) {
   const userId = useAcademicStore((s) => s.userId);
   const markSessionStatus = useAcademicStore((s) => s.markSessionStatus);
   const openRescheduleModal = useAcademicStore((s) => s.openRescheduleModal);
   const [saving, setSaving] = useState(null);
   const [error, setError] = useState(null);
-  // After "Studied" only that badge is shown; "Change" brings both buttons
-  // back so a mis-tap can still be corrected.
+  // After "Studied" only that badge is shown
   const [changing, setChanging] = useState(false);
 
   if (!userId) return null;
 
   const status = record?.status || "pending";
-  // Once a missed session has been moved, its status is settled - the
-  // student marks the NEW session instead (the backend enforces this too).
+  // Once a missed session has been moved, its status is settled
   const locked = !!record?.rescheduled_to;
 
   async function mark(next) {
@@ -44,9 +37,7 @@ export default function SessionStatusControls({ sessionInput, record, compact = 
     }
   }
 
-  // Sized as real tap targets (min 32px tall), not tiny chips - these are
-  // the main action on a past/today session card. Each button also has a
-  // visible border when unselected so "Missed" doesn't read as plain text.
+  // Sized as real tap targets
   const size = compact ? 13 : 15;
   const base = `inline-flex items-center justify-center gap-1 rounded-lg border font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-h-8 ${
     compact ? "text-xs px-2 py-1.5" : "text-sm px-3 py-2"

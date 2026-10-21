@@ -1,22 +1,4 @@
-"""
-session_routes.py
-
-Durable study-session history + the permission-first missed-session flow:
-
-  1. POST /sessions/mark  {status: "missed"}  -> saved as missed with
-     reschedule_decision="pending". NOTHING is moved.
-  2. The student chooses:
-       - "this week" / "next week" -> POST /sessions/{id}/suggest-slots
-         shows free slots up to the deadline, then
-         POST /sessions/{id}/reschedule-to books ONLY the slot they picked
-       - "don't reschedule"        -> POST /sessions/{id}/decline
-  3. Booked manual sessions are returned by GET /sessions/blocked, which the
-     frontend passes as blocked_slots to /schedule, /multi-week-schedule and
-     /reschedule so the generator never double-books them.
-
-The automatic /reschedule flow is never used for a missed session - only
-for "mark complete" - so a missed session is never moved without asking.
-"""
+"""session_routes.py"""
 
 from datetime import date, timedelta
 
@@ -62,11 +44,7 @@ async def _owned_session(session_id: str, user_id: str) -> dict:
 
 
 async def _resolve_deadline(session: dict) -> date | None:
-    """
-    The real assignment's CURRENT deadline wins over the one frozen into the
-    session (it may have been edited since). Exam-prep task ids
-    ("exam-<id>[-wN]") aren't task documents, so they keep the stored one.
-    """
+    """The real assignment's CURRENT deadline wins over the one frozen into the session"""
     if session.get("task_type", "assignment") == "assignment":
         task = await TaskModel.find_by_id(session["task_id"])
         if task and task.get("deadline"):
@@ -85,8 +63,7 @@ async def _occupied_with_manual(user_id: str, body: LiveScheduleContext, exclude
         slots = occupied.setdefault(stored["date"], [])
         if stored["time_slot"] not in slots:
             slots.append(stored["time_slot"])
-    # Nothing is ever scheduled on an exam day - enforced here too, not only
-    # by the frontend, so a missed session can never be moved onto one.
+    # Nothing is ever scheduled on an exam day
     for exam in await ExamModel.find_by_user(user_id):
         exam_day = to_local_date(exam.get("date"))
         if exam_day and exam_day >= today:
@@ -121,9 +98,7 @@ async def mark_session(body: MarkRequest):
             detail="This missed session was already moved to another slot - mark the new session instead.",
         )
 
-    # One time slot holds one session: a regenerated plan can put another
-    # task where the student already marked one, and marking both made two
-    # "studied" sessions at the same time.
+    # One time slot holds one session
     clash = await StudySessionModel.find_marked_overlap(body.user_id, session)
     if clash:
         raise HTTPException(

@@ -1,7 +1,4 @@
-// Regression tests for the hybrid priority layer (PROJECT CONTEXT.md
-// Section 5d) - every case here maps to a specific, previously-verified
-// design guarantee or a specific bug that was found and fixed during
-// development, not generic coverage.
+// Regression tests for the hybrid priority layer
 import { describe, it, expect } from "vitest";
 import {
   computeBaseTier,
@@ -99,7 +96,6 @@ describe("computeFinalPriority: ±1 tier clamp (Section 5d cross-task dominance)
     expect(lowBaseHighMl.priorityLabel).toBe("Medium");
 
     // base=High(2), ML=Low(0) -> diff of -2, must clamp to -1 -> Medium(1), NOT Low.
-    // 4 days: still base High, but outside the urgent floor (<=2 days), so the clamp applies.
     const highBaseLowMl = computeFinalPriority(4, "assignment", "Low"); // 4d -> base High
     expect(highBaseLowMl.baseTierLevel).toBe(PRIORITY_LEVELS.High);
     expect(highBaseLowMl.mlTierLevel).toBe(PRIORITY_LEVELS.Low);
@@ -132,8 +128,7 @@ describe("computeFinalPriority: ±1 tier clamp (Section 5d cross-task dominance)
 });
 
 describe("resolveExplanationDisplay: cold-start honesty (Section 17)", () => {
-  // 20 days -> base Low(0), ML=Medium(1) -> clamps to Medium(1), which equals
-  // the raw ML label itself -> finalLabel===rawLabel -> the "shap" branch.
+  // 20 days -> base Low(0), ML=Medium(1) -> clamps to Medium(1)
   const finalResult = computeFinalPriority(20, "assignment", "Medium");
   const explanationPriorAvgScoreDominant = {
     predicted_priority: finalResult.priorityLabel,
@@ -172,9 +167,7 @@ describe("resolveExplanationDisplay: cold-start honesty (Section 17)", () => {
     expect(display.caveat).toBeNull();
   });
 
-  // weight is the model's single strongest feature (Section 6 SHAP) - a
-  // real synced task (external Journal schema has no `weight` field at all)
-  // must never have a fabricated weight cited as the reason for its priority.
+  // weight is the model's single strongest feature
   const explanationWeightDominant = {
     predicted_priority: finalResult.priorityLabel,
     feature_contributions: { weight: 0.9, prior_avg_score: 0.2, date: 0.1 },
@@ -251,11 +244,7 @@ describe("resolveExplanationDisplay: cold-start honesty (Section 17)", () => {
 });
 
 describe("applyPriorityEngineToScheduleResult: cross-task deadline consistency", () => {
-  // Both fall in the assignment ">14 days" base-tier band (Low, leaning
-  // Medium) - real bug report: a task due in 20 days independently computed
-  // as Low while a DIFFERENT task due in 30 days, same band, got bumped to
-  // Medium by its own ML weight signal. Individually valid, but backwards
-  // side by side - the nearer deadline must never rank below the farther one.
+  // Both fall in the assignment ">14 days" base-tier band (Low, leaning Medium) - real bug report
   const baseScheduleResult = (from) => ({
     tasks: {
       "task-near-20d": {
@@ -299,8 +288,7 @@ describe("applyPriorityEngineToScheduleResult: cross-task deadline consistency",
       overload_warning: [],
     };
     const result = applyPriorityEngineToScheduleResult(scheduleResult, from);
-    // The assignment's own independent result stands - not pulled up just
-    // because an unrelated EXAM further out happens to rank higher.
+    // The assignment's own independent result stands
     expect(result.tasks["assign-near-20d"].priority_label).toBe("Low");
   });
 });

@@ -1,36 +1,15 @@
-"""
-generate_todo_output.py
-
-To-Do List & Reminder Formatting for the Smart Uni Guide study planner.
-
-Transforms a StudyScheduler schedule (produced by schedule_engine.py) into a
-simple, actionable to-do list: one entry per task, with a human-readable
-reminder message that varies by priority and urgency.
-
-Run independently with:
-    venv/Scripts/python ml_scripts/study-planner/generate_todo_output.py
-
-By default this loads the saved sample_schedule_initial.json produced by
-schedule_engine.py (requires that script to have already been run once).
-It can also be used as a library - call build_todo_list(schedule_result)
-directly with an in-memory schedule dict from schedule_engine.py, without
-touching disk, e.g. from the backend API in the same process.
-"""
+"""generate_todo_output.py"""
 
 import json
 import os
 import sys
 from datetime import date, datetime
 
-# Windows consoles often default to cp1252, which can't encode the emoji used
-# in reminder_message below - force UTF-8 stdout so `python generate_todo_output.py`
-# doesn't crash on print() regardless of the host terminal's default encoding.
+# Windows consoles often default to cp1252
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
-# ---------------------------------------------------------------------------
 # Paths
-# ---------------------------------------------------------------------------
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 
@@ -48,22 +27,9 @@ def section(title):
     print("=" * 90)
 
 
-# ===========================================================================
-# CORE TRANSFORM: schedule -> to-do list
-# ===========================================================================
+# CORE TRANSFORM
 def _reminder_message(module, priority_label, days_remaining, task_type="assignment"):
-    """
-    Builds a short, human-readable reminder that varies by priority AND
-    urgency (not priority alone) - a High-priority task due in 3 weeks
-    doesn't need the same tone as one due tomorrow, and a Low-priority task
-    due tomorrow still deserves a nudge.
-
-    task_type distinguishes exam-prep entries (see PROJECT CONTEXT.md
-    Section 5d / Section 8's exam-prep subsection) from regular assignment
-    work - "task" reads oddly for exam study time, and a student scanning
-    this list needs to tell at a glance which entries are prep for an exam
-    itself vs. an assignment, same as the session cards in the UI.
-    """
+    """Builds a short, human-readable reminder that varies by priority AND urgency"""
     noun = "exam prep" if task_type == "exam" else "task"
 
     if days_remaining < 0:
@@ -96,16 +62,7 @@ def _reminder_message(module, priority_label, days_remaining, task_type="assignm
 
 
 def build_todo_list(schedule_result, today=None):
-    """
-    schedule_result: dict as returned by StudyScheduler.generate_schedule()
-      / reschedule() - {"schedule": ..., "overload_warning": ..., "tasks": ...}
-    today: override "today" for days_remaining math (defaults to date.today()).
-
-    Returns a list of dicts:
-      {task_id, module, priority_label, deadline_date, days_remaining,
-       recommended_next_session, reminder_message}
-    sorted High -> Medium -> Low, then by soonest deadline within a tier.
-    """
+    """schedule_result"""
     today = today or date.today()
     tasks_registry = schedule_result.get("tasks", {})
     if not tasks_registry:
@@ -170,9 +127,7 @@ def print_todo_list(todo_items):
             print(f"      {t['reminder_message']}")
 
 
-# ===========================================================================
-# __main__: load a saved schedule and run the transform end-to-end
-# ===========================================================================
+# __main__
 if __name__ == "__main__":
     section("0. CHECK REQUIRED INPUT FILES")
     if not os.path.exists(SCHEDULE_PATH):

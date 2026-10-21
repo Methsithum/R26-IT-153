@@ -1,36 +1,4 @@
-"""
-sensitivity_analysis.py
-
-Sensitivity analysis for the hardcoded constants in the hybrid priority
-layer (frontend/src/utils/priorityEngine.js, PROJECT CONTEXT.md Section 5d)
-and the exam-prep escalation model (frontend/src/utils/examPrepConfig.js,
-Section 8a):
-
-  - Base tier day-thresholds (assignment: 2/15 real boundaries, exam: 7/31;
-    the "7"/"14" cosmetic sub-boundaries in the assignment table and the "14"
-    in the exam table are "leaning" labels only - see priorityEngine.js's
-    computeBaseTier - they never change the computed tier, so they have no
-    effect on any scheduling metric and are excluded from the sweep below.
-    The >30-day hard floor is swept alongside these two real boundaries.)
-  - The +/-1 ML modifier clamp
-  - Exam prep total budget hours
-  - Exam prep escalation curve (share of budget per days-out window)
-  - Performance multiplier range
-
-DOES NOT MODIFY ANY PRODUCTION FILE. The priority/exam-prep math below is a
-standalone Python port of the JS logic, parameterized so each constant can
-be swept independently - written for this analysis only. Production values
-(PROD_* constants below) are transcribed directly from priorityEngine.js /
-examPrepConfig.js and must be kept in sync by hand if those files change.
-
-Reuses the real StudyScheduler (schedule_engine.py) unmodified for the
-actual slot-filling step, so the scheduling OUTCOME measured here is the
-real production allocator's behavior under different upstream constants,
-not a separate simulation of it.
-
-Run with:
-    venv/Scripts/python ml_scripts/study-planner/sensitivity_analysis.py
-"""
+"""sensitivity_analysis.py"""
 
 import csv
 import os
@@ -59,9 +27,7 @@ def section(title):
     print("=" * 90)
 
 
-# ===========================================================================
-# 1. PRODUCTION VALUES (transcribed from priorityEngine.js / examPrepConfig.js)
-# ===========================================================================
+# 1.
 PROD_THRESHOLDS = {
     "assign_high_max": 4,     # <=4 days -> High (assignment)
     "assign_low_min": 15,     # >=15 days -> Low (assignment); 3-14 = Medium
@@ -82,9 +48,7 @@ PERF_WEAK_THRESH = 50
 PERF_STRONG_THRESH = 70
 
 
-# ===========================================================================
-# 2. STANDALONE PYTHON PORT OF THE HYBRID PRIORITY LAYER (priorityEngine.js)
-# ===========================================================================
+# 2.
 def clamp(n, lo, hi):
     return max(lo, min(hi, n))
 
@@ -121,9 +85,7 @@ def compute_final_priority_level(days, task_type, ml_level, thresholds, modifier
     return clamp(base + modifier, 0, 2)
 
 
-# ===========================================================================
-# 3. STANDALONE PYTHON PORT OF THE EXAM-PREP MODEL (examPrepConfig.js)
-# ===========================================================================
+# 3.
 def curve_window_for(days, curve):
     for min_d, max_d, share in curve:
         if days >= min_d and (max_d is None or days <= max_d):
@@ -202,9 +164,7 @@ def build_assignment_task(a, thresholds, modifier_clamp):
     }
 
 
-# ===========================================================================
-# 4. evaluateSchedule() - the 4 outcome metrics
-# ===========================================================================
+# 4.
 def _slot_date(day_name, anchor_date):
     target_weekday = DAY_ORDER.index(day_name)
     delta_days = (target_weekday - anchor_date.weekday()) % 7
@@ -212,12 +172,7 @@ def _slot_date(day_name, anchor_date):
 
 
 def evaluate_schedule(schedule_result, anchor_date=ANCHOR_DATE):
-    """
-    Returns {pct_high_priority_scheduled_before_deadline, avg_lead_time_high_priority,
-    daily_load_variance, overload_total_hours}. None for a metric that is
-    undefined for this scenario (e.g. no High-priority tasks at all) rather
-    than a misleading 0 or 1.
-    """
+    """Compute the schedule quality metrics."""
     tasks = schedule_result["tasks"]
     schedule = schedule_result["schedule"]
     overload = schedule_result["overload_warning"]
@@ -256,9 +211,7 @@ def evaluate_schedule(schedule_result, anchor_date=ANCHOR_DATE):
     }
 
 
-# ===========================================================================
-# 5. FIXED TEST SCENARIOS (reused, unchanged, across every sweep)
-# ===========================================================================
+# 5.
 def free_slots(hours_per_day, start="17:00"):
     sh, sm = map(int, start.split(":"))
     end_minutes = sh * 60 + sm + hours_per_day * 60
@@ -281,8 +234,7 @@ SCENARIOS = {
              "performance": 75, "has_data": True},
         ],
     },
-    # Typical week: 4 assignments (incl. one far-off Low-floor case), 2 exams
-    # at real-sample-like distances (8d/14d), realistic free time (21h/wk).
+    # Typical week
     "typical": {
         "free_slots": free_slots(3),
         "assignments": [
@@ -302,8 +254,7 @@ SCENARIOS = {
              "performance": 65, "has_data": True},
         ],
     },
-    # Heavy/overloaded week: matches the real 4-exam sample (8/10/12/14d) plus
-    # 4 assignments, scarce free time (14h/wk) - forces real overload.
+    # Heavy/overloaded week
     "heavy": {
         "free_slots": free_slots(2),
         "assignments": [
@@ -330,9 +281,7 @@ SCENARIOS = {
 }
 
 
-# ===========================================================================
-# 6. RUNNER
-# ===========================================================================
+# 6.
 def run_scenario(scenario_name, thresholds, modifier_clamp, exam_budget_hours, exam_curve, perf_mult):
     sc = SCENARIOS[scenario_name]
     tasks = [build_assignment_task(a, thresholds, modifier_clamp) for a in sc["assignments"]]

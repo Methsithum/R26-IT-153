@@ -122,9 +122,6 @@ function buildFromJournal({ tasks = [], exams = [], subjects = [] }) {
       const isMissed = !isCompleted && deadlineDate && deadlineDate < todayIso;
       const estimatedHoursNeeded = 4; // not tracked by the journal — neutral default
       const finalDeadlineDate = deadlineDate || new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
-      // The real external Task schema has NO weight field at all (see
-      // DEFAULT_ASSIGNMENT_WEIGHT's doc comment) - `!= null` correctly
-      // treats a genuinely-absent field the same as an explicit null.
       const hasRealWeight = t.weight != null;
       const weight = hasRealWeight ? Number(t.weight) : DEFAULT_ASSIGNMENT_WEIGHT; // real once set via updateTaskWeight
 
@@ -133,14 +130,6 @@ function buildFromJournal({ tasks = [], exams = [], subjects = [] }) {
         module: module?.code || slugifySubject(t.subject),
         moduleName: t.subject,
         title: t.title || `${t.subject} assignment`,
-        // Distinguishes assignment deadlines from exam deadlines for
-        // priorityEngine.js's base-tier thresholds (PROJECT CONTEXT.md
-        // Section 5d) — exams get a longer real-world lead time. The
-        // journal's `tasks` collection only ever holds assignments (exams
-        // are a separate `exams` collection, never sent through /predict-
-        // priority — see MonthGrid.jsx), so this is always "assignment"
-        // today; kept explicit rather than assumed so the priority engine
-        // has a real field to read if/when that changes.
         taskType: "assignment",
         assessmentType: "TMA", // not tracked by the journal — neutral default
         weight,

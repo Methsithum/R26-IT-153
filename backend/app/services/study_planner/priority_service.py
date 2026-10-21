@@ -1,21 +1,4 @@
-"""
-priority_service.py
-
-Loads the trained Priority classifier ONCE at module import time, and
-exposes predict_priority() for the study-planner API routes to call per
-request.
-
-Reuses the exact artifact produced by
-ml_scripts/study-planner/train_priority_model_constrained.py (see PROJECT
-CONTEXT.md Section 5c) - this module does not retrain or re-derive anything,
-it only runs inference. priority_model.joblib is an OrdinalPriorityModel
-(app/services/study_planner/ordinal_priority_model.py), not a plain
-XGBClassifier - its .predict() already returns an index into CLASS_ORDER
-(Low/Medium/High), so no separate label-encoder artifact is needed anymore.
-Do NOT swap this back for a plain unconstrained XGBClassifier without reading
-that file's docstring first - doing so reintroduces the documented date-vs-
-priority inversion bug this model was retrained to fix.
-"""
+"""priority_service.py"""
 
 import logging
 import os
@@ -27,18 +10,14 @@ from app.services.study_planner.ordinal_priority_model import CLASS_ORDER
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
 # Paths (relative to this file, so it works regardless of the process cwd)
-# ---------------------------------------------------------------------------
 BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 MODELS_DIR = os.path.join(BACKEND_DIR, "app", "models", "study_planner")
 
 MODEL_PATH = os.path.join(MODELS_DIR, "priority_model.joblib")
 LABEL_ENCODERS_PATH = os.path.join(MODELS_DIR, "label_encoders.joblib")
 
-# The exact 13 features and order the model was trained on - see
-# train_priority_model.py sections 4 & 6 (model_feature_cols). Any caller of
-# predict_priority() must supply exactly these keys.
+# The exact 13 features and order the model was trained on
 FEATURE_ORDER = [
     "date", "weight", "num_of_prev_attempts", "studied_credits",
     "module_presentation_length", "date_registration", "prior_avg_score",
@@ -47,12 +26,7 @@ FEATURE_ORDER = [
 ]
 
 
-# code_module_enc sentinel: "this task's module isn't one of the 7 OULAD
-# training modules" - true for every real subject in the app (a real
-# "Data Structures" module has no OULAD equivalent). Rather than pinning it
-# to an arbitrary training module (whose learned module-specific effect would
-# then leak into the prediction), the prediction is averaged over all 7
-# module codes - see expand_unknown_module().
+# code_module_enc sentinel
 UNKNOWN_MODULE_ENC = -1
 DEFAULT_MODULE_CODE_COUNT = 7
 
@@ -61,12 +35,7 @@ class PriorityServiceError(Exception):
     """Raised for validation failures or when the model failed to load at startup."""
 
 
-# ---------------------------------------------------------------------------
-# Load model artifacts once at import time (NOT per-request). A missing file
-# is logged clearly here rather than crashing the whole app at import - the
-# endpoints instead raise PriorityServiceError on first use, which routes
-# turn into a proper 500 with a clear message.
-# ---------------------------------------------------------------------------
+# Load model artifacts once at import time (NOT per-request).
 _model = None
 _label_encoders = None
 
@@ -117,11 +86,7 @@ def module_code_count() -> int:
 
 
 def expand_unknown_module(row_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    One row per training module code when code_module_enc is UNKNOWN_MODULE_ENC
-    (otherwise the row unchanged). Callers average the model's output over
-    these rows, so the result reflects a module-agnostic "typical module".
-    """
+    """One row per training module code"""
     if int(row_df.at[0, "code_module_enc"]) != UNKNOWN_MODULE_ENC:
         return row_df
     n = module_code_count()
@@ -131,18 +96,13 @@ def expand_unknown_module(row_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def predict_priority(task_features: dict) -> dict:
-    """
-    task_features: dict with exactly the 13 keys in FEATURE_ORDER.
-    Returns {"priority_label": "High"/"Medium"/"Low", "confidence": float}
-    where confidence is the model's predicted probability for the chosen class.
-    """
+    """task_features"""
     if _model is None:
         raise PriorityServiceError("Priority model is not loaded - check server startup logs.")
 
     row_df = expand_unknown_module(validate_and_build_feature_row(task_features))
 
-    # Mean class probability over the (possibly expanded) rows - a single
-    # row when the module is known, all 7 module codes when it isn't.
+    # Average class probability over the input rows
     proba = _model.predict_proba(row_df).mean(axis=0)
     pred_idx = int(proba.argmax())
 

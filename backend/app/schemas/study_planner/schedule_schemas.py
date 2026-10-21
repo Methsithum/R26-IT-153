@@ -19,12 +19,7 @@ class FreeSlot(BaseModel):
 
 
 class BlockedSlot(BaseModel):
-    """
-    A real-dated range the generator must NOT fill - a missed session the
-    student manually moved here (see session_routes.py). Carved out of
-    weekly_free_slots for that one real date only (schedule_engine.py's
-    apply_blocked_slots()).
-    """
+    """A real-dated range the generator must NOT fill"""
 
     date: str = Field(..., description="ISO date (YYYY-MM-DD) the blocked range falls on.")
     start_time: str = Field(..., description="'HH:MM' 24-hour format.")
@@ -63,9 +58,7 @@ class TaskRegistryEntry(BaseModel):
     priority_label: Literal["High", "Medium", "Low"]
     deadline_date: str
     estimated_hours_needed: float
-    # Round-tripped from TaskInput.task_type (see task_schemas.py) so the
-    # frontend can tell exam-prep sessions apart from assignment sessions
-    # purely from schedule.tasks[taskId] - see PROJECT CONTEXT.md Section 5d.
+    # Round-tripped from TaskInput.task_type
     task_type: Literal["assignment", "exam"] = "assignment"
 
 
@@ -82,21 +75,7 @@ class ScheduleResponse(BaseModel):
 
 
 class RescheduleRequest(BaseModel):
-    """
-    Input for POST /study-planner/reschedule.
-
-    DESIGN NOTE: StudyScheduler can't persist between stateless HTTP requests
-    (see schedule_service.reschedule()'s docstring), so this request carries
-    everything needed to reconstruct an equivalent scheduler:
-      - previous_schedule.tasks: the task registry from the prior response
-        (includes weight, so every task round-trips straight into add_task()).
-      - remaining_free_slots: whatever free-slot capacity is still
-        unallocated. This is NOT part of ScheduleResponse (generate_schedule()
-        only returns schedule/overload_warning/tasks), so the caller must
-        track and resend it - typically by having the frontend cache the
-        weekly_free_slots it originally sent and subtract what generate_schedule()
-        placed, or by a session/cache layer doing the same server-side.
-    """
+    """Input for POST /study-planner/reschedule."""
 
     previous_schedule: ScheduleResponse = Field(..., description="The prior /schedule or /reschedule response.")
     remaining_free_slots: List[FreeSlot] = Field(
@@ -107,21 +86,7 @@ class RescheduleRequest(BaseModel):
     blocked_slots: Optional[List[BlockedSlot]] = Field(None, description="Manually booked ranges to keep free of generated sessions.")
 
 
-# ---------------------------------------------------------------------------
 # Rolling multi-week scheduling (PROJECT CONTEXT.md Section 8d)
-# ---------------------------------------------------------------------------
-# DESIGN CHOICE: a separate endpoint, not optional parameters bolted onto
-# /schedule. ScheduleResponse.schedule is keyed by weekday NAME (Monday..
-# Sunday, one week only); a multi-week result is keyed by real ISO DATE
-# across many weeks and needs extra fields /schedule callers never expect
-# (weeks_generated, range_start/end, weeks_allocated per task). Reusing
-# /schedule's existing, already-documented single-week contract for both
-# shapes (via an optional flag) would make every existing caller's response
-# type conditional on a request flag - a new endpoint with its own explicit
-# response shape is simpler to reason about and doesn't risk the current
-# single-week callers (used for the actual currently-viewed week, still the
-# only source of the LIVE-adjustable /reschedule flow) breaking if this one
-# changes.
 
 class MultiWeekScheduleRequest(BaseModel):
     """Input for POST /study-planner/multi-week-schedule."""

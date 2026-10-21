@@ -1,11 +1,4 @@
-"""
-cluster_service.py
-
-Loads the trained K-Means behavioral-clustering model and scaler ONCE at
-module import time, and exposes predict_cluster() for the study-planner API.
-
-Reuses the exact artifacts produced by ml_scripts/study-planner/cluster_study_behavior.py.
-"""
+"""cluster_service.py"""
 
 import logging
 import os
@@ -21,15 +14,7 @@ MODELS_DIR = os.path.join(BACKEND_DIR, "app", "models", "study_planner")
 KMEANS_MODEL_PATH = os.path.join(MODELS_DIR, "kmeans_model.joblib")
 KMEANS_SCALER_PATH = os.path.join(MODELS_DIR, "kmeans_scaler.joblib")
 
-# The K-Means model was fit on 6 features, NOT all 7 behavioral columns -
-# cluster_study_behavior.py deliberately excludes has_vle_activity from the
-# clustered feature space (see that script's section 3): students with
-# has_vle_activity == 0 are behaviorally degenerate (avg_weekly_clicks,
-# clicks_trend, active_weeks_ratio are all exactly 0 for them), and including
-# them in KMeans caused it to isolate them as a trivial outlier "cluster" for
-# every k tried, rather than finding real behavioral segments among everyone
-# else. That script set those ~49 students aside with a fixed label instead.
-# We reproduce that same rule here at inference time.
+# The K-Means model was fit on 6 features, NOT all 7 behavioral columns
 CLUSTER_FEATURE_ORDER = [
     "avg_weekly_clicks", "clicks_trend", "active_weeks_ratio",
     "prior_avg_score", "num_of_prev_attempts", "studied_credits",
@@ -39,12 +24,7 @@ ALL_INPUT_FEATURES = CLUSTER_FEATURE_ORDER + ["has_vle_activity"]
 NO_ACTIVITY_LABEL = "No VLE Engagement Data"
 NO_ACTIVITY_CLUSTER_ID = -1
 
-# Hardcoded cluster_id -> human-readable name mapping, taken directly from
-# the printed output of cluster_study_behavior.py's section 6
-# (LABEL CLUSTERS FROM CENTROID CHARACTERISTICS) the last time it was run
-# against the full OULAD dataset with k=6 (chosen by silhouette score there).
-# If cluster_study_behavior.py is re-run and produces a different k or
-# different centroid characteristics, this mapping must be updated to match.
+# Cluster id -> readable name (from cluster_study_behavior.py output)
 CLUSTER_NAMES = {
     0: "High-Performing Low-Engagement Light-Workload Studier",
     1: "High-Performing Engaged Fading-Effort Studier",
@@ -79,13 +59,7 @@ except Exception:
 
 
 def predict_cluster(behavior_features: dict) -> dict:
-    """
-    behavior_features: dict with keys avg_weekly_clicks, clicks_trend,
-    active_weeks_ratio, has_vle_activity, prior_avg_score,
-    num_of_prev_attempts, studied_credits (the 7 behavioral columns used in
-    cluster_study_behavior.py).
-    Returns {"cluster_id": int, "cluster_label": str}.
-    """
+    """behavior_features"""
     if not isinstance(behavior_features, dict):
         raise ClusterServiceError("behavior_features must be a dict of feature_name -> value.")
 

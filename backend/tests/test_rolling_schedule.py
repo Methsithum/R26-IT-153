@@ -1,7 +1,4 @@
-"""
-Regression tests for the rolling multi-week scheduler (PROJECT CONTEXT.md
-Section 8d) - generate_rolling_schedule() in schedule_engine.py.
-"""
+"""Regression tests for the rolling multi-week scheduler"""
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -34,10 +31,7 @@ def _total_scheduled_hours(schedule_by_date, task_id):
 
 
 class TestBacklogCarryoverCorrectness:
-    """A task needing more hours than fit in one week must have its
-    remaining hours carried into later weeks with no duplication or loss -
-    total hours scheduled across all weeks must sum exactly to
-    estimated_hours_needed (Section 4c / Section 5)."""
+    """Overflow hours must carry into later weeks without loss or duplication."""
 
     def test_a_task_too_big_for_one_week_carries_into_the_next(self):
         anchor = date(2026, 8, 31)  # Monday
@@ -65,8 +59,7 @@ class TestBacklogCarryoverCorrectness:
         result = generate_rolling_schedule(free_slots, tasks, anchor_date=anchor)
         total = _total_scheduled_hours(result["schedule"], "t1")
         assert total == pytest.approx(20.0)
-        # No single day should carry more than one day's real capacity (1h) for this task -
-        # a duplication bug would double-book the same slot.
+        # No single day should carry more than one day's real capacity
         for day_items in result["schedule"].values():
             day_minutes_for_t1 = sum(i["duration_minutes"] for i in day_items if i["task_id"] == "t1")
             assert day_minutes_for_t1 <= 60, f"A single day scheduled {day_minutes_for_t1} min for t1 - exceeds the 1h/day free capacity, suggests duplication."
@@ -85,10 +78,7 @@ class TestBacklogCarryoverCorrectness:
 
 
 class TestCurrentWeekRegressionCheck:
-    """Section 4a: the current (first) week's actual session placements must
-    exactly match what a plain single-week StudyScheduler.generate_schedule()
-    call would have produced for the same tasks/slots - the rolling wrapper
-    must not change week-0 behavior."""
+    """Section 4a"""
 
     def test_week_0_placements_match_plain_single_week_scheduler(self):
         anchor = date(2026, 8, 31)
@@ -107,8 +97,7 @@ class TestCurrentWeekRegressionCheck:
             single_scheduler.add_task(dict(t))
         single_result = single_scheduler.generate_schedule()
 
-        # Re-key the single-week (weekday-named) result onto real dates the
-        # same way the rolling wrapper does, then compare directly.
+        # Re-key the single-week
         from schedule_engine import resolve_day_date
         single_by_date = {}
         for day_name, items in single_result["schedule"].items():
@@ -122,7 +111,6 @@ class TestCurrentWeekRegressionCheck:
             "the multi-week extension changed current-week behavior."
         )
         # With weeks_ahead=1 forced, overload reporting should also match exactly
-        # (no future weeks exist to defer shortfalls into).
         assert {w["task_id"] for w in rolling_result["overload_warning"]} == {w["task_id"] for w in single_result["overload_warning"]}
 
 
@@ -156,15 +144,7 @@ class TestMaxWeeksAheadCap:
 
 
 class TestExamPrepEscalationAcrossWeeks:
-    """
-    Exam-prep escalation (Section 8a) is computed client-side per week (one
-    task per (exam, week) pair - see PROJECT CONTEXT.md Section 8d), so the
-    backend's job is simply to apply the SAME generic backlog-carryover
-    logic to those chunks as any other task. This test simulates that
-    calling pattern: a light week-0 chunk and a heavier week-1 chunk for the
-    same exam, confirming both get scheduled appropriately and week-1's
-    chunk is not starved by week-0's leftover.
-    """
+    """Exam-prep escalation"""
 
     def test_later_heavier_exam_prep_chunk_still_gets_scheduled(self):
         anchor = date(2026, 8, 31)
@@ -182,26 +162,14 @@ class TestExamPrepEscalationAcrossWeeks:
         assert result["overload_warning"] == []
 
 
-# ===========================================================================
-# Part A: full-correctness verification over a realistic 3+ week horizon
-# ===========================================================================
+# Part A
 _SCENARIO_ANCHOR = date(2026, 8, 31)  # Monday, arbitrary fixed date for reproducibility
 _SCENARIO_WEEKS_AHEAD = 4
 _SCENARIO_HOURS_PER_DAY = 1.5  # 90 min/day = 10.5h/week - deliberately scarce (see class docstring)
 
 
 def _build_exam_prep_chunks(exam_id, module, exam_date_iso, anchor, total_budget_hours, weeks_ahead):
-    """
-    Standalone Python re-implementation of buildMultiWeekExamPrepTasks()
-    (frontend/src/utils/examPrepScheduling.js) using the ALREADY-PORTED,
-    already-tested curve math in sensitivity_analysis.py (compute_exam_prep_hours_for_day,
-    PROD_EXAM_CURVE) - not a third reimplementation of the curve itself, just
-    the per-week chunking loop around it, for building a realistic multi-week
-    exam-prep task list in a backend-only test (no frontend/JS involved).
-    One priority_label is computed once for the whole exam (matching real
-    examPrepScheduling.js behavior - only the HOURS escalate per week, not
-    the priority tier).
-    """
+    """Standalone Python re-implementation of buildMultiWeekExamPrepTasks()"""
     exam_date = datetime.strptime(exam_date_iso, "%Y-%m-%d").date()
     exam_days = (exam_date - anchor).days
     if exam_days < 0:
@@ -232,21 +200,14 @@ def _build_exam_prep_chunks(exam_id, module, exam_date_iso, anchor, total_budget
             "priority_label": priority_label,
             "estimated_hours_needed": hours,
             "task_type": "exam",
-            # Mirrors examPrepScheduling.js's not_before_date (PROJECT
-            # CONTEXT.md Section 8e) - without it every chunk shares the
-            # exam's own single deadline_date, so a week with idle free
-            # capacity front-loads a later, heavier chunk well before its
-            # own week - see TestFrontLoadingBugFix below for the dedicated
-            # regression test that caught this for real.
+            # Mirrors examPrepScheduling.js's not_before_date
             "not_before_date": (anchor + timedelta(days=window_start)).isoformat(),
         })
     return chunks
 
 
 def _free_slots_fractional(hours_per_day, days=DAY_ORDER):
-    """Like _free_slots() but supports a fractional hours-per-day (e.g. 1.5h),
-    computing duration_minutes directly instead of formatting an end_time
-    string (which only supports whole hours)."""
+    """Like _free_slots() but supports a fractional hours-per-day"""
     minutes = round(hours_per_day * 60)
     return [
         {"day": d, "start_time": "18:00", "end_time": "20:00", "duration_minutes": minutes}
@@ -255,15 +216,7 @@ def _free_slots_fractional(hours_per_day, days=DAY_ORDER):
 
 
 def _build_three_week_scenario():
-    """
-    A realistic mix spanning 4 weeks: 4 assignments (this week / week 2 /
-    week 3 / week 4, varied priority) + 2 exams inside the 2-3 week range
-    (a "mid" and a "final", different budgets) with real, curve-computed
-    per-week chunks - plus deliberately scarce free time (10.5h/week over 4
-    weeks = 42h capacity vs. ~51.6h total demand) so a genuine shortfall is
-    guaranteed, exercising the overload-correctness check for real rather
-    than only the happy path.
-    """
+    """A realistic mix spanning 4 weeks"""
     anchor = _SCENARIO_ANCHOR
     free_slots = _free_slots_fractional(_SCENARIO_HOURS_PER_DAY)
 
@@ -297,18 +250,10 @@ def _week_index_for_date(date_iso, anchor):
 
 
 class TestThreeWeekHorizonFullCorrectness:
-    """
-    Part A: rigorous, non-visual verification of the rolling scheduler over
-    a realistic 4-week scenario (4 assignments across weeks 1-4, 2 exams
-    with real curve-computed multi-week chunks, deliberately scarce free
-    time so a genuine overload is guaranteed) - every check is a real
-    assertion on the actual numbers, not a visual inspection.
-    """
+    """Part A"""
 
     def test_1_completeness_no_task_silently_loses_hours(self, three_week_scenario):
-        """Scheduled hours + overload-reported hours must sum EXACTLY to
-        estimated_hours_needed for every task - if this fails, some hours
-        vanished from both the schedule AND the warning (silent data loss)."""
+        """Scheduled hours + overload-reported hours must sum EXACTLY to estimated_hours_needed for every task"""
         result, all_tasks, *_ = three_week_scenario
         overload_by_task = {w["task_id"]: w["hours_short"] for w in result["overload_warning"]}
 
@@ -344,15 +289,7 @@ class TestThreeWeekHorizonFullCorrectness:
                 )
 
     def test_4_exam_escalation_is_non_decreasing_across_week_boundaries(self, three_week_scenario):
-        """
-        For each exam, total REAL per-week hours (aggregated by actual
-        scheduled date, not by which chunk task_id nominally "belongs" to a
-        week - backlog carryover can shift a chunk's hours into a later
-        real week than it was built for) must never decrease week over
-        week, consistent with the documented escalation curve. This is
-        specifically checking the interaction between carryover and
-        escalation across week BOUNDARIES, the case most likely to hide a bug.
-        """
+        """For each exam, total REAL per-week hours"""
         result, all_tasks, exam_chunks_e1, exam_chunks_e2, _ = three_week_scenario
         anchor = _SCENARIO_ANCHOR
 
@@ -375,18 +312,7 @@ class TestThreeWeekHorizonFullCorrectness:
                 )
 
     def test_5_overload_only_fires_when_the_affected_week_was_genuinely_full(self, three_week_scenario):
-        """
-        Cross-checks every overload_warning entry: the capacity actually
-        AVAILABLE to that task before its own deadline (i.e. every day from
-        its deadline week's start up to and including the deadline date
-        itself - the same eligible-slots window StudyScheduler._slot_date
-        enforces; days AFTER the deadline are never eligible for this task,
-        so they must not count toward its "was there room" capacity) must
-        have been essentially fully consumed (by this task and/or any other
-        tasks competing for the same days) - if meaningful capacity was left
-        idle within that window while the task was still reported short,
-        that's a bug (a task got dropped/misrouted), not genuine scarcity.
-        """
+        """Cross-checks every overload_warning entry"""
         result, all_tasks, _, _, free_slots = three_week_scenario
         anchor = _SCENARIO_ANCHOR
         # Recurring weekly capacity per real weekday name (e.g. "Monday" -> 90).
@@ -403,9 +329,7 @@ class TestThreeWeekHorizonFullCorrectness:
             week_idx = _week_index_for_date(w["deadline_date"], anchor)
             week_start = anchor + timedelta(days=7 * week_idx)
             deadline = datetime.strptime(w["deadline_date"], "%Y-%m-%d").date()
-            # Every real date from the start of the task's deadline week up
-            # to (and including) the deadline itself - the exact window
-            # StudyScheduler considers eligible for this task.
+            # Dates from the deadline week start up to the deadline
             eligible_dates = []
             d = week_start
             while d <= deadline:
@@ -419,8 +343,7 @@ class TestThreeWeekHorizonFullCorrectness:
                 if date.fromisoformat(date_str) in eligible_dates
                 for item in items
             )
-            # Allow a small slack (< 15 min) for a window whose last few
-            # minutes of capacity couldn't fit any remaining task's minimum grain.
+            # Allow < 15 min slack for leftover capacity.
             assert used_minutes >= available_minutes - 15, (
                 f"Task {w['task_id']} (deadline {w['deadline_date']}) was reported {w['hours_short']}h short, "
                 f"but only {used_minutes} of {available_minutes} minutes available to it (days "
@@ -429,31 +352,10 @@ class TestThreeWeekHorizonFullCorrectness:
             )
 
 
-# ===========================================================================
-# Part: front-loading bug fix (not_before_date / Section 8e)
-#
-# Real bug found live: a "lab" exam 20 days out, with generous free time and
-# NO other competing tasks, had ALL THREE of its escalating weekly chunks
-# (w0=1.5h, w1=2.25h, w2=3.5h - the heaviest, right before the exam) show up
-# in week 0's `weeks_allocated`, because every chunk shared the exam's own
-# single real deadline_date and week 0 had plenty of idle capacity to absorb
-# all of them immediately - collapsing the whole escalating-urgency curve
-# into "do it all right now" instead of spreading heavier prep closer to the
-# exam. Root cause: generate_rolling_schedule() had no way to know a chunk
-# was built specifically for a LATER week and shouldn't be eligible before
-# it. Fixed by giving each TaskInput an optional not_before_date and
-# checking it alongside deadline_date when building each week's task pool.
-# ===========================================================================
+# Part
 class TestFrontLoadingBugFix:
     def _scenario(self):
-        """
-        Deliberately GENEROUS free time (3h/day = 21h/week) and a SINGLE lab
-        exam 20 days out with no other competing tasks - the exact
-        conditions that exposed the real bug (scarce-capacity scenarios like
-        three_week_scenario above accidentally masked it, since competing
-        higher-priority tasks already consumed each week's early capacity,
-        forcing later chunks to spill into later weeks "by luck").
-        """
+        """Deliberately GENEROUS free time"""
         anchor = date(2026, 8, 31)  # Monday
         free_slots = _free_slots_fractional(3.0)  # 3h/day every day
         chunks = _build_exam_prep_chunks("lab1", "MOB", (anchor + timedelta(days=20)).isoformat(), anchor, 7.2, 12)
@@ -475,8 +377,7 @@ class TestFrontLoadingBugFix:
             )
 
     def test_full_hours_still_placed_exactly_once_each(self):
-        """The fix must not cause any hours to go missing or duplicate - each
-        chunk's full estimated_hours_needed should land, once, in its own week."""
+        """The fix must not cause any hours to go missing or duplicate"""
         result, chunks, anchor = self._scenario()
         for chunk in chunks:
             tid = chunk["task_id"]
@@ -487,12 +388,7 @@ class TestFrontLoadingBugFix:
         assert result["overload_warning"] == [], "Generous free time - nothing should be short."
 
     def test_without_not_before_date_the_bug_reproduces(self):
-        """
-        Sanity check that this test actually exercises the real bug (and
-        isn't accidentally passing for an unrelated reason): stripping
-        not_before_date from the same chunks must reproduce the original
-        front-loaded-into-week-0 behavior.
-        """
+        """Sanity check that this test actually exercises the real bug"""
         anchor = date(2026, 8, 31)
         free_slots = _free_slots_fractional(3.0)
         chunks = _build_exam_prep_chunks("lab1", "MOB", (anchor + timedelta(days=20)).isoformat(), anchor, 7.2, 12)

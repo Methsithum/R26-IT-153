@@ -1,20 +1,4 @@
-"""
-explain_priority_shap.py
-
-SHAP explainability for the trained Priority classifier (High / Medium / Low).
-
-Loads the already-trained model (priority_model.joblib, an XGBoost classifier
-saved by train_priority_model.py) plus the same leakage-free dataset it was
-trained on, re-derives the identical 80/20 stratified train/test split
-(random_state=42) so SHAP is computed on the held-out TEST set only, then
-produces global (summary/bar) and per-row explanations.
-
-Run independently with:
-    venv/Scripts/python ml_scripts/study-planner/explain_priority_shap.py
-
-Requires train_priority_model.py to have already been run once (its outputs
-are the inputs here) - this script checks for and reports that clearly.
-"""
+"""explain_priority_shap.py"""
 
 import json
 import os
@@ -29,9 +13,7 @@ from sklearn.model_selection import train_test_split
 
 matplotlib.use("Agg")
 
-# ---------------------------------------------------------------------------
 # Paths
-# ---------------------------------------------------------------------------
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 
@@ -56,9 +38,7 @@ def section(title):
     print("=" * 90)
 
 
-# ===========================================================================
-# 0. CHECK REQUIRED INPUT FILES EXIST
-# ===========================================================================
+# 0.
 section("0. CHECK REQUIRED INPUT FILES")
 
 required_files = {
@@ -76,9 +56,7 @@ if missing:
 print("All required input files found.")
 
 
-# ===========================================================================
-# 1. LOAD MODEL, SCALER, ENCODERS, AND DATA
-# ===========================================================================
+# 1.
 section("1. LOAD MODEL, SCALER, ENCODERS, AND DATA")
 
 model = joblib.load(MODEL_PATH)
@@ -86,12 +64,7 @@ scaler = joblib.load(SCALER_PATH)
 label_encoders = joblib.load(LABEL_ENCODERS_PATH)
 print(f"Loaded model: {type(model).__name__}")
 
-# The saved model is an XGBClassifier. In train_priority_model.py, XGBoost was
-# trained on the RAW (unscaled) feature matrix - scaler.joblib was only ever
-# applied for Logistic Regression / SVM / KNN. Feeding scaled data into this
-# XGBoost model would silently mismatch what it learned, so we deliberately
-# do NOT apply the scaler here, even though it's loaded (kept for parity with
-# the "load scaler" requirement and in case a future scaled model is swapped in).
+# The saved model is an XGBClassifier.
 is_xgboost = type(model).__name__ == "XGBClassifier"
 xgb_label_encoder = None
 if is_xgboost:
@@ -106,8 +79,7 @@ df = pd.read_csv(DATASET_PATH)
 print(f"Loaded leakage-free dataset: {df.shape}")
 
 feature_cols = [c for c in df.columns if c != "Priority_Label"]
-# Sanity check: the model must have been trained on exactly this feature set,
-# in this order, or SHAP attributions would be meaningless.
+# Sanity check
 if hasattr(model, "feature_names_in_"):
     assert list(model.feature_names_in_) == feature_cols, (
         "Feature mismatch between the saved model and the leakage-free dataset columns - "
@@ -118,17 +90,14 @@ print(f"Feature columns ({len(feature_cols)}): {feature_cols}")
 X = df[feature_cols]
 y = df["Priority_Label"]
 
-# Re-derive the IDENTICAL 80/20 stratified split used during training, so
-# SHAP is evaluated on the same held-out test rows the model never trained on.
+# Re-derive the IDENTICAL 80/20 stratified split used during training
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, stratify=y, random_state=RANDOM_STATE
 )
 print(f"Re-derived test set (unscaled, matching XGBoost's training input): {X_test.shape}")
 
 
-# ===========================================================================
-# 2. COMPUTE SHAP VALUES (TreeExplainer, since the model is XGBoost)
-# ===========================================================================
+# 2.
 section("2. COMPUTE SHAP VALUES ON THE TEST SET")
 
 import shap  # imported after the file-existence checks so a missing dependency fails fast with a clear message above
@@ -139,8 +108,6 @@ shap_values = explainer(X_test)
 print(f"SHAP values shape: {shap_values.values.shape}  (rows, features, classes)")
 
 # shap_values.values is (n_rows, n_features, n_classes) for multiclass XGBoost.
-# Map class index -> class name using the xgb_label_encoder's ordering (the
-# order XGBoost's internal class axis follows).
 if xgb_label_encoder is not None:
     class_names_by_index = list(xgb_label_encoder.classes_)
 else:
@@ -149,9 +116,7 @@ high_idx = class_names_by_index.index("High")
 print(f"SHAP class axis order: {class_names_by_index} (High priority is index {high_idx})")
 
 
-# ===========================================================================
-# 3. GLOBAL EXPLAINABILITY PLOTS
-# ===========================================================================
+# 3.
 section("3. SAVE GLOBAL SHAP PLOTS")
 
 # --- shap_summary_plot.png: beeswarm for the High priority class ---
@@ -187,26 +152,12 @@ plt.close()
 print("Saved shap_bar_plot.png (overall feature importance ranking).")
 
 
-# ===========================================================================
-# 4. PER-ROW EXPLANATION HELPER
-#    This is the function the backend API will call to show students WHY a
-#    task was prioritized a certain way.
-# ===========================================================================
+# 4.
 section("4. PER-ROW EXPLANATION HELPER")
 
 
 def explain_single_prediction(row_features):
-    """
-    Explain one prediction.
-
-    row_features: a pandas Series or single-row DataFrame containing the
-    model's feature columns (same names/order as `feature_cols`).
-
-    Returns: (predicted_label: str, contributions: dict[str, float]) where
-    contributions maps each feature name to its SHAP contribution toward the
-    PREDICTED class for this specific row (positive = pushed prediction
-    toward that class, negative = pushed away from it).
-    """
+    """Explain one prediction."""
     if isinstance(row_features, pd.Series):
         row_df = row_features.to_frame().T[feature_cols]
     else:
@@ -265,9 +216,7 @@ with open(os.path.join(OUTPUTS_DIR, "sample_shap_explanations.json"), "w") as f:
 print(f"\nSaved sample_shap_explanations.json with {len(sample_explanations)} example explanations.")
 
 
-# ===========================================================================
-# 6. SUMMARY
-# ===========================================================================
+# 6.
 section("6. SUMMARY")
 top_feature = feature_cols[importance_order[-1]]
 print(f"""

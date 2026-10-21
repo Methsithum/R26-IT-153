@@ -28,14 +28,11 @@ export default function AddAcademicData() {
 
   const [form, setForm] = useState({
     module: modules[0]?.code || "AAA",
-    // No longer a form field - fixed at "TMA" and only used internally, for
-    // the ML feature row's assessment_type_enc and the title fallback below.
+    // No longer a form field
     assessmentType: "TMA",
     title: "",
     weight: DEFAULT_ASSIGNMENT_WEIGHT,
-    // Pre-fill with the module's real grade if known, else the model's own
-    // neutral "no data" value (Section 17) - not an arbitrary guess. Still
-    // student-editable, this is only the starting value shown in the field.
+    // Pre-fill with the module's real grade if known, else the model's own neutral "no data" value
     currentGrade: modules[0]?.hasGradeData ? modules[0].currentGrade : Math.round(DEFAULT_PRIOR_AVG_SCORE),
     deadline: "",
     difficulty: "Moderate",
@@ -58,9 +55,7 @@ export default function AddAcademicData() {
     setResult(null);
     try {
       const featureRow = {
-        // Mapped onto the model's real trained `date` range (12-261) — a
-        // raw "days remaining" value would be badly out-of-distribution.
-        // See buildDateFeatureFromDeadline in utils/featureNameMap.js.
+        // Mapped onto the model's real trained `date` range
         date: buildDateFeatureFromDeadline(form.deadline),
         weight: Number(form.weight),
         ...NEUTRAL_FEATURE_DEFAULTS,
@@ -76,11 +71,7 @@ export default function AddAcademicData() {
       const module = modules.find((m) => m.code === form.module);
       const title = form.title || `${form.assessmentType} — ${module?.name || form.module}`;
 
-      // Persist as a real task in the journal's tasks collection so it
-      // survives the next login/sync instead of only living in this
-      // browser's local state (see task_routes.py). Falls back to a
-      // local-only id if the write fails (e.g. offline) — the form still
-      // works, it just won't survive a refresh in that case.
+      // Persist as a real task in the journal's tasks collection so it survives the next login/sync
       let taskId = `task-${form.module.toLowerCase()}-${Date.now()}`;
       try {
         const created = await createRealTask({

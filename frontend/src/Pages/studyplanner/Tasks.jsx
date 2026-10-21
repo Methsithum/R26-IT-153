@@ -27,10 +27,7 @@ export default function Tasks() {
   const [completingId, setCompletingId] = useState(null);
   const [completeError, setCompleteError] = useState(null);
 
-  // schedule.tasks[taskId].priority_label already reflects the hybrid
-  // deadline+ML priority (priorityEngine.js, PROJECT CONTEXT.md Section 5d)
-  // - applied once at the API boundary in useWeeklySchedule() - so no
-  // separate computeFinalPriority call is needed here.
+  // schedule.tasks[taskId].priority_label already reflects the hybrid deadline+ML priority
   const withPriority = useMemo(
     () => assignments.map((a) => ({ ...a, priority: schedule?.tasks?.[a.taskId]?.priority_label })),
     [assignments, schedule]
@@ -45,22 +42,13 @@ export default function Tasks() {
     return true;
   });
 
-  // Completed tasks never sit in the main card grid (see CompletedTaskList) -
-  // once done, a full card competing for space with still-open work isn't
-  // useful; the compact list below just needs the on-time/late outcome.
-  // Active ones are sorted nearest-deadline-first so what needs attention
-  // soonest is grouped together at the top, instead of sitting in whatever
-  // order the journal happened to return tasks in.
+  // Completed tasks never sit in the main card grid
   const activeTasks = filtered
     .filter((a) => a.status !== "completed")
     .sort((a, b) => a.deadlineDate.localeCompare(b.deadlineDate));
   const completedTasks = filtered.filter((a) => a.status === "completed");
 
-  // completeTask() now writes to the real database FIRST (see
-  // useAcademicStore.js) - only once that succeeds do we celebrate/bump the
-  // streak/kick off a reschedule. On failure the UI must NOT show
-  // "completed" while the database still disagrees, so this surfaces a
-  // retryable error instead of updating anything optimistically.
+  // completeTask() now writes to the real database FIRST
   async function handleComplete(taskId) {
     const task = assignments.find((a) => a.taskId === taskId);
     setCompletingId(taskId);

@@ -1,9 +1,4 @@
-"""
-Tests for the permission-first missed-session flow (session_service.py) and
-for blocked_slots in the scheduler (schedule_engine.py's apply_blocked_slots),
-which is what stops a generated plan from double-booking a slot the student
-manually moved a missed session into.
-"""
+"""Tests for the permission-first missed-session flow"""
 from datetime import date
 
 from app.services.study_planner.session_service import (

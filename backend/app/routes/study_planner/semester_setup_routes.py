@@ -1,20 +1,4 @@
-"""
-semester_setup_routes.py
-
-The student's one-time "Semester setup" - the real values behind four
-priority-model features that previously had to be fixed placeholders:
-
-  semester_start / semester_end -> module_presentation_length
-  registered_on                 -> date_registration
-  subjects[s].credits           -> studied_credits (total load)
-  subjects[s].prev_attempts     -> num_of_prev_attempts (per subject)
-
-Stored on the user's own document (users.study_planner_setup) through
-UserModel, the same pattern task_routes.py uses to write an assignment's
-weight onto the journal's task documents. The raw answers are stored as
-given; scaling them onto the model's training range happens where the
-feature row is built (frontend/src/utils/semesterSetup.js).
-"""
+"""semester_setup_routes.py"""
 
 from datetime import date
 from typing import Dict, Optional

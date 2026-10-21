@@ -1,11 +1,4 @@
-"""
-todo_service.py
-
-Thin wrapper around ml_scripts/study-planner/generate_todo_output.py's
-build_todo_list() for the study-planner API. The to-do/reminder-formatting
-LOGIC stays in that one script; this file only adds it to sys.path and
-re-exposes it with the same behavior for route handlers to call.
-"""
+"""todo_service.py"""
 
 import logging
 import os
@@ -34,12 +27,7 @@ class TodoServiceError(Exception):
 
 
 def get_todo_list(schedule_result: dict, today: date = None) -> list:
-    """
-    schedule_result: a dict shaped like StudyScheduler.generate_schedule()'s
-    output (schedule + overload_warning + tasks registry) - e.g. the response
-    from POST /study-planner/schedule or /study-planner/reschedule.
-    Returns a list of to-do entries, same shape/behavior as the script version.
-    """
+    """schedule_result"""
     if _build_todo_list is None:
         raise TodoServiceError("To-do formatting logic is not available - check server startup logs.")
 
