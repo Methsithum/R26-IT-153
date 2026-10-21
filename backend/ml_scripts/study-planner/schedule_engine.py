@@ -1,26 +1,6 @@
 """
 schedule_engine.py
 
-Rule-based Adaptive Scheduling Engine for the Smart Uni Guide study planner.
-
-MVP NOTE: The long-term objective for this component is an adaptive
-scheduler, and a full reinforcement-learning (RL) formulation (states =
-student/calendar context, actions = slot assignments, reward = on-time
-completion / spaced-practice quality) is real future work. Standing up an RL
-training loop, simulator, and reward model is a large, separate undertaking
-that needs its own data collection pass; it is out of scope here. This
-script instead builds a well-justified GREEDY rule-based allocator that
-already satisfies the core product requirement - "assign study time by
-priority and deadline, and adjust when new information arrives" - and can
-later be swapped for a learned policy behind the same StudyScheduler
-interface (generate_schedule / reschedule) without changing calling code.
-
-Run independently with:
-    venv/Scripts/python ml_scripts/study-planner/schedule_engine.py
-
-The __main__ demo loads the trained priority_model.joblib (+ scaler,
-label_encoders) to predict priority for sample tasks, so it requires
-train_priority_model.py to have already been run once.
 """
 
 import json
